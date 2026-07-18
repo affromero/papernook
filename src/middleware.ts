@@ -20,7 +20,7 @@ const PUBLIC_PATHS = [
 export const config = {
   runtime: "nodejs",
   matcher: [
-    "/((?!_next/|avatars/|favicon\\.ico|manifest\\.webmanifest|sw\\.js).*)",
+    "/((?!_next/|avatars/|favicon\\.ico|icon\\.svg|apple-icon\\.png|logo\\.(?:svg|png)|manifest\\.webmanifest|sw\\.js).*)",
   ],
 };
 

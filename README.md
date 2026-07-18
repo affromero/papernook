@@ -1,6 +1,8 @@
 <div align="center">
 
-# 📚 papernook
+<img src="public/logo.svg" alt="papernook logo" width="130" />
+
+# papernook
 
 ### Your papers, annotated and understood, on your own server.
 

@@ -13,9 +13,7 @@ export function GET(): NextResponse {
       description: "Your papers, annotated and understood, on your own server.",
       themeColor: "#3f4fb0",
       backgroundColor: "#f5f4f0",
-      icons: [
-        { src: "/avatars/capybara.png", sizes: "512x512", type: "image/png" },
-      ],
+      icons: [{ src: "/logo.png", sizes: "512x512", type: "image/png" }],
     }),
     { headers: { "content-type": "application/manifest+json" } },
   );
