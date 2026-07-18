@@ -94,9 +94,9 @@ export default async function SettingsPage() {
         <h2>Invite a friend</h2>
         <ol>
           <li>
-            Give them access: a Tailscale invite to this network (private mode),
-            or the public URL if this server is exposed; they will set a
-            password on first login.
+            Send them the URL and the access password (in Infisical as{" "}
+            <code>PAPERNOOK_PASSWORD</code>). On a private/Tailscale setup there
+            is no password; just send the address.
           </li>
           <li>
             They open papernook → <strong>Add profile</strong> on the picker.
@@ -115,7 +115,7 @@ export default async function SettingsPage() {
           Scan from the iPad or phone to open papernook and add it to the home
           screen. Private-first: Tailscale or same Wi-Fi.
         </p>
-        <DevicePanel />
+        <DevicePanel url={base} />
       </section>
 
       <section className={styles.card}>
