@@ -9,9 +9,18 @@ import styles from "./ModelPicker.module.css";
  * from the provider's API when reachable, curated otherwise.
  */
 
+type Readiness = "ready" | "no_key" | "not_installed" | "unreachable";
+
+const READINESS_LABEL: Record<Readiness, string> = {
+  ready: "ready",
+  no_key: "needs API key",
+  not_installed: "CLI not installed",
+  unreachable: "SSH host not answering",
+};
+
 interface AgentState {
   provider: string | null;
-  providers: string[];
+  statuses: Record<string, Readiness>;
   model: string | null;
   suggestions: string[];
   liveList: boolean;
@@ -67,15 +76,27 @@ export function ModelPicker() {
     <div className={styles.root}>
       <p className={styles.line}>Provider</p>
       <div className={styles.controls}>
-        {state.providers.map((p) => (
+        {Object.entries(state.statuses).map(([p, readiness]) => (
           <button
             key={p}
             type="button"
             className={state.provider === p ? styles.chipActive : styles.chip}
             onClick={() => void save({ provider: p })}
             disabled={busy}
+            title={READINESS_LABEL[readiness]}
           >
+            <span
+              className={
+                readiness === "ready" ? styles.readyDot : styles.notReadyDot
+              }
+              aria-hidden="true"
+            />
             {p}
+            {readiness !== "ready" && (
+              <span className={styles.readinessNote}>
+                {READINESS_LABEL[readiness]}
+              </span>
+            )}
           </button>
         ))}
       </div>

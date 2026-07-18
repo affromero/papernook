@@ -67,3 +67,26 @@
   opacity: 0.6;
   font-weight: 400;
 }
+
+.readyDot,
+.notReadyDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.4rem;
+}
+
+.readyDot {
+  background: #1f8a5b;
+}
+
+.notReadyDot {
+  background: #a42e2b;
+}
+
+.readinessNote {
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+  opacity: 0.6;
+}

@@ -69,14 +69,62 @@ function cliResponds(cli: string, sshHost?: string): Promise<boolean> {
 }
 
 export async function isProviderAvailable(id: ProviderId): Promise<boolean> {
+  return (await providerStatus(id)) === "ready";
+}
+
+/**
+ * flight-finder-style readiness per provider:
+ *   ready          answers now
+ *   no_key         API provider without its key
+ *   not_installed  local CLI missing
+ *   unreachable    CLI configured over SSH but not answering
+ */
+export type ProviderReadiness =
+  "ready" | "no_key" | "not_installed" | "unreachable";
+
+export async function providerStatus(
+  id: ProviderId,
+): Promise<ProviderReadiness> {
   switch (id) {
     case "anthropic":
-      return Boolean(process.env.ANTHROPIC_API_KEY);
+      return process.env.ANTHROPIC_API_KEY ? "ready" : "no_key";
     case "openai":
-      return Boolean(process.env.OPENAI_API_KEY);
-    case "claude-code":
-      return cliResponds("claude", getClaudeSshHost());
-    case "codex":
-      return cliResponds("codex", getCodexSshHost());
+      return process.env.OPENAI_API_KEY ? "ready" : "no_key";
+    case "claude-code": {
+      const ssh = getClaudeSshHost();
+      if (await cliResponds("claude", ssh)) return "ready";
+      return ssh ? "unreachable" : "not_installed";
+    }
+    case "codex": {
+      const ssh = getCodexSshHost();
+      if (await cliResponds("codex", ssh)) return "ready";
+      return ssh ? "unreachable" : "not_installed";
+    }
   }
+}
+
+let statusCache: {
+  at: number;
+  statuses: Record<ProviderId, ProviderReadiness>;
+} | null = null;
+
+/** Statuses for every provider, probed in parallel, cached for 60s. */
+export async function allProviderStatuses(): Promise<
+  Record<ProviderId, ProviderReadiness>
+> {
+  if (statusCache && Date.now() - statusCache.at < 60_000) {
+    return statusCache.statuses;
+  }
+  const ids = providerIds();
+  const results = await Promise.all(ids.map((id) => providerStatus(id)));
+  const statuses = Object.fromEntries(
+    ids.map((id, i) => [id, results[i]]),
+  ) as Record<ProviderId, ProviderReadiness>;
+  statusCache = { at: Date.now(), statuses };
+  return statuses;
+}
+
+/** Test hook / post-save refresh: drop the cached statuses. */
+export function resetProviderStatusCache(): void {
+  statusCache = null;
 }

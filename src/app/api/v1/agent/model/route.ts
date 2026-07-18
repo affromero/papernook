@@ -11,7 +11,8 @@ import { listOfferedModels } from "@/lib/agent/models";
 import {
   configuredProviderId,
   isProviderAvailable,
-  providerIds,
+  allProviderStatuses,
+  resetProviderStatusCache,
 } from "@/lib/agent/registry";
 import type { ProviderId } from "@/lib/agent/types";
 
@@ -30,12 +31,15 @@ async function snapshot(admin: boolean) {
   } catch {
     provider = null;
   }
-  const offered = provider
-    ? await listOfferedModels(provider)
-    : { models: [], live: false };
+  const [offered, statuses] = await Promise.all([
+    provider
+      ? listOfferedModels(provider)
+      : Promise.resolve({ models: [], live: false }),
+    allProviderStatuses(),
+  ]);
   return {
     provider,
-    providers: providerIds(),
+    statuses,
     model: provider ? (configuredModel(provider) ?? null) : null,
     suggestions: offered.models,
     liveList: offered.live,
@@ -68,6 +72,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
   if (body.data.provider) {
     setAgentProvider(body.data.provider);
+    resetProviderStatusCache();
   }
   if (body.data.model !== undefined) {
     setAgentModel(body.data.model?.trim() || null);
