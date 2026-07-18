@@ -1,0 +1,327 @@
+/* "Who's learning?" — a full-screen immersive gate (always dark, Netflix-style),
+   independent of the active theme. Ports SottoDesign3/sotto.css to app tokens. */
+
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background:
+    radial-gradient(70% 60% at 50% 30%, color-mix(in oklab, var(--color-primary) 16%, transparent), transparent 70%),
+    #121310;
+  color: #e9e3d3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px 96px;
+  overflow: auto;
+  animation: pickerFade 0.4s ease both;
+}
+
+@keyframes pickerFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.brand {
+  position: absolute;
+  top: 26px;
+  left: 28px;
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.heading {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: clamp(28px, 4vw, 44px);
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+.sub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #9d9684;
+  text-align: center;
+  margin: 0 0 48px;
+}
+
+.row {
+  display: flex;
+  gap: clamp(20px, 4vw, 52px);
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 900px;
+}
+
+.profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 8px;
+  color: #9d9684;
+  transition: color 0.2s ease;
+}
+
+.profile:hover:not(:disabled),
+.profile:focus-visible {
+  color: #e9e3d3;
+  outline: none;
+}
+
+.profile:disabled {
+  cursor: default;
+}
+
+.avatar {
+  width: clamp(96px, 12vw, 132px);
+  height: clamp(96px, 12vw, 132px);
+  border-radius: 18px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.4);
+  outline: 3px solid transparent;
+  outline-offset: 4px;
+  transition: outline-color 0.2s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.avatar :global(img) {
+  object-fit: cover;
+}
+
+.profile:hover:not(:disabled) .avatar,
+.profile:focus-visible .avatar {
+  transform: translateY(-6px) scale(1.03);
+  outline-color: #e9e3d3;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5);
+}
+
+.avatar.active {
+  outline-color: var(--color-primary);
+}
+
+.owner::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 2;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);
+}
+
+.editVeil {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.name {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9d9684;
+}
+
+.add .addAvatar {
+  background: transparent;
+  box-shadow: none;
+  border: 1.5px dashed #6e6857;
+  color: #9d9684;
+}
+
+.add:hover:not(:disabled) .addAvatar {
+  border-color: #e9e3d3;
+  color: #e9e3d3;
+  transform: translateY(-6px) scale(1.03);
+}
+
+.foot {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.manageBtn {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9d9684;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  min-height: 44px;
+  padding: 0 18px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.manageBtn:hover {
+  color: #e9e3d3;
+  border-color: #e9e3d3;
+}
+
+.managing .avatar {
+  outline-color: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Create / edit panel ──────────────────────────────────────────────── */
+
+.panel {
+  width: min(420px, 100%);
+  background: #1b1d17;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.panelTitle {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 24px;
+  margin: 0 0 20px;
+}
+
+.fieldLabel {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9d9684;
+  margin: 16px 0 8px;
+}
+
+.nameInput {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e9e3d3;
+  font: inherit;
+}
+
+.nameInput:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.animalGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.animalTile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  padding: 0;
+}
+
+.animalTile :global(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.animalTileSelected {
+  border-color: var(--color-primary);
+}
+
+.panelActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.primaryBtn,
+.ghostBtn,
+.dangerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.primaryBtn {
+  margin-left: auto;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ghostBtn {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #e9e3d3;
+}
+
+.dangerBtn {
+  background: transparent;
+  border-color: rgba(220, 80, 60, 0.5);
+  color: #f0a090;
+}
+
+.error {
+  color: #f0a090;
+  font-size: 13px;
+  text-align: center;
+  margin: 16px 0 0;
+}
