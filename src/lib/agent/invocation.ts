@@ -1,0 +1,43 @@
+/**
+ * Direct-or-SSH command construction for CLI-backed providers, ported from
+ * Sotto's agent-invocation.ts. When an SSH host is configured the whole
+ * argv is single-quoted and wrapped in `ssh -o BatchMode=yes -T <host> ...`.
+ */
+
+const SSH_OPTS = ["-o", "BatchMode=yes", "-T"];
+
+/** Single-quote a value for safe interpolation into a remote shell command. */
+export function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/** Resolve direct local execution or an SSH-wrapped remote agent invocation. */
+export function buildAgentInvocation(
+  cli: string,
+  args: string[],
+  sshHost?: string,
+): { command: string; args: string[] } {
+  if (!sshHost) return { command: cli, args };
+  const remote = [cli, ...args].map(shellQuote).join(" ");
+  return { command: "ssh", args: [...SSH_OPTS, sshHost, remote] };
+}
+
+/** scp local files to a remote directory (BatchMode, no prompts). */
+export function buildScpInvocation(
+  localPaths: string[],
+  sshHost: string,
+  remoteDir: string,
+): { command: string; args: string[] } {
+  return {
+    command: "scp",
+    args: ["-o", "BatchMode=yes", ...localPaths, `${sshHost}:${remoteDir}/`],
+  };
+}
+
+export function getClaudeSshHost(): string | undefined {
+  return process.env.CLAUDE_CODE_SSH_HOST || undefined;
+}
+
+export function getCodexSshHost(): string | undefined {
+  return process.env.CODEX_SSH_HOST || undefined;
+}
