@@ -1,15 +1,24 @@
 import { redirect } from 'next/navigation';
 import { activeProfile } from '@/lib/session';
+import { LibraryView } from '@/components/library/LibraryView';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage() {
+interface HomePageProps {
+  searchParams: Promise<{ q?: string; tag?: string; topic?: string }>;
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
   const profile = await activeProfile();
   if (!profile) redirect('/login');
+  const params = await searchParams;
   return (
     <main>
-      <h1>papernook</h1>
-      <p>Signed in as {profile.displayName}. The library arrives in phase 2.</p>
+      <LibraryView
+        query={params.q ?? ''}
+        activeTag={params.tag ?? null}
+        activeTopic={params.topic ?? null}
+      />
     </main>
   );
 }
