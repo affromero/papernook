@@ -12,14 +12,14 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  const { closeIndex } = await import("@/lib/index-db");
+  const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 async function libs() {
-  const papers = await import("@/lib/papers");
-  const index = await import("@/lib/index-db");
+  const papers = await import("@/lib/library/papers");
+  const index = await import("@/lib/library/index-db");
   const dataDir = await import("@/lib/data-dir");
   dataDir.ensureDataDirs();
   return { ...papers, ...index };
@@ -27,7 +27,7 @@ async function libs() {
 
 function meta(
   title: string,
-  overrides: Partial<import("@/lib/papers").PaperMeta> = {},
+  overrides: Partial<import("@/lib/library/papers").PaperMeta> = {},
 ) {
   return {
     title,
@@ -63,7 +63,7 @@ async function placePaper(
 
 describe("slugify", () => {
   it("normalizes titles into safe folder names", async () => {
-    const { slugify } = await import("@/lib/slug");
+    const { slugify } = await import("@/lib/library/slug");
     expect(slugify("Attention Is All You Need")).toBe(
       "attention-is-all-you-need",
     );
@@ -74,14 +74,14 @@ describe("slugify", () => {
   });
 
   it("caps length and never emits path separators", async () => {
-    const { slugify } = await import("@/lib/slug");
+    const { slugify } = await import("@/lib/library/slug");
     const long = slugify("x".repeat(300));
     expect(long.length).toBeLessThanOrEqual(80);
     expect(slugify("../../etc/passwd")).toBe("etc-passwd");
   });
 
   it("assertSlug rejects traversal attempts", async () => {
-    const { assertSlug } = await import("@/lib/slug");
+    const { assertSlug } = await import("@/lib/library/slug");
     expect(() => assertSlug("../escape")).toThrow();
     expect(() => assertSlug("a/b")).toThrow();
     expect(() => assertSlug("")).toThrow();

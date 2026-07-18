@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { papersRoot, libraryRoot, inboxRoot } from "./data-dir";
+import { papersRoot, libraryRoot, inboxRoot } from "../data-dir";
 import { assertSlug, isValidSlug } from "./slug";
 
 /**

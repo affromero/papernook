@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { z } from "zod";
 import { getProvider } from "../agent/registry";
-import { listTopics, listPapers } from "../papers";
+import { listTopics, listPapers } from "../library/papers";
 
 /**
  * Post-download analysis: pdftotext extraction, then one agent call that

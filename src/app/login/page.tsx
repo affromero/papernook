@@ -1,5 +1,5 @@
 import { ProfilePicker } from "@/components/profiles/ProfilePicker";
-import { listProfiles, toPublicProfile } from "@/lib/users";
+import { listProfiles, toPublicProfile } from "@/lib/auth/users";
 import { isPublicExposure } from "@/lib/data-dir";
 
 export const dynamic = "force-dynamic";

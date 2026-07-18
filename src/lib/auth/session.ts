@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
-import { sessionSecret } from "./data-dir";
+import { sessionSecret } from "../data-dir";
 import { getProfile, type Profile } from "./users";
 
 /**

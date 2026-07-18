@@ -12,7 +12,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  const { closeIndex } = await import("@/lib/index-db");
+  const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -116,7 +116,7 @@ describe("chat store round-trip", () => {
   it("creates, appends, reads back, and lists per-account chats", async () => {
     const { ensureDataDirs } = await import("@/lib/data-dir");
     ensureDataDirs();
-    const chats = await import("@/lib/chats");
+    const chats = await import("@/lib/library/chats");
 
     const header = chats.createChat("nlp", "attention", "andres", "Starter");
     chats.appendMessage("nlp", "attention", "andres", header.id, {
@@ -141,7 +141,7 @@ describe("chat store round-trip", () => {
   });
 
   it("rejects invalid chat ids (no traversal via chat id)", async () => {
-    const chats = await import("@/lib/chats");
+    const chats = await import("@/lib/library/chats");
     expect(() =>
       chats.appendMessage("nlp", "attention", "andres", "../../evil", {
         role: "user",
@@ -189,14 +189,14 @@ describe("capture orchestration (mocked download + agent)", () => {
     expect(result.slug).toBe("attention-is-all-you-need");
     expect(result.proposedTopic).toBe("transformers-attention");
 
-    const papers = await import("@/lib/papers");
+    const papers = await import("@/lib/library/papers");
     const inbox = papers.listInbox();
     expect(inbox).toHaveLength(1);
     expect(inbox[0].meta.addedBy).toBe("andres");
     expect(inbox[0].meta.arxivId).toBe("1706.03762");
     expect(inbox[0].summary).toContain("transformer");
 
-    const chats = await import("@/lib/chats");
+    const chats = await import("@/lib/library/chats");
     const seeded = chats.listChats(null, result.slug, "andres");
     expect(seeded).toHaveLength(1);
     expect(seeded[0].title).toBe("Starter questions");

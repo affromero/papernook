@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { profileForCaptureToken } from "@/lib/users";
-import { acceptFromInbox } from "@/lib/papers";
-import { slugify, isValidSlug } from "@/lib/slug";
-import { rebuildIndex } from "@/lib/index-db";
+import { profileForCaptureToken } from "@/lib/auth/users";
+import { acceptFromInbox } from "@/lib/library/papers";
+import { slugify, isValidSlug } from "@/lib/library/slug";
+import { rebuildIndex } from "@/lib/library/index-db";
 import { acceptedPage, errorPage } from "../pages";
 
 /** Accept an inbox capture into the chosen topic folder. */

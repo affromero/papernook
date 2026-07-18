@@ -18,15 +18,15 @@ afterEach(() => {
 });
 
 async function users() {
-  return import("@/lib/users");
+  return import("@/lib/auth/users");
 }
 
 async function session() {
-  return import("@/lib/session");
+  return import("@/lib/auth/session");
 }
 
 async function rateLimit() {
-  return import("@/lib/rate-limit");
+  return import("@/lib/auth/rate-limit");
 }
 
 describe("profiles on disk", () => {

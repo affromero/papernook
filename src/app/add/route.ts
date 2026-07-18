@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { profileForCaptureToken } from "@/lib/users";
+import { profileForCaptureToken } from "@/lib/auth/users";
 import { capture } from "@/lib/capture";
 import { CaptureError } from "@/lib/capture/download";
 import { confirmationPage, errorPage } from "./pages";

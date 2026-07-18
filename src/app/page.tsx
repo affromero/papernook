@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { activeProfile } from "@/lib/session";
+import { activeProfile } from "@/lib/auth/session";
 import { LibraryView } from "@/components/library/LibraryView";
 
 export const dynamic = "force-dynamic";

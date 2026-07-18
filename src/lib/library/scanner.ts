@@ -1,5 +1,5 @@
 import chokidar, { type FSWatcher } from "chokidar";
-import { papersRoot, libraryRoot, ensureDataDirs } from "./data-dir";
+import { papersRoot, libraryRoot, ensureDataDirs } from "../data-dir";
 import { rebuildIndex } from "./index-db";
 
 /**

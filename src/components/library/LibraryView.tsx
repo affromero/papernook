@@ -1,6 +1,10 @@
 import Link from "next/link";
-import { searchIndex, allTags, type IndexedPaper } from "@/lib/index-db";
-import { listTopics, listInbox } from "@/lib/papers";
+import {
+  searchIndex,
+  allTags,
+  type IndexedPaper,
+} from "@/lib/library/index-db";
+import { listTopics, listInbox } from "@/lib/library/papers";
 import styles from "./LibraryView.module.css";
 
 interface LibraryViewProps {

@@ -1,0 +1,269 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import styles from "./ChatPanel.module.css";
+
+interface ChatHeader {
+  id: string;
+  title: string;
+  createdAt: string;
+}
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  images?: string[];
+}
+
+interface ChatPanelProps {
+  topic: string;
+  slug: string;
+}
+
+export function ChatPanel({ topic, slug }: ChatPanelProps) {
+  const base = `/api/v1/papers/${topic}/${slug}`;
+  const [chats, setChats] = useState<ChatHeader[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [pastedImages, setPastedImages] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void fetch(`${base}/chats`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d: { chats?: ChatHeader[] }) => {
+        setChats(d.chats ?? []);
+        if (d.chats?.[0]) void openChat(d.chats[0].id);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic, slug]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages]);
+
+  async function openChat(id: string): Promise<void> {
+    setActiveId(id);
+    const res = await fetch(`${base}/chats/${id}`, { credentials: "include" });
+    const data = (await res.json()) as {
+      chat?: { messages: ChatMessage[] };
+    };
+    setMessages(data.chat?.messages ?? []);
+  }
+
+  async function newChat(): Promise<void> {
+    const res = await fetch(`${base}/chats`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        title: `Chat ${new Date().toLocaleDateString()}`,
+      }),
+    });
+    const data = (await res.json()) as { chat?: ChatHeader };
+    if (data.chat) {
+      setChats((c) => [data.chat as ChatHeader, ...c]);
+      setActiveId(data.chat.id);
+      setMessages([]);
+    }
+  }
+
+  function onPaste(event: React.ClipboardEvent): void {
+    for (const item of event.clipboardData.items) {
+      if (!item.type.startsWith("image/")) continue;
+      const file = item.getAsFile();
+      if (!file) continue;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          setPastedImages((imgs) =>
+            [...imgs, reader.result as string].slice(0, 4),
+          );
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  async function send(): Promise<void> {
+    const content = input.trim();
+    if (!content || busy) return;
+    let chatId = activeId;
+    if (!chatId) {
+      await newChat();
+      chatId = activeId;
+      if (!chatId) return;
+    }
+    setBusy(true);
+    setError(null);
+    setInput("");
+    const images = pastedImages;
+    setPastedImages([]);
+    setMessages((m) => [
+      ...m,
+      { role: "user", content, images: images.length ? images : undefined },
+      { role: "assistant", content: "" },
+    ]);
+    try {
+      const res = await fetch(`${base}/chats/${chatId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          content,
+          images: images.length ? images : undefined,
+        }),
+      });
+      if (!res.ok || !res.body) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? "Send failed.");
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        setMessages((m) => {
+          const next = [...m];
+          const last = next[next.length - 1];
+          next[next.length - 1] = { ...last, content: last.content + chunk };
+          return next;
+        });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Send failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveAsExercise(markdown: string): Promise<void> {
+    await fetch(`${base}/exercises`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ markdown }),
+    });
+  }
+
+  return (
+    <section className={styles.root} aria-label="Paper chat">
+      <header className={styles.header}>
+        <select
+          className={styles.chatSelect}
+          value={activeId ?? ""}
+          onChange={(e) => void openChat(e.target.value)}
+          aria-label="Previous conversations"
+        >
+          {chats.length === 0 && <option value="">No conversations yet</option>}
+          {chats.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title} · {new Date(c.createdAt).toLocaleDateString()}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className={styles.newBtn}
+          onClick={() => void newChat()}
+        >
+          + New
+        </button>
+      </header>
+
+      <div className={styles.messages} ref={scrollRef}>
+        {messages.map((message, i) => (
+          <div
+            key={i}
+            className={
+              message.role === "user" ? styles.userMsg : styles.assistantMsg
+            }
+          >
+            {message.images?.map((src, j) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={j}
+                className={styles.msgImage}
+                src={src.startsWith("data:") ? src : undefined}
+                alt="attached crop"
+              />
+            ))}
+            <p>
+              {message.content ||
+                (busy && i === messages.length - 1 ? "…" : "")}
+            </p>
+            {message.role === "assistant" && message.content && (
+              <button
+                type="button"
+                className={styles.exerciseBtn}
+                onClick={() => void saveAsExercise(message.content)}
+                title="Save as a Pencil-annotatable exercise PDF"
+              >
+                Save as exercise
+              </button>
+            )}
+          </div>
+        ))}
+        {messages.length === 0 && (
+          <p className={styles.empty}>
+            Ask anything about this paper — or paste a marked-up screenshot and
+            ask &ldquo;explain this&rdquo;.
+          </p>
+        )}
+      </div>
+
+      {error && (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+
+      {pastedImages.length > 0 && (
+        <div className={styles.pastedRow}>
+          {pastedImages.map((src, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={i}
+              className={styles.pastedThumb}
+              src={src}
+              alt="pasted"
+            />
+          ))}
+          <button type="button" onClick={() => setPastedImages([])}>
+            clear
+          </button>
+        </div>
+      )}
+
+      <div className={styles.inputRow}>
+        <textarea
+          className={styles.input}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onPaste={onPaste}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          placeholder="Ask about the paper… (paste screenshots here)"
+          rows={2}
+          disabled={busy}
+        />
+        <button
+          type="button"
+          className={styles.sendBtn}
+          onClick={() => void send()}
+          disabled={busy || input.trim().length === 0}
+        >
+          Send
+        </button>
+      </div>
+    </section>
+  );
+}

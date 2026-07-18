@@ -1,0 +1,145 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 420px;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+}
+
+.chatSelect {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background: transparent;
+  color: inherit;
+  padding: 0 0.5rem;
+}
+
+.newBtn {
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border-radius: 8px;
+  border: 1px solid rgba(63, 79, 176, 0.5);
+  background: rgba(63, 79, 176, 0.1);
+  color: inherit;
+  font-weight: 600;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.userMsg,
+.assistantMsg {
+  max-width: 88%;
+  border-radius: 12px;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
+
+.userMsg {
+  align-self: flex-end;
+  background: rgba(63, 79, 176, 0.14);
+}
+
+.assistantMsg {
+  align-self: flex-start;
+  background: rgba(127, 127, 127, 0.1);
+}
+
+.userMsg p,
+.assistantMsg p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.msgImage {
+  max-width: 220px;
+  border-radius: 8px;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.exerciseBtn {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: transparent;
+  color: inherit;
+}
+
+.empty {
+  opacity: 0.6;
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.9rem;
+}
+
+.error {
+  color: #a42e2b;
+  padding: 0 0.9rem;
+  font-size: 0.85rem;
+}
+
+.pastedRow {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.4rem 0.9rem;
+}
+
+.pastedThumb {
+  height: 44px;
+  border-radius: 6px;
+}
+
+.inputRow {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border-top: 1px solid rgba(127, 127, 127, 0.2);
+}
+
+.input {
+  flex: 1;
+  resize: none;
+  border-radius: 10px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background: transparent;
+  color: inherit;
+  padding: 0.6rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.sendBtn {
+  min-height: 44px;
+  min-width: 72px;
+  border-radius: 10px;
+  border: 0;
+  background: #3f4fb0;
+  color: #fff;
+  font-weight: 600;
+}
+
+.sendBtn:disabled {
+  opacity: 0.5;
+}

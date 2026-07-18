@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { slugify } from "../slug";
+import { slugify } from "../library/slug";
 import { ensureDataDirs } from "../data-dir";
 import {
   companionDir,
@@ -10,9 +10,9 @@ import {
   writeText,
   uniqueSlug,
   type PaperMeta,
-} from "../papers";
-import { createChat, appendMessage } from "../chats";
-import { rebuildIndex } from "../index-db";
+} from "../library/papers";
+import { createChat, appendMessage } from "../library/chats";
+import { rebuildIndex } from "../library/index-db";
 import { downloadPdf } from "./download";
 import { extractPdfText, analyzePaper, type Analysis } from "./analyze";
 

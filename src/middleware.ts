@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
 /**
  * Gate everything behind a profile session except: the login/picker page, the

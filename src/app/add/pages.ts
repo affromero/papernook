@@ -1,4 +1,4 @@
-import { listTopics } from "@/lib/papers";
+import { listTopics } from "@/lib/library/papers";
 import type { CaptureResult } from "@/lib/capture";
 
 /**

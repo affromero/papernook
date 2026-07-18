@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { activeProfile } from "@/lib/session";
+import { activeProfile } from "@/lib/auth/session";
 import styles from "./settings.module.css";
 
 export const dynamic = "force-dynamic";

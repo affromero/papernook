@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ANIMAL_AVATARS } from "@/lib/avatars";
+import { ANIMAL_AVATARS } from "@/lib/auth/avatars";
 import {
   createProfile,
   listProfiles,
   toPublicProfile,
   ProfileError,
-} from "@/lib/users";
+} from "@/lib/auth/users";
 
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json({ profiles: listProfiles().map(toPublicProfile) });

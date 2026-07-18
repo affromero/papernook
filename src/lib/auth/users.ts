@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { hash as argon2Hash, verify as argon2Verify } from "@node-rs/argon2";
-import { usersRoot, ensureDataDirs, isPublicExposure } from "./data-dir";
+import { usersRoot, ensureDataDirs, isPublicExposure } from "../data-dir";
 import { isAnimalSlug, animalForSeed } from "./avatars";
 
 /**

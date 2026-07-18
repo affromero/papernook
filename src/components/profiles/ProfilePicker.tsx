@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Plus, Check, X } from "lucide-react";
-import { ANIMAL_AVATARS } from "@/lib/avatars";
+import { ANIMAL_AVATARS } from "@/lib/auth/avatars";
 import styles from "./ProfilePicker.module.css";
 
 export interface PickerProfile {

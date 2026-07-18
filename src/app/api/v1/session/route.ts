@@ -6,14 +6,18 @@ import {
   setPassword,
   verifyPassword,
   toPublicProfile,
-} from "@/lib/users";
+} from "@/lib/auth/users";
 import {
   createSessionToken,
   sessionCookieOptions,
   SESSION_COOKIE,
   activeProfile,
-} from "@/lib/session";
-import { recordFailure, recordSuccess, retryAfterMs } from "@/lib/rate-limit";
+} from "@/lib/auth/session";
+import {
+  recordFailure,
+  recordSuccess,
+  retryAfterMs,
+} from "@/lib/auth/rate-limit";
 
 const loginSchema = z.object({
   username: z.string().min(2).max(31),
