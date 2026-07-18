@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { modelSuggestions } from "./config";
@@ -16,6 +17,41 @@ const cache = new Map<string, { at: number; models: string[] }>();
 
 async function anthropicModels(): Promise<string[]> {
   const client = new Anthropic();
+  const models: string[] = [];
+  for await (const model of client.models.list()) {
+    models.push(model.id);
+  }
+  return models;
+}
+
+/**
+ * The claude CLI's own OAuth credentials can ask the models endpoint, so a
+ * keyless claude-code install still gets the real catalog. Reads the same
+ * credential sources the CLI uses in this container.
+ */
+function claudeOauthToken(): string | null {
+  try {
+    const raw =
+      process.env.CLAUDE_CODE_CREDENTIALS_JSON ??
+      fs.readFileSync(
+        `${process.env.CLAUDE_HOME ?? process.env.HOME}/.claude/.credentials.json`,
+        "utf8",
+      );
+    const creds = JSON.parse(raw) as {
+      claudeAiOauth?: { accessToken?: string };
+      accessToken?: string;
+    };
+    return creds.claudeAiOauth?.accessToken ?? creds.accessToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function anthropicModelsViaOauth(token: string): Promise<string[]> {
+  const client = new Anthropic({
+    authToken: token,
+    defaultHeaders: { "anthropic-beta": "oauth-2025-04-20" },
+  });
   const models: string[] = [];
   for await (const model of client.models.list()) {
     models.push(model.id);
@@ -43,9 +79,22 @@ export async function listOfferedModels(
     let models: string[] | null = null;
     if (provider === "anthropic" && process.env.ANTHROPIC_API_KEY) {
       models = await anthropicModels();
-    } else if (provider === "claude-code" && process.env.ANTHROPIC_API_KEY) {
+    } else if (provider === "claude-code") {
       // The CLI serves the same catalog; aliases stay usable too.
-      models = [...modelSuggestions(provider), ...(await anthropicModels())];
+      if (process.env.ANTHROPIC_API_KEY) {
+        models = [
+          ...modelSuggestions(provider).slice(0, 3),
+          ...(await anthropicModels()),
+        ];
+      } else {
+        const token = claudeOauthToken();
+        if (token) {
+          models = [
+            ...modelSuggestions(provider).slice(0, 3),
+            ...(await anthropicModelsViaOauth(token)),
+          ];
+        }
+      }
     } else if (provider === "openai" && process.env.OPENAI_API_KEY) {
       models = await openaiModels();
     }

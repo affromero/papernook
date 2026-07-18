@@ -4,10 +4,18 @@ papernook serves **only** `data/papers/` (your annotatable PDFs and rendered
 exercise sheets) through an rclone WebDAV sidecar. Chats, crops, and canvases
 never appear on the share.
 
-## PDF Expert (recommended)
+## Where NOT to add it
 
-1. Install **PDF Expert** (or **Documents by Readdle**, same engine, free).
-2. **+ Add Connection** → **WebDAV Server**:
+Apple's built-in Files app cannot do this: its "Connect to Server" option
+only supports SMB and rejects any https:// WebDAV address with "this URL is
+not supported". The connection goes inside the PDF app itself.
+
+## PDF Expert or Documents (recommended)
+
+1. Install **Documents by Readdle** (free) or **PDF Expert** from the App
+   Store.
+2. In Documents: **+ (Plus) → Add Connection → WebDAV Server**. In PDF
+   Expert: **Connections → Add Connection → WebDAV**. Then fill in:
    - URL: `http://<your-host>:8080` (or `https://dav.<your-domain>` if you
      exposed it through Caddy)
    - Login / password: the `WEBDAV_USER` / `WEBDAV_PASS` from the server's

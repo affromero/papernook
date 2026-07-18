@@ -74,7 +74,15 @@ export function configuredModel(provider: ProviderId): string | undefined {
 export function modelSuggestions(provider: ProviderId): string[] {
   switch (provider) {
     case "claude-code":
-      return ["opus", "sonnet", "haiku"];
+      // Aliases first (they track the CLI's latest), then current full ids.
+      return [
+        "opus",
+        "sonnet",
+        "haiku",
+        "claude-opus-4-8",
+        "claude-sonnet-5",
+        "claude-haiku-4-5",
+      ];
     case "codex":
       return ["gpt-5.5", "gpt-5.5-mini"];
     case "anthropic":

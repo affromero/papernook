@@ -197,3 +197,15 @@
     border-color: rgba(63, 79, 176, 0.4);
   }
 }
+
+.steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+.steps li {
+  margin-bottom: 0.25rem;
+}
