@@ -80,15 +80,16 @@ export function ProfilePicker({
 
   function pick(profile: PickerProfile): void {
     if (busy) return;
-    if (publicMode) {
+    if (publicMode && !instancePassword) {
       setPassword("");
       setEditor({
         mode: "password",
         profile,
-        mustSet: !instancePassword && !profile.hasPassword,
+        mustSet: !profile.hasPassword,
       });
       return;
     }
+    // Private mode, or gated instance mode: log in directly.
     void login(profile.username);
   }
 
@@ -100,12 +101,7 @@ export function ProfilePicker({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          displayName: name.trim(),
-          avatarSlug,
-          // Instance mode: creation is gated by the shared access password.
-          password: instancePassword ? password : undefined,
-        }),
+        body: JSON.stringify({ displayName: name.trim(), avatarSlug }),
       });
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -115,8 +111,8 @@ export function ProfilePicker({
         throw new Error(body.error ?? "Could not create the profile.");
       setBusy(false);
       if (instancePassword) {
-        // The access password just proven is also the login password.
-        await login(body.profile.username, password);
+        // The gate already proved the password; log straight in.
+        await login(body.profile.username);
         return;
       }
       if (publicMode) {
@@ -270,23 +266,6 @@ export function ProfilePicker({
               );
             })}
           </div>
-          {instancePassword && (
-            <>
-              <label className={styles.fieldLabel} htmlFor="access-password">
-                Access password
-              </label>
-              <input
-                id="access-password"
-                className={styles.nameInput}
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                maxLength={200}
-                placeholder="the instance password"
-                autoComplete="current-password"
-              />
-            </>
-          )}
           {error && (
             <p className={styles.error} role="alert">
               {error}
@@ -305,11 +284,7 @@ export function ProfilePicker({
               type="button"
               className={styles.primaryBtn}
               onClick={() => void saveCreate()}
-              disabled={
-                busy ||
-                name.trim().length < 2 ||
-                (instancePassword && password.length === 0)
-              }
+              disabled={busy || name.trim().length < 2}
             >
               <Check size={16} aria-hidden="true" /> Create
             </button>

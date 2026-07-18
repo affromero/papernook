@@ -15,6 +15,7 @@ import {
   SESSION_COOKIE,
   activeProfile,
 } from "@/lib/auth/session";
+import { gatePassed } from "@/lib/auth/gate";
 import {
   recordFailure,
   recordSuccess,
@@ -68,11 +69,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (instancePasswordConfigured()) {
-      // Instance password (from Infisical) is THE password for everyone.
-      if (!password || !verifyInstancePassword(password)) {
-        recordFailure(ipKey);
-        recordFailure(accountKey);
-        return NextResponse.json({ error: "Wrong password." }, { status: 401 });
+      // Instance password is THE password. A valid gate cookie already
+      // proved it, so a gated request logs in directly; otherwise the
+      // password must be supplied here.
+      if (!(await gatePassed())) {
+        if (!password || !verifyInstancePassword(password)) {
+          recordFailure(ipKey);
+          recordFailure(accountKey);
+          return NextResponse.json(
+            { error: "Wrong password." },
+            { status: 401 },
+          );
+        }
       }
     } else if (profile.passwordHash === null) {
       // Public mode + passwordless profile: first login must set a password.

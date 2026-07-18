@@ -11,6 +11,7 @@ const PUBLIC_PATHS = [
   "/login",
   "/add",
   "/api/v1/session",
+  "/api/v1/gate",
   "/api/v1/profiles",
   "/api/v1/health",
 ];

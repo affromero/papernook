@@ -11,6 +11,7 @@ import {
   verifyInstancePassword,
 } from "@/lib/auth/users";
 import { activeProfile } from "@/lib/auth/session";
+import { gatePassed } from "@/lib/auth/gate";
 import {
   recordFailure,
   recordSuccess,
@@ -18,6 +19,14 @@ import {
 } from "@/lib/auth/rate-limit";
 
 export async function GET(): Promise<NextResponse> {
+  // Behind the gate on a public instance, do not leak profile names.
+  if (requiresPassword() && !(await activeProfile()) && !(await gatePassed())) {
+    return NextResponse.json({
+      profiles: [],
+      instancePassword: instancePasswordConfigured(),
+      gated: true,
+    });
+  }
   return NextResponse.json({
     profiles: listProfiles().map(toPublicProfile),
     instancePassword: instancePasswordConfigured(),
@@ -42,7 +51,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // existing session, or the instance password when one is configured.
   // The password check shares the login lockout so it cannot be
   // brute-forced from this endpoint either.
-  if (requiresPassword() && !(await activeProfile())) {
+  if (requiresPassword() && !(await activeProfile()) && !(await gatePassed())) {
     const ipKey = `ip:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local"}`;
     const wait = retryAfterMs(ipKey);
     if (wait > 0) {
