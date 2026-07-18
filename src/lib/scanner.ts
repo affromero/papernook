@@ -1,6 +1,6 @@
-import chokidar, { type FSWatcher } from 'chokidar';
-import { papersRoot, libraryRoot, ensureDataDirs } from './data-dir';
-import { rebuildIndex } from './index-db';
+import chokidar, { type FSWatcher } from "chokidar";
+import { papersRoot, libraryRoot, ensureDataDirs } from "./data-dir";
+import { rebuildIndex } from "./index-db";
 
 /**
  * Keeps the SQLite index in sync with disk: full rescan on boot, then a
@@ -20,7 +20,7 @@ function scheduleRebuild(): void {
     try {
       rebuildIndex();
     } catch (err) {
-      console.error('papernook scanner: rebuild failed', err);
+      console.error("papernook scanner: rebuild failed", err);
     }
   }, DEBOUNCE_MS);
 }
@@ -33,7 +33,7 @@ export function startScanner(): void {
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 800, pollInterval: 200 },
   });
-  watcher.on('all', scheduleRebuild);
+  watcher.on("all", scheduleRebuild);
 }
 
 export async function stopScanner(): Promise<void> {

@@ -1,7 +1,7 @@
-import Link from 'next/link';
-import { searchIndex, allTags, type IndexedPaper } from '@/lib/index-db';
-import { listTopics, listInbox } from '@/lib/papers';
-import styles from './LibraryView.module.css';
+import Link from "next/link";
+import { searchIndex, allTags, type IndexedPaper } from "@/lib/index-db";
+import { listTopics, listInbox } from "@/lib/papers";
+import styles from "./LibraryView.module.css";
 
 interface LibraryViewProps {
   query: string;
@@ -9,19 +9,31 @@ interface LibraryViewProps {
   activeTopic: string | null;
 }
 
-function matches(paper: IndexedPaper, tag: string | null, topic: string | null): boolean {
+function matches(
+  paper: IndexedPaper,
+  tag: string | null,
+  topic: string | null,
+): boolean {
   if (tag && !paper.tags.includes(tag)) return false;
-  if (topic === '_inbox') return paper.topic === null;
+  if (topic === "_inbox") return paper.topic === null;
   if (topic && paper.topic !== topic) return false;
   return true;
 }
 
 function paperHref(paper: IndexedPaper): string {
-  return paper.topic ? `/paper/${paper.topic}/${paper.slug}` : `/inbox/${paper.slug}`;
+  return paper.topic
+    ? `/paper/${paper.topic}/${paper.slug}`
+    : `/inbox/${paper.slug}`;
 }
 
-export function LibraryView({ query, activeTag, activeTopic }: LibraryViewProps) {
-  const papers = searchIndex(query).filter((p) => matches(p, activeTag, activeTopic));
+export function LibraryView({
+  query,
+  activeTag,
+  activeTopic,
+}: LibraryViewProps) {
+  const papers = searchIndex(query).filter((p) =>
+    matches(p, activeTag, activeTopic),
+  );
   const topics = listTopics();
   const tags = allTags();
   const inboxCount = listInbox().length;
@@ -33,14 +45,21 @@ export function LibraryView({ query, activeTag, activeTopic }: LibraryViewProps)
           <h2 className={styles.sideTitle}>Topics</h2>
           <ul className={styles.sideList}>
             <li>
-              <Link className={activeTopic === null ? styles.sideActive : styles.sideLink} href="/">
+              <Link
+                className={
+                  activeTopic === null ? styles.sideActive : styles.sideLink
+                }
+                href="/"
+              >
                 All papers
               </Link>
             </li>
             {topics.map((topic) => (
               <li key={topic}>
                 <Link
-                  className={activeTopic === topic ? styles.sideActive : styles.sideLink}
+                  className={
+                    activeTopic === topic ? styles.sideActive : styles.sideLink
+                  }
                   href={`/?topic=${encodeURIComponent(topic)}`}
                 >
                   {topic}
@@ -86,7 +105,9 @@ export function LibraryView({ query, activeTag, activeTopic }: LibraryViewProps)
 
         {papers.length === 0 ? (
           <p className={styles.empty}>
-            {query ? 'Nothing matches that search.' : 'No papers yet — share a link to /add to start.'}
+            {query
+              ? "Nothing matches that search."
+              : "No papers yet — share a link to /add to start."}
           </p>
         ) : (
           <ul className={styles.grid}>
@@ -96,13 +117,15 @@ export function LibraryView({ query, activeTag, activeTopic }: LibraryViewProps)
                   <h3 className={styles.cardTitle}>{paper.title}</h3>
                   <p className={styles.cardMeta}>
                     {paper.authors}
-                    {paper.year ? ` · ${paper.year}` : ''}
+                    {paper.year ? ` · ${paper.year}` : ""}
                   </p>
                   {paper.summarySnippet && (
                     <p className={styles.cardSnippet}>{paper.summarySnippet}</p>
                   )}
                   <p className={styles.cardTags}>
-                    {paper.topic === null && <span className={styles.cardInbox}>inbox</span>}
+                    {paper.topic === null && (
+                      <span className={styles.cardInbox}>inbox</span>
+                    )}
                     {paper.tags.map((tag) => (
                       <span key={tag} className={styles.cardTag}>
                         {tag}

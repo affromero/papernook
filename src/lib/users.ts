@@ -1,9 +1,9 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import crypto from 'node:crypto';
-import { hash as argon2Hash, verify as argon2Verify } from '@node-rs/argon2';
-import { usersRoot, ensureDataDirs, isPublicExposure } from './data-dir';
-import { isAnimalSlug, animalForSeed } from './avatars';
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
+import { hash as argon2Hash, verify as argon2Verify } from "@node-rs/argon2";
+import { usersRoot, ensureDataDirs, isPublicExposure } from "./data-dir";
+import { isAnimalSlug, animalForSeed } from "./avatars";
 
 /**
  * Profiles on disk: data/users/<username>/profile.json. The shared library is
@@ -37,20 +37,20 @@ export function normalizeUsername(displayName: string): string {
   return displayName
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
     .slice(0, 31);
 }
 
 function profilePath(username: string): string {
-  return path.join(usersRoot(), username, 'profile.json');
+  return path.join(usersRoot(), username, "profile.json");
 }
 
 function readProfile(username: string): Profile | null {
   // Reject anything that could traverse out of the users root.
   if (!USERNAME_RE.test(username)) return null;
   try {
-    const raw = fs.readFileSync(profilePath(username), 'utf8');
+    const raw = fs.readFileSync(profilePath(username), "utf8");
     return JSON.parse(raw) as Profile;
   } catch {
     return null;
@@ -92,22 +92,27 @@ export function toPublicProfile(profile: Profile): PublicProfile {
 
 export class ProfileError extends Error {}
 
-export function createProfile(displayName: string, avatarSlug?: string): Profile {
+export function createProfile(
+  displayName: string,
+  avatarSlug?: string,
+): Profile {
   ensureDataDirs();
   const username = normalizeUsername(displayName);
   if (!USERNAME_RE.test(username)) {
-    throw new ProfileError('Name must contain at least two letters or digits.');
+    throw new ProfileError("Name must contain at least two letters or digits.");
   }
   if (readProfile(username)) {
     throw new ProfileError(`A profile named "${username}" already exists.`);
   }
   const slug =
-    avatarSlug && isAnimalSlug(avatarSlug) ? avatarSlug : animalForSeed(username).slug;
+    avatarSlug && isAnimalSlug(avatarSlug)
+      ? avatarSlug
+      : animalForSeed(username).slug;
   const profile: Profile = {
     username,
     displayName: displayName.trim(),
     avatarSlug: slug,
-    captureToken: crypto.randomBytes(24).toString('hex'),
+    captureToken: crypto.randomBytes(24).toString("hex"),
     passwordHash: null,
     createdAt: new Date().toISOString(),
   };
@@ -115,15 +120,22 @@ export function createProfile(displayName: string, avatarSlug?: string): Profile
   return profile;
 }
 
-export async function setPassword(username: string, password: string): Promise<void> {
+export async function setPassword(
+  username: string,
+  password: string,
+): Promise<void> {
   const profile = readProfile(username);
-  if (!profile) throw new ProfileError('Unknown profile.');
-  if (password.length < 8) throw new ProfileError('Password must be at least 8 characters.');
+  if (!profile) throw new ProfileError("Unknown profile.");
+  if (password.length < 8)
+    throw new ProfileError("Password must be at least 8 characters.");
   profile.passwordHash = await argon2Hash(password);
   writeProfile(profile);
 }
 
-export async function verifyPassword(username: string, password: string): Promise<boolean> {
+export async function verifyPassword(
+  username: string,
+  password: string,
+): Promise<boolean> {
   const profile = readProfile(username);
   if (!profile || profile.passwordHash === null) return false;
   try {
@@ -143,8 +155,8 @@ export function requiresPassword(): boolean {
 
 export function rotateCaptureToken(username: string): Profile {
   const profile = readProfile(username);
-  if (!profile) throw new ProfileError('Unknown profile.');
-  profile.captureToken = crypto.randomBytes(24).toString('hex');
+  if (!profile) throw new ProfileError("Unknown profile.");
+  profile.captureToken = crypto.randomBytes(24).toString("hex");
   writeProfile(profile);
   return profile;
 }
@@ -152,10 +164,13 @@ export function rotateCaptureToken(username: string): Profile {
 /** Resolve a capture token to its owning profile, timing-safely. */
 export function profileForCaptureToken(token: string): Profile | null {
   if (!/^[a-f0-9]{48}$/.test(token)) return null;
-  const supplied = Buffer.from(token, 'hex');
+  const supplied = Buffer.from(token, "hex");
   for (const profile of listProfiles()) {
-    const known = Buffer.from(profile.captureToken, 'hex');
-    if (known.length === supplied.length && crypto.timingSafeEqual(known, supplied)) {
+    const known = Buffer.from(profile.captureToken, "hex");
+    if (
+      known.length === supplied.length &&
+      crypto.timingSafeEqual(known, supplied)
+    ) {
       return profile;
     }
   }

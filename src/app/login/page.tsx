@@ -1,8 +1,8 @@
-import { ProfilePicker } from '@/components/profiles/ProfilePicker';
-import { listProfiles, toPublicProfile } from '@/lib/users';
-import { isPublicExposure } from '@/lib/data-dir';
+import { ProfilePicker } from "@/components/profiles/ProfilePicker";
+import { listProfiles, toPublicProfile } from "@/lib/users";
+import { isPublicExposure } from "@/lib/data-dir";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
   const profiles = listProfiles().map(toPublicProfile);

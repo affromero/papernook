@@ -1,12 +1,12 @@
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { ANIMAL_AVATARS } from '@/lib/avatars';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { ANIMAL_AVATARS } from "@/lib/avatars";
 import {
   createProfile,
   listProfiles,
   toPublicProfile,
   ProfileError,
-} from '@/lib/users';
+} from "@/lib/users";
 
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json({ profiles: listProfiles().map(toPublicProfile) });
@@ -22,11 +22,14 @@ const createSchema = z.object({
 export async function POST(request: Request): Promise<NextResponse> {
   const body = createSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
-    return NextResponse.json({ error: 'Invalid profile.' }, { status: 400 });
+    return NextResponse.json({ error: "Invalid profile." }, { status: 400 });
   }
   try {
     const profile = createProfile(body.data.displayName, body.data.avatarSlug);
-    return NextResponse.json({ profile: toPublicProfile(profile) }, { status: 201 });
+    return NextResponse.json(
+      { profile: toPublicProfile(profile) },
+      { status: 201 },
+    );
   } catch (err) {
     if (err instanceof ProfileError) {
       return NextResponse.json({ error: err.message }, { status: 409 });

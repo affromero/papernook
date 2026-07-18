@@ -3,14 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "dev": "next dev",
     "lint": "eslint",
+    "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
-    "ci": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "typecheck": "tsc --noEmit"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix --max-warnings 0"
+    ],
+    "*.{ts,tsx,js,jsx,json,md,css,yaml,yml}": [
+      "prettier --write"
+    ],
+    "package.json": [
+      "sort-package-json"
+    ]
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
@@ -30,6 +41,9 @@
     "@vitejs/plugin-react": "^6.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "lint-staged": "^17.0.8",
+    "prettier": "^3.9.5",
+    "sort-package-json": "^4.0.0",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }

@@ -1,8 +1,8 @@
-import { redirect } from 'next/navigation';
-import { activeProfile } from '@/lib/session';
-import { LibraryView } from '@/components/library/LibraryView';
+import { redirect } from "next/navigation";
+import { activeProfile } from "@/lib/session";
+import { LibraryView } from "@/components/library/LibraryView";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 interface HomePageProps {
   searchParams: Promise<{ q?: string; tag?: string; topic?: string }>;
@@ -10,12 +10,12 @@ interface HomePageProps {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const profile = await activeProfile();
-  if (!profile) redirect('/login');
+  if (!profile) redirect("/login");
   const params = await searchParams;
   return (
     <main>
       <LibraryView
-        query={params.q ?? ''}
+        query={params.q ?? ""}
         activeTag={params.tag ?? null}
         activeTopic={params.topic ?? null}
       />

@@ -1,19 +1,19 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { z } from 'zod';
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import {
   getProfile,
   requiresPassword,
   setPassword,
   verifyPassword,
   toPublicProfile,
-} from '@/lib/users';
+} from "@/lib/users";
 import {
   createSessionToken,
   sessionCookieOptions,
   SESSION_COOKIE,
   activeProfile,
-} from '@/lib/session';
-import { recordFailure, recordSuccess, retryAfterMs } from '@/lib/rate-limit';
+} from "@/lib/session";
+import { recordFailure, recordSuccess, retryAfterMs } from "@/lib/rate-limit";
 
 const loginSchema = z.object({
   username: z.string().min(2).max(31),
@@ -25,7 +25,7 @@ const loginSchema = z.object({
 
 function clientIp(request: NextRequest): string {
   return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local'
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local"
   );
 }
 
@@ -39,12 +39,12 @@ export async function GET(): Promise<NextResponse> {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = loginSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
-    return NextResponse.json({ error: 'Invalid login.' }, { status: 400 });
+    return NextResponse.json({ error: "Invalid login." }, { status: 400 });
   }
   const { username, password, newPassword } = body.data;
   const profile = getProfile(username);
   if (!profile) {
-    return NextResponse.json({ error: 'Unknown profile.' }, { status: 404 });
+    return NextResponse.json({ error: "Unknown profile." }, { status: 404 });
   }
 
   if (requiresPassword()) {
@@ -53,8 +53,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const wait = Math.max(retryAfterMs(ipKey), retryAfterMs(accountKey));
     if (wait > 0) {
       return NextResponse.json(
-        { error: 'Too many attempts. Try again later.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil(wait / 1000)) } }
+        { error: "Too many attempts. Try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(Math.ceil(wait / 1000)) },
+        },
       );
     }
 
@@ -62,27 +65,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Public mode + passwordless profile: first login must set a password.
       if (!newPassword) {
         return NextResponse.json(
-          { error: 'This profile must set a password.', mustSetPassword: true },
-          { status: 403 }
+          { error: "This profile must set a password.", mustSetPassword: true },
+          { status: 403 },
         );
       }
       await setPassword(username, newPassword);
     } else if (!password || !(await verifyPassword(username, password))) {
       recordFailure(ipKey);
       recordFailure(accountKey);
-      return NextResponse.json({ error: 'Wrong password.' }, { status: 401 });
+      return NextResponse.json({ error: "Wrong password." }, { status: 401 });
     }
     recordSuccess(ipKey);
     recordSuccess(accountKey);
   }
 
   const response = NextResponse.json({ profile: toPublicProfile(profile) });
-  response.cookies.set(SESSION_COOKIE, createSessionToken(username), sessionCookieOptions());
+  response.cookies.set(
+    SESSION_COOKIE,
+    createSessionToken(username),
+    sessionCookieOptions(),
+  );
   return response;
 }
 
 export async function DELETE(): Promise<NextResponse> {
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, '', { ...sessionCookieOptions(), maxAge: 0 });
+  response.cookies.set(SESSION_COOKIE, "", {
+    ...sessionCookieOptions(),
+    maxAge: 0,
+  });
   return response;
 }

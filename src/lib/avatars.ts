@@ -16,14 +16,14 @@ export interface AnimalAvatar {
 }
 
 export const ANIMAL_AVATARS: AnimalAvatar[] = [
-  { slug: 'capybara', name: 'Capybara', emoji: '🦫', hue: '#3F4FB0' },
-  { slug: 'iguana', name: 'Iguana', emoji: '🦎', hue: '#0D9488' },
-  { slug: 'sloth', name: 'Sloth', emoji: '🦥', hue: '#8A6D3B' },
-  { slug: 'toucan', name: 'Toucan', emoji: '🐦', hue: '#B83280' },
-  { slug: 'macaw', name: 'Macaw', emoji: '🦜', hue: '#C2730A' },
-  { slug: 'frog', name: 'Poison frog', emoji: '🐸', hue: '#1C7A6B' },
-  { slug: 'hummingbird', name: 'Hummingbird', emoji: '🐤', hue: '#6AA0FF' },
-  { slug: 'jaguar', name: 'Jaguar', emoji: '🐆', hue: '#2A3550' },
+  { slug: "capybara", name: "Capybara", emoji: "🦫", hue: "#3F4FB0" },
+  { slug: "iguana", name: "Iguana", emoji: "🦎", hue: "#0D9488" },
+  { slug: "sloth", name: "Sloth", emoji: "🦥", hue: "#8A6D3B" },
+  { slug: "toucan", name: "Toucan", emoji: "🐦", hue: "#B83280" },
+  { slug: "macaw", name: "Macaw", emoji: "🦜", hue: "#C2730A" },
+  { slug: "frog", name: "Poison frog", emoji: "🐸", hue: "#1C7A6B" },
+  { slug: "hummingbird", name: "Hummingbird", emoji: "🐤", hue: "#6AA0FF" },
+  { slug: "jaguar", name: "Jaguar", emoji: "🐆", hue: "#2A3550" },
 ];
 
 const BY_SLUG = new Map(ANIMAL_AVATARS.map((a) => [a.slug, a]));
@@ -60,12 +60,13 @@ export function animalForSeed(seed: string): AnimalAvatar {
  */
 export function resolveProfileAvatar(
   seed: string,
-  image: string | null | undefined
+  image: string | null | undefined,
 ): { image: string; emoji: string } {
-  if (image && image.startsWith('/avatars/')) {
-    const slug = image.slice('/avatars/'.length).replace(/\.png$/, '');
+  if (image && image.startsWith("/avatars/")) {
+    const slug = image.slice("/avatars/".length).replace(/\.png$/, "");
     const known = getAnimalAvatar(slug);
-    if (known) return { image: `/avatars/${known.slug}.png`, emoji: known.emoji };
+    if (known)
+      return { image: `/avatars/${known.slug}.png`, emoji: known.emoji };
   }
   const animal = animalForSeed(seed);
   return { image: `/avatars/${animal.slug}.png`, emoji: animal.emoji };

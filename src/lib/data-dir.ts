@@ -1,6 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import crypto from 'node:crypto';
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
 
 /**
  * Filesystem layout — the filesystem is the source of truth.
@@ -14,23 +14,23 @@ import crypto from 'node:crypto';
  */
 
 export function dataRoot(): string {
-  return process.env.PAPERNOOK_DATA_DIR ?? path.join(process.cwd(), 'data');
+  return process.env.PAPERNOOK_DATA_DIR ?? path.join(process.cwd(), "data");
 }
 
 export function papersRoot(): string {
-  return path.join(dataRoot(), 'papers');
+  return path.join(dataRoot(), "papers");
 }
 
 export function libraryRoot(): string {
-  return path.join(dataRoot(), 'library');
+  return path.join(dataRoot(), "library");
 }
 
 export function inboxRoot(): string {
-  return path.join(libraryRoot(), '_inbox');
+  return path.join(libraryRoot(), "_inbox");
 }
 
 export function usersRoot(): string {
-  return path.join(dataRoot(), 'users');
+  return path.join(dataRoot(), "users");
 }
 
 export function ensureDataDirs(): void {
@@ -47,14 +47,14 @@ export function ensureDataDirs(): void {
 export function sessionSecret(): string {
   const fromEnv = process.env.SESSION_SECRET;
   if (fromEnv && fromEnv.length >= 32) return fromEnv;
-  const file = path.join(dataRoot(), 'session-secret');
+  const file = path.join(dataRoot(), "session-secret");
   try {
-    const existing = fs.readFileSync(file, 'utf8').trim();
+    const existing = fs.readFileSync(file, "utf8").trim();
     if (existing.length >= 32) return existing;
   } catch {
     // fall through to generate
   }
-  const secret = crypto.randomBytes(32).toString('hex');
+  const secret = crypto.randomBytes(32).toString("hex");
   fs.mkdirSync(dataRoot(), { recursive: true });
   fs.writeFileSync(file, secret, { mode: 0o600 });
   return secret;
@@ -62,5 +62,5 @@ export function sessionSecret(): string {
 
 /** True when the instance is exposed beyond the private network. */
 export function isPublicExposure(): boolean {
-  return process.env.PUBLIC_EXPOSURE === 'true';
+  return process.env.PUBLIC_EXPOSURE === "true";
 }

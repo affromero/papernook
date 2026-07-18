@@ -8,14 +8,14 @@ const MAX_SLUG = 80;
 
 export function slugify(input: string): string {
   const slug = input
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '') // strip diacritics
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "") // strip diacritics
     .toLowerCase()
-    .replace(/['’]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
     .slice(0, MAX_SLUG)
-    .replace(/-+$/g, '');
+    .replace(/-+$/g, "");
   return slug;
 }
 

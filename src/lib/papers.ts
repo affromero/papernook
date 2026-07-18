@@ -1,7 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { papersRoot, libraryRoot, inboxRoot } from './data-dir';
-import { assertSlug, isValidSlug } from './slug';
+import fs from "node:fs";
+import path from "node:path";
+import { papersRoot, libraryRoot, inboxRoot } from "./data-dir";
+import { assertSlug, isValidSlug } from "./slug";
 
 /**
  * Paper CRUD over the two trees. The filesystem is the source of truth:
@@ -39,10 +39,10 @@ export interface Paper {
   summary: string | null;
 }
 
-const META_FILE = 'meta.json';
-const SUMMARY_FILE = 'summary.md';
-const TEXT_FILE = 'text.txt';
-const INBOX_PDF = 'paper.pdf';
+const META_FILE = "meta.json";
+const SUMMARY_FILE = "summary.md";
+const TEXT_FILE = "text.txt";
+const INBOX_PDF = "paper.pdf";
 
 export function companionDir(topic: string | null, slug: string): string {
   assertSlug(slug);
@@ -66,14 +66,21 @@ export function exercisesPdfPath(topic: string, slug: string): string {
 
 export function readMeta(topic: string | null, slug: string): PaperMeta | null {
   try {
-    const raw = fs.readFileSync(path.join(companionDir(topic, slug), META_FILE), 'utf8');
+    const raw = fs.readFileSync(
+      path.join(companionDir(topic, slug), META_FILE),
+      "utf8",
+    );
     return JSON.parse(raw) as PaperMeta;
   } catch {
     return null;
   }
 }
 
-export function writeMeta(topic: string | null, slug: string, meta: PaperMeta): void {
+export function writeMeta(
+  topic: string | null,
+  slug: string,
+  meta: PaperMeta,
+): void {
   const dir = companionDir(topic, slug);
   fs.mkdirSync(dir, { recursive: true });
   const tmp = path.join(dir, `.meta.${process.pid}.tmp`);
@@ -83,13 +90,20 @@ export function writeMeta(topic: string | null, slug: string, meta: PaperMeta): 
 
 export function readSummary(topic: string | null, slug: string): string | null {
   try {
-    return fs.readFileSync(path.join(companionDir(topic, slug), SUMMARY_FILE), 'utf8');
+    return fs.readFileSync(
+      path.join(companionDir(topic, slug), SUMMARY_FILE),
+      "utf8",
+    );
   } catch {
     return null;
   }
 }
 
-export function writeSummary(topic: string | null, slug: string, summary: string): void {
+export function writeSummary(
+  topic: string | null,
+  slug: string,
+  summary: string,
+): void {
   const dir = companionDir(topic, slug);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, SUMMARY_FILE), summary);
@@ -97,13 +111,20 @@ export function writeSummary(topic: string | null, slug: string, summary: string
 
 export function readText(topic: string | null, slug: string): string | null {
   try {
-    return fs.readFileSync(path.join(companionDir(topic, slug), TEXT_FILE), 'utf8');
+    return fs.readFileSync(
+      path.join(companionDir(topic, slug), TEXT_FILE),
+      "utf8",
+    );
   } catch {
     return null;
   }
 }
 
-export function writeText(topic: string | null, slug: string, text: string): void {
+export function writeText(
+  topic: string | null,
+  slug: string,
+  text: string,
+): void {
   const dir = companionDir(topic, slug);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, TEXT_FILE), text);
@@ -148,7 +169,7 @@ export function listPapers(): Paper[] {
     return [];
   }
   for (const topicEntry of topics) {
-    if (!topicEntry.isDirectory() || topicEntry.name === '_inbox') continue;
+    if (!topicEntry.isDirectory() || topicEntry.name === "_inbox") continue;
     if (!isValidSlug(topicEntry.name)) continue;
     const topicDir = path.join(libraryRoot(), topicEntry.name);
     for (const entry of fs.readdirSync(topicDir, { withFileTypes: true })) {
@@ -178,7 +199,8 @@ export function listInbox(): Paper[] {
 }
 
 export function getPaper(topic: string | null, slug: string): Paper | null {
-  if (!isValidSlug(slug) || (topic !== null && !isValidSlug(topic))) return null;
+  if (!isValidSlug(slug) || (topic !== null && !isValidSlug(topic)))
+    return null;
   return loadPaper(topic, slug);
 }
 
