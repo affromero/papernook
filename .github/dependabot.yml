@@ -10,6 +10,15 @@ updates:
       npm-all:
         patterns:
           - "*"
+    ignore:
+      # eslint-config-next (Next 16) crashes under both of these majors:
+      # eslint 10 removed context.getFilename (eslint-plugin-react), and
+      # typescript 7 (native) changed the API typescript-eslint reads.
+      # Drop these ignores when eslint-config-next supports them.
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
