@@ -20,7 +20,8 @@ WORKDIR /app
 # poppler-utils: pdftotext for capture/FTS. openssh-client: SSH agent mode + scp.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils openssh-client ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install -g @anthropic-ai/claude-code
 ENV NODE_ENV=production
 ENV PAPERNOOK_DATA_DIR=/data
 COPY --from=build /app/.next/standalone ./
