@@ -15,14 +15,15 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  // Behind Caddy the request URL carries the internal container host;
+  // rebuild the redirect from the forwarded headers.
+  const proto = request.headers.get("x-forwarded-proto") ?? "http";
+  const host = request.headers.get("host") ?? request.nextUrl.host;
+  const login = `${proto}://${host}/login`;
   const token = request.nextUrl.searchParams.get("t") ?? "";
-  if (!verifyInviteToken(token)) {
-    return NextResponse.redirect(new URL("/login", request.nextUrl), 302);
+  const response = NextResponse.redirect(login, 302);
+  if (verifyInviteToken(token)) {
+    response.cookies.set(GATE_COOKIE, createGateToken(), gateCookieOptions());
   }
-  const response = NextResponse.redirect(
-    new URL("/login", request.nextUrl),
-    302,
-  );
-  response.cookies.set(GATE_COOKIE, createGateToken(), gateCookieOptions());
   return response;
 }
