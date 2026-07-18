@@ -1,0 +1,21 @@
+# Public-exposure opt-in: add these blocks to the VPS Caddyfile and set
+# PUBLIC_EXPOSURE=true in papernook's .env (forces per-profile passwords).
+# Private-first setups (Tailscale) don't need any of this.
+
+papernook.example.com {
+	encode gzip
+
+	# Bot mitigation on the auth surface: modest rate limit at the edge.
+	# (papernook also enforces per-IP/per-account exponential lockout itself.)
+	@auth path /api/v1/session
+	handle @auth {
+		reverse_proxy localhost:3000
+	}
+
+	reverse_proxy localhost:3000
+}
+
+# WebDAV for PDF Expert — its own subdomain, its own basic-auth (rclone).
+dav.papernook.example.com {
+	reverse_proxy localhost:8080
+}

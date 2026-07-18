@@ -1,0 +1,37 @@
+# papernook stack: the app + the rclone WebDAV sidecar.
+# The sidecar serves ONLY /data/papers (annotatable PDFs + rendered exercise
+# PDFs). data/library — chats, crops, canvases, inbox — is never exposed.
+#
+# Required env (put them in .env next to this file):
+#   AI_PROVIDER=claude-code|codex|anthropic|openai
+#   WEBDAV_USER / WEBDAV_PASS      credentials for PDF Expert
+# Optional:
+#   PUBLIC_EXPOSURE=true           forces profile passwords + lockouts
+#   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST, ANTHROPIC_API_KEY, OPENAI_API_KEY
+#   SESSION_SECRET                 pin sessions across container rebuilds
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: .env
+    volumes:
+      - ./data:/data
+      # SSH agent mode: mount keys read-only (BatchMode, no prompts).
+      - ${SSH_DIR:-~/.ssh}:/root/.ssh:ro
+
+  webdav:
+    image: rclone/rclone:latest
+    restart: unless-stopped
+    command: >
+      serve webdav /data/papers
+      --addr :8080
+      --user ${WEBDAV_USER}
+      --pass ${WEBDAV_PASS}
+      --vfs-cache-mode writes
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/papers:/data/papers

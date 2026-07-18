@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
+import { DevicePanel } from "@/components/pwa/DevicePanel";
 import styles from "./settings.module.css";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,15 @@ export default async function SettingsPage() {
           </li>
         </ol>
         <p>Then on any paper page: Share → Add to papernook → confirm. Done.</p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Connect a device</h2>
+        <p>
+          Scan from the iPad or phone to open papernook and add it to the home
+          screen. Private-first: Tailscale or same Wi-Fi.
+        </p>
+        <DevicePanel />
       </section>
 
       <section className={styles.card}>
