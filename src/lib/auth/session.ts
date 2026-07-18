@@ -5,7 +5,7 @@ import { getProfile, type Profile } from "./users";
 
 /**
  * Cookie sessions: `papernook_session` = `<username>.<expiry>.<hmac>` signed
- * with the instance secret. No server-side store — the filesystem stays the
+ * with the instance secret. No server-side store; the filesystem stays the
  * only state. Sessions rotate on every login (fresh expiry + signature).
  */
 

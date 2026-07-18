@@ -17,7 +17,7 @@ contact the maintainer directly) rather than a public issue.
 - Path safety: every user-influenced path segment passes `assertSlug`;
   chat ids and usernames are format-validated before touching the
   filesystem.
-- WebDAV: separate basic-auth credentials; serves the PDF tree only —
-  chats, crops, and canvases are never exposed.
+- WebDAV: separate basic-auth credentials; serves the PDF tree only.
+  Chats, crops, and canvases are never exposed.
 - Supply chain: CodeQL, gitleaks, and Dependabot (7-day cooldown) run on
   every push; pre-commit blocks private keys and env files.

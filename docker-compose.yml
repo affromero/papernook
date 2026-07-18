@@ -1,6 +1,6 @@
 # papernook stack: the app + the rclone WebDAV sidecar.
 # The sidecar serves ONLY /data/papers (annotatable PDFs + rendered exercise
-# PDFs). data/library — chats, crops, canvases, inbox — is never exposed.
+# PDFs). data/library (chats, crops, canvases, inbox) is never exposed.
 #
 # Required env (put them in .env next to this file):
 #   AI_PROVIDER=claude-code|codex|anthropic|openai

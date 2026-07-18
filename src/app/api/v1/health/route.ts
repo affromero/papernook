@@ -21,7 +21,7 @@ export async function GET(): Promise<NextResponse> {
       provider as Parameters<typeof isProviderAvailable>[0],
     );
   } catch {
-    // unconfigured — still healthy, just report it
+    // unconfigured but still healthy, just report it
   }
   return NextResponse.json({
     status: "healthy",

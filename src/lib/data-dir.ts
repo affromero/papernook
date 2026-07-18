@@ -3,7 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 /**
- * Filesystem layout — the filesystem is the source of truth.
+ * Filesystem layout: the filesystem is the source of truth.
  *
  * data/papers/   WebDAV-shared tree: only annotatable PDFs (+ rendered
  *                exercise PDFs). Served by the rclone sidecar.

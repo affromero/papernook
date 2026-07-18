@@ -4,7 +4,7 @@ import { getPaper } from "./papers";
 
 /**
  * Grow a PDF for Pencil room without touching existing ink:
- *  - "margin": widen every page's MediaBox to the RIGHT only — origin stays
+ *  - "margin": widen every page's MediaBox to the RIGHT only; origin stays
  *    fixed, so existing content and annotation coordinates never shift.
  *  - "page": append one blank page matching the last page's size.
  * The rewrite is atomic (tmp + rename) and refuses to run when the file
@@ -28,7 +28,7 @@ export async function expandPdf(
   const stat = fs.statSync(paper.pdfPath);
   if (Date.now() - stat.mtimeMs < RECENT_WRITE_MS) {
     throw new ExpandError(
-      "The PDF was just modified — an iPad may be saving. Try again in a few seconds.",
+      "The PDF was just modified: an iPad may be saving. Try again in a few seconds.",
     );
   }
 

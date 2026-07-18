@@ -2,7 +2,7 @@
 
 import dynamicImport from "next/dynamic";
 
-/** tldraw touches window at import time — load it client-side only. */
+/** tldraw touches window at import time; load it client-side only. */
 export const CanvasClient = dynamicImport(
   () =>
     import("@/components/canvas/CanvasBoard").then((m) => ({

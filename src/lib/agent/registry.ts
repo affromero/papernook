@@ -11,7 +11,7 @@ import type { AgentProvider, ProviderId } from "./types";
 
 /**
  * Provider registry. The active provider is chosen at install/wizard time via
- * AI_PROVIDER (never hardcoded — Sotto's install.sh pattern):
+ * AI_PROVIDER (never hardcoded; Sotto's install.sh pattern):
  *   anthropic | openai      API key in env
  *   claude-code | codex     local CLI (keyless), or over SSH via
  *                           CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST
@@ -32,7 +32,7 @@ export function configuredProviderId(): ProviderId {
   const id = process.env.AI_PROVIDER;
   if (id && id in PROVIDERS) return id as ProviderId;
   throw new Error(
-    `AI_PROVIDER must be one of ${providerIds().join(", ")} — got ${JSON.stringify(id ?? null)}. Run the setup wizard.`,
+    `AI_PROVIDER must be one of ${providerIds().join(", ")}: got ${JSON.stringify(id ?? null)}. Run the setup wizard.`,
   );
 }
 

@@ -5,7 +5,7 @@ import { rebuildIndex } from "./index-db";
 /**
  * Keeps the SQLite index in sync with disk: full rescan on boot, then a
  * debounced full rebuild on any change under either tree (covers WebDAV
- * writes, manual moves, and app writes alike — disk always wins).
+ * writes, manual moves, and app writes alike; disk always wins).
  */
 
 const DEBOUNCE_MS = 1_500;

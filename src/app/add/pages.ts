@@ -38,7 +38,7 @@ const STYLE = `
 function page(title: string, body: string): string {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)} — papernook</title><style>${STYLE}</style></head>
+<title>${esc(title)} · papernook</title><style>${STYLE}</style></head>
 <body><main>${body}</main></body></html>`;
 }
 

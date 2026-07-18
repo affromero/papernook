@@ -157,7 +157,7 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
     window.dispatchEvent(
       new CustomEvent("papernook:attach", { detail: dataUrl }),
     );
-    setStatus("Selection attached to the chat input — ask away.");
+    setStatus("Selection attached to the chat input; ask away.");
   }
 
   async function expand(mode: "margin" | "page"): Promise<void> {

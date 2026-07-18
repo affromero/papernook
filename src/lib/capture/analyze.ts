@@ -5,7 +5,7 @@ import { listTopics, listPapers } from "../library/papers";
 
 /**
  * Post-download analysis: pdftotext extraction, then one agent call that
- * files the paper — metadata + bibtex, a topic-folder proposal (existing
+ * files the paper: metadata + bibtex, a topic-folder proposal (existing
  * folders offered first), tags, a summary, related papers already in the
  * library, and starter questions for the seeded first chat.
  */
@@ -25,7 +25,7 @@ export function extractPdfText(pdfPath: string): Promise<string> {
       resolve(out);
     });
     child.on("error", () => {
-      // poppler missing — analysis degrades to metadata-from-agent only
+      // poppler missing; analysis degrades to metadata-from-agent only
       clearTimeout(timer);
       resolve("");
     });
@@ -68,7 +68,7 @@ function analysisPrompt(
     '{"title": string, "authors": string[], "year": number|null, "venue": string|null, ' +
     '"bibtex": string|null, "topic": string, "tags": string[], "summary": string, ' +
     '"related": string[], "starterQuestions": string[]}. ' +
-    "topic is a kebab-case folder name — strongly prefer an existing folder when one fits. " +
+    "topic is a kebab-case folder name: strongly prefer an existing folder when one fits. " +
     "tags: 2-6 short kebab-case tags. summary: 3-5 sentences (TL;DR + key contributions), plain text. " +
     "related: slugs from the existing library that are genuinely related (empty if none). " +
     "starterQuestions: 3-5 questions a reader should ask to truly understand this paper.";

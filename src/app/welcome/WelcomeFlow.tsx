@@ -7,7 +7,7 @@ import styles from "./welcome.module.css";
 /**
  * Per-profile onboarding, modeled on Sotto's WelcomeFlow step machine.
  * Replays for every new profile (wizardDone flag): the install-level AI
- * connection is only *tested* here — it is configured once by the installer
+ * connection is only *tested* here; it is configured once by the installer
  * (scripts/install.sh) or .env, never hardcoded.
  */
 
@@ -101,7 +101,7 @@ export function WelcomeFlow({
                   <code>scripts/install.sh</code>): <code>AI_PROVIDER</code> ={" "}
                   <code>claude-code</code>, <code>codex</code>,{" "}
                   <code>anthropic</code>, or <code>openai</code>, plus an SSH
-                  host or API key. You can continue — chat will work once it is
+                  host or API key. You can continue; chat will work once it is
                   configured.
                 </p>
               </>
@@ -127,8 +127,8 @@ export function WelcomeFlow({
               <code>token</code> = your token) → Show Web Page.
             </p>
             <p className={styles.tokenNote}>
-              Your personal token is on the Settings page — captures made with
-              it are filed as you.
+              Your personal token is on the Settings page; captures made with it
+              are filed as you.
             </p>
           </>
         )}
@@ -147,7 +147,7 @@ export function WelcomeFlow({
                 user/password from the server&rsquo;s <code>.env</code>.
               </li>
               <li>
-                Open any paper, write with the Pencil — it saves straight into
+                Open any paper, write with the Pencil; it saves straight into
                 the same file papernook serves. No exports, ever.
               </li>
             </ol>
@@ -162,8 +162,8 @@ export function WelcomeFlow({
           <>
             <h1>Ready</h1>
             <p>
-              Capture a paper, open it, ask your first question. Everything —
-              PDFs, ink, chats, canvases — lives on your own server.
+              Capture a paper, open it, ask your first question. Everything
+              (PDFs, ink, chats, canvases) lives on your own server.
             </p>
           </>
         )}

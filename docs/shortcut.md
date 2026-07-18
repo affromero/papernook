@@ -1,7 +1,7 @@
 # The "Add to papernook" Shortcut (Safari / iPhone / iPad / Mac)
 
 Build once in the Shortcuts app (~1 minute). Your personal capture token is on
-the papernook **Settings** page — keep it private; captures made with it are
+the papernook **Settings** page. Keep it private; captures made with it are
 filed as you.
 
 1. **New Shortcut** → tap the ⓘ info panel → enable **Show in Share Sheet** →
@@ -19,8 +19,8 @@ page shows the AI's proposed filing → **Accept into library**.
 
 Notes
 
-- Capture takes ~10–30 s (download + AI analysis) — the Shortcut waits and
-  then shows the confirmation page.
+- Capture takes about 10 to 30 s (download + AI analysis); the Shortcut waits
+  and then shows the confirmation page.
 - Works identically on macOS Safari (Share menu) and iPadOS.
 - If you see _Invalid capture token_, re-copy the token from Settings (it may
   have been rotated).

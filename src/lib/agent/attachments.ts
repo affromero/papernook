@@ -58,7 +58,7 @@ function run(
       if (code === 0) resolve();
       else
         reject(
-          new Error(`${command}: exited ${code} — ${stderr.slice(0, 300)}`),
+          new Error(`${command}: exited ${code}: ${stderr.slice(0, 300)}`),
         );
     });
     child.on("error", (err) => {

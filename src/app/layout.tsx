@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   title: "papernook",
-  description: "Your papers, annotated and understood — self-hosted.",
+  description: "Your papers, annotated and understood, on your own server.",
 };
 
 export default function RootLayout({

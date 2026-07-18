@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # papernook installer: interactive .env setup + docker compose up.
-# Mirrors Sotto's install.sh pattern — the AI provider is chosen HERE,
+# Mirrors Sotto's install.sh pattern; the AI provider is chosen HERE,
 # never hardcoded in the app.
 
 set -euo pipefail
@@ -8,18 +8,18 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ -f .env ]; then
-  echo ".env already exists — edit it directly or delete it to rerun setup."
+  echo ".env already exists; edit it directly or delete it to rerun setup."
   exit 1
 fi
 
 echo "papernook setup"
 echo
 echo "How should papernook talk to your AI?"
-echo "  1) claude   — Claude Code CLI on this machine (keyless)"
-echo "  2) codex    — Codex CLI on this machine (keyless)"
-echo "  3) ssh      — Claude Code CLI on another machine, over SSH"
-echo "  4) anthropic — Anthropic API key"
-echo "  5) openai   — OpenAI API key"
+echo "  1) claude   : Claude Code CLI on this machine (keyless)"
+echo "  2) codex    : Codex CLI on this machine (keyless)"
+echo "  3) ssh      : Claude Code CLI on another machine, over SSH"
+echo "  4) anthropic : Anthropic API key"
+echo "  5) openai   : OpenAI API key"
 read -r -p "Choice [1-5]: " CHOICE
 
 case "$CHOICE" in

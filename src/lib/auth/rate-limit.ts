@@ -1,6 +1,6 @@
 /**
  * In-process login throttling for public exposure: per-IP and per-account
- * counters with exponential lockout. State is in memory by design — a restart
+ * counters with exponential lockout. State is in memory by design; a restart
  * clears it, which only ever helps the legitimate owner. Caddy-level bot
  * mitigation sits in front of this in production.
  */

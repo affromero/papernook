@@ -18,7 +18,7 @@ const ARXIV_RE =
 
 export function normalizeUrl(input: string): NormalizedTarget {
   const trimmed = input.trim();
-  const url = new URL(trimmed); // throws on garbage — caller handles
+  const url = new URL(trimmed); // throws on garbage; caller handles
 
   const arxiv = trimmed.match(ARXIV_RE);
   if (arxiv) {

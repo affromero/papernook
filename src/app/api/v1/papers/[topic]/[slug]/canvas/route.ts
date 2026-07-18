@@ -6,7 +6,7 @@ import { getPaper } from "@/lib/library/papers";
 
 /**
  * Canvas persistence: the tldraw store snapshot lives as canvas.json in the
- * companion folder — filesystem truth like everything else. Shared between
+ * companion folder, filesystem truth like everything else. Shared between
  * profiles (the canvas is part of the paper's workspace, like ink).
  */
 

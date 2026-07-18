@@ -111,7 +111,7 @@ export function LibraryView({
           <p className={styles.empty}>
             {query
               ? "Nothing matches that search."
-              : "No papers yet — share a link to /add to start."}
+              : "No papers yet; share a link to /add to start."}
           </p>
         ) : (
           <ul className={styles.grid}>

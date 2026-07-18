@@ -14,7 +14,7 @@ import {
  * claude-code-client.ts and decoupled from its registry/pricing stack.
  * Keyless: uses whatever auth the CLI has, locally or over SSH
  * (CLAUDE_CODE_SSH_HOST). Prompt is piped via stdin to avoid ARG_MAX.
- * Images are referenced by path with the Read tool allowed — new to
+ * Images are referenced by path with the Read tool allowed; new to
  * papernook; Sotto's client was text-only.
  */
 
@@ -108,7 +108,7 @@ export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
       if (code !== 0) {
         reject(
           new Error(
-            `claude-code: exited with code ${code} — ${stderr.slice(0, 500)}`,
+            `claude-code: exited with code ${code}: ${stderr.slice(0, 500)}`,
           ),
         );
         return;
@@ -125,7 +125,7 @@ export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
       clearTimeout(timer);
       reject(
         new Error(
-          `claude-code: failed to spawn — ${err.message}. Is the 'claude' CLI installed?`,
+          `claude-code: failed to spawn: ${err.message}. Is the 'claude' CLI installed?`,
         ),
       );
     });

@@ -81,9 +81,7 @@ function runCodex(
       clearTimeout(timer);
       if (code !== 0) {
         reject(
-          new Error(
-            `codex: exited with code ${code} — ${stderr.slice(0, 500)}`,
-          ),
+          new Error(`codex: exited with code ${code}: ${stderr.slice(0, 500)}`),
         );
         return;
       }
@@ -102,7 +100,7 @@ function runCodex(
       clearTimeout(timer);
       reject(
         new Error(
-          `codex: failed to spawn — ${err.message}. Is the 'codex' CLI installed?`,
+          `codex: failed to spawn: ${err.message}. Is the 'codex' CLI installed?`,
         ),
       );
     });

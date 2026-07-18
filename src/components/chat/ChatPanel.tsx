@@ -222,7 +222,7 @@ export function ChatPanel({ topic, slug }: ChatPanelProps) {
         ))}
         {messages.length === 0 && (
           <p className={styles.empty}>
-            Ask anything about this paper — or paste a marked-up screenshot and
+            Ask anything about this paper, or paste a marked-up screenshot and
             ask &ldquo;explain this&rdquo;.
           </p>
         )}

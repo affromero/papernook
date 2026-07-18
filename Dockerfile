@@ -1,4 +1,4 @@
-# papernook — self-contained app image.
+# papernook: self-contained app image.
 # better-sqlite3 is a native module: it is installed and compiled INSIDE this
 # image (Linux glibc), never copied from a dev machine.
 

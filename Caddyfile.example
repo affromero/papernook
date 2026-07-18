@@ -15,7 +15,7 @@ papernook.example.com {
 	reverse_proxy localhost:3000
 }
 
-# WebDAV for PDF Expert — its own subdomain, its own basic-auth (rclone).
+# WebDAV for PDF Expert: its own subdomain, its own basic-auth (rclone).
 dav.papernook.example.com {
 	reverse_proxy localhost:8080
 }

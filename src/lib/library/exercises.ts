@@ -8,7 +8,7 @@ import { companionDir, exercisesPdfPath } from "./papers";
  * into the companion folder; we render all of them into one
  * <slug>.exercises.pdf in the papers tree so they reach the iPad
  * Pencil-annotatable over WebDAV. The renderer handles the markdown subset
- * chat output actually uses: headings, bullets, numbered lists, paragraphs —
+ * chat output actually uses: headings, bullets, numbered lists, paragraphs,
  * with generous line spacing left as writing room.
  */
 
@@ -140,7 +140,7 @@ export async function renderExercisesPdf(
     if (current) flush();
   };
 
-  write({ text: `Exercises — ${title}`, size: 20, bold: true, indent: 0 });
+  write({ text: `Exercises: ${title}`, size: 20, bold: true, indent: 0 });
   y -= 10;
   for (const name of names) {
     const markdown = fs.readFileSync(path.join(dir, name), "utf8");

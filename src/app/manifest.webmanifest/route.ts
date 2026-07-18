@@ -10,7 +10,7 @@ export function GET(): NextResponse {
     buildManifest({
       name: "papernook",
       shortName: "papernook",
-      description: "Your papers, annotated and understood — self-hosted.",
+      description: "Your papers, annotated and understood, on your own server.",
       themeColor: "#3f4fb0",
       backgroundColor: "#f5f4f0",
       icons: [

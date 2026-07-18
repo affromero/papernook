@@ -1,9 +1,9 @@
 /**
- * Provider-agnostic agent interface. Every provider — API-key (anthropic,
- * openai), local CLI (claude-code, codex), or the same CLIs over SSH —
- * accepts the same turn shape. `images` are LOCAL file paths; each provider's
+ * Provider-agnostic agent interface. Every provider accepts the same turn
+ * shape: API-key (anthropic, openai), local CLI (claude-code, codex), or the
+ * same CLIs over SSH. `images` are LOCAL file paths; each provider's
  * attachment routing decides how they travel (base64 for APIs, path
- * references for local CLIs, scp for SSH — see attachments.ts).
+ * references for local CLIs, scp for SSH; see attachments.ts).
  */
 
 export type ProviderId = "anthropic" | "openai" | "claude-code" | "codex";
