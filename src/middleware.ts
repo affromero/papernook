@@ -19,7 +19,7 @@ const PUBLIC_PATHS = [
 export const config = {
   runtime: "nodejs",
   matcher: [
-    "/((?!_next/|avatars/|favicon\\.ico|manifest\\.webmanifest|sw\\.js|add-to-papernook\\.shortcut).*)",
+    "/((?!_next/|avatars/|favicon\\.ico|manifest\\.webmanifest|sw\\.js).*)",
   ],
 };
 

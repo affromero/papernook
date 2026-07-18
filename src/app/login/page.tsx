@@ -5,7 +5,7 @@ import {
   toPublicProfile,
   instancePasswordConfigured,
 } from "@/lib/auth/users";
-import { isPublicExposure } from "@/lib/data-dir";
+import { requestIsPublic } from "@/lib/auth/exposure";
 import { gateRequired } from "@/lib/auth/gate";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export default async function LoginPage() {
   return (
     <ProfilePicker
       profiles={profiles}
-      publicMode={isPublicExposure()}
+      publicMode={await requestIsPublic()}
       instancePassword={instancePasswordConfigured()}
     />
   );

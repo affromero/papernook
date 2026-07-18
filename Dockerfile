@@ -27,6 +27,7 @@ ENV PAPERNOOK_DATA_DIR=/data
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
+COPY --from=build /app/assets ./assets
 EXPOSE 3000
 VOLUME /data
 CMD ["node", "server.js"]

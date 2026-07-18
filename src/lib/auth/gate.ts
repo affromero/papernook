@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
-import { sessionSecret, isPublicExposure } from "../data-dir";
-import { instancePasswordConfigured } from "./users";
+import { sessionSecret } from "../data-dir";
 import { SESSION_COOKIE, verifySessionToken } from "./session";
+import { requestNeedsGate } from "./exposure";
 
 /**
  * The access gate stands in front of the whole profile picker on a public
@@ -45,7 +45,7 @@ export function verifyGateToken(token: string, now = Date.now()): boolean {
  * no valid gate cookie yet.
  */
 export async function gateRequired(): Promise<boolean> {
-  if (!isPublicExposure() || !instancePasswordConfigured()) return false;
+  if (!(await requestNeedsGate())) return false;
   const store = await cookies();
   // A logged-in profile already proved the password once: switching
   // profiles never re-asks. Only fresh visitors (or after logout) see

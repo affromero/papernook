@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import {
   getProfile,
-  requiresPassword,
   setPassword,
   verifyPassword,
   toPublicProfile,
@@ -16,6 +15,7 @@ import {
   activeProfile,
 } from "@/lib/auth/session";
 import { gatePassed, GATE_COOKIE, gateCookieOptions } from "@/lib/auth/gate";
+import { requestIsPublic } from "@/lib/auth/exposure";
 import {
   recordFailure,
   recordSuccess,
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unknown profile." }, { status: 404 });
   }
 
-  if (requiresPassword()) {
+  if (await requestIsPublic()) {
     const ipKey = `ip:${clientIp(request)}`;
     const accountKey = `user:${username}`;
     const wait = Math.max(retryAfterMs(ipKey), retryAfterMs(accountKey));

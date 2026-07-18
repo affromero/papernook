@@ -40,9 +40,7 @@ export default async function WelcomePage() {
       displayName={profile.displayName}
       captureToken={profile.captureToken}
       baseUrl={`${proto}://${host}`}
-      shortcutUrl={
-        process.env.PAPERNOOK_SHORTCUT_URL ?? "/add-to-papernook.shortcut"
-      }
+      shortcutUrl={process.env.PAPERNOOK_SHORTCUT_URL ?? "/api/v1/shortcut"}
       agentProvider={agentProvider}
       agentAvailable={agentAvailable}
       webdavUser={process.env.WEBDAV_USER ?? null}
