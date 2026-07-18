@@ -19,6 +19,19 @@ interface WelcomeFlowProps {
 
 type Step = "welcome" | "agent" | "capture" | "ipad" | "done";
 
+/**
+ * The WebDAV address that pairs with how the app is being reached: a domain
+ * without a port (production behind TLS) gets the dav. subdomain; a
+ * host:port (local dev, Tailscale IP) gets the sidecar port.
+ */
+function webdavUrl(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  if (!url.port || url.port === "443") {
+    return `https://dav.${url.hostname}`;
+  }
+  return `${url.protocol}//${url.hostname}:8080`;
+}
+
 const ORDER: Step[] = ["welcome", "agent", "capture", "ipad", "done"];
 
 interface AgentStatus {
@@ -143,8 +156,9 @@ export function WelcomeFlow({
               </li>
               <li>
                 Add a connection: <strong>WebDAV</strong> →{" "}
-                <code>{baseUrl.replace(/:\d+$/, "")}:8080</code> with the WebDAV
-                user/password from the server&rsquo;s <code>.env</code>.
+                <code>{webdavUrl(baseUrl)}</code> with the WebDAV user and
+                password (in Infisical, or the server&rsquo;s <code>.env</code>
+                ).
               </li>
               <li>
                 Open any paper, write with the Pencil; it saves straight into
