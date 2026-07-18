@@ -7,7 +7,13 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
  * own per-profile capture token and is validated in the route).
  */
 
-const PUBLIC_PATHS = ["/login", "/add", "/api/v1/session", "/api/v1/profiles"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/add",
+  "/api/v1/session",
+  "/api/v1/profiles",
+  "/api/v1/health",
+];
 
 export const config = {
   runtime: "nodejs",
