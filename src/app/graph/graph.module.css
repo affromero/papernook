@@ -1,0 +1,28 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 1rem 1.5rem;
+  box-sizing: border-box;
+  gap: 0.5rem;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.back {
+  text-decoration: none;
+  color: inherit;
+  opacity: 0.7;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.15rem;
+}

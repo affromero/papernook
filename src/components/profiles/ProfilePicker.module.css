@@ -334,3 +334,10 @@
   text-align: center;
   margin: 16px 0 0;
 }
+
+.gateHint {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  opacity: 0.75;
+  margin: 0 0 0.75rem;
+}

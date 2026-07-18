@@ -185,3 +185,41 @@ describe("index rebuild from disk", () => {
     expect(() => lib.searchIndex('att* AND "quo)tes" NEAR(')).not.toThrow();
   });
 });
+
+describe("library graph", () => {
+  it("connects papers to authors, topic, tags, and related papers", async () => {
+    const lib = await placePaper(
+      "nlp",
+      "attention",
+      "Attention Is All You Need",
+      ["transformers"],
+    );
+    await placePaper("nlp", "bert", "BERT");
+    lib.writeMeta("nlp", "attention", {
+      ...lib.readMeta("nlp", "attention")!,
+      related: ["bert", "nonexistent"],
+    });
+    const { buildLibraryGraph } = await import("@/lib/library/graph");
+    const graph = buildLibraryGraph();
+    const ids = graph.nodes.map((n) => n.id);
+    expect(ids).toContain("paper:attention");
+    expect(ids).toContain("paper:bert");
+    expect(ids).toContain("topic:nlp");
+    expect(ids).toContain("author:ada lovelace");
+    expect(ids).toContain("tag:transformers");
+    expect(
+      graph.edges.some(
+        (e) =>
+          e.kind === "related" &&
+          e.source === "paper:attention" &&
+          e.target === "paper:bert",
+      ),
+    ).toBe(true);
+    // related links to papers outside the library are dropped
+    expect(graph.edges.every((e) => e.target !== "paper:nonexistent")).toBe(
+      true,
+    );
+    const paper = graph.nodes.find((n) => n.id === "paper:attention");
+    expect(paper?.href).toBe("/paper/nlp/attention");
+  });
+});

@@ -72,6 +72,9 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
             />
             {displayName}
           </p>
+          <Link role="menuitem" href="/graph" onClick={() => setOpen(false)}>
+            Graph
+          </Link>
           <Link role="menuitem" href="/settings" onClick={() => setOpen(false)}>
             Settings
           </Link>

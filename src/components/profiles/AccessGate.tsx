@@ -46,6 +46,11 @@ export function AccessGate() {
         aria-label="Access password"
       >
         <h1 className={styles.panelTitle}>Enter the access password</h1>
+        <p className={styles.gateHint}>
+          This is a private paper library. The person who runs it has the
+          password; ask them, or use the invite link/QR they can generate in
+          their Settings.
+        </p>
         <label className={styles.fieldLabel} htmlFor="gate-password">
           Password
         </label>

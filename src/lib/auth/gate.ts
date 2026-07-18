@@ -22,6 +22,26 @@ function sign(payload: string): string {
     .digest("hex");
 }
 
+const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+/** Signed invite: opens the gate without typing the password. */
+export function createInviteToken(now = Date.now()): string {
+  const expiry = now + INVITE_TTL_MS;
+  return `${expiry}.${sign(`invite.${expiry}`)}`;
+}
+
+export function verifyInviteToken(token: string, now = Date.now()): boolean {
+  const parts = token.split(".");
+  if (parts.length !== 2) return false;
+  const [expiryRaw, sig] = parts;
+  const expected = sign(`invite.${expiryRaw}`);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+  const expiry = Number(expiryRaw);
+  return Number.isFinite(expiry) && expiry >= now;
+}
+
 export function createGateToken(now = Date.now()): string {
   const expiry = now + GATE_TTL_MS;
   return `${expiry}.${sign(String(expiry))}`;

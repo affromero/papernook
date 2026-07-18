@@ -1,0 +1,43 @@
+.wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.canvas {
+  flex: 1;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 12px;
+  min-height: 420px;
+}
+
+.legend {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.12);
+  font-size: 0.78rem;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.empty {
+  opacity: 0.7;
+  padding: 2rem 0;
+}

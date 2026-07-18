@@ -3,6 +3,9 @@ import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
 import { isAdmin, listProfiles, toPublicProfile } from "@/lib/auth/users";
 import { AdminMembers } from "@/components/profiles/AdminMembers";
+import { InviteQr } from "@/components/profiles/InviteQr";
+import { createInviteToken } from "@/lib/auth/gate";
+import { instancePasswordConfigured } from "@/lib/auth/users";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
 import styles from "./settings.module.css";
 
@@ -92,11 +95,14 @@ export default async function SettingsPage() {
 
       <section className={styles.card}>
         <h2>Invite a friend</h2>
+        {admin && instancePasswordConfigured() && (
+          <InviteQr inviteUrl={`${base}/invite?t=${createInviteToken()}`} />
+        )}
         <ol>
           <li>
-            Send them the URL and the access password (in Infisical as{" "}
-            <code>PAPERNOOK_PASSWORD</code>). On a private/Tailscale setup there
-            is no password; just send the address.
+            {admin
+              ? "Send the invite link or the QR above; no password typing for them. Or send the URL plus the access password."
+              : "Ask the admin for an invite link or the access password, then open the URL."}
           </li>
           <li>
             They open papernook → <strong>Add profile</strong> on the picker.
