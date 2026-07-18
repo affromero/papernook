@@ -30,8 +30,8 @@ One tap from any browser files a paper into your library. The iPad opens it with
 ## Quick Start
 
 ```bash
-git clone <this repo> papernook && cd papernook
-./scripts/install.sh   # picks your AI (CLI / SSH / API key), writes .env, docker compose up
+curl -fsSL https://raw.githubusercontent.com/affromero/papernook/main/scripts/install.sh | bash
+# clones the repo, picks your AI (CLI / SSH / API key), writes .env, docker compose up
 ```
 
 Open **http://localhost:3000**, create your profile, and the two-minute wizard takes it from there: agent test → personal bookmarklet + Shortcut → iPad WebDAV walkthrough.

@@ -5,7 +5,17 @@
 
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+# Self-bootstrap: when run via `curl … | bash` there is no repo around the
+# script, so clone it and re-exec from the clone.
+if [ -f "$(dirname "$0")/../docker-compose.yml" ]; then
+  cd "$(dirname "$0")/.."
+else
+  command -v git >/dev/null || { echo "install git first" >&2; exit 1; }
+  echo "Cloning papernook…"
+  git clone https://github.com/affromero/papernook.git
+  cd papernook
+  exec ./scripts/install.sh "$@"
+fi
 
 # Non-interactive: pull everything from an existing Infisical project.
 #   INFISICAL_TOKEN=... INFISICAL_PROJECT_ID=... ./scripts/install.sh --from-infisical
@@ -34,31 +44,31 @@ echo "  2) codex    : Codex CLI on this machine (keyless)"
 echo "  3) ssh      : Claude Code CLI on another machine, over SSH"
 echo "  4) anthropic : Anthropic API key"
 echo "  5) openai   : OpenAI API key"
-read -r -p "Choice [1-5]: " CHOICE
+read -r -p "Choice [1-5]: " CHOICE < /dev/tty
 
 case "$CHOICE" in
   1)
-    read -r -p "Claude model [opus/sonnet/haiku, empty = CLI default]: " M
+    read -r -p "Claude model [opus/sonnet/haiku, empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=claude-code'
     [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$M"
     ;;
   2)
-    read -r -p "Codex model [empty = CLI default]: " M
+    read -r -p "Codex model [empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=codex'
     [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_MODEL=$M"
     ;;
   3)
-    read -r -p "SSH host (user@host): " SSH_HOST
-    read -r -p "Claude model [empty = CLI default]: " M
+    read -r -p "SSH host (user@host): " SSH_HOST < /dev/tty
+    read -r -p "Claude model [empty = CLI default]: " M < /dev/tty
     AI_BLOCK=$'AI_PROVIDER=claude-code\n'"CLAUDE_CODE_SSH_HOST=${SSH_HOST}"
     [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$M"
     ;;
   4)
-    read -r -p "Anthropic API key: " AI_KEY
+    read -r -p "Anthropic API key: " AI_KEY < /dev/tty
     AI_BLOCK=$'AI_PROVIDER=anthropic\n'"ANTHROPIC_API_KEY=${AI_KEY}"
     ;;
   5)
-    read -r -p "OpenAI API key: " AI_KEY
+    read -r -p "OpenAI API key: " AI_KEY < /dev/tty
     AI_BLOCK=$'AI_PROVIDER=openai\n'"OPENAI_API_KEY=${AI_KEY}"
     ;;
   *)
@@ -67,10 +77,10 @@ case "$CHOICE" in
     ;;
 esac
 
-read -r -p "WebDAV username for PDF Expert [papers]: " WEBDAV_USER
+read -r -p "WebDAV username for PDF Expert [papers]: " WEBDAV_USER < /dev/tty
 WEBDAV_USER=${WEBDAV_USER:-papers}
-read -r -p "WebDAV password: " WEBDAV_PASS
-read -r -p "Expose publicly (forces profile passwords)? [y/N]: " PUBLIC
+read -r -p "WebDAV password: " WEBDAV_PASS < /dev/tty
+read -r -p "Expose publicly (forces profile passwords)? [y/N]: " PUBLIC < /dev/tty
 
 {
   echo "$AI_BLOCK"
