@@ -18,6 +18,8 @@ interface ProfilePickerProps {
   profiles: PickerProfile[];
   /** True when the instance requires passwords (public exposure). */
   publicMode: boolean;
+  /** True when one shared access password (from Infisical) is configured. */
+  instancePassword: boolean;
 }
 
 type Editor =
@@ -25,7 +27,11 @@ type Editor =
   | { mode: "password"; profile: PickerProfile; mustSet: boolean }
   | null;
 
-export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
+export function ProfilePicker({
+  profiles,
+  publicMode,
+  instancePassword,
+}: ProfilePickerProps) {
   const router = useRouter();
   const [editor, setEditor] = useState<Editor>(null);
   const [name, setName] = useState("");
@@ -76,7 +82,11 @@ export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
     if (busy) return;
     if (publicMode) {
       setPassword("");
-      setEditor({ mode: "password", profile, mustSet: !profile.hasPassword });
+      setEditor({
+        mode: "password",
+        profile,
+        mustSet: !instancePassword && !profile.hasPassword,
+      });
       return;
     }
     void login(profile.username);

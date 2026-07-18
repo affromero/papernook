@@ -149,10 +149,34 @@ export async function verifyPassword(
 
 /**
  * Whether opening a profile requires a password right now. Private mode:
- * never. Public exposure: always (profiles without one must set it first).
+ * never. Public exposure: always.
  */
 export function requiresPassword(): boolean {
   return isPublicExposure();
+}
+
+/**
+ * Instance-level access password (PAPERNOOK_PASSWORD, e.g. from Infisical).
+ * When set, it is THE password for every profile in public mode: login and
+ * profile creation verify against it, and no per-profile password is ever
+ * prompted for. When unset, public mode falls back to per-profile
+ * passwords set on first login.
+ */
+export function instancePasswordConfigured(): boolean {
+  return Boolean(process.env.PAPERNOOK_PASSWORD);
+}
+
+export function verifyInstancePassword(password: string): boolean {
+  const expected = process.env.PAPERNOOK_PASSWORD;
+  if (!expected || !password) return false;
+  const a = Buffer.from(password);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) {
+    // Compare against self to keep timing flat, then reject.
+    crypto.timingSafeEqual(a, a);
+    return false;
+  }
+  return crypto.timingSafeEqual(a, b);
 }
 
 export function markWizardDone(username: string): void {

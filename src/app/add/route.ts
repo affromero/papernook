@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { profileForCaptureToken } from "@/lib/auth/users";
+import { recordFailure, retryAfterMs } from "@/lib/auth/rate-limit";
 import { capture } from "@/lib/capture";
 import { CaptureError } from "@/lib/capture/download";
 import { confirmationPage, errorPage } from "./pages";
@@ -22,8 +23,16 @@ async function handle(request: NextRequest): Promise<NextResponse> {
     token = (form?.get("token") as string | null) ?? token;
   }
 
+  const ipKey = `ip:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local"}`;
+  if (retryAfterMs(ipKey) > 0) {
+    return new NextResponse(errorPage("Too many attempts. Try again later."), {
+      status: 429,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
   const profile = profileForCaptureToken(token);
   if (!profile) {
+    recordFailure(ipKey);
     return new NextResponse(
       errorPage(
         "Invalid capture token. Re-copy your bookmarklet or Shortcut from Settings.",

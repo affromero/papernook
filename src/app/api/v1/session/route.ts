@@ -6,6 +6,8 @@ import {
   setPassword,
   verifyPassword,
   toPublicProfile,
+  instancePasswordConfigured,
+  verifyInstancePassword,
 } from "@/lib/auth/users";
 import {
   createSessionToken,
@@ -65,7 +67,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (profile.passwordHash === null) {
+    if (instancePasswordConfigured()) {
+      // Instance password (from Infisical) is THE password for everyone.
+      if (!password || !verifyInstancePassword(password)) {
+        recordFailure(ipKey);
+        recordFailure(accountKey);
+        return NextResponse.json({ error: "Wrong password." }, { status: 401 });
+      }
+    } else if (profile.passwordHash === null) {
       // Public mode + passwordless profile: first login must set a password.
       if (!newPassword) {
         return NextResponse.json(

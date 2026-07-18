@@ -169,3 +169,23 @@ describe("wizard flag", () => {
     expect(u.getProfile("ana")?.wizardDone).toBe(true);
   });
 });
+
+describe("instance password (from Infisical)", () => {
+  it("verifies only the exact configured password", async () => {
+    process.env.PAPERNOOK_PASSWORD = "correct-horse-battery";
+    const u = await users();
+    expect(u.instancePasswordConfigured()).toBe(true);
+    expect(u.verifyInstancePassword("correct-horse-battery")).toBe(true);
+    expect(u.verifyInstancePassword("wrong")).toBe(false);
+    expect(u.verifyInstancePassword("")).toBe(false);
+    expect(u.verifyInstancePassword("correct-horse-battery-x")).toBe(false);
+    delete process.env.PAPERNOOK_PASSWORD;
+  });
+
+  it("reports unconfigured when the env var is absent", async () => {
+    delete process.env.PAPERNOOK_PASSWORD;
+    const u = await users();
+    expect(u.instancePasswordConfigured()).toBe(false);
+    expect(u.verifyInstancePassword("anything")).toBe(false);
+  });
+});
