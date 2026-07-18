@@ -16,6 +16,8 @@ export interface Profile {
   username: string;
   displayName: string;
   avatarSlug: string;
+  /** First profile created on the instance is the admin (Sotto's owner). */
+  role?: "admin" | "member";
   /** Attributes /add captures (and their starter chats) to this profile. */
   captureToken: string;
   /** argon2 hash; null until the profile sets a password. */
@@ -31,6 +33,7 @@ export interface PublicProfile {
   displayName: string;
   avatarSlug: string;
   hasPassword: boolean;
+  isAdmin: boolean;
 }
 
 const USERNAME_RE = /^[a-z0-9][a-z0-9-]{1,30}$/;
@@ -89,6 +92,7 @@ export function toPublicProfile(profile: Profile): PublicProfile {
     displayName: profile.displayName,
     avatarSlug: profile.avatarSlug,
     hasPassword: profile.passwordHash !== null,
+    isAdmin: profile.role === "admin",
   };
 }
 
@@ -110,10 +114,12 @@ export function createProfile(
     avatarSlug && isAnimalSlug(avatarSlug)
       ? avatarSlug
       : animalForSeed(username).slug;
+  const isFirst = listProfiles().length === 0;
   const profile: Profile = {
     username,
     displayName: displayName.trim(),
     avatarSlug: slug,
+    role: isFirst ? "admin" : "member",
     captureToken: crypto.randomBytes(24).toString("hex"),
     passwordHash: null,
     createdAt: new Date().toISOString(),
@@ -177,6 +183,19 @@ export function verifyInstancePassword(password: string): boolean {
     return false;
   }
   return crypto.timingSafeEqual(a, b);
+}
+
+export function isAdmin(profile: Profile): boolean {
+  return profile.role === "admin";
+}
+
+export function deleteProfile(username: string): void {
+  const profile = readProfile(username);
+  if (!profile) throw new ProfileError("Unknown profile.");
+  if (profile.role === "admin") {
+    throw new ProfileError("The admin profile cannot be deleted.");
+  }
+  fs.rmSync(path.join(usersRoot(), username), { recursive: true, force: true });
 }
 
 export function markWizardDone(username: string): void {

@@ -1,0 +1,31 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 44px;
+}
+
+.remove {
+  min-height: 36px;
+  padding: 0 0.8rem;
+  border-radius: 8px;
+  border: 1px solid rgba(164, 46, 43, 0.5);
+  background: rgba(164, 46, 43, 0.08);
+  color: #a42e2b;
+  font-weight: 600;
+}
+
+.error {
+  color: #a42e2b;
+  font-size: 0.85rem;
+}

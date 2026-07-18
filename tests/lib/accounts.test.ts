@@ -189,3 +189,25 @@ describe("instance password (from Infisical)", () => {
     expect(u.verifyInstancePassword("anything")).toBe(false);
   });
 });
+
+describe("admin role", () => {
+  it("first profile is admin, later ones are members", async () => {
+    const u = await users();
+    const first = u.createProfile("Andres");
+    const second = u.createProfile("Ana");
+    expect(first.role).toBe("admin");
+    expect(second.role).toBe("member");
+    expect(u.toPublicProfile(first).isAdmin).toBe(true);
+    expect(u.toPublicProfile(second).isAdmin).toBe(false);
+  });
+
+  it("members can be deleted, the admin cannot", async () => {
+    const u = await users();
+    u.createProfile("Andres");
+    u.createProfile("Ana");
+    u.deleteProfile("ana");
+    expect(u.getProfile("ana")).toBeNull();
+    expect(() => u.deleteProfile("andres")).toThrow(/admin/);
+    expect(u.getProfile("andres")).not.toBeNull();
+  });
+});

@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
+import { isAdmin, listProfiles, toPublicProfile } from "@/lib/auth/users";
+import { AdminMembers } from "@/components/profiles/AdminMembers";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
 import styles from "./settings.module.css";
 
@@ -9,6 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const profile = await activeProfile();
   if (!profile) redirect("/login");
+  const admin = isAdmin(profile);
 
   const headerStore = await headers();
   const host = headerStore.get("host") ?? "localhost:3000";
@@ -65,6 +68,26 @@ export default async function SettingsPage() {
         </ol>
         <p>Then on any paper page: Share → Add to papernook → confirm. Done.</p>
       </section>
+
+      {admin && (
+        <section className={styles.card}>
+          <h2>Members</h2>
+          <p>
+            You are the admin: you own the instance configuration (agent,
+            passwords, secrets in Infisical). Members only pick a name and an
+            avatar.
+          </p>
+          <AdminMembers
+            members={listProfiles()
+              .map(toPublicProfile)
+              .map((p) => ({
+                username: p.username,
+                displayName: p.displayName,
+                isAdmin: p.isAdmin,
+              }))}
+          />
+        </section>
+      )}
 
       <section className={styles.card}>
         <h2>Invite a friend</h2>

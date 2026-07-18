@@ -21,6 +21,7 @@ interface WelcomeFlowProps {
   agentAvailable: boolean;
   webdavUser: string | null;
   webdavPass: string | null;
+  admin: boolean;
 }
 
 function webdavUrl(baseUrl: string): string {
@@ -40,6 +41,7 @@ export function WelcomeFlow({
   agentAvailable,
   webdavUser,
   webdavPass,
+  admin,
 }: WelcomeFlowProps) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -74,13 +76,18 @@ export function WelcomeFlow({
               <strong>{agentProvider}</strong> is connected and answering.
               Nothing to do.
             </p>
-          ) : (
+          ) : admin ? (
             <p className={styles.bad}>
               No working agent
               {agentProvider ? ` (provider ${agentProvider} unreachable)` : ""}.
-              The server admin sets <code>AI_PROVIDER</code> in Infisical or{" "}
-              <code>.env</code>. You can continue; chat activates once it is
-              configured.
+              As the admin you set <code>AI_PROVIDER</code> (and its key or SSH
+              host) in Infisical or <code>.env</code>, then redeploy. You can
+              continue; chat activates once it answers.
+            </p>
+          ) : (
+            <p className={styles.bad}>
+              The AI is not connected yet. Your admin is on it; everything else
+              already works.
             </p>
           )}
         </section>

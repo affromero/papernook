@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
+import { isAdmin } from "@/lib/auth/users";
 import {
   configuredProviderId,
   isProviderAvailable,
@@ -44,6 +45,7 @@ export default async function WelcomePage() {
       agentAvailable={agentAvailable}
       webdavUser={process.env.WEBDAV_USER ?? null}
       webdavPass={process.env.WEBDAV_PASS ?? null}
+      admin={isAdmin(profile)}
     />
   );
 }
