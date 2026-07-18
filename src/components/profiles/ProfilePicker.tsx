@@ -100,7 +100,12 @@ export function ProfilePicker({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ displayName: name.trim(), avatarSlug }),
+        body: JSON.stringify({
+          displayName: name.trim(),
+          avatarSlug,
+          // Instance mode: creation is gated by the shared access password.
+          password: instancePassword ? password : undefined,
+        }),
       });
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -109,6 +114,11 @@ export function ProfilePicker({
       if (!res.ok || !body.profile)
         throw new Error(body.error ?? "Could not create the profile.");
       setBusy(false);
+      if (instancePassword) {
+        // The access password just proven is also the login password.
+        await login(body.profile.username, password);
+        return;
+      }
       if (publicMode) {
         setPassword("");
         setEditor({
@@ -260,6 +270,23 @@ export function ProfilePicker({
               );
             })}
           </div>
+          {instancePassword && (
+            <>
+              <label className={styles.fieldLabel} htmlFor="access-password">
+                Access password
+              </label>
+              <input
+                id="access-password"
+                className={styles.nameInput}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                maxLength={200}
+                placeholder="the instance password"
+                autoComplete="current-password"
+              />
+            </>
+          )}
           {error && (
             <p className={styles.error} role="alert">
               {error}
@@ -278,7 +305,11 @@ export function ProfilePicker({
               type="button"
               className={styles.primaryBtn}
               onClick={() => void saveCreate()}
-              disabled={busy || name.trim().length < 2}
+              disabled={
+                busy ||
+                name.trim().length < 2 ||
+                (instancePassword && password.length === 0)
+              }
             >
               <Check size={16} aria-hidden="true" /> Create
             </button>
@@ -322,6 +353,7 @@ export function ProfilePicker({
           className={`${styles.profile} ${styles.add}`}
           onClick={() => {
             setName("");
+            setPassword("");
             setAvatarSlug(ANIMAL_AVATARS[0].slug);
             setError(null);
             setEditor({ mode: "create" });
