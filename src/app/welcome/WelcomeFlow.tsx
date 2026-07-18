@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { ModelPicker } from "@/components/profiles/ModelPicker";
 import styles from "./welcome.module.css";
 
 /**
@@ -126,12 +127,14 @@ export function WelcomeFlow({
               <strong>{agentProvider}</strong> on this server.
             </p>
           ) : (
-            <p className={styles.sectionBody}>
-              {admin
-                ? "Set AI_PROVIDER (plus its key or SSH host) in Infisical and redeploy. Everything else works meanwhile."
-                : "Your admin is connecting the AI. Everything else works meanwhile."}
-            </p>
+            !admin && (
+              <p className={styles.sectionBody}>
+                Your admin is connecting the AI. Everything else works
+                meanwhile.
+              </p>
+            )
           )}
+          {admin && <ModelPicker />}
         </section>
 
         <section className={styles.section}>
