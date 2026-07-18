@@ -45,6 +45,18 @@ export function ChatPanel({ topic, slug }: ChatPanelProps) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
+  // Canvas "Explain selection" hands crops over via this window event.
+  useEffect(() => {
+    const onAttach = (event: Event) => {
+      const dataUrl = (event as CustomEvent<string>).detail;
+      if (typeof dataUrl === "string" && dataUrl.startsWith("data:image/")) {
+        setPastedImages((imgs) => [...imgs, dataUrl].slice(0, 4));
+      }
+    };
+    window.addEventListener("papernook:attach", onAttach);
+    return () => window.removeEventListener("papernook:attach", onAttach);
+  }, []);
+
   async function openChat(id: string): Promise<void> {
     setActiveId(id);
     const res = await fetch(`${base}/chats/${id}`, { credentials: "include" });

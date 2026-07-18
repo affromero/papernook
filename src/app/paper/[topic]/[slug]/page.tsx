@@ -25,6 +25,9 @@ export default async function PaperPage({ params }: PaperPageProps) {
         <Link href="/" className={styles.back}>
           ← Library
         </Link>
+        <Link href={`/paper/${topic}/${slug}/canvas`} className={styles.back}>
+          Open canvas ↗
+        </Link>
         <div>
           <h1 className={styles.title}>{meta.title}</h1>
           <p className={styles.meta}>
