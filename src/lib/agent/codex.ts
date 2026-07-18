@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { configuredModel } from "./config";
 import { buildAgentInvocation, getCodexSshHost } from "./invocation";
 import { stageImagesOverSsh, imagePromptPreamble } from "./attachments";
 import {
@@ -23,7 +24,7 @@ function buildBase(): string[] {
     "read-only",
     "--skip-git-repo-check",
   ];
-  const model = process.env.CODEX_MODEL;
+  const model = configuredModel("codex");
   if (model) args.push("-m", model);
   return args;
 }

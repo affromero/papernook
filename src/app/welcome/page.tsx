@@ -38,6 +38,7 @@ export default async function WelcomePage() {
   return (
     <WelcomeFlow
       displayName={profile.displayName}
+      avatarSlug={profile.avatarSlug}
       captureToken={profile.captureToken}
       baseUrl={`${proto}://${host}`}
       shortcutUrl={process.env.PAPERNOOK_SHORTCUT_URL ?? "/api/v1/shortcut"}

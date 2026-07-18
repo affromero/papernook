@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { configuredModel } from "./config";
 import { buildAgentInvocation, getClaudeSshHost } from "./invocation";
 import { stageImagesOverSsh, imagePromptPreamble } from "./attachments";
 import {
@@ -59,7 +60,7 @@ async function buildArgs(
   streaming: boolean,
 ): Promise<{ args: string[]; prompt: string }> {
   const args = ["-p"];
-  const model = process.env.CLAUDE_CODE_MODEL;
+  const model = configuredModel("claude-code");
   if (model) args.push("--model", model);
   args.push("--output-format", streaming ? "stream-json" : "text");
   if (streaming) args.push("--verbose");

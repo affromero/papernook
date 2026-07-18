@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { readImageBase64 } from "./attachments";
+import { configuredModel } from "./config";
 import {
   DEFAULT_TIMEOUT_MS,
   type AgentProvider,
@@ -17,11 +18,11 @@ const ANTHROPIC_DEFAULT_MODEL = "claude-opus-4-8";
 const OPENAI_DEFAULT_MODEL = "gpt-5.5";
 
 function anthropicModel(): string {
-  return process.env.ANTHROPIC_MODEL || ANTHROPIC_DEFAULT_MODEL;
+  return configuredModel("anthropic") || ANTHROPIC_DEFAULT_MODEL;
 }
 
 function openaiModel(): string {
-  return process.env.OPENAI_MODEL || OPENAI_DEFAULT_MODEL;
+  return configuredModel("openai") || OPENAI_DEFAULT_MODEL;
 }
 
 let anthropicClient: Anthropic | null = null;

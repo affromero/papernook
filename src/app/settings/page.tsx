@@ -4,6 +4,7 @@ import { activeProfile } from "@/lib/auth/session";
 import { isAdmin, listProfiles, toPublicProfile } from "@/lib/auth/users";
 import { AdminMembers } from "@/components/profiles/AdminMembers";
 import { InviteQr } from "@/components/profiles/InviteQr";
+import { ModelPicker } from "@/components/profiles/ModelPicker";
 import { createInviteToken } from "@/lib/auth/gate";
 import { instancePasswordConfigured } from "@/lib/auth/users";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
@@ -72,6 +73,13 @@ export default async function SettingsPage() {
         </ol>
         <p>Then on any paper page: Share → Add to papernook → confirm. Done.</p>
       </section>
+
+      {admin && (
+        <section className={styles.card}>
+          <h2>AI model</h2>
+          <ModelPicker />
+        </section>
+      )}
 
       {admin && (
         <section className={styles.card}>

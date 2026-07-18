@@ -179,3 +179,30 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     vi.doUnmock("node:child_process");
   });
 });
+
+describe("model configuration", () => {
+  it("file beats env beats default, and clearing falls back", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-model-"));
+    vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
+    vi.stubEnv("CLAUDE_CODE_MODEL", "sonnet");
+    const cfg = await import("@/lib/agent/config");
+    expect(cfg.configuredModel("claude-code")).toBe("sonnet"); // env
+    cfg.setAgentModel("opus");
+    expect(cfg.configuredModel("claude-code")).toBe("opus"); // file wins
+    cfg.setAgentModel(null);
+    expect(cfg.configuredModel("claude-code")).toBe("sonnet"); // env again
+    vi.stubEnv("CLAUDE_CODE_MODEL", "");
+    expect(cfg.configuredModel("claude-code")).toBeUndefined(); // default
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("every provider has suggestions", async () => {
+    const cfg = await import("@/lib/agent/config");
+    for (const p of ["claude-code", "codex", "anthropic", "openai"] as const) {
+      expect(cfg.modelSuggestions(p).length).toBeGreaterThan(0);
+    }
+  });
+});

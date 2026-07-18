@@ -1,19 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import styles from "./welcome.module.css";
 
 /**
- * One-screen onboarding. Everything the instance already knows (from .env /
- * Infisical) is shown as a filled-in value, not an instruction: agent
- * status, the importable Shortcut link, and the WebDAV credentials. The
- * only actions left are taps: drag the bookmarklet, tap the Shortcut link,
- * copy the WebDAV login into PDF Expert.
+ * One-screen onboarding. Everything the instance knows (from Infisical /
+ * .env) renders as a finished value with a Copy button; the only actions
+ * left are taps. Sections are device-oriented: chat works already, capture
+ * is one tap per device, annotation is one login in PDF Expert.
  */
 
 interface WelcomeFlowProps {
   displayName: string;
+  avatarSlug: string;
   captureToken: string;
   baseUrl: string;
   shortcutUrl: string | null;
@@ -32,8 +33,40 @@ function webdavUrl(baseUrl: string): string {
   return `${url.protocol}//${url.hostname}:8080`;
 }
 
+function CopyRow({
+  label,
+  value,
+  secret = false,
+}: {
+  label: string;
+  value: string;
+  secret?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className={styles.copyRow}>
+      <span className={styles.copyLabel}>{label}</span>
+      <code className={styles.copyValue}>
+        {secret ? "•".repeat(10) : value}
+      </code>
+      <button
+        type="button"
+        className={styles.copyBtn}
+        onClick={() => {
+          void navigator.clipboard.writeText(value);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
 export function WelcomeFlow({
   displayName,
+  avatarSlug,
   captureToken,
   baseUrl,
   shortcutUrl,
@@ -45,7 +78,6 @@ export function WelcomeFlow({
 }: WelcomeFlowProps) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [showPass, setShowPass] = useState(false);
   const bookmarklet = `javascript:location.href='${baseUrl}/add?token=${captureToken}&url='+encodeURIComponent(location.href)`;
 
   async function finish(): Promise<void> {
@@ -61,112 +93,100 @@ export function WelcomeFlow({
   return (
     <main className={styles.root}>
       <div className={styles.card}>
-        <h1>Welcome, {displayName}</h1>
-        <p>
-          Your library is ready. Everything below is already configured; grab
-          what your devices need and go.
-        </p>
+        <header className={styles.hero}>
+          <Image
+            src={`/avatars/${avatarSlug}.png`}
+            alt=""
+            width={64}
+            height={64}
+            className={styles.heroAvatar}
+          />
+          <div>
+            <h1 className={styles.heroTitle}>Welcome, {displayName}</h1>
+            <p className={styles.heroSub}>
+              Your library is ready. Two taps and one login below, then read.
+            </p>
+          </div>
+        </header>
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            {agentAvailable ? "✓" : "✗"} Your AI
-          </h2>
+          <div className={styles.sectionHead}>
+            <span
+              className={agentAvailable ? styles.dotOk : styles.dotBad}
+              aria-hidden="true"
+            />
+            <h2 className={styles.sectionTitle}>Chat</h2>
+            <span className={styles.sectionState}>
+              {agentAvailable ? "works now" : "not connected"}
+            </span>
+          </div>
           {agentAvailable ? (
-            <p className={styles.ok}>
-              <strong>{agentProvider}</strong> is connected and answering.
-              Nothing to do.
-            </p>
-          ) : admin ? (
-            <p className={styles.bad}>
-              No working agent
-              {agentProvider ? ` (provider ${agentProvider} unreachable)` : ""}.
-              As the admin you set <code>AI_PROVIDER</code> (and its key or SSH
-              host) in Infisical or <code>.env</code>, then redeploy. You can
-              continue; chat activates once it answers.
+            <p className={styles.sectionBody}>
+              Every paper gets a chat grounded in its text, answered by{" "}
+              <strong>{agentProvider}</strong> on this server.
             </p>
           ) : (
-            <p className={styles.bad}>
-              The AI is not connected yet. Your admin is on it; everything else
-              already works.
+            <p className={styles.sectionBody}>
+              {admin
+                ? "Set AI_PROVIDER (plus its key or SSH host) in Infisical and redeploy. Everything else works meanwhile."
+                : "Your admin is connecting the AI. Everything else works meanwhile."}
             </p>
           )}
         </section>
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>✓ Capture</h2>
-          <p>
-            Zero setup: paste any link into the <strong>Add paper</strong> box
-            in your library.
+          <div className={styles.sectionHead}>
+            <span className={styles.dotOk} aria-hidden="true" />
+            <h2 className={styles.sectionTitle}>Add papers</h2>
+            <span className={styles.sectionState}>zero setup</span>
+          </div>
+          <p className={styles.sectionBody}>
+            Paste any link into the <strong>Add paper</strong> box in your
+            library. For one-tap capture from the browser:
           </p>
           {shortcutUrl && (
-            <p>
-              iPhone/iPad share sheet:{" "}
-              <a className={styles.bookmarklet} href={shortcutUrl}>
-                ⬇️ Get the Shortcut
-              </a>{" "}
-              then answer its two questions: server <code>{baseUrl}</code>,
-              token below.
-            </p>
+            <a className={styles.action} href={shortcutUrl}>
+              <span className={styles.actionTitle}>⬇️ Get the Shortcut</span>
+              <span className={styles.actionSub}>
+                iPhone / iPad share sheet. It asks for the server and your
+                token; both are below.
+              </span>
+            </a>
           )}
-          <p>
-            Chrome: drag{" "}
-            <a className={styles.bookmarklet} href={bookmarklet}>
-              📚 Add to papernook
-            </a>{" "}
-            to the bookmarks bar.
-          </p>
-          <p className={styles.tokenNote}>
-            Your capture token: <code>{captureToken}</code>
-          </p>
+          <a className={styles.action} href={bookmarklet}>
+            <span className={styles.actionTitle}>📚 Add to papernook</span>
+            <span className={styles.actionSub}>
+              Chrome: drag this to the bookmarks bar.
+            </span>
+          </a>
+          <CopyRow label="Server" value={baseUrl} />
+          <CopyRow label="Token" value={captureToken} secret />
         </section>
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>✓ iPad annotation</h2>
-          <p>
-            PDF Expert (or Documents) → add a <strong>WebDAV</strong>{" "}
-            connection:
+          <div className={styles.sectionHead}>
+            <span className={styles.dotOk} aria-hidden="true" />
+            <h2 className={styles.sectionTitle}>Write on papers</h2>
+            <span className={styles.sectionState}>one login</span>
+          </div>
+          <p className={styles.sectionBody}>
+            On the iPad, open <strong>PDF Expert</strong> (or Documents) and add
+            a WebDAV connection. Pencil ink saves into the PDF here; no exports,
+            ever.
           </p>
-          <ul className={styles.credList}>
-            <li>
-              Address: <code>{webdavUrl(baseUrl)}</code>
-            </li>
-            <li>
-              User: <code>{webdavUser ?? "(not configured)"}</code>
-            </li>
-            <li>
-              Password:{" "}
-              {webdavPass ? (
-                showPass ? (
-                  <code>{webdavPass}</code>
-                ) : (
-                  <button
-                    type="button"
-                    className={styles.reveal}
-                    onClick={() => setShowPass(true)}
-                  >
-                    reveal
-                  </button>
-                )
-              ) : (
-                <code>(not configured)</code>
-              )}
-            </li>
-          </ul>
-          <p className={styles.tokenNote}>
-            Ink lands in the PDF on your server. No exports, ever.
-          </p>
+          <CopyRow label="Address" value={webdavUrl(baseUrl)} />
+          {webdavUser && <CopyRow label="User" value={webdavUser} />}
+          {webdavPass && <CopyRow label="Password" value={webdavPass} secret />}
         </section>
 
-        <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.primary}
-            onClick={() => void finish()}
-            disabled={busy}
-          >
-            Open my library
-          </button>
-        </div>
+        <button
+          type="button"
+          className={styles.primary}
+          onClick={() => void finish()}
+          disabled={busy}
+        >
+          Open my library
+        </button>
       </div>
     </main>
   );

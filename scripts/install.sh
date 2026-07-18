@@ -37,11 +37,21 @@ echo "  5) openai   : OpenAI API key"
 read -r -p "Choice [1-5]: " CHOICE
 
 case "$CHOICE" in
-  1) AI_BLOCK='AI_PROVIDER=claude-code' ;;
-  2) AI_BLOCK='AI_PROVIDER=codex' ;;
+  1)
+    read -r -p "Claude model [opus/sonnet/haiku, empty = CLI default]: " M
+    AI_BLOCK='AI_PROVIDER=claude-code'
+    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$M"
+    ;;
+  2)
+    read -r -p "Codex model [empty = CLI default]: " M
+    AI_BLOCK='AI_PROVIDER=codex'
+    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_MODEL=$M"
+    ;;
   3)
     read -r -p "SSH host (user@host): " SSH_HOST
+    read -r -p "Claude model [empty = CLI default]: " M
     AI_BLOCK=$'AI_PROVIDER=claude-code\n'"CLAUDE_CODE_SSH_HOST=${SSH_HOST}"
+    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$M"
     ;;
   4)
     read -r -p "Anthropic API key: " AI_KEY
