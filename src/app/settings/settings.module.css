@@ -1,0 +1,37 @@
+.root {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.card {
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+.bookmarklet {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  background: rgba(63, 79, 176, 0.12);
+  border: 1px dashed rgba(63, 79, 176, 0.6);
+  text-decoration: none;
+  color: inherit;
+  font-weight: 600;
+}
+
+.token {
+  word-break: break-all;
+  background: rgba(127, 127, 127, 0.12);
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+}
