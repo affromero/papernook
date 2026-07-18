@@ -95,6 +95,37 @@ export default async function SettingsPage() {
       </section>
 
       <section className={styles.card}>
+        <h2>iPad WebDAV login</h2>
+        <ul>
+          <li>
+            Address:{" "}
+            <code>
+              {(() => {
+                const url = new URL(base);
+                return !url.port || url.port === "443"
+                  ? `https://dav.${url.hostname}`
+                  : `${url.protocol}//${url.hostname}:8080`;
+              })()}
+            </code>
+          </li>
+          <li>
+            User: <code>{process.env.WEBDAV_USER ?? "(not configured)"}</code>
+          </li>
+          <li>
+            Password:{" "}
+            {process.env.WEBDAV_PASS ? (
+              <details className={styles.revealDetails}>
+                <summary>reveal</summary>
+                <code className={styles.token}>{process.env.WEBDAV_PASS}</code>
+              </details>
+            ) : (
+              <code>(not configured)</code>
+            )}
+          </li>
+        </ul>
+      </section>
+
+      <section className={styles.card}>
         <h2>Your capture token</h2>
         <p>
           <code className={styles.token}>{profile.captureToken}</code>

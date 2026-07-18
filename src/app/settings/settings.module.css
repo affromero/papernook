@@ -35,3 +35,12 @@
   padding: 0.15rem 0.4rem;
   border-radius: 6px;
 }
+
+.revealDetails {
+  display: inline-block;
+}
+
+.revealDetails summary {
+  cursor: pointer;
+  opacity: 0.75;
+}

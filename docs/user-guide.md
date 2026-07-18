@@ -22,7 +22,7 @@ Their chats will be private; the paper library, folders, tags, and annotations a
 
 1. **Access.** Private mode: invite them to your Tailscale network (Tailscale admin → Invite) and give them the app URL. Public mode: give them the URL; they must set a password on first login.
 2. **Profile.** They open papernook → **Add profile** → name + animal.
-3. **Their wizard runs automatically**: agent check, _their own_ bookmarklet and Shortcut token (captures are filed under their name), and the iPad walkthrough.
+3. **Their one-screen wizard opens automatically** with everything filled in from the server: agent status, their personal Shortcut link and token, and the WebDAV login ready to copy into PDF Expert.
 4. That's it. They capture, chat, and annotate exactly like you.
 
 Rotate or view your capture token any time in **Settings**.

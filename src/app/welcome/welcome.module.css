@@ -85,3 +85,30 @@
   background: transparent;
   color: inherit;
 }
+
+.section {
+  border-top: 1px solid rgba(127, 127, 127, 0.2);
+  padding-top: 0.9rem;
+  margin-top: 0.9rem;
+}
+
+.sectionTitle {
+  margin: 0 0 0.4rem;
+  font-size: 1.02rem;
+}
+
+.credList {
+  margin: 0.3rem 0;
+  padding-left: 1.1rem;
+  line-height: 1.7;
+}
+
+.reveal {
+  min-height: 32px;
+  padding: 0.1rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
+}

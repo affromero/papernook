@@ -7,6 +7,20 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Non-interactive: pull everything from an existing Infisical project.
+#   INFISICAL_TOKEN=... INFISICAL_PROJECT_ID=... ./scripts/install.sh --from-infisical
+if [ "${1:-}" = "--from-infisical" ]; then
+  : "${INFISICAL_TOKEN:?set INFISICAL_TOKEN}"
+  : "${INFISICAL_PROJECT_ID:?set INFISICAL_PROJECT_ID}"
+  command -v infisical >/dev/null || { echo "install the infisical CLI first" >&2; exit 1; }
+  infisical export --projectId "$INFISICAL_PROJECT_ID" --env prod --format dotenv > .env
+  chmod 600 .env
+  echo "Wrote .env from Infisical. Starting the stack…"
+  docker compose up -d --build
+  echo "papernook is up: http://localhost:3000"
+  exit 0
+fi
+
 if [ -f .env ]; then
   echo ".env already exists; edit it directly or delete it to rerun setup."
   exit 1
