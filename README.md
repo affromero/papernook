@@ -10,9 +10,9 @@ One tap from any browser files a paper into your library. The iPad opens it with
 
 [![Self-hostable](https://img.shields.io/badge/self--hostable-yes-1F8A5B)](#self-host)
 [![BYOA](https://img.shields.io/badge/bring%20your%20own-Claude%20Code%20%2F%20Codex-3F4FB0)](#bring-your-own-agent)
-[![CI](https://img.shields.io/github/actions/workflow/status/afromero/papernook/ci.yml?branch=main&label=CI)](.github/workflows/ci.yml)
-[![CodeQL](https://img.shields.io/github/actions/workflow/status/afromero/papernook/codeql.yml?branch=main&label=CodeQL)](.github/workflows/codeql.yml)
-[![gitleaks](https://img.shields.io/github/actions/workflow/status/afromero/papernook/gitleaks.yml?branch=main&label=gitleaks)](.github/workflows/gitleaks.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/affromero/papernook/ci.yml?branch=main&label=CI)](.github/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/affromero/papernook/codeql.yml?branch=main&label=CodeQL)](.github/workflows/codeql.yml)
+[![gitleaks](https://img.shields.io/github/actions/workflow/status/affromero/papernook/gitleaks.yml?branch=main&label=gitleaks)](.github/workflows/gitleaks.yml)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot&logoColor=white)](.github/dependabot.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
