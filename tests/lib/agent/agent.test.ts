@@ -206,3 +206,24 @@ describe("model configuration", () => {
     }
   });
 });
+
+describe("provider override", () => {
+  it("file provider beats AI_PROVIDER env, and switching clears the model", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-prov-"));
+    vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
+    vi.stubEnv("AI_PROVIDER", "claude-code");
+    const cfg = await import("@/lib/agent/config");
+    const { configuredProviderId } = await import("@/lib/agent/registry");
+    expect(configuredProviderId()).toBe("claude-code");
+    cfg.setAgentModel("opus");
+    cfg.setAgentProvider("codex");
+    expect(configuredProviderId()).toBe("codex");
+    expect(cfg.configuredModel("codex")).toBeUndefined(); // model cleared
+    cfg.setAgentProvider(null);
+    expect(configuredProviderId()).toBe("claude-code"); // env again
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+});

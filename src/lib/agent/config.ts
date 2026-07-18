@@ -12,6 +12,7 @@ import type { ProviderId } from "./types";
  */
 
 interface AgentConfig {
+  provider?: ProviderId;
   model?: string;
 }
 
@@ -25,14 +26,35 @@ export function readAgentConfig(): AgentConfig {
   }
 }
 
-export function setAgentModel(model: string | null): void {
-  const config = readAgentConfig();
-  if (model) config.model = model;
-  else delete config.model;
+function writeConfig(config: AgentConfig): void {
   fs.mkdirSync(dataRoot(), { recursive: true });
   const tmp = `${FILE()}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(config, null, 2));
   fs.renameSync(tmp, FILE());
+}
+
+export function setAgentModel(model: string | null): void {
+  const config = readAgentConfig();
+  if (model) config.model = model;
+  else delete config.model;
+  writeConfig(config);
+}
+
+/**
+ * Switching provider also clears the model: model ids are provider-specific
+ * and a stale one would silently break the new provider.
+ */
+export function setAgentProvider(provider: ProviderId | null): void {
+  const config = readAgentConfig();
+  if (provider) config.provider = provider;
+  else delete config.provider;
+  delete config.model;
+  writeConfig(config);
+}
+
+/** Admin-selected provider, before the AI_PROVIDER env fallback. */
+export function configuredProviderOverride(): ProviderId | undefined {
+  return readAgentConfig().provider;
 }
 
 /** The model to use for a provider, or undefined for its own default. */

@@ -5,40 +5,55 @@ import { isAdmin } from "@/lib/auth/users";
 import {
   configuredModel,
   setAgentModel,
-  modelSuggestions,
+  setAgentProvider,
 } from "@/lib/agent/config";
+import { listOfferedModels } from "@/lib/agent/models";
 import {
   configuredProviderId,
   isProviderAvailable,
+  providerIds,
 } from "@/lib/agent/registry";
+import type { ProviderId } from "@/lib/agent/types";
 
-/** Admin-editable model selection for whichever provider is configured. */
+/**
+ * Admin agent controls: which provider answers and with which model.
+ * GET returns the current selection plus the models the provider offers
+ * right now (live from its API when reachable, curated otherwise).
+ */
 
 export const dynamic = "force-dynamic";
+
+async function snapshot(admin: boolean) {
+  let provider: ProviderId | null = null;
+  try {
+    provider = configuredProviderId();
+  } catch {
+    provider = null;
+  }
+  const offered = provider
+    ? await listOfferedModels(provider)
+    : { models: [], live: false };
+  return {
+    provider,
+    providers: providerIds(),
+    model: provider ? (configuredModel(provider) ?? null) : null,
+    suggestions: offered.models,
+    liveList: offered.live,
+    admin,
+  };
+}
 
 export async function GET(): Promise<NextResponse> {
   const me = await activeProfile();
   if (!me)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  try {
-    const provider = configuredProviderId();
-    return NextResponse.json({
-      provider,
-      model: configuredModel(provider) ?? null,
-      suggestions: modelSuggestions(provider),
-      admin: isAdmin(me),
-    });
-  } catch {
-    return NextResponse.json({
-      provider: null,
-      model: null,
-      suggestions: [],
-      admin: isAdmin(me),
-    });
-  }
+  return NextResponse.json(await snapshot(isAdmin(me)));
 }
 
-const schema = z.object({ model: z.string().max(80).nullable() });
+const schema = z.object({
+  provider: z.enum(["anthropic", "openai", "claude-code", "codex"]).optional(),
+  model: z.string().max(80).nullable().optional(),
+});
 
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   const me = await activeProfile();
@@ -49,15 +64,15 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
   const body = schema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
-    return NextResponse.json({ error: "Invalid model." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid selection." }, { status: 400 });
   }
-  setAgentModel(body.data.model?.trim() || null);
-  // Probe with the new model recorded; CLI defaults apply when cleared.
+  if (body.data.provider) {
+    setAgentProvider(body.data.provider);
+  }
+  if (body.data.model !== undefined) {
+    setAgentModel(body.data.model?.trim() || null);
+  }
   const provider = configuredProviderId();
   const available = await isProviderAvailable(provider);
-  return NextResponse.json({
-    provider,
-    model: configuredModel(provider) ?? null,
-    available,
-  });
+  return NextResponse.json({ ...(await snapshot(true)), available });
 }

@@ -4,19 +4,23 @@ import { useEffect, useState } from "react";
 import styles from "./ModelPicker.module.css";
 
 /**
- * Admin control: which model the configured provider runs. Suggestions per
- * provider plus free text; empty means the provider's own default.
+ * Admin control: which provider answers (claude-code, codex, or an API key)
+ * and with which of its currently offered models. The model list is live
+ * from the provider's API when reachable, curated otherwise.
  */
 
-interface ModelState {
+interface AgentState {
   provider: string | null;
+  providers: string[];
   model: string | null;
   suggestions: string[];
+  liveList: boolean;
   admin: boolean;
+  available?: boolean;
 }
 
 export function ModelPicker() {
-  const [state, setState] = useState<ModelState | null>(null);
+  const [state, setState] = useState<AgentState | null>(null);
   const [value, setValue] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -24,72 +28,93 @@ export function ModelPicker() {
   useEffect(() => {
     void fetch("/api/v1/agent/model", { credentials: "include" })
       .then((r) => r.json())
-      .then((d: ModelState) => {
+      .then((d: AgentState) => {
         setState(d);
         setValue(d.model ?? "");
       });
   }, []);
 
-  if (!state?.provider || !state.admin) return null;
+  if (!state?.admin) return null;
 
-  async function save(next: string): Promise<void> {
+  async function save(body: {
+    provider?: string;
+    model?: string | null;
+  }): Promise<void> {
     setBusy(true);
     setStatus(null);
     const res = await fetch("/api/v1/agent/model", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ model: next || null }),
+      body: JSON.stringify(body),
     });
-    const data = (await res.json()) as {
-      model?: string | null;
-      available?: boolean;
-      error?: string;
-    };
+    const data = (await res.json()) as AgentState & { error?: string };
     setBusy(false);
     if (!res.ok) {
       setStatus(data.error ?? "Could not save.");
       return;
     }
+    setState(data);
     setValue(data.model ?? "");
     setStatus(
       data.available
-        ? `Saved. ${state?.provider} answers with ${data.model ?? "its default model"}.`
-        : "Saved, but the provider is not answering; check the server.",
+        ? `${data.provider} answers with ${data.model ?? "its default model"}.`
+        : `Saved, but ${data.provider} is not answering. It may need its CLI, key, or SSH host on the server.`,
     );
   }
 
   return (
     <div className={styles.root}>
+      <p className={styles.line}>Provider</p>
+      <div className={styles.controls}>
+        {state.providers.map((p) => (
+          <button
+            key={p}
+            type="button"
+            className={state.provider === p ? styles.chipActive : styles.chip}
+            onClick={() => void save({ provider: p })}
+            disabled={busy}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
       <p className={styles.line}>
-        Provider <code>{state.provider}</code> · model:
+        Model{" "}
+        <span className={styles.hint}>
+          {state.liveList
+            ? "(live list from the provider)"
+            : "(common choices; any id the provider accepts works)"}
+        </span>
       </p>
       <div className={styles.controls}>
-        {state.suggestions.map((s) => (
+        {state.suggestions.slice(0, 8).map((s) => (
           <button
             key={s}
             type="button"
             className={value === s ? styles.chipActive : styles.chip}
-            onClick={() => void save(s)}
+            onClick={() => void save({ model: s })}
             disabled={busy}
           >
             {s}
           </button>
         ))}
+      </div>
+      <div className={styles.controls}>
         <input
           className={styles.input}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="custom model id (empty = default)"
+          placeholder="custom model id (empty = provider default)"
           onKeyDown={(e) => {
-            if (e.key === "Enter") void save(value.trim());
+            if (e.key === "Enter") void save({ model: value.trim() || null });
           }}
           disabled={busy}
         />
         <button
           type="button"
           className={styles.save}
-          onClick={() => void save(value.trim())}
+          onClick={() => void save({ model: value.trim() || null })}
           disabled={busy}
         >
           Save

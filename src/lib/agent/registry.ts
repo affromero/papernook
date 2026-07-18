@@ -8,6 +8,7 @@ import { claudeCodeProvider } from "./claude-code";
 import { codexProvider } from "./codex";
 import { anthropicProvider, openaiProvider } from "./api";
 import type { AgentProvider, ProviderId } from "./types";
+import { configuredProviderOverride } from "./config";
 
 /**
  * Provider registry. The active provider is chosen at install/wizard time via
@@ -29,6 +30,8 @@ export function providerIds(): ProviderId[] {
 }
 
 export function configuredProviderId(): ProviderId {
+  const override = configuredProviderOverride();
+  if (override && override in PROVIDERS) return override;
   const id = process.env.AI_PROVIDER;
   if (id && id in PROVIDERS) return id as ProviderId;
   throw new Error(
