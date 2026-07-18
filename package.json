@@ -34,7 +34,7 @@
     "openai": "^6.46.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.1.200",
-    "react": "19.2.4",
+    "react": "19.2.7",
     "react-dom": "19.2.4",
     "thesidedoor": "^0.1.0",
     "tldraw": "^5.2.4",
