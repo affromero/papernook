@@ -11,6 +11,7 @@ interface HomePageProps {
 export default async function HomePage({ searchParams }: HomePageProps) {
   const profile = await activeProfile();
   if (!profile) redirect("/login");
+  if (!profile.wizardDone) redirect("/welcome");
   const params = await searchParams;
   return (
     <main>

@@ -159,3 +159,13 @@ describe("login rate limiting", () => {
     expect(rl.retryAfterMs("user:ben")).toBe(0);
   });
 });
+
+describe("wizard flag", () => {
+  it("persists wizardDone across reads", async () => {
+    const u = await users();
+    u.createProfile("Ana");
+    expect(u.getProfile("ana")?.wizardDone).toBeFalsy();
+    u.markWizardDone("ana");
+    expect(u.getProfile("ana")?.wizardDone).toBe(true);
+  });
+});

@@ -1,0 +1,87 @@
+.root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.card {
+  max-width: 560px;
+  width: 100%;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 16px;
+  padding: 2rem;
+}
+
+.card h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.4rem;
+}
+
+.card p,
+.card ol {
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.progress {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  margin: 0 0 0.5rem;
+}
+
+.ok {
+  color: #1f8a5b;
+}
+
+.bad {
+  color: #a42e2b;
+}
+
+.bookmarklet {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  background: rgba(63, 79, 176, 0.12);
+  border: 1px dashed rgba(63, 79, 176, 0.6);
+  text-decoration: none;
+  color: inherit;
+  font-weight: 600;
+}
+
+.tokenNote {
+  opacity: 0.75;
+  font-size: 0.85rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.primary,
+.ghost {
+  min-height: 44px;
+  padding: 0 1.2rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.primary {
+  border: 0;
+  background: #3f4fb0;
+  color: #fff;
+}
+
+.ghost {
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  background: transparent;
+  color: inherit;
+}

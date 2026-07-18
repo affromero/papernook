@@ -20,6 +20,8 @@ export interface Profile {
   captureToken: string;
   /** argon2 hash; null until the profile sets a password. */
   passwordHash: string | null;
+  /** True once the per-profile onboarding wizard has been completed. */
+  wizardDone?: boolean;
   createdAt: string;
 }
 
@@ -151,6 +153,13 @@ export async function verifyPassword(
  */
 export function requiresPassword(): boolean {
   return isPublicExposure();
+}
+
+export function markWizardDone(username: string): void {
+  const profile = readProfile(username);
+  if (!profile) throw new ProfileError("Unknown profile.");
+  profile.wizardDone = true;
+  writeProfile(profile);
 }
 
 export function rotateCaptureToken(username: string): Profile {

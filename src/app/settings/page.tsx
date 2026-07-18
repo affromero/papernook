@@ -56,6 +56,25 @@ export default async function SettingsPage() {
       </section>
 
       <section className={styles.card}>
+        <h2>Invite a friend</h2>
+        <ol>
+          <li>
+            Give them access: a Tailscale invite to this network (private mode),
+            or the public URL if this server is exposed — they will set a
+            password on first login.
+          </li>
+          <li>
+            They open papernook → <strong>Add profile</strong> on the picker.
+          </li>
+          <li>
+            Their personal setup wizard runs automatically: their own
+            bookmarklet and Shortcut token, plus the iPad walkthrough. Their
+            chats stay private; the paper library is shared.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.card}>
         <h2>Connect a device</h2>
         <p>
           Scan from the iPad or phone to open papernook and add it to the home
