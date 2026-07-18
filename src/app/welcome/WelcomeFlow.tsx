@@ -15,6 +15,8 @@ interface WelcomeFlowProps {
   displayName: string;
   captureToken: string;
   baseUrl: string;
+  /** iCloud share link of the prebuilt Shortcut (PAPERNOOK_SHORTCUT_URL). */
+  shortcutUrl: string | null;
 }
 
 type Step = "welcome" | "agent" | "capture" | "ipad" | "done";
@@ -44,6 +46,7 @@ export function WelcomeFlow({
   displayName,
   captureToken,
   baseUrl,
+  shortcutUrl,
 }: WelcomeFlowProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("welcome");
@@ -133,11 +136,26 @@ export function WelcomeFlow({
                 📚 Add to papernook
               </a>
             </p>
-            <p>
-              <strong>Safari / iPhone / iPad:</strong> build the 3-step Shortcut
-              (full recipe in Settings): Share Sheet → Get Contents of{" "}
-              <code>{baseUrl}/add</code> (POST form: <code>url</code> = input,{" "}
-              <code>token</code> = your token) → Show Web Page.
+            {shortcutUrl ? (
+              <p>
+                <strong>Safari / iPhone / iPad:</strong>{" "}
+                <a className={styles.bookmarklet} href={shortcutUrl}>
+                  ⬇️ Get the Shortcut
+                </a>{" "}
+                Open on the device, tap Add Shortcut, and answer the two import
+                questions: server <code>{baseUrl}</code> and your token below.
+              </p>
+            ) : (
+              <p>
+                <strong>Safari / iPhone / iPad:</strong> build the 3-step
+                Shortcut (full recipe in Settings): Share Sheet → Get Contents
+                of <code>{baseUrl}/add</code> (POST form: <code>url</code> =
+                input, <code>token</code> = your token) → Show Web Page.
+              </p>
+            )}
+            <p className={styles.tokenNote}>
+              No Shortcut needed for a quick add: paste any link into the Add
+              paper box at the top of your library.
             </p>
             <p className={styles.tokenNote}>
               Your personal token is on the Settings page; captures made with it

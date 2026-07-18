@@ -16,6 +16,7 @@ export default async function SettingsPage() {
   const base = `${proto}://${host}`;
   const bookmarklet = `javascript:location.href='${base}/add?token=${profile.captureToken}&url='+encodeURIComponent(location.href)`;
   const shortcutUrl = `${base}/add`;
+  const shortcutShareUrl = process.env.PAPERNOOK_SHORTCUT_URL ?? null;
 
   return (
     <main className={styles.root}>
@@ -34,6 +35,16 @@ export default async function SettingsPage() {
 
       <section className={styles.card}>
         <h2>Safari (iPhone / iPad / Mac): Shortcut</h2>
+        {shortcutShareUrl && (
+          <p>
+            <a className={styles.bookmarklet} href={shortcutShareUrl}>
+              ⬇️ Get the Shortcut
+            </a>{" "}
+            Open on the device, tap Add Shortcut, answer the two import
+            questions (server <code>{base}</code>, token below). Manual recipe
+            as fallback:
+          </p>
+        )}
         <p>Create a Shortcut once, three steps in the Shortcuts app:</p>
         <ol>
           <li>

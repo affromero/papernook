@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AddPaperBox } from "./AddPaperBox";
 import {
   searchIndex,
   allTags,
@@ -11,6 +12,7 @@ interface LibraryViewProps {
   query: string;
   activeTag: string | null;
   activeTopic: string | null;
+  captureToken: string;
 }
 
 function matches(
@@ -34,6 +36,7 @@ export function LibraryView({
   query,
   activeTag,
   activeTopic,
+  captureToken,
 }: LibraryViewProps) {
   const papers = searchIndex(query).filter((p) =>
     matches(p, activeTag, activeTopic),
@@ -96,6 +99,7 @@ export function LibraryView({
       </aside>
 
       <section className={styles.main}>
+        <AddPaperBox captureToken={captureToken} />
         <form className={styles.searchRow} action="/" method="get">
           <input
             className={styles.search}
@@ -111,7 +115,7 @@ export function LibraryView({
           <p className={styles.empty}>
             {query
               ? "Nothing matches that search."
-              : "No papers yet; share a link to /add to start."}
+              : "No papers yet. Paste a link above to add your first."}
           </p>
         ) : (
           <ul className={styles.grid}>

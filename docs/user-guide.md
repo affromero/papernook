@@ -2,7 +2,9 @@
 
 ## Daily use
 
-**Add a paper from Safari (iPad / iPhone / Mac).** On any arxiv or paper page: Share → **Add to papernook** (the Shortcut, see [shortcut.md](shortcut.md)). A confirmation page appears with the proposed topic folder, tags, and summary. Tap **Accept into library** (or pick another folder / type a new one). Done: the paper is filed, the PDF is on the WebDAV share, and starter questions wait in its chat.
+**Add a paper from anywhere, no setup.** Copy the link, open papernook, paste it into the **Add paper** box at the top of the library. Works the same on every device.
+
+**Add a paper from Safari (iPad / iPhone / Mac).** On any arxiv or paper page: Share → **Add to papernook** (the importable Shortcut, two taps to install; see [shortcut.md](shortcut.md)). A confirmation page appears with the proposed topic folder, tags, and summary. Tap **Accept into library** (or pick another folder / type a new one). Done: the paper is filed, the PDF is on the WebDAV share, and starter questions wait in its chat.
 
 **Add a paper from Chrome (desktop).** Click the **📚 Add to papernook** bookmark in the bookmarks bar (drag it there once, from Settings → capture). Same confirmation page, same one tap.
 
