@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
 import { LibraryView } from "@/components/library/LibraryView";
+import { AccountBar } from "@/components/profiles/AccountBar";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const params = await searchParams;
   return (
     <main>
+      <AccountBar
+        displayName={profile.displayName}
+        avatarSlug={profile.avatarSlug}
+      />
       <LibraryView
         query={params.q ?? ""}
         activeTag={params.tag ?? null}

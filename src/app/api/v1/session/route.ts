@@ -15,7 +15,7 @@ import {
   SESSION_COOKIE,
   activeProfile,
 } from "@/lib/auth/session";
-import { gatePassed } from "@/lib/auth/gate";
+import { gatePassed, GATE_COOKIE, gateCookieOptions } from "@/lib/auth/gate";
 import {
   recordFailure,
   recordSuccess,
@@ -115,5 +115,7 @@ export async function DELETE(): Promise<NextResponse> {
     ...sessionCookieOptions(),
     maxAge: 0,
   });
+  // Logging out closes the gate too: the next visit asks for the password.
+  response.cookies.set(GATE_COOKIE, "", { ...gateCookieOptions(), maxAge: 0 });
   return response;
 }

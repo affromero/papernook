@@ -1,0 +1,83 @@
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1.5rem 0;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.avatarBtn {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar {
+  border-radius: 8px;
+  transition: transform 120ms ease;
+}
+
+.avatarBtn:hover .avatar {
+  transform: scale(1.06);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 1.5rem;
+  min-width: 200px;
+  background: var(--background, #fff);
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+}
+
+.menuWho {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+  margin-bottom: 0.3rem;
+}
+
+.menu a,
+.menu button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 0.7rem;
+  color: inherit;
+  text-decoration: none;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu a:hover,
+.menu button:hover {
+  background: rgba(63, 79, 176, 0.1);
+}

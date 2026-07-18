@@ -19,7 +19,8 @@ export default async function SettingsPage() {
   const base = `${proto}://${host}`;
   const bookmarklet = `javascript:location.href='${base}/add?token=${profile.captureToken}&url='+encodeURIComponent(location.href)`;
   const shortcutUrl = `${base}/add`;
-  const shortcutShareUrl = process.env.PAPERNOOK_SHORTCUT_URL ?? null;
+  const shortcutShareUrl =
+    process.env.PAPERNOOK_SHORTCUT_URL ?? "/add-to-papernook.shortcut";
 
   return (
     <main className={styles.root}>

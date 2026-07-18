@@ -8,8 +8,11 @@ paste it into the **Add paper** box at the top of your library.
 
 ## Import it (two taps)
 
-1. On the iPhone/iPad, open the **Get the Shortcut** link shown in the
-   papernook wizard or Settings.
+papernook serves a signed, ready-to-import Shortcut itself (built and
+signed with `shortcuts sign --mode anyone`; no iCloud link required).
+
+1. On the iPhone/iPad, tap **Get the Shortcut** in the papernook wizard or
+   Settings, then open the downloaded file (it opens in the Shortcuts app).
 2. Tap **Add Shortcut**. Answer the two import questions:
    - **Server**: your papernook URL (shown next to the link).
    - **Token**: your capture token (on the Settings page).
@@ -17,7 +20,15 @@ paste it into the **Add paper** box at the top of your library.
 Done. On any paper page: Share → **Add to papernook** → the confirmation
 page proposes the filing → **Accept into library**.
 
-## Publish the importable Shortcut (owner, once)
+## Regenerate or replace the bundled Shortcut (owner, optional)
+
+The repo ships `public/add-to-papernook.shortcut`. To replace it with one
+built in the Shortcuts app (or to publish an iCloud link instead), either
+overwrite that file with your own signed export, or set
+`PAPERNOOK_SHORTCUT_URL` in Infisical; the env var wins over the bundled
+file.
+
+## Build it by hand in the Shortcuts app (owner, alternative)
 
 Built once on any of the owner's Apple devices, then shared for everyone:
 
