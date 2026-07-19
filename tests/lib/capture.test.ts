@@ -420,6 +420,58 @@ describe("capture orchestration (mocked download + agent)", () => {
     vi.doUnmock("@/lib/capture/download");
     vi.doUnmock("@/lib/agent/registry");
   });
+
+  it("capturePdf autoFile skips the inbox and stamps source + needsReview", async () => {
+    vi.doMock("@/lib/agent/registry", () => ({
+      getProvider: () => ({
+        id: "claude-code",
+        execute: async () =>
+          JSON.stringify({
+            title: "A Guessed Title",
+            authors: ["AI Guess"],
+            year: 2016,
+            venue: null,
+            bibtex: null,
+            topic: "Transformers & Attention",
+            tags: ["attention"],
+            summary: "Synced paper summary.",
+            related: [],
+            starterQuestions: ["Why?"],
+          }),
+        stream: async function* () {},
+      }),
+    }));
+
+    const { capturePdf } = await import("@/lib/capture");
+    const result = await capturePdf(Buffer.from("%PDF-1.4 fake pdf"), {
+      sourceUrl: "https://example.org/paper",
+      username: "andres",
+      autoFile: true,
+      source: { provider: "zotero", key: "ABCD1234", version: 42 },
+      overrides: { title: "Attention Is All You Need", year: 2017 },
+    });
+
+    const papers = await import("@/lib/library/papers");
+    // Trusted metadata wins over the AI guess; slug follows the real title.
+    expect(result.slug).toBe("attention-is-all-you-need");
+    expect(papers.listInbox()).toHaveLength(0);
+    const filed = papers.getPaper(result.proposedTopic, result.slug);
+    expect(filed).not.toBeNull();
+    expect(filed?.meta.title).toBe("Attention Is All You Need");
+    expect(filed?.meta.year).toBe(2017);
+    expect(filed?.meta.authors).toEqual(["AI Guess"]);
+    expect(filed?.meta.source).toEqual({
+      provider: "zotero",
+      key: "ABCD1234",
+      version: 42,
+    });
+    expect(filed?.meta.needsReview).toBe(true);
+    expect(
+      fs.existsSync(papers.pdfPath(result.proposedTopic, result.slug)),
+    ).toBe(true);
+
+    vi.doUnmock("@/lib/agent/registry");
+  });
 });
 
 describe("capture confirmation authorization", () => {

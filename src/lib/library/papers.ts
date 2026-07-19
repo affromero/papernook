@@ -13,6 +13,15 @@ import { assertSlug, isValidSlug } from "./slug";
  * unconfirmed captures never appear over WebDAV.
  */
 
+/** Provenance for papers imported by an integration sync. */
+export interface PaperSource {
+  provider: "zotero";
+  /** Item key in the source library. */
+  key: string;
+  /** Source library version at import time. */
+  version: number;
+}
+
 export interface PaperMeta {
   title: string;
   authors: string[];
@@ -27,6 +36,10 @@ export interface PaperMeta {
   addedAt: string;
   /** Username of the profile whose capture token added it. */
   addedBy: string;
+  /** Set when an integration sync imported this paper. */
+  source?: PaperSource;
+  /** Auto-filed by a sync and awaiting user review. */
+  needsReview?: boolean;
 }
 
 export interface Paper {

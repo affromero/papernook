@@ -3,6 +3,7 @@ import path from "node:path";
 import { slugify } from "../library/slug";
 import { ensureDataDirs } from "../data-dir";
 import {
+  acceptInboxCapture,
   companionDir,
   pdfPath,
   writeMeta,
@@ -10,6 +11,7 @@ import {
   writeText,
   uniqueSlug,
   type PaperMeta,
+  type PaperSource,
 } from "../library/papers";
 import { createChat, appendMessage } from "../library/chats";
 import { rebuildIndex } from "../library/index-db";
@@ -29,47 +31,81 @@ export interface CaptureResult {
   analysis: Analysis;
 }
 
+export interface CapturePdfOptions {
+  /** Original URL recorded in meta and given to the analyzer. */
+  sourceUrl: string;
+  username: string;
+  /** URL the bytes actually came from; seeds the provisional slug. */
+  finalUrl?: string;
+  arxivId?: string | null;
+  /** File straight into the proposed topic instead of waiting in the inbox. */
+  autoFile?: boolean;
+  source?: PaperSource;
+  /** Trusted bibliographic metadata that wins over the AI's guess. */
+  overrides?: Partial<
+    Pick<PaperMeta, "title" | "authors" | "year" | "venue" | "bibtex">
+  >;
+}
+
 export async function capture(
   url: string,
   username: string,
 ): Promise<CaptureResult> {
-  ensureDataDirs();
   const pdf = await downloadPdf(url);
+  return capturePdf(pdf.bytes, {
+    sourceUrl: url,
+    username,
+    finalUrl: pdf.finalUrl,
+    arxivId: pdf.arxivId,
+  });
+}
+
+export async function capturePdf(
+  bytes: Buffer,
+  opts: CapturePdfOptions,
+): Promise<CaptureResult> {
+  ensureDataDirs();
 
   // Slug from the analyzed title once we have it; provisional from URL now.
   const provisional = uniqueSlug(
-    slugify(path.basename(new URL(pdf.finalUrl).pathname)) || "paper",
+    provisionalBase(opts.finalUrl ?? opts.sourceUrl),
   );
   const inboxPdf = pdfPath(null, provisional);
   fs.mkdirSync(path.dirname(inboxPdf), { recursive: true });
-  fs.writeFileSync(inboxPdf, pdf.bytes);
+  fs.writeFileSync(inboxPdf, bytes);
 
   const text = await extractPdfText(inboxPdf);
-  const analysis = await analyzePaper(url, text);
+  const analysis = await analyzePaper(opts.sourceUrl, text);
 
   // Rename to a title-based slug now that the title is known.
-  const finalSlug = retargetSlug(provisional, analysis.title);
+  const finalSlug = retargetSlug(
+    provisional,
+    opts.overrides?.title ?? analysis.title,
+  );
 
   const meta: PaperMeta = {
     title: analysis.title,
     authors: analysis.authors,
     year: analysis.year,
     venue: analysis.venue,
-    arxivId: pdf.arxivId,
+    arxivId: opts.arxivId ?? null,
     bibtex: analysis.bibtex,
     tags: analysis.tags,
     related: analysis.related,
-    sourceUrl: url,
+    ...opts.overrides,
+    sourceUrl: opts.sourceUrl,
     addedAt: new Date().toISOString(),
-    addedBy: username,
+    addedBy: opts.username,
   };
+  if (opts.source) meta.source = opts.source;
+  if (opts.autoFile) meta.needsReview = true;
   writeMeta(null, finalSlug, meta);
   writeSummary(null, finalSlug, analysis.summary);
   if (text) writeText(null, finalSlug, text);
 
   // Seed the capturing profile's first chat with the starter questions.
-  const chat = createChat(null, finalSlug, username, "Starter questions");
-  appendMessage(null, finalSlug, username, chat.id, {
+  const chat = createChat(null, finalSlug, opts.username, "Starter questions");
+  appendMessage(null, finalSlug, opts.username, chat.id, {
     role: "assistant",
     content:
       "Some questions to start studying this paper:\n\n" +
@@ -77,12 +113,24 @@ export async function capture(
     at: new Date().toISOString(),
   });
 
-  rebuildIndex();
-  return {
-    slug: finalSlug,
-    proposedTopic: slugify(analysis.topic) || "unsorted",
-    analysis,
-  };
+  const proposedTopic = slugify(analysis.topic) || "unsorted";
+  if (opts.autoFile) {
+    // Same inbox→library path the confirm page uses: the PDF only reaches
+    // data/papers/ (and thus WebDAV) via the accept function's atomic rename.
+    // No per-paper rebuildIndex here — sync batches one rebuild at the end.
+    acceptInboxCapture(finalSlug, proposedTopic, opts.username);
+  } else {
+    rebuildIndex();
+  }
+  return { slug: finalSlug, proposedTopic, analysis };
+}
+
+function provisionalBase(url: string): string {
+  try {
+    return slugify(path.basename(new URL(url).pathname)) || "paper";
+  } catch {
+    return "paper";
+  }
 }
 
 /** Move the provisional inbox capture onto a title-derived slug. */
