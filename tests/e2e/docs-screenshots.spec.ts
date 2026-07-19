@@ -121,7 +121,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
 
     await page.goto("/settings");
     const invite = page
-      .getByRole("heading", { name: "Invite a friend" })
+      .getByRole("heading", { name: "Invite someone" })
       .locator("..");
     await expect(invite).toHaveScreenshot(["setup", "invite-domain.png"], {
       animations: "disabled",
@@ -129,7 +129,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
       maxDiffPixelRatio: 0.08,
     });
     const device = page
-      .getByRole("heading", { name: "Connect a device" })
+      .getByRole("heading", { name: "Connect a phone or tablet" })
       .locator("..");
     await expect(device).toHaveScreenshot(["setup", "connect-device.png"], {
       animations: "disabled",

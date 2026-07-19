@@ -358,17 +358,26 @@ describe("model configuration", () => {
 
   it("every provider has suggestions", async () => {
     const cfg = await import("@/lib/agent/config");
-    for (const p of [
-      "claude-code",
-      "codex",
-      "anthropic",
-      "openai",
-      "ollama",
-    ] as const) {
+    expect(cfg.modelSuggestions("claude-code")).toEqual([
+      "fable",
+      "opus",
+      "sonnet",
+      "haiku",
+    ]);
+    for (const p of ["codex", "anthropic", "openai", "ollama"] as const) {
       expect(cfg.modelSuggestions(p).length).toBeGreaterThan(0);
     }
     expect(cfg.modelSuggestions("llamacpp")).toEqual([]);
     expect(cfg.modelSuggestions("vllm")).toEqual([]);
+  });
+
+  it("offers Claude Code aliases without redundant pinned model ids", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    const { listOfferedModels } = await import("@/lib/agent/models");
+    await expect(listOfferedModels("claude-code")).resolves.toEqual({
+      models: ["fable", "opus", "sonnet", "haiku"],
+      live: false,
+    });
   });
 
   it("uses stored endpoint then env then local default", async () => {

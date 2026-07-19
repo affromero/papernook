@@ -25,6 +25,16 @@
   background: transparent;
   color: inherit;
   font-size: 0.85rem;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.chip:hover:not(:disabled),
+.chipActive:hover:not(:disabled) {
+  border-color: rgba(83, 100, 217, 0.78);
+  background: rgba(83, 100, 217, 0.08);
 }
 
 .chipActive {
@@ -54,6 +64,18 @@
   color: #fff;
   font-weight: 600;
   font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip:disabled,
+.save:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.chipActive:disabled {
+  cursor: default;
+  opacity: 1;
 }
 
 .status {
@@ -69,7 +91,8 @@
 }
 
 .readyDot,
-.notReadyDot {
+.notReadyDot,
+.checkingDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -85,8 +108,25 @@
   background: #a42e2b;
 }
 
+.checkingDot {
+  background: rgba(127, 127, 127, 0.6);
+  animation: checking 1s ease-in-out infinite alternate;
+}
+
+@keyframes checking {
+  to {
+    opacity: 0.35;
+  }
+}
+
 .readinessNote {
   margin-left: 0.4rem;
   font-size: 0.72rem;
   opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkingDot {
+    animation: none;
+  }
 }

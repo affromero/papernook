@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import Link from "next/link";
 import { activeProfile } from "@/lib/auth/session";
 import { isAdmin, listProfiles, toPublicProfile } from "@/lib/auth/users";
+import { AccountBar } from "@/components/profiles/AccountBar";
 import { AdminMembers } from "@/components/profiles/AdminMembers";
 import { DeleteProfile } from "@/components/profiles/DeleteProfile";
 import { InviteQr } from "@/components/profiles/InviteQr";
@@ -30,162 +32,274 @@ export default async function SettingsPage() {
     process.env.PAPERNOOK_SHORTCUT_URL ?? "/api/v1/shortcut";
 
   return (
-    <main className={styles.root}>
-      <h1>Settings: capture</h1>
+    <>
+      <AccountBar
+        displayName={profile.displayName}
+        avatarSlug={profile.avatarSlug}
+      />
+      <main className={styles.root}>
+        <header className={styles.pageHeader}>
+          <div>
+            <p className={styles.eyebrow}>Workspace controls</p>
+            <h1>Settings</h1>
+            <p className={styles.intro}>
+              Capture tools, integrations, devices, and account access.
+            </p>
+          </div>
+          <Link className={styles.dashboardLink} href="/">
+            <span aria-hidden="true">←</span> Back to library
+          </Link>
+        </header>
 
-      <section className={styles.card}>
-        <h2>Chrome (desktop): bookmarklet</h2>
-        <p>
-          Drag this link to your bookmarks bar. On any paper page, click it and
-          you land on the confirmation page.
-        </p>
-        <a className={styles.bookmarklet} href={bookmarklet}>
-          📚 Add to papernook
-        </a>
-      </section>
+        <div className={styles.layout}>
+          <nav className={styles.sectionNav} aria-label="Settings sections">
+            <p>On this page</p>
+            <a href="#capture">Capture</a>
+            <a href="#zotero">Zotero</a>
+            {admin && <a href="#ai">AI model</a>}
+            <a href="#people">People</a>
+            <a href="#devices">Devices</a>
+            <a href="#profile">My profile</a>
+          </nav>
 
-      <section className={styles.card}>
-        <h2>Safari (iPhone / iPad / Mac): Shortcut</h2>
-        {shortcutShareUrl && (
-          <p>
-            <a className={styles.bookmarklet} href={shortcutShareUrl}>
-              ⬇️ Get the Shortcut
-            </a>{" "}
-            Open on the device, tap Add Shortcut, answer the two import
-            questions (server <code>{base}</code>, token below). Manual recipe
-            as fallback:
-          </p>
-        )}
-        <p>Create a Shortcut once, three steps in the Shortcuts app:</p>
-        <ol>
-          <li>
-            New Shortcut → add <strong>Receive input from Share Sheet</strong>{" "}
-            (type: URLs).
-          </li>
-          <li>
-            Add <strong>Get Contents of URL</strong> → URL:{" "}
-            <code>{shortcutUrl}</code>, Method <code>POST</code>, Request Body{" "}
-            <code>Form</code> with fields <code>url</code> = Shortcut Input and{" "}
-            <code>token</code> ={" "}
-            <code className={styles.token}>{profile.captureToken}</code>.
-          </li>
-          <li>
-            Add <strong>Show Web Page</strong> with the result. Name it
-            &ldquo;Add to papernook&rdquo;.
-          </li>
-        </ol>
-        <p>Then on any paper page: Share → Add to papernook → confirm. Done.</p>
-      </section>
+          <div className={styles.content}>
+            <section className={styles.section} id="capture">
+              <div className={styles.sectionHeader}>
+                <span className={styles.sectionNumber}>01</span>
+                <div>
+                  <h2>Capture papers</h2>
+                  <p>
+                    Add the browser tool you use. Setup only takes a minute.
+                  </p>
+                </div>
+              </div>
 
-      <section className={styles.card}>
-        <h2>Zotero sync</h2>
-        <ZoteroCard />
-      </section>
+              <div className={styles.setupList}>
+                <article className={styles.setupItem}>
+                  <div className={styles.platform}>
+                    <span className={styles.platformMark} aria-hidden="true">
+                      C
+                    </span>
+                    <div>
+                      <h3 className={styles.platformName}>Chrome</h3>
+                      <p>Desktop bookmarklet</p>
+                    </div>
+                  </div>
+                  <p className={styles.setupCopy}>
+                    Drag the button to your bookmarks bar, then use it from any
+                    paper page.
+                  </p>
+                  <a className={styles.primaryAction} href={bookmarklet}>
+                    <span aria-hidden="true">＋</span> Add to papernook
+                  </a>
+                </article>
 
-      {admin && (
-        <section className={styles.card}>
-          <h2>AI model</h2>
-          <ModelPicker />
-        </section>
-      )}
+                <article className={styles.setupItem}>
+                  <div className={styles.platform}>
+                    <span className={styles.platformMark} aria-hidden="true">
+                      S
+                    </span>
+                    <div>
+                      <h3 className={styles.platformName}>Safari</h3>
+                      <p>iPhone, iPad, and Mac</p>
+                    </div>
+                  </div>
+                  <p className={styles.setupCopy}>
+                    Add the Shortcut, enter this server when prompted, then
+                    capture from the Share Sheet.
+                  </p>
+                  {shortcutShareUrl && (
+                    <a className={styles.primaryAction} href={shortcutShareUrl}>
+                      Get the Shortcut <span aria-hidden="true">↗</span>
+                    </a>
+                  )}
+                  <p className={styles.serverHint}>
+                    Server: <code>{base}</code>
+                  </p>
+                  <details className={styles.manualSetup}>
+                    <summary>Build the Shortcut manually</summary>
+                    <ol>
+                      <li>
+                        Add <strong>Receive input from Share Sheet</strong> with
+                        the input type set to URLs.
+                      </li>
+                      <li>
+                        Add <strong>Get Contents of URL</strong>. Use{" "}
+                        <code>{shortcutUrl}</code>, method <code>POST</code>,
+                        and a <code>Form</code> body with <code>url</code> set
+                        to Shortcut Input and <code>token</code> set to the
+                        token below.
+                      </li>
+                      <li>
+                        Add <strong>Show Web Page</strong> with the result and
+                        name the Shortcut &ldquo;Add to papernook&rdquo;.
+                      </li>
+                    </ol>
+                  </details>
+                </article>
+              </div>
 
-      {admin && (
-        <section className={styles.card}>
-          <h2>Members</h2>
-          <p>
-            You are the admin: you own the instance configuration (agent,
-            instance password, and secrets in .env or your secret manager).
-            Members only pick a name and an avatar.
-          </p>
-          <AdminMembers
-            members={listProfiles()
-              .map(toPublicProfile)
-              .map((p) => ({
-                username: p.username,
-                displayName: p.displayName,
-                isAdmin: p.isAdmin,
-              }))}
-          />
-        </section>
-      )}
-
-      <section className={styles.card}>
-        <h2>Invite a friend</h2>
-        {admin && instancePasswordConfigured() && (
-          <InviteQr inviteUrl={`${base}/invite?t=${createInviteToken()}`} />
-        )}
-        <ol>
-          <li>
-            {admin
-              ? "Send the invite link or the QR above; no password typing for them. Or send the URL plus the access password."
-              : "Ask the admin for an invite link or the access password, then open the URL."}
-          </li>
-          <li>
-            They open papernook → <strong>Add profile</strong> on the picker.
-          </li>
-          <li>
-            Their personal setup wizard runs automatically: their own
-            bookmarklet and Shortcut token, plus the iPad walkthrough. Their
-            chats stay private; the paper library is shared.
-          </li>
-        </ol>
-      </section>
-
-      <section className={styles.card}>
-        <h2>Connect a device</h2>
-        <p>
-          Scan from the iPad or phone to open papernook and add it to the home
-          screen. Private-first: Tailscale or same Wi-Fi.
-        </p>
-        <DevicePanel url={base} />
-      </section>
-
-      <section className={styles.card}>
-        <h2>iPad WebDAV login</h2>
-        <ul>
-          <li>
-            Address:{" "}
-            <code>
-              {resolveWebdavUrl(base, process.env.PAPERNOOK_WEBDAV_URL)}
-            </code>
-          </li>
-          <li>
-            User: <code>{process.env.WEBDAV_USER ?? "(not configured)"}</code>
-          </li>
-          <li>
-            Password:{" "}
-            {process.env.WEBDAV_PASS ? (
-              <details className={styles.revealDetails}>
-                <summary>reveal</summary>
-                <code className={styles.token}>{process.env.WEBDAV_PASS}</code>
+              <details className={styles.secretPanel}>
+                <summary>Show my capture token</summary>
+                <div>
+                  <code className={styles.token}>{profile.captureToken}</code>
+                  <p>
+                    Private to {profile.displayName}. Anyone with this token can
+                    add papers as you.
+                  </p>
+                </div>
               </details>
-            ) : (
-              <code>(not configured)</code>
+            </section>
+
+            <section className={styles.section} id="zotero">
+              <div className={styles.sectionHeader}>
+                <span className={styles.sectionNumber}>02</span>
+                <div>
+                  <h2>Zotero</h2>
+                  <p>Browse your library and import papers intentionally.</p>
+                </div>
+              </div>
+              <ZoteroCard />
+            </section>
+
+            {admin && (
+              <section className={styles.section} id="ai">
+                <div className={styles.sectionHeader}>
+                  <span className={styles.sectionNumber}>03</span>
+                  <div>
+                    <h2>AI model</h2>
+                    <p>Choose how papernook analyzes and discusses papers.</p>
+                  </div>
+                </div>
+                <ModelPicker />
+              </section>
             )}
-          </li>
-        </ul>
-      </section>
 
-      <section className={styles.card}>
-        <h2>Your capture token</h2>
-        <p>
-          <code className={styles.token}>{profile.captureToken}</code>
-        </p>
-        <p>
-          Captures made with this token are attributed to{" "}
-          <strong>{profile.displayName}</strong>. Keep it private; anyone with
-          it can add papers as you.
-        </p>
-      </section>
+            <section className={styles.section} id="people">
+              <div className={styles.sectionHeader}>
+                <span className={styles.sectionNumber}>
+                  {admin ? "04" : "03"}
+                </span>
+                <div>
+                  <h2>People</h2>
+                  <p>
+                    The paper library is shared; chats and capture tools stay
+                    private to each profile.
+                  </p>
+                </div>
+              </div>
 
-      <section className={styles.card}>
-        <h2>Delete my profile</h2>
-        <p>
-          You control your personal data. Review the exact deletion boundary
-          before confirming.
-        </p>
-        <DeleteProfile username={profile.username} />
-      </section>
-    </main>
+              {admin && (
+                <div className={styles.subsection}>
+                  <h3>Members</h3>
+                  <p>
+                    You manage instance configuration. Members choose their name
+                    and avatar.
+                  </p>
+                  <AdminMembers
+                    members={listProfiles()
+                      .map(toPublicProfile)
+                      .map((p) => ({
+                        username: p.username,
+                        displayName: p.displayName,
+                        isAdmin: p.isAdmin,
+                      }))}
+                  />
+                </div>
+              )}
+
+              <div className={styles.subsection}>
+                <h3>Invite someone</h3>
+                {admin && instancePasswordConfigured() && (
+                  <InviteQr
+                    inviteUrl={`${base}/invite?t=${createInviteToken()}`}
+                  />
+                )}
+                <p>
+                  {admin
+                    ? "Share the invite link or QR. Their private setup wizard starts when they add a profile."
+                    : "Ask the admin for an invite link or the access password."}
+                </p>
+              </div>
+            </section>
+
+            <section className={styles.section} id="devices">
+              <div className={styles.sectionHeader}>
+                <span className={styles.sectionNumber}>
+                  {admin ? "05" : "04"}
+                </span>
+                <div>
+                  <h2>Devices</h2>
+                  <p>Open papernook on mobile or connect an annotation app.</p>
+                </div>
+              </div>
+
+              <div className={styles.subsection}>
+                <h3>Connect a phone or tablet</h3>
+                <p>Scan while connected through Tailscale or the same Wi-Fi.</p>
+                <DevicePanel url={base} />
+              </div>
+
+              <div className={styles.subsection}>
+                <h3>iPad WebDAV login</h3>
+                <dl className={styles.credentials}>
+                  <div>
+                    <dt>Address</dt>
+                    <dd>
+                      <code>
+                        {resolveWebdavUrl(
+                          base,
+                          process.env.PAPERNOOK_WEBDAV_URL,
+                        )}
+                      </code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>User</dt>
+                    <dd>
+                      <code>
+                        {process.env.WEBDAV_USER ?? "(not configured)"}
+                      </code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Password</dt>
+                    <dd>
+                      {process.env.WEBDAV_PASS ? (
+                        <details className={styles.revealDetails}>
+                          <summary>Reveal password</summary>
+                          <code className={styles.token}>
+                            {process.env.WEBDAV_PASS}
+                          </code>
+                        </details>
+                      ) : (
+                        <code>(not configured)</code>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+
+            <section className={styles.section} id="profile">
+              <div className={styles.sectionHeader}>
+                <span className={styles.sectionNumber}>
+                  {admin ? "06" : "05"}
+                </span>
+                <div>
+                  <h2>My profile</h2>
+                  <p>Manage personal data for {profile.displayName}.</p>
+                </div>
+              </div>
+              <div className={`${styles.subsection} ${styles.dangerZone}`}>
+                <h3>Delete profile</h3>
+                <p>Review exactly what will be removed before you confirm.</p>
+                <DeleteProfile username={profile.username} />
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </>
   );
 }

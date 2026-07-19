@@ -127,18 +127,9 @@ export function configuredBaseUrl(provider: ProviderId): string | undefined {
 export function modelSuggestions(provider: ProviderId): string[] {
   switch (provider) {
     case "claude-code":
-      // Aliases first (per `claude --help`, they track the latest of each
-      // tier), then the current full ids.
-      return [
-        "fable",
-        "opus",
-        "sonnet",
-        "haiku",
-        "claude-fable-5",
-        "claude-opus-4-8",
-        "claude-sonnet-5",
-        "claude-haiku-4-5",
-      ];
+      // Per `claude --help`, these aliases track the latest release in each
+      // tier. Exact model ids remain available through the custom model field.
+      return ["fable", "opus", "sonnet", "haiku"];
     case "codex":
       return ["gpt-5.5", "gpt-5.5-mini"];
     case "anthropic":

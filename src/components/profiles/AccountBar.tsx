@@ -48,8 +48,8 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
         type="button"
         className={styles.avatarBtn}
         onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls="account-options"
         aria-label={`Account menu for ${displayName}`}
       >
         <Image
@@ -61,7 +61,11 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
         />
       </button>
       {open && (
-        <div className={styles.menu} role="menu">
+        <div
+          className={styles.menu}
+          id="account-options"
+          aria-label="Account options"
+        >
           <p className={styles.menuWho}>
             <Image
               src={`/avatars/${avatarSlug}.png`}
@@ -72,16 +76,16 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
             />
             {displayName}
           </p>
-          <Link role="menuitem" href="/graph" onClick={() => setOpen(false)}>
+          <Link href="/graph" onClick={() => setOpen(false)}>
             Graph
           </Link>
-          <Link role="menuitem" href="/settings" onClick={() => setOpen(false)}>
+          <Link href="/settings" onClick={() => setOpen(false)}>
             Settings
           </Link>
-          <Link role="menuitem" href="/login" onClick={() => setOpen(false)}>
+          <Link href="/login" onClick={() => setOpen(false)}>
             Switch profile
           </Link>
-          <button role="menuitem" type="button" onClick={() => void logout()}>
+          <button type="button" onClick={() => void logout()}>
             Log out
           </button>
         </div>

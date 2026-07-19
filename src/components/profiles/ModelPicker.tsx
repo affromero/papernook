@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./ModelPicker.module.css";
 
 /**
@@ -15,7 +15,8 @@ type Readiness =
   | "no_model"
   | "not_installed"
   | "not_authenticated"
-  | "unreachable";
+  | "unreachable"
+  | "checking";
 
 const READINESS_LABEL: Record<Readiness, string> = {
   ready: "ready",
@@ -24,6 +25,7 @@ const READINESS_LABEL: Record<Readiness, string> = {
   not_installed: "CLI not installed",
   not_authenticated: "CLI needs login",
   unreachable: "endpoint or SSH host not answering",
+  checking: "checking availability",
 };
 
 interface AgentState {
@@ -45,14 +47,46 @@ export function ModelPicker() {
   const [baseUrl, setBaseUrl] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const requestVersion = useRef(0);
+
+  async function refreshDetails(
+    version: number,
+    announce: boolean,
+  ): Promise<void> {
+    try {
+      const response = await fetch("/api/v1/agent/model?probe=1", {
+        credentials: "include",
+      });
+      if (!response.ok || version !== requestVersion.current) return;
+      const data = (await response.json()) as AgentState;
+      if (version !== requestVersion.current) return;
+      setState(data);
+      setValue(data.model ?? "");
+      setBaseUrl(data.baseUrl ?? "");
+      if (announce) {
+        setStatus(
+          data.available
+            ? `${data.provider} answers with ${data.model ?? "its default model"}.`
+            : `Saved, but ${data.provider} is not answering. It may need its CLI, key, or SSH host on the server.`,
+        );
+      }
+    } catch {
+      if (announce && version === requestVersion.current) {
+        setStatus("Saved. Could not refresh provider availability.");
+      }
+    }
+  }
 
   useEffect(() => {
+    const version = requestVersion.current;
     void fetch("/api/v1/agent/model", { credentials: "include" })
       .then((r) => r.json())
       .then((d: AgentState) => {
+        if (version !== requestVersion.current) return;
         setState(d);
         setValue(d.model ?? "");
         setBaseUrl(d.baseUrl ?? "");
+        void refreshDetails(version, false);
       });
   }, []);
 
@@ -63,6 +97,8 @@ export function ModelPicker() {
     model?: string | null;
     baseUrl?: string | null;
   }): Promise<void> {
+    const version = requestVersion.current + 1;
+    requestVersion.current = version;
     setBusy(true);
     setStatus(null);
     const res = await fetch("/api/v1/agent/model", {
@@ -80,11 +116,8 @@ export function ModelPicker() {
     setState(data);
     setValue(data.model ?? "");
     setBaseUrl(data.baseUrl ?? "");
-    setStatus(
-      data.available
-        ? `${data.provider} answers with ${data.model ?? "its default model"}.`
-        : `Saved, but ${data.provider} is not answering. It may need its CLI, key, or SSH host on the server.`,
-    );
+    setStatus("Saved. Checking provider availability…");
+    void refreshDetails(version, true);
   }
 
   return (
@@ -97,17 +130,24 @@ export function ModelPicker() {
             type="button"
             className={state.provider === p ? styles.chipActive : styles.chip}
             onClick={() => void save({ provider: p })}
-            disabled={busy}
-            title={READINESS_LABEL[readiness]}
+            disabled={busy || state.provider === p}
+            aria-label={`${p}: ${READINESS_LABEL[readiness]}`}
+            title={
+              readiness === "ready" ? undefined : READINESS_LABEL[readiness]
+            }
           >
             <span
               className={
-                readiness === "ready" ? styles.readyDot : styles.notReadyDot
+                readiness === "ready"
+                  ? styles.readyDot
+                  : readiness === "checking"
+                    ? styles.checkingDot
+                    : styles.notReadyDot
               }
               aria-hidden="true"
             />
             {p}
-            {readiness !== "ready" && (
+            {readiness !== "ready" && readiness !== "checking" && (
               <span className={styles.readinessNote}>
                 {READINESS_LABEL[readiness]}
               </span>
@@ -158,7 +198,9 @@ export function ModelPicker() {
         <span className={styles.hint}>
           {state.liveList
             ? "(live list from the provider)"
-            : "(common choices; any id the provider accepts works)"}
+            : state.provider === "claude-code"
+              ? "(aliases track the latest release; exact ids also work)"
+              : "(common choices; any id the provider accepts works)"}
         </span>
       </p>
       <div className={styles.controls}>
@@ -168,7 +210,8 @@ export function ModelPicker() {
             type="button"
             className={value === s ? styles.chipActive : styles.chip}
             onClick={() => void save({ model: s })}
-            disabled={busy}
+            disabled={busy || value === s}
+            aria-pressed={value === s}
           >
             {s}
           </button>
@@ -194,7 +237,11 @@ export function ModelPicker() {
           Save
         </button>
       </div>
-      {status && <p className={styles.status}>{status}</p>}
+      {status && (
+        <p className={styles.status} role="status" aria-live="polite">
+          {status}
+        </p>
+      )}
     </div>
   );
 }
