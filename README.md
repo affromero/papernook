@@ -6,7 +6,7 @@
 
 ### Your papers, annotated and understood, on your own server.
 
-One tap from any browser files a paper into your library. The iPad opens it with the Pencil. Ink lands in the PDF itself, no exports, ever. Your own AI (Claude Code, Codex, or an API key) answers questions about every paper, grounded in its text.<br/>Your papers, your ink, your conversations, on a stack **you** control.
+One tap from any browser files a paper into your library. The iPad opens it with the Pencil. Ink lands in the PDF itself, no exports, ever. Your own AI (Claude Code, Codex, or an API key) answers questions about every paper, grounded in its text. When a reading is worth passing on, share the annotated paper and selected conversation snapshots with one revocable, view-only link.<br/>Your papers, your ink, your conversations, on a stack **you** control.
 
 <br/>
 
@@ -42,6 +42,23 @@ Open **http://localhost:3000**, create your profile, and the two-minute wizard t
 2. **Annotate.** PDF Expert on the iPad opens the same file over WebDAV. Pencil ink saves into the PDF on your server. No proprietary formats, no export step.
 3. **Understand.** Every paper has resumable chats grounded in its text. Paste a marked-up screenshot and ask _"explain this"_. Open the infinite canvas: the pages live on a tldraw board with your notes, video embeds, and drawings around them; select anything → _Explain selection_ sends it to the chat.
 4. **Practice.** Save any answer as an exercise: it renders into `<slug>.exercises.pdf`, Pencil-annotatable on the iPad. Need more writing room? Grow the PDF's margins or append blank pages without moving a single stroke of existing ink.
+5. **Share.** Create a revocable view-only link to the current annotated PDF. Conversation sharing is explicit and off by default; when selected, chats are snapshotted so later private messages never leak into an old link.
+
+## Everything you can do
+
+| Moment          | From                                                             | What you can do                                                                                  | What Papernook keeps                                               |
+| --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Capture         | Safari share sheet, Chrome bookmarklet, or the app               | Save arXiv pages, direct PDFs, and publisher pages in one tap                                    | Original PDF in a private inbox until you confirm it               |
+| File            | Capture confirmation                                             | Accept AI-proposed metadata, BibTeX, topic, tags, summary, related papers, and starter questions | Plain `meta.json`, `summary.md`, `text.txt`, and the confirmed PDF |
+| Find            | Library search or relationship graph                             | Search titles, authors, tags, and full text; move through paper/author/topic/tag connections     | Rebuildable SQLite FTS index; disk remains truth                   |
+| Read            | Browser, iPad, or any WebDAV PDF app                             | Read the same PDF everywhere                                                                     | One standard PDF, never a proprietary annotation format            |
+| Annotate        | Apple Pencil in PDF Expert or another standards-compliant editor | Highlight, draw, and write directly on the paper                                                 | Ink embedded in the PDF on your server                             |
+| Ask             | Paper chat                                                       | Run resumable, grounded, image-capable conversations                                             | Per-profile append-only JSONL conversations                        |
+| Explore         | Infinite canvas                                                  | Arrange PDF pages with notes, drawings, embeds, and selected-region explanations                 | Shared `canvas.json` beside the paper                              |
+| Practice        | Any assistant answer                                             | Save an answer as an exercise and render a Pencil-ready exercise PDF                             | Markdown exercises plus `<slug>.exercises.pdf`                     |
+| Make room       | Paper controls                                                   | Grow far-edge margins or append blank pages                                                      | Atomic, origin-fixed PDF rewrite that preserves ink coordinates    |
+| Share a reading | Paper Share button                                               | Send the live annotated PDF alone or with selected conversation snapshots                        | A revocable 256-bit view-only link; no recipient account required  |
+| Separate people | Profile picker                                                   | Share the paper library while keeping chats and capture tokens private                           | Per-profile credentials and chat folders on disk                   |
 
 ## Architecture
 
@@ -69,6 +86,7 @@ flowchart LR
       scanner["scanner.ts<br/>chokidar, disk wins"]
       expand["expand.ts<br/>pdf-lib growth"]
       exercises["exercises.ts<br/>md → exercises.pdf"]
+      shares["shares.ts<br/>revocable reading snapshots"]
     end
 
     subgraph ui["App (src/app + src/components)"]
@@ -77,6 +95,7 @@ flowchart LR
       chatpanel["ChatPanel"]
       canvas["CanvasBoard<br/>tldraw + pdf.js"]
       wizard["WelcomeFlow"]
+      shareview["ShareButton + /share<br/>view-only reading"]
     end
 
     dav["rclone WebDAV sidecar<br/>docker-compose.yml<br/>serves data/papers ONLY"]
@@ -92,6 +111,8 @@ flowchart LR
     scanner --> index
     papers <--> dav <--> ipad
     exercises --> papers
+    shares --> papers
+    shareview --> shares
     expand --> papers
     canvas --> chatpanel
     libview --> index
@@ -108,9 +129,22 @@ flowchart LR
 - **Infinite canvas** per paper: pdf.js pages as tldraw shapes; notes, embeds, and Pencil drawing around them; `canvas.json` on disk.
 - **PDF growth**: widen margins (origin-fixed, existing ink never shifts) or append blank pages, atomically, with an iPad-mid-save guard.
 - **Exercises** that render to a Pencil-ready PDF next to the paper.
+- **Revocable shared readings**: a 256-bit view-only link serves the current annotated PDF and, only when selected, immutable conversation snapshots. No recipient login; no chat, canvas, or paper mutations.
 - **Multiple profiles, shared library**: Netflix-style picker with the eight tropic-animal avatars; chats and tokens are private per profile.
 - **Adaptive auth**: open picker on a private network; `PUBLIC_EXPOSURE=true` forces per-profile passwords (argon2) with per-IP/per-account exponential lockout.
 - **Filesystem truth**: two trees (`data/papers` shared over WebDAV, `data/library` app-private) indexed by a rebuildable SQLite FTS5 database. Move files by hand and the scanner reconciles; delete `index.db` any time.
+
+## How Papernook is different
+
+The closest tools each solve part of this loop well. Papernook is intentionally the narrow bridge between an open, Pencil-annotated PDF and the reasoning that helped someone understand it.
+
+| Product                                                                   | Strongest overlap                                                       | Its sharing model                                                                                               | Where Papernook takes a different path                                                                                                                        |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Papernook**                                                             | Capture, standard-PDF annotation, grounded AI study, and sharing        | One revocable view-only link to the live annotated PDF plus explicitly selected conversation snapshots          | Self-hosted filesystem truth, WebDAV/Pencil workflow, no recipient account, and your choice of local/SSH/API agent                                            |
+| [Zotero](https://www.zotero.org/support/groups)                           | Excellent reference management, PDF annotation, and group libraries     | Public/private groups; file access and editing depend on group type and member permissions                      | Papernook shares one finished learning artifact without creating a group or exposing the rest of a library, and includes selected AI reasoning beside the PDF |
+| [Paperpile](https://paperpile.com/h/sharing-notes-annotations/)           | Polished PDF annotation and team collaboration                          | Quick links, shared folders/libraries, viewer/editor/admin roles, with annotations private unless enabled       | Papernook keeps the canonical annotated file on your server over WebDAV and makes conversations a privacy-safe snapshot rather than a collaborative workspace |
+| [Readwise Reader](https://docs.readwise.io/reader/docs/faqs/sharing)      | Capture, focused reading, highlights, notes, and public annotated pages | Revocable public annotated-document links, but not for privacy-sensitive user-uploaded EPUBs or PDFs            | Papernook is built specifically to share your uploaded annotated PDF together with the conversation that explains it                                          |
+| [NotebookLM](https://support.google.com/notebooklm/answer/16322204?hl=en) | Source-grounded AI notebooks designed for learning                      | Public notebooks let Google-account viewers read sources, ask their own questions, and view generated artifacts | Papernook sends a no-account, strictly read-only transcript and the actual live annotated PDF while keeping the model, files, and hosting under your control  |
 
 ## Bring your own agent
 
@@ -129,7 +163,7 @@ Images (crops, pasted screenshots) travel per transport: file paths + the Read t
 
 ## Self-host
 
-`docker-compose.yml` runs two containers: the app (Next.js standalone; poppler + openssh-client baked in; `data/` volume) and `rclone serve webdav` over **`data/papers` only**; chats, crops, and canvases never touch the share. Private-first reach via [Tailscale](https://tailscale.com) and [sidedoor](https://www.npmjs.com/package/thesidedoor) (QR + Add to Home Screen from Settings). Public exposure is a deliberate opt-in: see `Caddyfile.example` and [docs/public-exposure.md](docs/public-exposure.md).
+`docker-compose.yml` runs two containers: the app (Next.js standalone; poppler + openssh-client baked in; `data/` volume) and `rclone serve webdav` over **`data/papers` only**; chats, crops, and canvases never touch WebDAV. A public share can read only its current confirmed PDF and explicitly snapshotted conversation assets through token-scoped, no-store routes. Private-first reach via [Tailscale](https://tailscale.com) and [sidedoor](https://www.npmjs.com/package/thesidedoor) (QR + Add to Home Screen from Settings). Public exposure is a deliberate opt-in: see `Caddyfile.example` and [docs/public-exposure.md](docs/public-exposure.md).
 
 ## Docs
 
