@@ -1,40 +1,67 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import {
+  getProfile,
+  listProfiles,
+  type ZoteroLibraryTarget,
+  type ZoteroProfileConfig,
+} from "../auth/users";
 import { usersRoot } from "../data-dir";
-import { getProfile, listProfiles } from "../auth/users";
+import { rebuildIndex } from "../library/index-db";
 import {
   companionDir,
   exercisesPdfPath,
   listPapers,
   pdfPath,
   readMeta,
+  writeMeta,
   type CitationAuthor,
   type CitationMeta,
   type CitationType,
+  type Paper,
   type PaperMeta,
+  type PaperSource,
 } from "../library/papers";
-import { rebuildIndex } from "../library/index-db";
 import { capturePdf } from "./index";
 
 /**
- * Pull-only Zotero sync. Each profile may connect its own Zotero library
- * (API key + user ID in profile.json); new items with a PDF attachment are
- * pulled through the regular capture pipeline and auto-filed into the
- * AI-proposed topic, flagged needsReview for after-the-fact review.
- * Incremental via Zotero's library-version protocol (?since= cursor).
+ * Pull-only Zotero sync. A profile selects one personal or group library.
+ * PDFs use the regular capture pipeline; later Zotero edits refresh only
+ * source-owned metadata and never rewrite the PDF or private companions.
  */
 
 const API = "https://api.zotero.org";
 const SYNC_INTERVAL_MS = 30 * 60 * 1000;
 const CURSOR_FILE = "zotero-sync.json";
 
-export interface ZoteroConfig {
-  apiKey: string;
-  userId: string;
-}
+export type ZoteroConfig = ZoteroProfileConfig;
 
 const boundedString = z.string().max(10_000);
+const permissionSchema = z
+  .object({
+    library: z.boolean().optional(),
+    files: z.boolean().optional(),
+  })
+  .passthrough();
+const keyResponseSchema = z.object({
+  userID: z.number().int().nonnegative(),
+  username: z.string().max(1_000).optional(),
+  access: z
+    .object({
+      user: permissionSchema.optional(),
+      groups: z.record(z.string(), permissionSchema).optional(),
+    })
+    .optional(),
+});
+
+export interface VerifiedZoteroKey {
+  userId: string;
+  username: string;
+  personalLibrary: boolean;
+  personalFiles: boolean;
+}
+
 const itemDataSchema = z
   .object({
     key: z.string().min(1).max(64),
@@ -42,6 +69,7 @@ const itemDataSchema = z
     itemType: z.string().min(1).max(64),
     parentItem: z.string().min(1).max(64).optional(),
     contentType: z.string().max(256).optional(),
+    linkMode: z.string().max(64).optional(),
     title: boundedString.optional(),
     creators: z
       .array(
@@ -93,174 +121,352 @@ const collectionSchema = z.object({
   data: z.object({
     key: z.string().min(1).max(64),
     name: z.string().trim().min(1).max(1_000),
+    parentCollection: z
+      .union([z.string().min(1).max(64), z.literal(false)])
+      .optional(),
   }),
 });
 
-const keyResponseSchema = z.object({
-  userID: z.number().int().nonnegative(),
-  username: z.string().max(1_000).optional(),
+const groupSchema = z.object({
+  id: z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]),
+  data: z.object({
+    name: z.string().trim().min(1).max(1_000),
+  }),
 });
 
+export interface ZoteroCollectionOption {
+  key: string;
+  name: string;
+  parentCollection: string | null;
+}
+
+const cursorScopeSchema = z.object({
+  libraryType: z.enum(["user", "group"]),
+  libraryId: z.string().regex(/^\d+$/),
+  collectionKeys: z.array(z.string().min(1).max(64)).max(1_000),
+});
+type CursorScope = z.infer<typeof cursorScopeSchema>;
+
 const cursorSchema = z.object({
+  scope: cursorScopeSchema,
   lastVersion: z.number().int().nonnegative(),
-  /** Zotero item key → library slug, for idempotent re-runs. */
   imported: z.record(z.string().min(1).max(64), z.string().max(1_000)),
 });
 type SyncCursor = z.infer<typeof cursorSchema>;
 
+const legacyCursorSchema = cursorSchema.omit({ scope: true });
+
 export class ZoteroError extends Error {}
+
+function targetOf(cfg: ZoteroConfig): ZoteroLibraryTarget {
+  return (
+    cfg.target ?? {
+      type: "user",
+      id: cfg.userId,
+      name: "My Library",
+    }
+  );
+}
+
+function libraryPrefix(target: ZoteroLibraryTarget): string {
+  return target.type === "user"
+    ? `/users/${target.id}`
+    : `/groups/${target.id}`;
+}
+
+function sortedUnique(values: string[] | undefined): string[] {
+  return [...new Set(values ?? [])].sort((a, b) => a.localeCompare(b));
+}
+
+function scopeOf(cfg: ZoteroConfig): CursorScope {
+  const target = targetOf(cfg);
+  return {
+    libraryType: target.type,
+    libraryId: target.id,
+    collectionKeys: sortedUnique(cfg.collectionKeys),
+  };
+}
+
+function sameScope(a: CursorScope, b: CursorScope): boolean {
+  return (
+    a.libraryType === b.libraryType &&
+    a.libraryId === b.libraryId &&
+    a.collectionKeys.length === b.collectionKeys.length &&
+    a.collectionKeys.every((key, index) => key === b.collectionKeys[index])
+  );
+}
+
+async function apiFetch(
+  apiKey: string,
+  pathname: string,
+  search: Record<string, string> = {},
+): Promise<Response> {
+  const url = new URL(`${API}${pathname}`);
+  for (const [key, value] of Object.entries(search)) {
+    url.searchParams.set(key, value);
+  }
+  const response = await fetch(url, {
+    headers: {
+      "Zotero-API-Key": apiKey,
+      "Zotero-API-Version": "3",
+    },
+  });
+  if (!response.ok) {
+    throw new ZoteroError(`Zotero API ${response.status} for ${pathname}`);
+  }
+  return response;
+}
 
 async function zoteroFetch(
   cfg: ZoteroConfig,
   pathname: string,
   search: Record<string, string> = {},
 ): Promise<Response> {
-  const url = new URL(`${API}${pathname}`);
-  for (const [k, v] of Object.entries(search)) url.searchParams.set(k, v);
-  const res = await fetch(url, {
-    headers: {
-      "Zotero-API-Key": cfg.apiKey,
-      "Zotero-API-Version": "3",
-    },
-  });
-  if (!res.ok) {
-    throw new ZoteroError(`Zotero API ${res.status} for ${pathname}`);
-  }
-  return res;
+  return apiFetch(
+    cfg.apiKey,
+    `${libraryPrefix(targetOf(cfg))}${pathname}`,
+    search,
+  );
 }
 
-/** Validate an API key and discover the user ID it belongs to. */
+/** Validate a key, discover its owner, and retain the permissions we require. */
 export async function verifyKey(
   apiKey: string,
-): Promise<{ userId: string; username: string } | null> {
-  const res = await fetch(`${API}/keys/current`, {
+): Promise<VerifiedZoteroKey | null> {
+  const response = await fetch(`${API}/keys/current`, {
     headers: {
       "Zotero-API-Key": apiKey,
       "Zotero-API-Version": "3",
     },
   });
-  if (!res.ok) return null;
-  const parsed = keyResponseSchema.safeParse(await res.json());
+  if (!response.ok) return null;
+  const parsed = keyResponseSchema.safeParse(await response.json());
   if (!parsed.success) return null;
   return {
     userId: String(parsed.data.userID),
     username: parsed.data.username ?? "",
+    personalLibrary: parsed.data.access?.user?.library === true,
+    personalFiles: parsed.data.access?.user?.files === true,
   };
 }
 
-/**
- * Items changed since `since` that have (or are) a readable PDF attachment,
- * paired with the attachment to download, plus the new library version.
- */
-export async function listNewPdfItems(
+/** Personal library plus groups visible to this key. */
+export async function listLibraryTargets(
+  cfg: ZoteroConfig,
+  includePersonal = true,
+): Promise<ZoteroLibraryTarget[]> {
+  const groups: z.infer<typeof groupSchema>[] = [];
+  for (let start = 0; ;) {
+    const response = await apiFetch(cfg.apiKey, `/users/${cfg.userId}/groups`, {
+      format: "json",
+      limit: "100",
+      start: String(start),
+    });
+    const parsed = z.array(groupSchema).safeParse(await response.json());
+    if (!parsed.success) {
+      throw new ZoteroError("Zotero returned invalid group libraries.");
+    }
+    groups.push(...parsed.data);
+    start += parsed.data.length;
+    if (parsed.data.length < 100) break;
+  }
+  return [
+    ...(includePersonal
+      ? [{ type: "user" as const, id: cfg.userId, name: "My Library" }]
+      : []),
+    ...groups
+      .map((group): ZoteroLibraryTarget => ({
+        type: "group",
+        id: String(group.id),
+        name: group.data.name,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  ];
+}
+
+export async function listCollections(
+  cfg: ZoteroConfig,
+): Promise<ZoteroCollectionOption[]> {
+  const collections: ZoteroCollectionOption[] = [];
+  for (let start = 0; ;) {
+    const response = await zoteroFetch(cfg, "/collections", {
+      format: "json",
+      limit: "100",
+      start: String(start),
+    });
+    const parsed = z.array(collectionSchema).safeParse(await response.json());
+    if (!parsed.success) {
+      throw new ZoteroError("Zotero returned invalid collections.");
+    }
+    collections.push(
+      ...parsed.data.map(({ data }) => ({
+        key: data.key,
+        name: data.name,
+        parentCollection:
+          typeof data.parentCollection === "string"
+            ? data.parentCollection
+            : null,
+      })),
+    );
+    start += parsed.data.length;
+    if (parsed.data.length < 100) break;
+  }
+  return collections.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function listChangedItems(
   cfg: ZoteroConfig,
   since: number,
-): Promise<{
-  items: { item: ZoteroItemData; attachmentKey: string }[];
-  version: number;
-}> {
-  const changed: ZoteroItem[] = [];
+): Promise<{ items: ZoteroItem[]; version: number }> {
+  const items: ZoteroItem[] = [];
   let version = since;
   for (let start = 0; ;) {
-    const res = await zoteroFetch(cfg, `/users/${cfg.userId}/items`, {
+    const response = await zoteroFetch(cfg, "/items", {
       since: String(since),
       format: "json",
       limit: "100",
       start: String(start),
     });
-    const headerVersion = Number(res.headers.get("Last-Modified-Version"));
+    const headerVersion = Number(response.headers.get("Last-Modified-Version"));
     if (Number.isInteger(headerVersion) && headerVersion >= 0) {
       version = headerVersion;
     }
-    const parsed = z.array(itemSchema).safeParse(await res.json());
-    if (!parsed.success)
+    const parsed = z.array(itemSchema).safeParse(await response.json());
+    if (!parsed.success) {
       throw new ZoteroError("Zotero returned invalid items.");
-    const page: ZoteroItem[] = parsed.data;
-    changed.push(...page);
-    start += page.length;
-    if (page.length < 100) break;
-  }
-
-  const byKey = new Map(changed.map((i) => [i.data.key, i.data]));
-  const items: { item: ZoteroItemData; attachmentKey: string }[] = [];
-  for (const { data } of changed) {
-    if (data.itemType !== "attachment") continue;
-    if (data.contentType !== "application/pdf") continue;
-    if (!data.parentItem) {
-      // Standalone PDF attachment: it is its own bibliographic record.
-      items.push({ item: data, attachmentKey: data.key });
-      continue;
     }
-    let parent = byKey.get(data.parentItem);
-    if (!parent) {
-      // Attachment added to an item that predates the cursor.
-      const res = await zoteroFetch(
-        cfg,
-        `/users/${cfg.userId}/items/${data.parentItem}`,
-      );
-      const parsed = itemSchema.safeParse(await res.json());
-      if (!parsed.success)
-        throw new ZoteroError("Zotero returned an invalid parent item.");
-      parent = parsed.data.data;
-    }
-    items.push({ item: parent, attachmentKey: data.key });
+    items.push(...parsed.data);
+    start += parsed.data.length;
+    if (parsed.data.length < 100) break;
   }
   return { items, version };
 }
 
-async function collectionNames(
+async function getItem(
   cfg: ZoteroConfig,
-): Promise<Map<string, string>> {
-  const names = new Map<string, string>();
-  for (let start = 0; ;) {
-    const res = await zoteroFetch(cfg, `/users/${cfg.userId}/collections`, {
-      format: "json",
-      limit: "100",
-      start: String(start),
-    });
-    const parsed = z.array(collectionSchema).safeParse(await res.json());
-    if (!parsed.success)
-      throw new ZoteroError("Zotero returned invalid collections.");
-    for (const collection of parsed.data) {
-      names.set(collection.data.key, collection.data.name.trim());
-    }
-    start += parsed.data.length;
-    if (parsed.data.length < 100) break;
+  itemKey: string,
+): Promise<ZoteroItemData> {
+  const response = await zoteroFetch(cfg, `/items/${itemKey}`);
+  const parsed = itemSchema.safeParse(await response.json());
+  if (!parsed.success) {
+    throw new ZoteroError("Zotero returned an invalid item.");
   }
-  return names;
+  return parsed.data.data;
+}
+
+function attachmentPriority(item: ZoteroItemData): number {
+  if (item.linkMode?.startsWith("imported_")) return 0;
+  if (!item.linkMode) return 1;
+  return 2;
+}
+
+function orderedAttachmentKeys(items: ZoteroItemData[]): string[] {
+  return [...items]
+    .sort(
+      (a, b) =>
+        attachmentPriority(a) - attachmentPriority(b) ||
+        a.key.localeCompare(b.key),
+    )
+    .map((item) => item.key);
+}
+
+async function pdfChildKeys(
+  cfg: ZoteroConfig,
+  parentKey: string,
+): Promise<string[]> {
+  const response = await zoteroFetch(cfg, `/items/${parentKey}/children`, {
+    format: "json",
+  });
+  const parsed = z.array(itemSchema).safeParse(await response.json());
+  if (!parsed.success) {
+    throw new ZoteroError("Zotero returned invalid child items.");
+  }
+  return orderedAttachmentKeys(
+    parsed.data
+      .map(({ data }) => data)
+      .filter(
+        (data) =>
+          data.itemType === "attachment" &&
+          data.contentType === "application/pdf",
+      ),
+  );
 }
 
 export async function downloadAttachment(
   cfg: ZoteroConfig,
   attachmentKey: string,
 ): Promise<Buffer> {
-  const res = await zoteroFetch(
-    cfg,
-    `/users/${cfg.userId}/items/${attachmentKey}/file`,
-  );
-  return Buffer.from(await res.arrayBuffer());
+  const response = await zoteroFetch(cfg, `/items/${attachmentKey}/file`);
+  return Buffer.from(await response.arrayBuffer());
 }
 
 function cursorPath(username: string): string {
   return path.join(usersRoot(), username, CURSOR_FILE);
 }
 
-function readCursor(username: string): SyncCursor {
-  try {
-    return cursorSchema.parse(
-      JSON.parse(fs.readFileSync(cursorPath(username), "utf8")),
-    );
-  } catch {
-    // Cursor lost or first run: rebuild the imported map from meta.json
-    // provenance — the filesystem is the source of truth, the cursor is cache.
-    const imported: Record<string, string> = {};
-    for (const paper of listPapers()) {
-      if (paper.meta.source?.provider === "zotero") {
-        imported[paper.meta.source.key] = paper.slug;
-      }
-    }
-    return { lastVersion: 0, imported };
+function sourceMatches(
+  paper: Paper,
+  target: ZoteroLibraryTarget,
+  username: string,
+  key?: string,
+): boolean {
+  const source = paper.meta.source;
+  if (source?.provider !== "zotero") return false;
+  if (key && source.key !== key) return false;
+  if (source.libraryType && source.libraryId) {
+    return source.libraryType === target.type && source.libraryId === target.id;
   }
+  return (
+    target.type === "user" &&
+    paper.meta.addedBy === username &&
+    source.libraryId === undefined
+  );
+}
+
+function rebuildImported(
+  username: string,
+  target: ZoteroLibraryTarget,
+): Record<string, string> {
+  const imported: Record<string, string> = {};
+  for (const paper of listPapers()) {
+    if (sourceMatches(paper, target, username)) {
+      imported[paper.meta.source!.key] = paper.slug;
+    }
+  }
+  return imported;
+}
+
+function readCursor(username: string, cfg: ZoteroConfig): SyncCursor {
+  const expectedScope = scopeOf(cfg);
+  try {
+    const raw: unknown = JSON.parse(
+      fs.readFileSync(cursorPath(username), "utf8"),
+    );
+    const current = cursorSchema.safeParse(raw);
+    if (current.success && sameScope(current.data.scope, expectedScope)) {
+      return current.data;
+    }
+    const hasScope =
+      typeof raw === "object" && raw !== null && Object.hasOwn(raw, "scope");
+    const legacy = hasScope
+      ? { success: false as const }
+      : legacyCursorSchema.safeParse(raw);
+    if (
+      legacy.success &&
+      expectedScope.libraryType === "user" &&
+      expectedScope.libraryId === cfg.userId &&
+      expectedScope.collectionKeys.length === 0
+    ) {
+      return { ...legacy.data, scope: expectedScope };
+    }
+  } catch {
+    // The cursor is a cache; filesystem provenance below remains authoritative.
+  }
+  return {
+    scope: expectedScope,
+    lastVersion: 0,
+    imported: rebuildImported(username, targetOf(cfg)),
+  };
 }
 
 function writeCursor(username: string, cursor: SyncCursor): void {
@@ -289,6 +495,11 @@ const TYPE_MAP: Record<string, CitationType> = {
   preprint: "article",
 };
 
+function optional(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
 function normalizedDoi(value: string | undefined): string | undefined {
   const doi = value
     ?.trim()
@@ -303,21 +514,16 @@ function citationAuthors(item: ZoteroItemData): CitationAuthor[] {
       (creator) => !creator.creatorType || creator.creatorType === "author",
     )
     .map<CitationAuthor>((creator) => {
-      const literal = creator.name?.trim();
+      const literal = optional(creator.name);
       if (literal) return { literal };
-      const family = creator.lastName?.trim();
-      const given = creator.firstName?.trim();
+      const family = optional(creator.lastName);
+      const given = optional(creator.firstName);
       return {
         ...(family ? { family } : {}),
         ...(given ? { given } : {}),
       };
     })
     .filter((creator) => creator.literal || creator.family || creator.given);
-}
-
-function optional(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed || undefined;
 }
 
 function citationOf(item: ZoteroItemData): CitationMeta {
@@ -360,26 +566,155 @@ function citationOf(item: ZoteroItemData): CitationMeta {
 }
 
 function overridesOf(item: ZoteroItemData): Partial<PaperMeta> {
-  const overrides: Partial<PaperMeta> = { citation: citationOf(item) };
-  if (item.title) overrides.title = item.title;
-  const authors = (item.creators ?? [])
-    .filter((c) => !c.creatorType || c.creatorType === "author")
-    .map((c) => c.name ?? `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim())
-    .filter(Boolean);
-  if (authors.length) overrides.authors = authors;
+  const title = optional(item.title);
+  const authors = citationAuthors(item).map(
+    (author) =>
+      author.literal ?? [author.given, author.family].filter(Boolean).join(" "),
+  );
   const year = item.date?.match(/\b(\d{4})\b/);
-  if (year) overrides.year = Number(year[1]);
-  if (item.publicationTitle) overrides.venue = item.publicationTitle;
-  return overrides;
+  const venue = optional(
+    item.publicationTitle ?? item.conferenceName ?? item.university,
+  );
+  return {
+    ...(title ? { title } : {}),
+    authors,
+    year: year ? Number(year[1]) : null,
+    venue: venue ?? null,
+    citation: citationOf(item),
+  };
+}
+
+function sourceTags(item: ZoteroItemData): string[] {
+  const tags = new Map<string, string>();
+  for (const { tag: raw } of item.tags ?? []) {
+    const tag = raw.trim();
+    if (tag && !tags.has(tag.toLocaleLowerCase())) {
+      tags.set(tag.toLocaleLowerCase(), tag);
+    }
+  }
+  return [...tags.values()];
+}
+
+function collectionNamesFor(
+  keys: string[],
+  collections: Map<string, ZoteroCollectionOption>,
+): string[] {
+  return keys
+    .map((key) => collections.get(key)?.name)
+    .filter((name): name is string => Boolean(name))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function sourceOf(
+  item: ZoteroItemData,
+  target: ZoteroLibraryTarget,
+  collections: Map<string, ZoteroCollectionOption>,
+): PaperSource {
+  const collectionKeys = sortedUnique(item.collections);
+  return {
+    provider: "zotero",
+    key: item.key,
+    version: item.version,
+    libraryType: target.type,
+    libraryId: target.id,
+    collectionKeys,
+    collections: collectionNamesFor(collectionKeys, collections),
+    tags: sourceTags(item),
+  };
+}
+
+function mergeRefreshedTags(
+  current: string[],
+  previousSourceTags: string[] | undefined,
+  nextSourceTags: string[],
+): string[] {
+  const previous = new Set(
+    (previousSourceTags ?? []).map((tag) => tag.toLocaleLowerCase()),
+  );
+  const merged = new Map<string, string>();
+  for (const tag of current) {
+    if (!previous.has(tag.toLocaleLowerCase())) {
+      merged.set(tag.toLocaleLowerCase(), tag);
+    }
+  }
+  for (const tag of nextSourceTags) {
+    merged.set(tag.toLocaleLowerCase(), tag);
+  }
+  return [...merged.values()];
+}
+
+function refreshPaper(
+  paper: Paper,
+  item: ZoteroItemData,
+  target: ZoteroLibraryTarget,
+  collections: Map<string, ZoteroCollectionOption>,
+): void {
+  const overrides = overridesOf(item);
+  const source = sourceOf(item, target, collections);
+  writeMeta(paper.topic, paper.slug, {
+    ...paper.meta,
+    ...overrides,
+    sourceUrl: optional(item.url) ?? paper.meta.sourceUrl,
+    tags: mergeRefreshedTags(
+      paper.meta.tags,
+      paper.meta.source?.tags,
+      source.tags ?? [],
+    ),
+    source,
+  });
+}
+
+function expandedCollectionKeys(
+  selected: string[],
+  collections: Map<string, ZoteroCollectionOption>,
+): Set<string> | null {
+  if (selected.length === 0) return null;
+  for (const key of selected) {
+    if (!collections.has(key)) {
+      throw new ZoteroError(
+        `Selected Zotero collection ${key} is no longer accessible.`,
+      );
+    }
+  }
+  const expanded = new Set(selected);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const collection of collections.values()) {
+      if (
+        collection.parentCollection &&
+        expanded.has(collection.parentCollection) &&
+        !expanded.has(collection.key)
+      ) {
+        expanded.add(collection.key);
+        changed = true;
+      }
+    }
+  }
+  return expanded;
+}
+
+function inSelectedCollections(
+  item: ZoteroItemData,
+  selected: Set<string> | null,
+): boolean {
+  if (!selected) return true;
+  return (item.collections ?? []).some((key) => selected.has(key));
+}
+
+function isBibliographic(item: ZoteroItemData): boolean {
+  return !["attachment", "note", "annotation"].includes(item.itemType);
 }
 
 const inFlight = new Set<string>();
 const cancelled = new Set<string>();
 export interface ZoteroSyncResult {
   imported: number;
+  updated: number;
   skipped: number;
   failed: number;
 }
+
 const lastResults = new Map<string, ZoteroSyncResult>();
 
 export function isSyncing(username: string): boolean {
@@ -417,65 +752,124 @@ function removeCancelledImport(
 }
 
 /**
- * Pull new PDF items for one profile. Returns null when the profile has no
- * Zotero config or a sync is already running; otherwise counts.
+ * Pull one profile's selected library. Returns null when disconnected or when
+ * another sync for the same profile is already running.
  */
 export async function syncProfile(
   username: string,
 ): Promise<ZoteroSyncResult | null> {
-  const profile = getProfile(username); // validates username before path use
+  const profile = getProfile(username);
   const cfg = profile?.zotero;
-  if (!profile || !cfg) return null;
-  if (inFlight.has(username)) return null;
+  if (!profile || !cfg || inFlight.has(username)) return null;
+  const config: ZoteroConfig = cfg;
   cancelled.delete(username);
   inFlight.add(username);
   try {
-    const cursor = readCursor(username);
-    const { items, version } = await listNewPdfItems(cfg, cursor.lastVersion);
-    const collections = items.length ? await collectionNames(cfg) : new Map();
+    const target = targetOf(cfg);
+    const cursor = readCursor(username, cfg);
+    const collectionList = await listCollections(cfg);
+    if (cancelled.has(username)) return null;
+    const collections = new Map(
+      collectionList.map((collection) => [collection.key, collection]),
+    );
+    const selected = expandedCollectionKeys(
+      cursor.scope.collectionKeys,
+      collections,
+    );
+    const { items, version } = await listChangedItems(cfg, cursor.lastVersion);
+    if (cancelled.has(username)) return null;
+    const changedByKey = new Map(items.map(({ data }) => [data.key, data]));
+    const changedAttachments = new Map<string, ZoteroItemData[]>();
+    for (const { data } of items) {
+      if (
+        data.itemType === "attachment" &&
+        data.contentType === "application/pdf" &&
+        data.parentItem
+      ) {
+        const attachments = changedAttachments.get(data.parentItem) ?? [];
+        attachments.push(data);
+        changedAttachments.set(data.parentItem, attachments);
+      }
+    }
+
     const knownArxiv = new Set(
       listPapers()
-        .map((p) => p.meta.arxivId)
+        .map((paper) => paper.meta.arxivId)
         .filter(Boolean),
     );
+    const processed = new Set<string>();
     let imported = 0;
+    let updated = 0;
     let skipped = 0;
     let failed = 0;
-    for (const { item, attachmentKey } of items) {
-      if (cancelled.has(username)) return null;
-      if (Object.hasOwn(cursor.imported, item.key)) {
-        skipped += 1;
-        continue;
-      }
-      const arxivId = arxivIdOf(item);
-      if (arxivId && knownArxiv.has(arxivId)) {
-        // Same paper already in the shared library (e.g. another profile's
-        // sync or a manual capture); record it so we never retry.
-        cursor.imported[item.key] = "";
-        skipped += 1;
-        continue;
-      }
+
+    async function processItem(
+      item: ZoteroItemData,
+      attachmentKeys?: string[],
+    ): Promise<boolean> {
+      if (cancelled.has(username)) return false;
+      if (processed.has(item.key)) return true;
+      processed.add(item.key);
       try {
-        const bytes = await downloadAttachment(cfg, attachmentKey);
-        if (cancelled.has(username)) return null;
+        const currentPaper = listPapers().find((paper) =>
+          sourceMatches(paper, target, username, item.key),
+        );
+        if (currentPaper) {
+          if (cancelled.has(username)) return false;
+          refreshPaper(currentPaper, item, target, collections);
+          cursor.imported[item.key] = currentPaper.slug;
+          updated += 1;
+          return true;
+        }
+        if (cursor.imported[item.key] === "") {
+          skipped += 1;
+          return true;
+        }
+        if (Object.hasOwn(cursor.imported, item.key)) {
+          delete cursor.imported[item.key];
+        }
+        if (!inSelectedCollections(item, selected)) {
+          skipped += 1;
+          return true;
+        }
+        const pdfKeys =
+          attachmentKeys ??
+          (cursor.lastVersion > 0 ? await pdfChildKeys(config, item.key) : []);
+        if (cancelled.has(username)) return false;
+        if (pdfKeys.length === 0) {
+          skipped += 1;
+          return true;
+        }
+        const arxivId = arxivIdOf(item);
+        if (arxivId && knownArxiv.has(arxivId)) {
+          cursor.imported[item.key] = "";
+          skipped += 1;
+          return true;
+        }
+        let bytes: Buffer | null = null;
+        let lastDownloadError: unknown = new ZoteroError(
+          "No downloadable Zotero PDF attachment.",
+        );
+        for (const pdfKey of pdfKeys) {
+          try {
+            bytes = await downloadAttachment(config, pdfKey);
+            if (cancelled.has(username)) return false;
+            break;
+          } catch (error) {
+            lastDownloadError = error;
+          }
+        }
+        if (!bytes) throw lastDownloadError;
         const result = await capturePdf(bytes, {
           sourceUrl:
-            item.url ||
-            `https://www.zotero.org/users/${cfg.userId}/items/${item.key}`,
+            optional(item.url) ??
+            `https://www.zotero.org/${target.type === "user" ? "users" : "groups"}/${target.id}/items/${item.key}`,
           username,
           arxivId,
           autoFile: true,
-          source: {
-            provider: "zotero",
-            key: item.key,
-            version: item.version,
-            collections: [...new Set(item.collections ?? [])]
-              .map((key) => collections.get(key))
-              .filter((name): name is string => Boolean(name))
-              .sort((a, b) => a.localeCompare(b)),
-          },
+          source: sourceOf(item, target, collections),
           overrides: overridesOf(item),
-          sourceTags: (item.tags ?? []).map(({ tag }) => tag),
+          sourceTags: sourceTags(item),
         });
         if (cancelled.has(username)) {
           removeCancelledImport(
@@ -484,25 +878,96 @@ export async function syncProfile(
             result.slug,
             item.key,
           );
-          return null;
+          return false;
         }
         cursor.imported[item.key] = result.slug;
         if (arxivId) knownArxiv.add(arxivId);
         imported += 1;
+        return true;
       } catch (error) {
-        // Leave the item out of the cursor map so the next tick retries it.
+        if (cancelled.has(username)) return false;
         console.error(
           `zotero sync: item ${item.key} failed for ${username}:`,
           error,
         );
         failed += 1;
+        return true;
       }
     }
+
+    const parentKeys = new Set<string>();
+    for (const { data } of items) {
+      if (isBibliographic(data)) parentKeys.add(data.key);
+      if (data.parentItem) parentKeys.add(data.parentItem);
+      if (
+        data.itemType === "attachment" &&
+        data.contentType === "application/pdf" &&
+        !data.parentItem
+      ) {
+        if (!(await processItem(data, [data.key]))) return null;
+      }
+    }
+
+    for (const parentKey of [...parentKeys].sort()) {
+      if (cancelled.has(username)) return null;
+      try {
+        const parent =
+          changedByKey.get(parentKey) ?? (await getItem(cfg, parentKey));
+        if (cancelled.has(username)) return null;
+        if (!isBibliographic(parent)) continue;
+        const attachments = changedAttachments.get(parentKey);
+        if (
+          !(await processItem(
+            parent,
+            attachments ? orderedAttachmentKeys(attachments) : undefined,
+          ))
+        ) {
+          return null;
+        }
+      } catch (error) {
+        if (cancelled.has(username)) return null;
+        console.error(
+          `zotero sync: parent ${parentKey} failed for ${username}:`,
+          error,
+        );
+        failed += 1;
+      }
+    }
+
+    for (const paper of listPapers()) {
+      if (cancelled.has(username)) return null;
+      if (
+        processed.has(paper.meta.source?.key ?? "") ||
+        !sourceMatches(paper, target, username)
+      ) {
+        continue;
+      }
+      const source = paper.meta.source!;
+      const collectionKeys = source.collectionKeys ?? [];
+      const names = collectionNamesFor(collectionKeys, collections);
+      if (
+        JSON.stringify(names) !== JSON.stringify(source.collections ?? []) ||
+        source.libraryType === undefined ||
+        source.libraryId === undefined
+      ) {
+        writeMeta(paper.topic, paper.slug, {
+          ...paper.meta,
+          source: {
+            ...source,
+            libraryType: target.type,
+            libraryId: target.id,
+            collections: names,
+          },
+        });
+        updated += 1;
+      }
+    }
+
     if (cancelled.has(username)) return null;
     if (failed === 0) cursor.lastVersion = version;
     writeCursor(username, cursor);
-    if (imported > 0) rebuildIndex();
-    const result = { imported, skipped, failed };
+    if (imported > 0 || updated > 0) rebuildIndex();
+    const result = { imported, updated, skipped, failed };
     lastResults.set(username, result);
     return result;
   } finally {

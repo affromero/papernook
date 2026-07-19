@@ -7,7 +7,7 @@ interface LibraryCitationExportProps {
 }
 
 function exportUrl(
-  format: "csl-json" | "ris" | "bibtex" | "apa",
+  format: "csl-json" | "ris" | "bibtex" | "apa" | "harvard" | "vancouver",
   filters: LibraryCitationExportProps,
 ): string {
   const params = new URLSearchParams({ format });
@@ -27,6 +27,8 @@ export function LibraryCitationExport(filters: LibraryCitationExportProps) {
         <a href={exportUrl("ris", filters)}>RIS</a>
         <a href={exportUrl("bibtex", filters)}>BibTeX</a>
         <a href={exportUrl("apa", filters)}>APA bibliography</a>
+        <a href={exportUrl("harvard", filters)}>Harvard bibliography</a>
+        <a href={exportUrl("vancouver", filters)}>Vancouver bibliography</a>
       </div>
     </details>
   );

@@ -11,8 +11,21 @@ import {
   type Paper,
 } from "../papers";
 
-export const CITATION_FORMATS = ["csl-json", "ris", "bibtex", "apa"] as const;
+export const CITATION_FORMATS = [
+  "csl-json",
+  "ris",
+  "bibtex",
+  "apa",
+  "harvard",
+  "vancouver",
+] as const;
 export type CitationFormat = (typeof CITATION_FORMATS)[number];
+
+const BIBLIOGRAPHY_STYLES = {
+  apa: "apa",
+  harvard: "harvard1",
+  vancouver: "vancouver",
+} as const;
 
 const authorSchema = z
   .object({
@@ -211,11 +224,13 @@ export function exportCitations(
   if (data.length === 0) return "";
 
   const cite = new Cite(structuredClone(data));
-  if (format === "apa") {
+  if (format in BIBLIOGRAPHY_STYLES) {
+    const style =
+      BIBLIOGRAPHY_STYLES[format as keyof typeof BIBLIOGRAPHY_STYLES];
     return cite
       .format("bibliography", {
         format: "text",
-        style: "apa",
+        style,
         lang: "en-US",
       })
       .trim();
@@ -233,6 +248,6 @@ export function citationContentType(format: CitationFormat): string {
 export function citationExtension(format: CitationFormat): string {
   if (format === "csl-json") return "json";
   if (format === "bibtex") return "bib";
-  if (format === "apa") return "txt";
+  if (format in BIBLIOGRAPHY_STYLES) return "txt";
   return "ris";
 }

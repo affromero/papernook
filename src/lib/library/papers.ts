@@ -20,8 +20,15 @@ export interface PaperSource {
   key: string;
   /** Source library version at import time. */
   version: number;
+  /** Library-local identity; missing only on legacy personal imports. */
+  libraryType?: "user" | "group";
+  libraryId?: string;
+  /** Stable Zotero collection keys and their current display names. */
+  collectionKeys?: string[];
   /** Zotero collection names retained without forcing them into one topic. */
   collections?: string[];
+  /** Last observed Zotero tags, so refresh can preserve local-only tags. */
+  tags?: string[];
 }
 
 export const CITATION_TYPES = [

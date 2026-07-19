@@ -78,7 +78,7 @@ flowchart LR
     subgraph capture["Capture"]
       add["/add route<br/>src/app/add"]
       pipe["capture pipeline<br/>src/lib/capture<br/>normalize · download · analyze"]
-      zotero["zotero.ts<br/>per-profile pull + retry cursor"]
+      zotero["zotero.ts<br/>personal/group pull · scoped retry cursor"]
     end
 
     subgraph agent["Agent layer (src/lib/agent)"]
@@ -97,7 +97,7 @@ flowchart LR
       expand["expand.ts<br/>pdf-lib growth"]
       exercises["exercises.ts<br/>md → exercises.pdf"]
       shares["shares.ts<br/>revocable reading snapshots"]
-      citations["citations/<br/>CSL JSON · RIS · BibTeX · APA"]
+      citations["citations/<br/>CSL · RIS · BibTeX · APA · Harvard · Vancouver"]
     end
 
     subgraph ui["App (src/app + src/components)"]
@@ -220,25 +220,31 @@ which containers cannot read; run `claude setup-token` and set
 
 ### Zotero
 
-Each profile can connect a personal Zotero library. New PDF items pull every
-30 minutes or on demand, pass through the normal AI filing flow, and appear in
-a one-glance review strip. Papernook preserves tags, collections, authors,
-publication fields, identifiers, abstract, URL, and language.
+Each profile independently selects one personal or accessible group Zotero
+library. It can sync the whole library or selected collections; subcollections
+are included automatically. New PDF items pull every 30 minutes or on demand,
+pass through the normal AI filing flow, and appear in a one-glance review
+strip. Later Zotero edits refresh source-owned metadata without rewriting the
+PDF, annotations, topic, summary, chats, canvas, or exercises.
 
-Create a read-only key at [zotero.org/settings/keys](https://www.zotero.org/settings/keys),
-then open **Settings → Zotero sync**. Imports join the shared paper library;
-connections and chats remain per-profile. Deduplication uses Zotero item keys
-and arXiv IDs, and failed items retry without replaying successful imports.
+Create a dedicated key at
+[zotero.org/settings/keys](https://www.zotero.org/settings/keys), enable read
+access to the personal library and files and/or the groups you want to use,
+then open **Settings → Zotero sync**. Write access is not required. Imports join the
+shared Papernook paper library; connections and chats remain per-profile.
+Deduplication scopes Zotero item keys to their source library and also checks
+arXiv IDs. Failed items retry without replaying successful imports.
 
-Every paper’s **Cite** menu copies APA or downloads CSL JSON, RIS, or BibTeX.
-Library exports respect the active search, topic, and tag filters.
+Every paper’s **Cite** menu copies APA, Harvard, or Vancouver bibliography
+entries, or downloads CSL JSON, RIS, or BibTeX. Library exports respect the
+active search, topic, and tag filters.
 
 <details>
 <summary><strong>Other reference managers</strong></summary>
 
 | Tool              | Sync            | How                                                                     |
 | ----------------- | --------------- | ----------------------------------------------------------------------- |
-| Zotero            | ✓ built in      | Per-profile API key; new PDF items pull in every 30 min or on demand    |
+| Zotero            | ✓ built in      | Per-profile personal/group source with collection filters and refresh   |
 | Mendeley          | possible        | Public REST API still up, but OAuth app registration adds friction      |
 | Readwise Reader   | possible        | Clean token-authed V3 API exposes saved documents                       |
 | Paperpile         | workaround only | No public API; its Google Drive folder sync could feed a watched folder |
