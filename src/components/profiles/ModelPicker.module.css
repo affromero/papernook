@@ -1,7 +1,45 @@
 .root {
   display: flex;
   flex-direction: column;
+  gap: 0.65rem;
+}
+
+.current {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
+  padding: 0 0 1rem;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.22);
+}
+
+.currentLabel {
+  color: color-mix(in oklab, currentColor 56%, transparent);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.currentValue {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: flex-end;
   gap: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.currentValue strong {
+  font-size: 0.9rem;
+}
+
+.currentValue code {
+  color: color-mix(in oklab, currentColor 68%, transparent);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
 }
 
 .line {
@@ -18,7 +56,7 @@
 
 .chip,
 .chipActive {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 0.8rem;
   border-radius: 999px;
   border: 1px solid rgba(127, 127, 127, 0.35);
@@ -46,7 +84,7 @@
 .input {
   flex: 1;
   min-width: 180px;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 0.6rem;
   border-radius: 8px;
   border: 1px solid rgba(127, 127, 127, 0.3);
@@ -56,12 +94,12 @@
 }
 
 .save {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 0.9rem;
   border-radius: 8px;
   border: 0;
-  background: #3f4fb0;
-  color: #fff;
+  background: var(--settings-accent, #8a612f);
+  color: var(--settings-accent-contrast, #fff);
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
@@ -82,6 +120,13 @@
   margin: 0;
   font-size: 0.82rem;
   opacity: 0.8;
+}
+
+.draftNote {
+  margin: -0.25rem 0 0;
+  color: var(--settings-accent, #8a612f);
+  font-size: 0.76rem;
+  font-weight: 600;
 }
 
 .hint {
@@ -123,6 +168,25 @@
   margin-left: 0.4rem;
   font-size: 0.72rem;
   opacity: 0.6;
+}
+
+.chip:focus-visible,
+.chipActive:focus-visible,
+.input:focus-visible,
+.save:focus-visible {
+  outline: 2px solid var(--settings-accent, #8a612f);
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .current {
+    display: block;
+  }
+
+  .currentValue {
+    justify-content: flex-start;
+    margin-top: 0.45rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

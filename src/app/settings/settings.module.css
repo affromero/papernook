@@ -1,15 +1,15 @@
 .root {
-  --settings-accent: #5364d9;
+  --settings-accent: #8a612f;
+  --settings-accent-contrast: #fff;
   --settings-accent-soft: color-mix(
     in oklab,
     var(--settings-accent) 12%,
     transparent
   );
   --settings-line: rgba(127, 127, 127, 0.22);
-  max-width: 1120px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 3.5rem 1.5rem 6rem;
-  font-family: var(--font-geist-sans), sans-serif;
+  padding: 2.5rem 1.5rem 5rem;
 }
 
 .pageHeader {
@@ -17,16 +17,17 @@
   align-items: end;
   justify-content: space-between;
   gap: 2rem;
-  padding-bottom: 2.5rem;
+  padding-bottom: 1.75rem;
   border-bottom: 1px solid var(--settings-line);
 }
 
 .pageHeader h1 {
-  margin: 0.15rem 0 0;
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
-  font-weight: 650;
-  letter-spacing: -0.065em;
-  line-height: 0.95;
+  margin: 0.25rem 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.4rem, 4vw, 3.35rem);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1;
 }
 
 .eyebrow {
@@ -40,7 +41,7 @@
 
 .intro {
   max-width: 540px;
-  margin: 1rem 0 0;
+  margin: 0.75rem 0 0;
   color: color-mix(in oklab, currentColor 65%, transparent);
   font-size: 1rem;
 }
@@ -72,10 +73,20 @@
   background: var(--settings-accent-soft);
 }
 
+.dashboardLink:focus-visible,
+.primaryAction:focus-visible,
+.sectionNav a:focus-visible,
+.manualSetup summary:focus-visible,
+.secretPanel summary:focus-visible,
+.revealDetails summary:focus-visible {
+  outline: 2px solid var(--settings-accent);
+  outline-offset: 3px;
+}
+
 .layout {
   display: grid;
-  grid-template-columns: 164px minmax(0, 1fr);
-  gap: clamp(2rem, 6vw, 5.5rem);
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: clamp(2rem, 4vw, 3.5rem);
 }
 
 .sectionNav {
@@ -85,7 +96,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  padding-top: 3rem;
+  padding-top: 2.4rem;
 }
 
 .sectionNav p {
@@ -121,7 +132,7 @@
 
 .section {
   scroll-margin-top: 1.5rem;
-  padding: 3.25rem 0 3.75rem;
+  padding: 2.5rem 0 3rem;
   border-bottom: 1px solid var(--settings-line);
 }
 
@@ -131,9 +142,9 @@
 
 .sectionHeader {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.6rem;
 }
 
 .sectionNumber {
@@ -146,9 +157,10 @@
 
 .sectionHeader h2 {
   margin: 0;
-  font-size: clamp(1.55rem, 3vw, 2rem);
-  font-weight: 630;
-  letter-spacing: -0.035em;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.45rem, 2.5vw, 1.8rem);
+  font-weight: 400;
+  letter-spacing: -0.02em;
 }
 
 .sectionHeader p,
@@ -279,7 +291,7 @@
 }
 
 .subsection {
-  margin-left: 58px;
+  margin-left: 42px;
   padding: 1.5rem 0;
   border-top: 1px solid var(--settings-line);
 }
@@ -452,6 +464,7 @@
 
 @media (prefers-color-scheme: dark) {
   .root {
-    --settings-accent: #8997ff;
+    --settings-accent: #d7a65a;
+    --settings-accent-contrast: #17130d;
   }
 }

@@ -61,8 +61,6 @@ export function ModelPicker() {
       const data = (await response.json()) as AgentState;
       if (version !== requestVersion.current) return;
       setState(data);
-      setValue(data.model ?? "");
-      setBaseUrl(data.baseUrl ?? "");
       if (announce) {
         setStatus(
           data.available
@@ -91,6 +89,10 @@ export function ModelPicker() {
   }, []);
 
   if (!state?.admin) return null;
+  const draftModel = value.trim() || null;
+  const modelChanged = draftModel !== state.model;
+  const draftBaseUrl = baseUrl.trim() || null;
+  const endpointChanged = draftBaseUrl !== state.baseUrl;
 
   async function save(body: {
     provider?: string;
@@ -122,6 +124,14 @@ export function ModelPicker() {
 
   return (
     <div className={styles.root}>
+      <div className={styles.current} aria-live="polite">
+        <span className={styles.currentLabel}>Current</span>
+        <span className={styles.currentValue}>
+          <strong>{state.provider ?? "Not configured"}</strong>
+          {state.provider && <span aria-hidden="true">/</span>}
+          {state.provider && <code>{state.model ?? "provider default"}</code>}
+        </span>
+      </div>
       <p className={styles.line}>Provider</p>
       <div className={styles.controls}>
         {Object.entries(state.statuses).map(([p, readiness]) => (
@@ -131,6 +141,7 @@ export function ModelPicker() {
             className={state.provider === p ? styles.chipActive : styles.chip}
             onClick={() => void save({ provider: p })}
             disabled={busy || state.provider === p}
+            aria-pressed={state.provider === p}
             aria-label={`${p}: ${READINESS_LABEL[readiness]}`}
             title={
               readiness === "ready" ? undefined : READINESS_LABEL[readiness]
@@ -185,8 +196,8 @@ export function ModelPicker() {
             <button
               type="button"
               className={styles.save}
-              onClick={() => void save({ baseUrl: baseUrl.trim() || null })}
-              disabled={busy}
+              onClick={() => void save({ baseUrl: draftBaseUrl })}
+              disabled={busy || !endpointChanged}
             >
               Save endpoint
             </button>
@@ -208,10 +219,10 @@ export function ModelPicker() {
           <button
             key={s}
             type="button"
-            className={value === s ? styles.chipActive : styles.chip}
+            className={state.model === s ? styles.chipActive : styles.chip}
             onClick={() => void save({ model: s })}
-            disabled={busy || value === s}
-            aria-pressed={value === s}
+            disabled={busy || state.model === s}
+            aria-pressed={state.model === s}
           >
             {s}
           </button>
@@ -231,12 +242,13 @@ export function ModelPicker() {
         <button
           type="button"
           className={styles.save}
-          onClick={() => void save({ model: value.trim() || null })}
-          disabled={busy}
+          onClick={() => void save({ model: draftModel })}
+          disabled={busy || !modelChanged}
         >
           Save
         </button>
       </div>
+      {modelChanged && <p className={styles.draftNote}>Unsaved model change</p>}
       {status && (
         <p className={styles.status} role="status" aria-live="polite">
           {status}

@@ -1,6 +1,7 @@
 .root {
   position: relative;
   display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   padding: 0.6rem 1.5rem 0;
@@ -37,6 +38,12 @@
 
 .avatarBtn:hover .avatar {
   transform: scale(1.06);
+}
+
+.avatarBtn:focus-visible {
+  outline: 2px solid var(--color-primary, #b88a52);
+  outline-offset: 3px;
+  border-radius: 50%;
 }
 
 .menu {
@@ -85,4 +92,10 @@
 .menu a:hover,
 .menu button:hover {
   background: rgba(63, 79, 176, 0.1);
+}
+
+.menu a:focus-visible,
+.menu button:focus-visible {
+  outline: 2px solid var(--color-primary, #b88a52);
+  outline-offset: -2px;
 }
