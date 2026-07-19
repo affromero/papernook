@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { profileForCaptureToken } from "@/lib/auth/users";
-import { acceptFromInbox } from "@/lib/library/papers";
+import {
+  acceptInboxCapture,
+  CaptureOwnershipError,
+} from "@/lib/library/papers";
 import { slugify, isValidSlug } from "@/lib/library/slug";
 import { rebuildIndex } from "@/lib/library/index-db";
 import { acceptedPage, errorPage } from "../pages";
@@ -22,7 +25,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
 
-  if (!profileForCaptureToken(token)) {
+  const profile = profileForCaptureToken(token);
+  if (!profile) {
     return html(errorPage("Invalid capture token."), 401);
   }
   const topic = slugify(newTopic.trim() || chosen.trim());
@@ -30,10 +34,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return html(errorPage("Invalid folder or paper name."), 400);
   }
   try {
-    acceptFromInbox(slug, topic);
+    acceptInboxCapture(slug, topic, profile.username);
     rebuildIndex();
     return html(acceptedPage(slug, topic), 200);
   } catch (err) {
+    if (err instanceof CaptureOwnershipError) {
+      return html(errorPage("No pending capture exists."), 404);
+    }
     return html(
       errorPage(err instanceof Error ? err.message : "Accept failed."),
       500,
