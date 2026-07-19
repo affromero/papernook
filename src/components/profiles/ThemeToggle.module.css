@@ -1,0 +1,28 @@
+.toggle {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent);
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--foreground) 72%, transparent);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.toggle:hover {
+  color: var(--foreground);
+  border-color: color-mix(in srgb, var(--foreground) 34%, transparent);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--color-primary, #b88a52);
+  outline-offset: 2px;
+}

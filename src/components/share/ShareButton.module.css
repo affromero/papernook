@@ -260,10 +260,8 @@
   border-color: rgba(143, 47, 38, 0.35);
 }
 
-@media (prefers-color-scheme: dark) {
-  .dialog {
-    color-scheme: light;
-  }
+:global(html[data-theme="dark"]) .dialog {
+  color-scheme: light;
 }
 
 @media (max-width: 520px) {

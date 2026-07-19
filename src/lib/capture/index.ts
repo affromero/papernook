@@ -6,6 +6,7 @@ import {
   acceptInboxCapture,
   companionDir,
   exercisesPdfPath,
+  findPaperBySource,
   pdfPath,
   readMeta,
   writeMeta,
@@ -115,6 +116,18 @@ async function capturePdfLocked(
 ): Promise<CaptureResult> {
   ensureDataDirs();
   assertActive(activity);
+  const duplicate = findPaperBySource(
+    opts.sourceUrl,
+    opts.arxivId,
+    opts.username,
+  );
+  if (duplicate) {
+    throw new CaptureError(
+      duplicate.topic
+        ? "This paper is already in your library."
+        : "This paper is already waiting in the Inbox.",
+    );
+  }
 
   // Slug from the analyzed title once we have it; provisional from URL now.
   const provisional = uniqueSlug(

@@ -165,9 +165,10 @@ export function searchIndex(query: string): IndexedPaper[] {
     .filter((p): p is IndexedPaper => Boolean(p));
 }
 
-export function allTags(): string[] {
+export function allTags(username?: string): string[] {
   const tags = new Set<string>();
   for (const paper of allIndexed()) {
+    if (paper.topic === null && paper.addedBy !== username) continue;
     for (const tag of paper.tags) tags.add(tag);
   }
   return [...tags].sort();

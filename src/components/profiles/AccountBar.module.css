@@ -14,6 +14,12 @@
   letter-spacing: 0.01em;
 }
 
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .avatarBtn {
   border: 0;
   background: none;

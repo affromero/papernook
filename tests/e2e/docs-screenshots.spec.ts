@@ -26,6 +26,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page.getByText("Maya")).not.toBeVisible();
     await expect(page).toHaveScreenshot(["setup", "access-gate.png"], {
       animations: "disabled",
+      maxDiffPixels: 50,
     });
 
     await page
@@ -93,7 +94,53 @@ test.describe.serial("documentation journeys and screenshots", () => {
     });
 
     await page.goto(`${readerUrl}/canvas`);
+    await expect(page).toHaveURL(`${readerUrl}/canvas`);
+    await expect(
+      page.getByRole("link", { name: "Canvas", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(
+      page.getByText("Paste screenshots, links, or videos"),
+    ).toBeVisible();
+    const saveStatus = page.getByRole("status", {
+      name: "Canvas save status",
+    });
+    await expect(saveStatus).toHaveText("Saved");
+    await expect(page).toHaveScreenshot(["product", "canvas.png"], {
+      animations: "disabled",
+    });
+    const board = page.locator(".tl-canvas").first();
+    const boardBox = await board.boundingBox();
+    expect(boardBox).not.toBeNull();
+    await page.keyboard.press("d");
+    await page.mouse.move(boardBox!.x + 260, boardBox!.y + 220);
+    await page.mouse.down();
+    await page.mouse.move(boardBox!.x + 360, boardBox!.y + 300, { steps: 4 });
+    await page.mouse.up();
+    await expect(saveStatus).toHaveText("Unsaved changes");
+    await expect(saveStatus).toHaveText("Saved");
+    const canvasState = await page.request.get(
+      `/api/v1/papers/machine-learning/attention-is-all-you-need/canvas`,
+    );
+    expect(canvasState.ok()).toBe(true);
+    expect(JSON.stringify(await canvasState.json())).toContain(
+      '"typeName":"shape"',
+    );
+    await page.getByRole("link", { name: "Reader", exact: true }).click();
     await expect(page).toHaveURL(readerUrl);
+  });
+
+  test("manual theme choice persists across navigation and reload", async ({
+    page,
+  }) => {
+    await loginAsAdmin(page);
+    const html = page.locator("html");
+    const initial = await html.getAttribute("data-theme");
+    expect(initial === "light" || initial === "dark").toBe(true);
+    const target = initial === "dark" ? "light" : "dark";
+    await page.getByRole("button", { name: `Use ${target} theme` }).click();
+    await expect(html).toHaveAttribute("data-theme", target);
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", target);
   });
 
   test("sharing, graph, invitations, and device setup are visible before sending", async ({

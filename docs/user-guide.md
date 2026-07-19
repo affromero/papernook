@@ -35,6 +35,12 @@ On desktop, select **Focus reading** to give the PDF the full workspace and
 
 ![Full-width paper view with chat hidden](images/product/paper-focus.png)
 
+Switch to **Canvas** to arrange notes, drawings, screenshots, links, and video
+beside the same paper conversation. Canvas keeps its own shared objects while
+the annotated PDF remains the source of truth in Reader.
+
+![The shared paper canvas with drawing and media tools](images/product/canvas.png)
+
 To write with Apple Pencil, open the paper in Safari and start drawing.
 Papernook enables Draw for pen input and autosaves into the PDF. WebDAV is
 available as optional external-app compatibility; see the

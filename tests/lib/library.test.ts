@@ -122,6 +122,44 @@ describe("paper CRUD on disk", () => {
     expect(lib.uniqueSlug("attention")).toBe("attention-3");
     expect(lib.uniqueSlug("brand-new")).toBe("brand-new");
   });
+
+  it("finds duplicate sources across confirmed papers and the inbox", async () => {
+    await placePaper("nlp", "attention", "Attention");
+    const lib = await placePaper(null, "pending", "Pending", []);
+    lib.writeMeta("nlp", "attention", {
+      ...lib.readMeta("nlp", "attention")!,
+      arxivId: "1706.03762v7",
+      sourceUrl: "https://arxiv.org/abs/1706.03762v7",
+    });
+    expect(
+      lib.findPaperBySource("https://arxiv.org/pdf/1706.03762", "1706.03762")
+        ?.slug,
+    ).toBe("attention");
+    expect(
+      lib.findPaperBySource(
+        "https://example.com/paper.pdf?utm_source=test",
+        null,
+        "andres",
+      )?.slug,
+    ).toBe("pending");
+    expect(
+      lib.findPaperBySource(
+        "https://example.com/paper.pdf?utm_source=test",
+        null,
+        "ana",
+      ),
+    ).toBeNull();
+  });
+
+  it("only lets the capture owner discard an inbox paper", async () => {
+    const lib = await placePaper(null, "pending", "Pending");
+    expect(() => lib.discardInboxCapture("pending", "ana")).toThrow(
+      /No pending capture/,
+    );
+    expect(lib.getPaper(null, "pending")).not.toBeNull();
+    lib.discardInboxCapture("pending", "andres");
+    expect(lib.getPaper(null, "pending")).toBeNull();
+  });
 });
 
 describe("index rebuild from disk", () => {
@@ -192,6 +230,48 @@ describe("index rebuild from disk", () => {
     );
     lib.rebuildIndex();
     expect(() => lib.searchIndex('att* AND "quo)tes" NEAR(')).not.toThrow();
+  });
+
+  it("shows inbox papers only when the inbox filter is selected", async () => {
+    await placePaper("nlp", "confirmed", "Confirmed");
+    const lib = await placePaper(null, "pending", "Pending");
+    lib.rebuildIndex();
+    const { matchesLibraryFilters } =
+      await import("@/lib/library/citations/filters");
+    const indexed = lib.allIndexed();
+    const allPapers = indexed.filter((paper) =>
+      matchesLibraryFilters(paper, { tag: null, topic: null }),
+    );
+    const inbox = indexed.filter((paper) =>
+      matchesLibraryFilters(paper, { tag: null, topic: "_inbox" }),
+    );
+    expect(allPapers.map((paper) => paper.slug)).toEqual(["confirmed"]);
+    expect(inbox.map((paper) => paper.slug)).toEqual(["pending"]);
+  });
+
+  it("shows confirmed papers and only the active profile's inbox metadata", async () => {
+    await placePaper("nlp", "confirmed", "Confirmed", ["shared"]);
+    await placePaper(null, "andres-pending", "Andres pending", ["andres-tag"]);
+    const lib = await placePaper(null, "ana-pending", "Ana pending", [
+      "private-tag",
+    ]);
+    lib.writeMeta(null, "ana-pending", {
+      ...lib.readMeta(null, "ana-pending")!,
+      addedBy: "ana",
+    });
+    lib.rebuildIndex();
+    const { isPaperVisibleToProfile } =
+      await import("@/lib/library/citations/filters");
+
+    expect(
+      lib
+        .allIndexed()
+        .filter((paper) => isPaperVisibleToProfile(paper, "andres"))
+        .map((paper) => paper.slug)
+        .sort(),
+    ).toEqual(["andres-pending", "confirmed"]);
+    expect(lib.allTags("andres")).toEqual(["andres-tag", "shared"]);
+    expect(lib.allTags("ana")).toEqual(["private-tag", "shared"]);
   });
 });
 

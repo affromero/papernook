@@ -8,24 +8,45 @@
 .toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.5rem 0;
+  padding: 0 0 0.55rem;
   flex-wrap: wrap;
+}
+
+.toolbar > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+.hint {
+  color: color-mix(in srgb, currentColor 58%, transparent);
+  font-size: 0.78rem;
+}
+
+.toolbarActions {
+  margin-left: auto;
 }
 
 .toolbar button {
   min-height: 44px;
-  padding: 0 0.9rem;
-  border-radius: 8px;
-  border: 1px solid rgba(63, 79, 176, 0.5);
-  background: rgba(63, 79, 176, 0.1);
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: transparent;
   color: inherit;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .status {
   font-size: 0.85rem;
-  opacity: 0.8;
+  color: #a75831;
+}
+
+.statusSaved {
+  color: color-mix(in srgb, currentColor 58%, transparent);
 }
 
 .board {
@@ -35,4 +56,26 @@
   border-radius: 12px;
   overflow: hidden;
   position: relative;
+}
+
+.boardLoading {
+  pointer-events: none;
+}
+
+.loadingOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: var(--background);
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .hint {
+    display: none;
+  }
 }

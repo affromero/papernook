@@ -1,14 +1,10 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
-
-/**
- * Canvas persistence: the tldraw store snapshot lives as canvas.json in the
- * companion folder, filesystem truth like everything else. Shared between
- * profiles (the canvas is part of the paper's workspace, like ink).
- */
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +13,32 @@ interface Params {
 }
 
 const MAX_CANVAS_BYTES = 20 * 1024 * 1024;
+const snapshotSchema = z.object({ document: z.unknown() }).strict();
+const EMPTY_ETAG = '"empty"';
 
-export async function GET(_req: NextRequest, { params }: Params) {
+function etagFor(raw: string): string {
+  return `"${createHash("sha256").update(raw).digest("base64url")}"`;
+}
+
+function readCanvas(file: string): {
+  body: { document: unknown | null };
+  etag: string;
+} {
+  if (!fs.existsSync(file)) {
+    return { body: { document: null }, etag: EMPTY_ETAG };
+  }
+  const raw = fs.readFileSync(file, "utf8");
+  const parsed: unknown = JSON.parse(raw);
+  if (parsed && typeof parsed === "object" && "document" in parsed) {
+    return {
+      body: { document: parsed.document },
+      etag: etagFor(raw),
+    };
+  }
+  return { body: { document: parsed }, etag: etagFor(raw) };
+}
+
+export async function GET(_request: NextRequest, { params }: Params) {
   const profile = await activeProfile();
   if (!profile)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
@@ -27,15 +47,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!paper)
     return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
   try {
-    const raw = fs.readFileSync(
-      path.join(paper.companionDir, "canvas.json"),
-      "utf8",
-    );
-    return new NextResponse(raw, {
-      headers: { "content-type": "application/json" },
+    const canvas = readCanvas(path.join(paper.companionDir, "canvas.json"));
+    return NextResponse.json(canvas.body, {
+      headers: { etag: canvas.etag, "cache-control": "no-store" },
     });
   } catch {
-    return NextResponse.json({ empty: true });
+    return NextResponse.json(
+      { error: "The saved canvas is invalid." },
+      { status: 500 },
+    );
   }
 }
 
@@ -47,18 +67,50 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const paper = getPaper(topic, slug);
   if (!paper)
     return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
+
   const raw = await request.text();
-  if (raw.length > MAX_CANVAS_BYTES) {
+  if (Buffer.byteLength(raw) > MAX_CANVAS_BYTES) {
     return NextResponse.json({ error: "Canvas too large." }, { status: 413 });
   }
-  try {
-    JSON.parse(raw); // must at least be JSON
-  } catch {
+  const body = snapshotSchema.safeParse(
+    (() => {
+      try {
+        return JSON.parse(raw) as unknown;
+      } catch {
+        return null;
+      }
+    })(),
+  );
+  if (!body.success) {
     return NextResponse.json({ error: "Invalid canvas." }, { status: 400 });
   }
+
   const file = path.join(paper.companionDir, "canvas.json");
+  let current: ReturnType<typeof readCanvas>;
+  try {
+    current = readCanvas(file);
+  } catch {
+    return NextResponse.json(
+      { error: "The saved canvas is invalid." },
+      { status: 500 },
+    );
+  }
+  if (request.headers.get("if-match") !== current.etag) {
+    return NextResponse.json(
+      {
+        error:
+          "This canvas changed on another device. Reload before adding more.",
+      },
+      { status: 409, headers: { etag: current.etag } },
+    );
+  }
+
+  const serialized = JSON.stringify(body.data);
   const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, raw);
+  fs.writeFileSync(tmp, serialized);
   fs.renameSync(tmp, file);
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(
+    { ok: true },
+    { headers: { etag: etagFor(serialized) } },
+  );
 }

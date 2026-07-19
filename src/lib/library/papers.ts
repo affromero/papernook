@@ -293,6 +293,43 @@ export function getPaper(topic: string | null, slug: string): Paper | null {
   return loadPaper(topic, slug);
 }
 
+function canonicalSourceUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    for (const key of [...url.searchParams.keys()]) {
+      if (key.toLowerCase().startsWith("utm_")) url.searchParams.delete(key);
+    }
+    url.hostname = url.hostname.toLowerCase();
+    url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.toString();
+  } catch {
+    return value.trim();
+  }
+}
+
+function unversionedArxivId(value: string | null | undefined): string | null {
+  return value?.replace(/v\d+$/i, "") ?? null;
+}
+
+/** Find an existing confirmed or pending capture by stable source identity. */
+export function findPaperBySource(
+  sourceUrl: string,
+  arxivId?: string | null,
+  username?: string,
+): Paper | null {
+  const wantedArxiv = unversionedArxivId(arxivId);
+  const wantedUrl = canonicalSourceUrl(sourceUrl);
+  return (
+    [...listPapers(), ...listInbox()].find((paper) => {
+      if (paper.topic === null && paper.meta.addedBy !== username) return false;
+      const paperArxiv = unversionedArxivId(paper.meta.arxivId);
+      if (wantedArxiv && paperArxiv) return wantedArxiv === paperArxiv;
+      return canonicalSourceUrl(paper.meta.sourceUrl) === wantedUrl;
+    }) ?? null
+  );
+}
+
 /** A library-unique slug: appends -2, -3, … on collision anywhere. */
 export function uniqueSlug(base: string): string {
   const taken = new Set<string>();
@@ -384,4 +421,17 @@ export function acceptInboxCapture(
     );
   }
   return acceptFromInbox(slug, topic);
+}
+
+/** Delete a pending capture only when it belongs to the signed-in profile. */
+export function discardInboxCapture(slug: string, username: string): void {
+  assertSlug(slug);
+  assertSlug(username);
+  const paper = loadPaper(null, slug);
+  if (!paper || paper.meta.addedBy !== username) {
+    throw new CaptureOwnershipError(
+      "No pending capture is available for this profile.",
+    );
+  }
+  fs.rmSync(paper.companionDir, { recursive: true, force: true });
 }

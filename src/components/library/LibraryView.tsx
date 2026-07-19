@@ -8,7 +8,10 @@ import {
   allTags,
   type IndexedPaper,
 } from "@/lib/library/index-db";
-import { matchesLibraryFilters } from "@/lib/library/citations/filters";
+import {
+  isPaperVisibleToProfile,
+  matchesLibraryFilters,
+} from "@/lib/library/citations/filters";
 import { listTopics, listInbox } from "@/lib/library/papers";
 import { LibraryCitationExport } from "./LibraryCitationExport";
 import styles from "./LibraryView.module.css";
@@ -18,6 +21,7 @@ interface LibraryViewProps {
   activeTag: string | null;
   activeTopic: string | null;
   captureToken: string;
+  username: string;
 }
 
 function paperHref(paper: IndexedPaper): string {
@@ -31,16 +35,21 @@ export function LibraryView({
   activeTag,
   activeTopic,
   captureToken,
+  username,
 }: LibraryViewProps) {
-  const papers = searchIndex(query).filter((paper) =>
-    matchesLibraryFilters(paper, {
-      tag: activeTag,
-      topic: activeTopic,
-    }),
-  );
+  const papers = searchIndex(query)
+    .filter((paper) => isPaperVisibleToProfile(paper, username))
+    .filter((paper) =>
+      matchesLibraryFilters(paper, {
+        tag: activeTag,
+        topic: activeTopic,
+      }),
+    );
   const topics = listTopics();
-  const tags = allTags();
-  const inboxCount = listInbox().length;
+  const tags = allTags(username);
+  const inboxCount = listInbox().filter(
+    (paper) => paper.meta.addedBy === username,
+  ).length;
   const flagged = allIndexed()
     .filter((p) => p.needsReview && p.topic !== null)
     .map((p) => ({ slug: p.slug, topic: p.topic as string, title: p.title }));

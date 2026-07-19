@@ -7,6 +7,13 @@ export interface LibraryFilters {
   topic: string | null;
 }
 
+export function isPaperVisibleToProfile(
+  paper: IndexedPaper,
+  username: string,
+): boolean {
+  return paper.topic !== null || paper.addedBy === username;
+}
+
 export function matchesLibraryFilters(
   paper: IndexedPaper,
   filters: Omit<LibraryFilters, "query">,
@@ -14,7 +21,7 @@ export function matchesLibraryFilters(
   if (filters.tag && !paper.tags.includes(filters.tag)) return false;
   if (filters.topic === "_inbox") return paper.topic === null;
   if (filters.topic && paper.topic !== filters.topic) return false;
-  return true;
+  return paper.topic !== null;
 }
 
 /**

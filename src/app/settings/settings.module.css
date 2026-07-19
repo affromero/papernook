@@ -467,9 +467,7 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .root {
-    --settings-accent: #d7a65a;
-    --settings-accent-contrast: #17130d;
-  }
+:global(html[data-theme="dark"]) .root {
+  --settings-accent: #d7a65a;
+  --settings-accent-contrast: #17130d;
 }

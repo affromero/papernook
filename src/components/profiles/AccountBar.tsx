@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ThemeToggle } from "./ThemeToggle";
 import styles from "./AccountBar.module.css";
 
 /**
@@ -44,22 +45,25 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
   return (
     <div className={styles.root} ref={rootRef}>
       <span className={styles.brand}>papernook</span>
-      <button
-        type="button"
-        className={styles.avatarBtn}
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-controls="account-options"
-        aria-label={`Account menu for ${displayName}`}
-      >
-        <Image
-          src={`/avatars/${avatarSlug}.png`}
-          alt=""
-          width={40}
-          height={40}
-          className={styles.avatar}
-        />
-      </button>
+      <div className={styles.controls}>
+        <ThemeToggle />
+        <button
+          type="button"
+          className={styles.avatarBtn}
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-controls="account-options"
+          aria-label={`Account menu for ${displayName}`}
+        >
+          <Image
+            src={`/avatars/${avatarSlug}.png`}
+            alt=""
+            width={40}
+            height={40}
+            className={styles.avatar}
+          />
+        </button>
+      </div>
       {open && (
         <div
           className={styles.menu}

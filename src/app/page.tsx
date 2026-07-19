@@ -25,6 +25,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         activeTag={params.tag ?? null}
         activeTopic={params.topic ?? null}
         captureToken={profile.captureToken}
+        username={profile.username}
       />
     </main>
   );

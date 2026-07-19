@@ -1,210 +1,355 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Tldraw,
   getSnapshot,
   loadSnapshot,
-  AssetRecordType,
-  createShapeId,
   type Editor,
-  type TLImageShape,
+  type TLAssetStore,
 } from "tldraw";
 import "tldraw/tldraw.css";
 import styles from "./CanvasBoard.module.css";
-
-/**
- * The paper as an infinite canvas: pdf.js renders each page to an image
- * placed as a tldraw shape; around them go notes, links, YouTube embeds,
- * drawings (Apple Pencil works natively), and anything else tldraw offers.
- * State persists as canvas.json in the companion folder. "Explain selection"
- * exports the selected region as a PNG and hands it to the chat panel via a
- * window event.
- */
 
 interface CanvasBoardProps {
   topic: string;
   slug: string;
 }
 
-const PAGE_GAP = 48;
-const RENDER_SCALE = 1.6;
+const SAVE_DELAY_MS = 1_200;
+const LOCAL_SESSION_PREFIX = "papernook:canvas-session";
 
-async function renderPdfPages(
-  url: string,
-): Promise<{ dataUrl: string; width: number; height: number }[]> {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-  ).toString();
-  const response = await fetch(url, {
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  if (!response.ok) {
-    throw new Error(`The PDF could not be loaded (${response.status}).`);
+function canvasError(payload: unknown, fallback: string): string {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "error" in payload &&
+    typeof payload.error === "string"
+  ) {
+    return payload.error;
   }
-  const doc = await pdfjs.getDocument({
-    data: new Uint8Array(await response.arrayBuffer()),
-  }).promise;
-  const pages: { dataUrl: string; width: number; height: number }[] = [];
-  for (let i = 1; i <= doc.numPages; i += 1) {
-    const page = await doc.getPage(i);
-    const viewport = page.getViewport({ scale: RENDER_SCALE });
-    const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) continue;
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-    pages.push({
-      dataUrl: canvas.toDataURL("image/png"),
-      width: viewport.width / RENDER_SCALE,
-      height: viewport.height / RENDER_SCALE,
-    });
-  }
-  return pages;
+  return fallback;
 }
 
-function syncPdfPages(
+function localSessionKey(topic: string, slug: string): string {
+  return `${LOCAL_SESSION_PREFIX}:${topic}:${slug}`;
+}
+
+function restoreLocalCamera(
   editor: Editor,
-  pages: { dataUrl: string; width: number; height: number }[],
-): void {
-  let nextY = 0;
-  let foundExistingPage = false;
-
-  for (const [index, page] of pages.entries()) {
-    const pageNumber = index + 1;
-    const shapeId = createShapeId(`page-${pageNumber}`);
-    const existing = editor.getShape(shapeId);
-    const existingImage = existing?.type === "image" ? existing : null;
-    const assetId =
-      existingImage?.props.assetId ??
-      AssetRecordType.createId(`pdf-page-${pageNumber}`);
-    const assetProps = {
-      name: `page-${pageNumber}.png`,
-      src: page.dataUrl,
-      w: page.width,
-      h: page.height,
-      mimeType: "image/png" as const,
-      isAnimated: false,
-    };
-
-    if (editor.getAsset(assetId)) {
-      editor.updateAssets([{ id: assetId, type: "image", props: assetProps }]);
-    } else {
-      editor.createAssets([
-        {
-          id: assetId,
-          typeName: "asset",
-          type: "image",
-          meta: {},
-          props: assetProps,
-        },
-      ]);
+  topic: string,
+  slug: string,
+): boolean {
+  try {
+    const raw = window.localStorage.getItem(localSessionKey(topic, slug));
+    if (!raw) return false;
+    const camera: unknown = JSON.parse(raw);
+    if (
+      !camera ||
+      typeof camera !== "object" ||
+      !("x" in camera) ||
+      typeof camera.x !== "number" ||
+      !("y" in camera) ||
+      typeof camera.y !== "number" ||
+      !("z" in camera) ||
+      typeof camera.z !== "number"
+    ) {
+      return false;
     }
-
-    if (existingImage) {
-      foundExistingPage = true;
-      editor.updateShape<TLImageShape>({
-        id: existingImage.id,
-        type: "image",
-        isLocked: true,
-        props: { assetId, w: page.width, h: page.height },
-      });
-      nextY = existingImage.y + page.height + PAGE_GAP;
-    } else {
-      editor.createShape<TLImageShape>({
-        id: shapeId,
-        type: "image",
-        x: 0,
-        y: nextY,
-        isLocked: true,
-        props: { assetId, w: page.width, h: page.height },
-      });
-      nextY += page.height + PAGE_GAP;
-    }
+    editor.setCamera({ x: camera.x, y: camera.y, z: camera.z });
+    return true;
+  } catch {
+    return false;
   }
-
-  for (const shape of editor.getCurrentPageShapes()) {
-    const pageMatch = /^shape:page-(\d+)$/.exec(shape.id);
-    if (pageMatch && Number(pageMatch[1]) > pages.length) {
-      editor.deleteShape(shape.id);
-    }
-  }
-
-  if (!foundExistingPage) editor.zoomToFit();
 }
 
-async function saveCanvas(editor: Editor, url: string): Promise<void> {
+function saveLocalCamera(editor: Editor, topic: string, slug: string): void {
+  try {
+    const camera = editor.getCamera();
+    window.localStorage.setItem(
+      localSessionKey(topic, slug),
+      JSON.stringify({ x: camera.x, y: camera.y, z: camera.z }),
+    );
+  } catch {
+    // Canvas content still saves when local camera persistence is unavailable.
+  }
+}
+
+async function migrateLegacyCanvas(editor: Editor): Promise<boolean> {
+  let changed = false;
+  const paperShapes = editor
+    .getCurrentPageShapes()
+    .filter((shape) => /^shape:page-\d+$/.test(shape.id));
+  if (paperShapes.length > 0) {
+    const pageAssetIds = paperShapes.flatMap((shape) =>
+      shape.type === "image" && shape.props.assetId
+        ? [shape.props.assetId]
+        : [],
+    );
+    editor.store.remove(paperShapes.map((shape) => shape.id));
+    if (pageAssetIds.length > 0) editor.deleteAssets(pageAssetIds);
+    changed = true;
+  }
+
+  for (const asset of editor.getAssets()) {
+    const source = asset.props.src;
+    if (!source?.startsWith("data:")) continue;
+    const blob = await fetch(source).then((response) => response.blob());
+    const filename =
+      "name" in asset.props && asset.props.name
+        ? asset.props.name
+        : `canvas-asset.${blob.type.split("/")[1] ?? "bin"}`;
+    const uploaded = await editor.uploadAsset(
+      asset,
+      new File([blob], filename, { type: blob.type }),
+    );
+    editor.updateAssets([
+      { id: asset.id, type: asset.type, props: { src: uploaded.src } },
+    ]);
+    changed = true;
+  }
+  return changed;
+}
+
+async function saveDocument(
+  document: unknown,
+  url: string,
+  etag: string,
+): Promise<string> {
   const response = await fetch(url, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "If-Match": etag,
+    },
     credentials: "include",
-    body: JSON.stringify(getSnapshot(editor.store)),
+    body: JSON.stringify({ document }),
   });
+  const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const payload: unknown = await response.json().catch(() => null);
-    const message =
-      payload &&
-      typeof payload === "object" &&
-      "error" in payload &&
-      typeof payload.error === "string"
-        ? payload.error
-        : "The canvas could not be saved.";
-    throw new Error(message);
+    if (response.status === 409) throw new CanvasConflictError();
+    throw new Error(canvasError(payload, "The canvas could not be saved."));
+  }
+  return response.headers.get("etag") ?? etag;
+}
+
+class CanvasConflictError extends Error {
+  constructor() {
+    super("Canvas changed on another device.");
+    this.name = "CanvasConflictError";
   }
 }
 
 export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
   const base = `/api/v1/papers/${topic}/${slug}`;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveQueue = useRef(Promise.resolve());
   const editorRef = useRef<Editor | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
+  const etagRef = useRef('"empty"');
+  const initializedRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const conflictRef = useRef(false);
+  const changeVersionRef = useRef(0);
+  const [status, setStatus] = useState("Opening shared canvas…");
+  const [saved, setSaved] = useState(true);
+  const [ready, setReady] = useState(false);
+  const [conflicted, setConflicted] = useState(false);
+
+  const assetStore = useMemo<TLAssetStore>(
+    () => ({
+      async upload(_asset, file, abortSignal) {
+        const response = await fetch(`${base}/canvas/assets`, {
+          method: "POST",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+            "X-Canvas-Filename": encodeURIComponent(file.name),
+          },
+          credentials: "include",
+          body: file,
+          signal: abortSignal,
+        });
+        const payload: unknown = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(
+            canvasError(payload, "The canvas asset could not be uploaded."),
+          );
+        }
+        if (
+          !payload ||
+          typeof payload !== "object" ||
+          !("src" in payload) ||
+          typeof payload.src !== "string"
+        ) {
+          throw new Error("The canvas asset response was invalid.");
+        }
+        return { src: payload.src };
+      },
+      resolve(asset) {
+        return asset.props.src;
+      },
+    }),
+    [base],
+  );
+  const flushSave = useCallback(
+    async (editor: Editor, silent = false) => {
+      if (conflictRef.current) return;
+      const document = getSnapshot(editor.store).document;
+      const savedVersion = changeVersionRef.current;
+      const save = async () => {
+        if (!silent) setStatus("Saving…");
+        try {
+          etagRef.current = await saveDocument(
+            document,
+            `${base}/canvas`,
+            etagRef.current,
+          );
+        } catch (error) {
+          if (error instanceof CanvasConflictError) {
+            conflictRef.current = true;
+            setConflicted(true);
+            setSaved(false);
+            setStatus(
+              "Changed on another device. Reload to review the shared version.",
+            );
+          }
+          throw error;
+        }
+        const fullySaved = changeVersionRef.current === savedVersion;
+        dirtyRef.current = !fullySaved;
+        if (!silent) {
+          setSaved(fullySaved);
+          setStatus(fullySaved ? "Saved" : "Unsaved changes");
+        }
+      };
+      saveQueue.current = saveQueue.current.then(save, save);
+      await saveQueue.current;
+    },
+    [base],
+  );
+
+  useEffect(() => {
+    const warnAboutUnsavedChanges = (event: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnAboutUnsavedChanges);
+    return () =>
+      window.removeEventListener("beforeunload", warnAboutUnsavedChanges);
+  }, []);
 
   const onMount = useCallback(
     (editor: Editor) => {
       editorRef.current = editor;
-      void (async () => {
-        const res = await fetch(`${base}/canvas`, { credentials: "include" });
-        const data = (await res.json()) as {
-          empty?: boolean;
-          document?: unknown;
-        };
-        if (data && !data.empty && data.document) {
-          loadSnapshot(editor.store, data as never);
-        }
-        const pages = await renderPdfPages(`${base}/pdf`);
-        syncPdfPages(editor, pages);
-        await saveCanvas(editor, `${base}/canvas`);
+      let removeDocumentListener: (() => void) | undefined;
+      let removeSessionListener: (() => void) | undefined;
+      let removeThemeListener: (() => void) | undefined;
+      let cancelled = false;
 
-        // Debounced autosave on any change after initial load.
-        editor.store.listen(
+      void (async () => {
+        const response = await fetch(`${base}/canvas`, {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const payload: unknown = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(
+            canvasError(payload, "The canvas could not be loaded."),
+          );
+        }
+        if (cancelled) return;
+        etagRef.current = response.headers.get("etag") ?? '"empty"';
+        if (
+          payload &&
+          typeof payload === "object" &&
+          "document" in payload &&
+          payload.document
+        ) {
+          loadSnapshot(editor.store, { document: payload.document } as never);
+        }
+
+        const migrated = await migrateLegacyCanvas(editor);
+        if (cancelled) return;
+        if (!restoreLocalCamera(editor, topic, slug)) {
+          editor.zoomToFit({ animation: { duration: 0 } });
+        }
+
+        editor.user.updateUserPreferences({
+          colorScheme:
+            document.documentElement.dataset.theme === "dark"
+              ? "dark"
+              : "light",
+        });
+        const onThemeChange = () => {
+          editor.user.updateUserPreferences({
+            colorScheme:
+              document.documentElement.dataset.theme === "dark"
+                ? "dark"
+                : "light",
+          });
+        };
+        window.addEventListener("papernook:theme-changed", onThemeChange);
+        removeThemeListener = () =>
+          window.removeEventListener("papernook:theme-changed", onThemeChange);
+
+        initializedRef.current = true;
+        setStatus("Saved");
+        if (migrated) await flushSave(editor);
+        if (cancelled) return;
+
+        removeDocumentListener = editor.store.listen(
           () => {
+            if (!initializedRef.current) return;
+            dirtyRef.current = true;
+            changeVersionRef.current += 1;
+            setSaved(false);
+            setStatus(
+              conflictRef.current
+                ? "Changed on another device. Reload to review the shared version."
+                : "Unsaved changes",
+            );
+            if (conflictRef.current) return;
             if (saveTimer.current) clearTimeout(saveTimer.current);
             saveTimer.current = setTimeout(() => {
-              void saveCanvas(editor, `${base}/canvas`).catch(
-                (error: unknown) =>
-                  setStatus(
-                    error instanceof Error
-                      ? error.message
-                      : "The canvas could not be saved.",
-                  ),
-              );
-            }, 1_500);
+              void flushSave(editor).catch((error: unknown) => {
+                setStatus(
+                  error instanceof Error
+                    ? error.message
+                    : "The canvas could not be saved.",
+                );
+              });
+            }, SAVE_DELAY_MS);
           },
           { scope: "document", source: "user" },
         );
+        removeSessionListener = editor.store.listen(
+          () => saveLocalCamera(editor, topic, slug),
+          { scope: "session" },
+        );
+        setReady(true);
       })().catch((error: unknown) => {
+        if (cancelled) return;
         setStatus(
           error instanceof Error
             ? error.message
             : "The canvas could not be loaded.",
         );
       });
+
+      return () => {
+        cancelled = true;
+        initializedRef.current = false;
+        if (saveTimer.current) {
+          clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+        }
+        removeDocumentListener?.();
+        removeSessionListener?.();
+        removeThemeListener?.();
+        if (dirtyRef.current) void flushSave(editor, true);
+      };
     },
-    [base],
+    [base, flushSave, slug, topic],
   );
 
   async function explainSelection(): Promise<void> {
@@ -212,7 +357,7 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
     if (!editor) return;
     const ids = editor.getSelectedShapeIds();
     if (ids.length === 0) {
-      setStatus("Select a region or shapes on the canvas first.");
+      setStatus("Select something on the canvas first.");
       return;
     }
     const { blob } = await editor.toImage(ids, {
@@ -228,43 +373,54 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
     window.dispatchEvent(
       new CustomEvent("papernook:attach", { detail: dataUrl }),
     );
-    setStatus("Selection attached to the chat input; ask away.");
-  }
-
-  async function expand(mode: "margin" | "page"): Promise<void> {
-    const res = await fetch(`${base}/expand`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ mode }),
-    });
-    const data = (await res.json()) as { error?: string; pages?: number };
-    setStatus(
-      data.error ??
-        `PDF expanded (${data.pages} pages). It syncs to the iPad over WebDAV.`,
-    );
+    setStatus("Selection attached to chat");
   }
 
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
-        <button type="button" onClick={() => void explainSelection()}>
-          Explain selection ↦ chat
-        </button>
-        <button type="button" onClick={() => void expand("margin")}>
-          + margin space (PDF)
-        </button>
-        <button type="button" onClick={() => void expand("page")}>
-          + blank page (PDF)
-        </button>
-        {status && (
-          <span className={styles.status} role="status">
+        <div>
+          <strong>Canvas</strong>
+          <span className={styles.hint}>
+            The PDF stays synced in Reader. Paste screenshots, links, or videos
+            here.
+          </span>
+        </div>
+        <div className={styles.toolbarActions}>
+          <button type="button" onClick={() => void explainSelection()}>
+            Explain selection
+          </button>
+          {conflicted && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Reload the shared canvas and discard this device's unsaved changes?",
+                  )
+                ) {
+                  window.location.reload();
+                }
+              }}
+            >
+              Reload shared canvas
+            </button>
+          )}
+          <span
+            className={`${styles.status} ${saved ? styles.statusSaved : ""}`}
+            role="status"
+            aria-label="Canvas save status"
+          >
             {status}
           </span>
-        )}
+        </div>
       </div>
-      <div className={styles.board}>
-        <Tldraw onMount={onMount} />
+      <div
+        className={`${styles.board} ${ready ? "" : styles.boardLoading}`}
+        aria-busy={!ready}
+      >
+        <Tldraw assets={assetStore} onMount={onMount} />
+        {!ready && <div className={styles.loadingOverlay}>{status}</div>}
       </div>
     </div>
   );

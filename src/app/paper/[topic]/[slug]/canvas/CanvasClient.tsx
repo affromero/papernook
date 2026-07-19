@@ -8,5 +8,5 @@ export const CanvasClient = dynamicImport(
     import("@/components/canvas/CanvasBoard").then((m) => ({
       default: m.CanvasBoard,
     })),
-  { ssr: false, loading: () => <p>Loading canvas…</p> },
+  { ssr: false, loading: () => <p>Opening canvas…</p> },
 );

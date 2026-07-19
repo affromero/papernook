@@ -398,6 +398,46 @@ describe("chat store round-trip", () => {
 });
 
 describe("capture orchestration (mocked download + agent)", () => {
+  it("does not analyze or create a second capture for the same source", async () => {
+    const papers = await import("@/lib/library/papers");
+    papers.writeMeta("nlp", "existing", {
+      title: "Existing",
+      authors: [],
+      year: null,
+      venue: null,
+      arxivId: "1706.03762",
+      bibtex: null,
+      tags: [],
+      related: [],
+      sourceUrl: "https://arxiv.org/abs/1706.03762",
+      addedAt: new Date().toISOString(),
+      addedBy: "andres",
+    });
+    const existingPdf = papers.pdfPath("nlp", "existing");
+    fs.mkdirSync(path.dirname(existingPdf), { recursive: true });
+    fs.writeFileSync(existingPdf, "%PDF-1.4");
+    vi.doMock("@/lib/agent/registry", () => ({
+      getProvider: () => ({
+        id: "test",
+        execute: async () => {
+          throw new Error("analysis should not run");
+        },
+        stream: async function* () {},
+      }),
+    }));
+    const { capturePdf } = await import("@/lib/capture");
+    await expect(
+      capturePdf(Buffer.from("%PDF-1.4 duplicate"), {
+        sourceUrl: "https://arxiv.org/pdf/1706.03762",
+        arxivId: "1706.03762v2",
+        username: "andres",
+      }),
+    ).rejects.toThrow(/already in your library/i);
+    expect(papers.listPapers()).toHaveLength(1);
+    expect(papers.listInbox()).toHaveLength(0);
+    vi.doUnmock("@/lib/agent/registry");
+  });
+
   it("lands in the inbox with meta, summary, seeded chat; accept moves it", async () => {
     const pdfBytes = Buffer.from("%PDF-1.4 fake pdf");
     vi.doMock("@/lib/capture/download", () => ({
