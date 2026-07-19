@@ -51,7 +51,7 @@ Open **http://localhost:3000**, create your profile, and the two-minute wizard t
 | Capture         | Safari share sheet, Chrome bookmarklet, or the app               | Save arXiv pages, direct PDFs, and publisher pages in one tap                                    | Original PDF in a private inbox until you confirm it               |
 | File            | Capture confirmation                                             | Accept AI-proposed metadata, BibTeX, topic, tags, summary, related papers, and starter questions | Plain `meta.json`, `summary.md`, `text.txt`, and the confirmed PDF |
 | Find            | Library search or relationship graph                             | Search titles, authors, tags, and full text; move through paper/author/topic/tag connections     | Rebuildable SQLite FTS index; disk remains truth                   |
-| Read            | Browser, iPad, or any WebDAV PDF app                             | Read the same PDF everywhere                                                                     | One standard PDF, never a proprietary annotation format            |
+| Read            | Browser, iPad, or any WebDAV PDF app                             | Read the same PDF everywhere; preview internal references without losing your place              | One standard PDF, never a proprietary annotation format            |
 | Annotate        | Apple Pencil in PDF Expert or another standards-compliant editor | Highlight, draw, and write directly on the paper                                                 | Ink embedded in the PDF on your server                             |
 | Ask             | Paper chat                                                       | Run resumable, grounded, image-capable conversations                                             | Per-profile append-only JSONL conversations                        |
 | Explore         | Infinite canvas                                                  | Arrange PDF pages with notes, drawings, embeds, and selected-region explanations                 | Shared `canvas.json` beside the paper                              |
@@ -93,6 +93,7 @@ flowchart LR
       picker["ProfilePicker"]
       libview["LibraryView"]
       chatpanel["ChatPanel"]
+      pdfreader["PdfReader<br/>pdf.js + reference previews"]
       canvas["CanvasBoard<br/>tldraw + pdf.js"]
       wizard["WelcomeFlow"]
       shareview["ShareButton + /share<br/>view-only reading"]
@@ -115,6 +116,7 @@ flowchart LR
     shareview --> shares
     expand --> papers
     canvas --> chatpanel
+    pdfreader --> papers
     libview --> index
     picker --> wizard
     sidedoor --> ui
@@ -125,6 +127,7 @@ flowchart LR
 - **One-tap capture** from Safari (share-sheet Shortcut) and Chrome (bookmarklet), authenticated by per-profile capture tokens; every paper is filed as the person who added it.
 - **AI filing on arrival**: metadata, bibtex, topic proposal (existing folders preferred), tags, summary, cross-links to related papers in your library, and a seeded starter-questions chat.
 - **Lossless iPad annotation**: standard PDF annotations over WebDAV; the file on the server _is_ the annotated source of truth.
+- **Non-disruptive references**: internal PDF links open an inline page preview without moving the main reader; select the same reference again or use the preview action to open it in a new tab.
 - **Grounded chats** per paper, per profile: resumable, streaming, image-capable (paste iOS-markup screenshots or canvas selections).
 - **Infinite canvas** per paper: pdf.js pages as tldraw shapes; notes, embeds, and Pencil drawing around them; `canvas.json` on disk.
 - **PDF growth**: widen margins (origin-fixed, existing ink never shifts) or append blank pages, atomically, with an iPad-mid-save guard.
