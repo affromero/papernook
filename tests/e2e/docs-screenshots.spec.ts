@@ -77,6 +77,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(
       page.getByText("Why was removing recurrence such a big deal?"),
     ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();
     await expect(page).toHaveScreenshot(["product", "paper-and-chat.png"], {
       animations: "disabled",
     });
@@ -195,6 +196,10 @@ test.describe.serial("documentation journeys and screenshots", () => {
     });
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
+    await expect(
+      page.getByText("Why was removing recurrence such a big deal?"),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();
     const renderedPage = page
       .getByRole("region", { name: "Paper PDF" })
       .locator(".page canvas")

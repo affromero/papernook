@@ -53,7 +53,7 @@ setup. An explicit provider that is unavailable is reported, never replaced.
 | Step              | What happens                                                                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **1. Capture**    | Save arXiv, PDF, and publisher pages from Safari, Chrome, or Papernook. AI proposes the topic, tags, summary, and links. |
-| **2. Annotate**   | Open the same PDF over WebDAV. Pencil ink is embedded directly in the file on your server.                               |
+| **2. Annotate**   | Highlight, add text, or draw in the web reader—or use Pencil over WebDAV. Every annotation stays embedded in the PDF.    |
 | **3. Understand** | Chat with the paper, paste marked-up screenshots, or send a canvas selection for explanation.                            |
 | **4. Practice**   | Turn an answer into a Pencil-ready exercise PDF, add margins, or append blank pages without shifting existing ink.       |
 | **5. Share**      | Send a revocable annotated reading. Conversation snapshots are explicit, immutable, and off by default.                  |
@@ -73,6 +73,17 @@ setup. An explicit provider that is unavailable is reported, never replaced.
 <summary><strong>Architecture and data flow</strong></summary>
 
 Every node is a real module in this repository.
+
+The PDF is the portable annotation layer. Its latest embedded highlights, text,
+and ink refresh into the canvas whenever the canvas opens. Canvas-only shapes
+stay in `canvas.json` and never write back into the PDF implicitly.
+
+| Reading surface        | Source of truth                           | Sync boundary                                                                 |
+| ---------------------- | ----------------------------------------- | ----------------------------------------------------------------------------- |
+| Native PDF annotations | `data/papers/<topic>/<slug>.pdf`          | Flow to the web reader, WebDAV, shared readings, and canvas page backgrounds. |
+| Spatial canvas marks   | `data/library/<topic>/<slug>/canvas.json` | Stay on the canvas; only an explicit selection is sent to chat.               |
+| Reference preview      | Current PDF                               | Read-only navigation; it never changes the PDF or canvas.                     |
+| Conversations          | Per-profile JSONL                         | Stay private unless the owner snapshots selected chats into a share.          |
 
 ```mermaid
 flowchart LR
@@ -97,6 +108,7 @@ flowchart LR
       index["index-db.ts<br/>SQLite FTS5"]
       scanner["scanner.ts<br/>chokidar, disk wins"]
       expand["expand.ts<br/>pdf-lib growth"]
+      pdffile["pdf/file.ts<br/>versioned · locked · atomic saves"]
       exercises["exercises.ts<br/>md → exercises.pdf"]
       shares["shares.ts<br/>revocable reading snapshots"]
       citations["citations/<br/>CSL · RIS · BibTeX · APA · Harvard · Vancouver"]
@@ -106,7 +118,7 @@ flowchart LR
       picker["ProfilePicker"]
       libview["LibraryView"]
       chatpanel["ChatPanel"]
-      pdfreader["PdfReader<br/>pdf.js + reference previews"]
+      pdfreader["PdfReader<br/>pdf.js annotations + reference previews"]
       canvas["CanvasBoard<br/>tldraw + pdf.js"]
       wizard["WelcomeFlow"]
       shareview["ShareButton + /share<br/>view-only reading"]
@@ -132,9 +144,10 @@ flowchart LR
     shareview --> shares
     citeui --> citations --> papers
     citations --> index
-    expand --> papers
+    expand --> pdffile --> papers
+    papers -->|"latest annotated pages"| canvas
     canvas --> chatpanel
-    pdfreader --> papers
+    pdfreader -->|"ETag + If-Match"| pdffile
     libview --> index
     picker --> wizard
     sidedoor --> ui
@@ -154,24 +167,31 @@ and mature group reference management.
 The matrix counts only officially documented, built-in behavior that matches
 the capability exactly, without third-party plugins or handoffs.
 
-| Capability                                           | **Papernook** | [Zotero](https://www.zotero.org/support/groups) | [Paperpile](https://paperpile.com/features/) | [Readwise Reader](https://docs.readwise.io/reader/docs) | [NotebookLM](https://support.google.com/notebooklm/answer/16164461) |
-| ---------------------------------------------------- | :-----------: | :---------------------------------------------: | :------------------------------------------: | :-----------------------------------------------------: | :-----------------------------------------------------------------: |
-| One-click capture from supported publisher/PDF pages |       ✓       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
-| Organize with collections/folders, tags, and search  |       ✓       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
-| Built-in PDF highlighting and annotation editor      |       ✗       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
-| Export reference metadata as RIS or BibTeX           |       ✓       |                        ✓                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
-| Live citations and bibliographies in writing tools   |       ✗       |                        ✓                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
-| Dedicated collaborative group libraries with roles   |       ✗       |                        ✓                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
-| Self-host the complete app and data                  |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
-| Annotations are saved directly into the standard PDF |       ✓       |                        ✗                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
-| Edit the same PDF from iPad apps over WebDAV         |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
-| Grounded document chat inside the reading app        |       ✓       |                        ✗                        |                      ✗                       |                            ✓                            |                                  ✓                                  |
-| Choose a local, SSH, or API AI backend               |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
-| Infinite canvas around each paper                    |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
-| Share an uploaded, annotated PDF by link             |       ✓       |                        ✗                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
-| Share selected owner conversations beside that PDF   |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Capability                                            | **Papernook** | [Zotero](https://www.zotero.org/support/groups) | [Paperpile](https://paperpile.com/features/) | [Readwise Reader](https://docs.readwise.io/reader/docs) | [NotebookLM](https://support.google.com/notebooklm/answer/16164461) |
+| ----------------------------------------------------- | :-----------: | :---------------------------------------------: | :------------------------------------------: | :-----------------------------------------------------: | :-----------------------------------------------------------------: |
+| One-click capture from supported publisher/PDF pages  |       ✓       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
+| Organize with collections/folders, tags, and search   |       ✓       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
+| Built-in web PDF highlighting and annotation editor   |       ✓       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
+| Export reference metadata as RIS or BibTeX            |       ✓       |                        ✓                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
+| Live citations and bibliographies in writing tools    |       ✗       |                        ✓                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
+| Dedicated collaborative group libraries with roles    |       ✗       |                        ✓                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
+| Import one selected Zotero PDF into an AI workspace   |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Use Zotero annotations as private grounded AI context |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Self-host the complete app and data                   |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Annotations are saved directly into the standard PDF  |       ✓       |                        ✗                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
+| Edit the same PDF from iPad apps over WebDAV          |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Preview linked references without losing your place   |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Grounded document chat inside the reading app         |       ✓       |                        ✗                        |                      ✗                       |                            ✓                            |                                  ✓                                  |
+| Choose a local, SSH, or API AI backend                |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Generate printable exercise PDFs from a paper         |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Grow PDF margins or add pages without shifting ink    |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Infinite canvas around each paper                     |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Whole-library visual relationship graph               |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
+| Share an uploaded, annotated PDF by link              |       ✓       |                        ✗                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
+| Share selected owner conversations beside that PDF    |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
 
 Sources: [Zotero collections, search, and citation styles](https://www.zotero.org/support/quick_start_guide),
+[PDF reader and annotation editor](https://www.zotero.org/support/pdf_reader),
 [word processor integration](https://www.zotero.org/support/word_processor_integration),
 [standardized formats](https://www.zotero.org/support/kb/importing_standardized_formats),
 and [annotation storage](https://www.zotero.org/support/kb/annotations_in_database);
@@ -180,7 +200,9 @@ and [annotation storage](https://www.zotero.org/support/kb/annotations_in_databa
 and [annotation sharing](https://paperpile.com/h/sharing-notes-annotations/);
 [Readwise chat](https://docs.readwise.io/reader/guides/ghostreader/chat),
 [exports](https://docs.readwise.io/reader/docs/faqs/exporting), and
-[sharing limits](https://docs.readwise.io/reader/docs/faqs/sharing).
+[sharing limits](https://docs.readwise.io/reader/docs/faqs/sharing);
+and [NotebookLM study outputs](https://support.google.com/notebooklm/answer/16164461)
+and [quizzes](https://support.google.com/notebooklm/answer/16958963).
 
 </details>
 

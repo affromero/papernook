@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { Agent, fetch, type Response } from "undici";
+import { MAX_PDF_BYTES } from "../pdf-limits";
 import { normalizeUrl, pdfUrlFromHtml } from "./normalize";
 import { readBoundedResponse, ResponseTooLargeError } from "./bounded-response";
 
@@ -12,7 +13,7 @@ import { readBoundedResponse, ResponseTooLargeError } from "./bounded-response";
 const USER_AGENT =
   "papernook/0.1 (self-hosted paper library; +https://github.com/afromero)";
 const HOST_COOLDOWN_MS = 3_000;
-export const MAX_PDF_BYTES = 100 * 1024 * 1024;
+export { MAX_PDF_BYTES };
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 

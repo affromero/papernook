@@ -52,6 +52,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
           <PdfReader
             src={`/api/v1/papers/${topic}/${slug}/pdf`}
             title={meta.title}
+            editable
           />
         }
         chat={

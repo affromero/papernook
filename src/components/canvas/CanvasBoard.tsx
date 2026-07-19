@@ -38,7 +38,16 @@ async function renderPdfPages(
     "pdfjs-dist/build/pdf.worker.min.mjs",
     import.meta.url,
   ).toString();
-  const doc = await pdfjs.getDocument({ url }).promise;
+  const response = await fetch(url, {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    throw new Error(`The PDF could not be loaded (${response.status}).`);
+  }
+  const doc = await pdfjs.getDocument({
+    data: new Uint8Array(await response.arrayBuffer()),
+  }).promise;
   const pages: { dataUrl: string; width: number; height: number }[] = [];
   for (let i = 1; i <= doc.numPages; i += 1) {
     const page = await doc.getPage(i);
@@ -58,40 +67,94 @@ async function renderPdfPages(
   return pages;
 }
 
-function placePages(
+function syncPdfPages(
   editor: Editor,
   pages: { dataUrl: string; width: number; height: number }[],
 ): void {
-  let y = 0;
+  let nextY = 0;
+  let foundExistingPage = false;
+
   for (const [index, page] of pages.entries()) {
-    const assetId = AssetRecordType.createId();
-    editor.createAssets([
-      {
-        id: assetId,
-        typeName: "asset",
-        type: "image",
-        meta: {},
-        props: {
-          name: `page-${index + 1}.png`,
-          src: page.dataUrl,
-          w: page.width,
-          h: page.height,
-          mimeType: "image/png",
-          isAnimated: false,
+    const pageNumber = index + 1;
+    const shapeId = createShapeId(`page-${pageNumber}`);
+    const existing = editor.getShape(shapeId);
+    const existingImage = existing?.type === "image" ? existing : null;
+    const assetId =
+      existingImage?.props.assetId ??
+      AssetRecordType.createId(`pdf-page-${pageNumber}`);
+    const assetProps = {
+      name: `page-${pageNumber}.png`,
+      src: page.dataUrl,
+      w: page.width,
+      h: page.height,
+      mimeType: "image/png" as const,
+      isAnimated: false,
+    };
+
+    if (editor.getAsset(assetId)) {
+      editor.updateAssets([{ id: assetId, type: "image", props: assetProps }]);
+    } else {
+      editor.createAssets([
+        {
+          id: assetId,
+          typeName: "asset",
+          type: "image",
+          meta: {},
+          props: assetProps,
         },
-      },
-    ]);
-    editor.createShape<TLImageShape>({
-      id: createShapeId(`page-${index + 1}`),
-      type: "image",
-      x: 0,
-      y,
-      isLocked: true,
-      props: { assetId, w: page.width, h: page.height },
-    });
-    y += page.height + PAGE_GAP;
+      ]);
+    }
+
+    if (existingImage) {
+      foundExistingPage = true;
+      editor.updateShape<TLImageShape>({
+        id: existingImage.id,
+        type: "image",
+        isLocked: true,
+        props: { assetId, w: page.width, h: page.height },
+      });
+      nextY = existingImage.y + page.height + PAGE_GAP;
+    } else {
+      editor.createShape<TLImageShape>({
+        id: shapeId,
+        type: "image",
+        x: 0,
+        y: nextY,
+        isLocked: true,
+        props: { assetId, w: page.width, h: page.height },
+      });
+      nextY += page.height + PAGE_GAP;
+    }
   }
-  editor.zoomToFit();
+
+  for (const shape of editor.getCurrentPageShapes()) {
+    const pageMatch = /^shape:page-(\d+)$/.exec(shape.id);
+    if (pageMatch && Number(pageMatch[1]) > pages.length) {
+      editor.deleteShape(shape.id);
+    }
+  }
+
+  if (!foundExistingPage) editor.zoomToFit();
+}
+
+async function saveCanvas(editor: Editor, url: string): Promise<void> {
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(getSnapshot(editor.store)),
+  });
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null);
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "error" in payload &&
+      typeof payload.error === "string"
+        ? payload.error
+        : "The canvas could not be saved.";
+    throw new Error(message);
+  }
 }
 
 export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
@@ -111,27 +174,35 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
         };
         if (data && !data.empty && data.document) {
           loadSnapshot(editor.store, data as never);
-        } else {
-          const pages = await renderPdfPages(`${base}/pdf`);
-          placePages(editor, pages);
         }
+        const pages = await renderPdfPages(`${base}/pdf`);
+        syncPdfPages(editor, pages);
+        await saveCanvas(editor, `${base}/canvas`);
+
         // Debounced autosave on any change after initial load.
         editor.store.listen(
           () => {
             if (saveTimer.current) clearTimeout(saveTimer.current);
             saveTimer.current = setTimeout(() => {
-              const snapshot = getSnapshot(editor.store);
-              void fetch(`${base}/canvas`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(snapshot),
-              });
+              void saveCanvas(editor, `${base}/canvas`).catch(
+                (error: unknown) =>
+                  setStatus(
+                    error instanceof Error
+                      ? error.message
+                      : "The canvas could not be saved.",
+                  ),
+              );
             }, 1_500);
           },
           { scope: "document", source: "user" },
         );
-      })();
+      })().catch((error: unknown) => {
+        setStatus(
+          error instanceof Error
+            ? error.message
+            : "The canvas could not be loaded.",
+        );
+      });
     },
     [base],
   );
