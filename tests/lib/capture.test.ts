@@ -83,10 +83,19 @@ describe("URL normalization matrix", () => {
 });
 
 describe("capture download boundary", () => {
+  interface LookupAddress {
+    address: string;
+    family: number;
+  }
+
   type ConnectLookup = (
     hostname: string,
-    options: unknown,
-    callback: (error: Error | null, address: string, family: number) => void,
+    options: { all?: boolean },
+    callback: (
+      error: Error | null,
+      address: string | LookupAddress[],
+      family?: number,
+    ) => void,
   ) => void;
 
   function mockNetwork(
@@ -191,15 +200,30 @@ describe("capture download boundary", () => {
     const { downloadPdf } = await import("@/lib/capture/download");
 
     await downloadPdf("https://papers.example/paper.pdf");
-    let result: [Error | null, string, number] | undefined;
-    lookupCalls[0](
-      "papers.example",
-      {},
-      (...args: [Error | null, string, number]) => {
-        result = args;
-      },
-    );
+    let result: [Error | null, string | LookupAddress[], number?] | undefined;
+    lookupCalls[0]("papers.example", {}, (...args) => {
+      result = args;
+    });
     expect(result).toEqual([null, "93.184.216.34", 4]);
+  });
+
+  it("returns the pinned address list when the connector requests all results", async () => {
+    const { lookupCalls } = mockNetwork(
+      vi.fn().mockResolvedValue(
+        new Response("%PDF-1.4", {
+          headers: { "content-type": "application/pdf" },
+        }),
+      ),
+      "93.184.216.34",
+    );
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await downloadPdf("https://papers.example/paper.pdf");
+    let result: [Error | null, string | LookupAddress[], number?] | undefined;
+    lookupCalls[0]("papers.example", { all: true }, (...args) => {
+      result = args;
+    });
+    expect(result).toEqual([null, [{ address: "93.184.216.34", family: 4 }]]);
   });
 
   it("rejects redirects into a private network", async () => {
@@ -220,12 +244,13 @@ describe("capture download boundary", () => {
   });
 
   it("turns network failures into safe capture errors", async () => {
-    mockNetwork(vi.fn().mockRejectedValue(new Error("socket reset")));
+    const networkError = new Error("socket reset");
+    mockNetwork(vi.fn().mockRejectedValue(networkError));
     const { downloadPdf } = await import("@/lib/capture/download");
 
-    await expect(
-      downloadPdf("https://papers.example/paper.pdf"),
-    ).rejects.toThrow(/Fetch failed/);
+    const capture = downloadPdf("https://papers.example/paper.pdf");
+    await expect(capture).rejects.toThrow(/Fetch failed/);
+    await expect(capture).rejects.toHaveProperty("cause", networkError);
   });
 
   it("rejects oversized HTML before buffering it", async () => {

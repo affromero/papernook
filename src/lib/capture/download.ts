@@ -125,8 +125,13 @@ async function politeFetch(url: string): Promise<FetchedResponse> {
     lastFetchByHost.set(host, Date.now());
     const dispatcher = new Agent({
       connect: {
-        lookup: (_hostname, _options, callback) =>
-          callback(null, current.address.address, current.address.family),
+        lookup: (_hostname, options, callback) => {
+          if (options.all) {
+            callback(null, [current.address]);
+            return;
+          }
+          callback(null, current.address.address, current.address.family);
+        },
       },
     });
     let response: Response;
@@ -137,9 +142,11 @@ async function politeFetch(url: string): Promise<FetchedResponse> {
         signal: AbortSignal.timeout(60_000),
         dispatcher,
       });
-    } catch {
+    } catch (error) {
       await dispatcher.close();
-      throw new CaptureError(`Fetch failed for ${currentUrl}`);
+      throw new CaptureError(`Fetch failed for ${currentUrl}`, {
+        cause: error,
+      });
     }
     if (response.status < 300 || response.status >= 400) {
       return { response, url: currentUrl, close: () => dispatcher.close() };
