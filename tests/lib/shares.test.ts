@@ -229,22 +229,22 @@ describe("public share boundaries", () => {
   });
 
   it("allows public share reads but keeps share mutations authenticated", async () => {
-    const { middleware } = await import("@/middleware");
-    const publicPage = middleware(
+    const { proxy } = await import("@/proxy");
+    const publicPage = proxy(
       new NextRequest(`http://localhost/share/nlp/attention/${"a".repeat(64)}`),
     );
     expect(publicPage.status).toBe(200);
     expect(publicPage.headers.get("referrer-policy")).toBe("no-referrer");
     expect(publicPage.headers.get("x-robots-tag")).toBe("noindex, nofollow");
 
-    const publicAsset = middleware(
+    const publicAsset = proxy(
       new NextRequest(
         `http://localhost/api/v1/shares/nlp/attention/${"a".repeat(64)}/pdf`,
       ),
     );
     expect(publicAsset.status).toBe(200);
 
-    const mutation = middleware(
+    const mutation = proxy(
       new NextRequest("http://localhost/api/v1/papers/nlp/attention/shares"),
     );
     expect(mutation.status).toBe(401);
