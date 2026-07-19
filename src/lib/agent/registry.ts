@@ -6,16 +6,32 @@ import {
 } from "./invocation";
 import { claudeCodeProvider } from "./claude-code";
 import { codexProvider } from "./codex";
-import { anthropicProvider, openaiProvider } from "./api";
-import type { AgentProvider, ProviderId } from "./types";
-import { configuredProviderOverride } from "./config";
-
+import {
+  anthropicProvider,
+  llamacppProvider,
+  ollamaProvider,
+  openaiProvider,
+  vllmProvider,
+} from "./api";
+import {
+  configuredBaseUrl,
+  configuredModel,
+  configuredProviderOverride,
+} from "./config";
+import { compatibleBaseUrl, localProviderResponds } from "./local";
+import {
+  PROVIDER_IDS,
+  isLocalProvider,
+  type AgentProvider,
+  type ProviderId,
+} from "./types";
 /**
  * Provider registry. The active provider is chosen at install/wizard time via
  * AI_PROVIDER (never hardcoded; Sotto's install.sh pattern):
  *   anthropic | openai      API key in env
  *   claude-code | codex     local CLI (keyless), or over SSH via
  *                           CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST
+ *   ollama | llamacpp | vllm OpenAI-compatible local model servers
  */
 
 const PROVIDERS: Record<ProviderId, AgentProvider> = {
@@ -23,10 +39,13 @@ const PROVIDERS: Record<ProviderId, AgentProvider> = {
   openai: openaiProvider,
   "claude-code": claudeCodeProvider,
   codex: codexProvider,
+  ollama: ollamaProvider,
+  llamacpp: llamacppProvider,
+  vllm: vllmProvider,
 };
 
 export function providerIds(): ProviderId[] {
-  return Object.keys(PROVIDERS) as ProviderId[];
+  return [...PROVIDER_IDS];
 }
 
 export function configuredProviderId(): ProviderId {
@@ -76,19 +95,35 @@ export async function isProviderAvailable(id: ProviderId): Promise<boolean> {
  * flight-finder-style readiness per provider:
  *   ready          answers now
  *   no_key         API provider without its key
+ *   no_model       local endpoint is ready but no model is selected
  *   not_installed  local CLI missing
  *   unreachable    CLI configured over SSH but not answering
  */
 export type ProviderReadiness =
-  "ready" | "no_key" | "not_installed" | "unreachable";
+  "ready" | "no_key" | "no_model" | "not_installed" | "unreachable";
 
 export async function providerStatus(
   id: ProviderId,
 ): Promise<ProviderReadiness> {
+  if (isLocalProvider(id)) {
+    if (!(await localProviderResponds(id))) return "unreachable";
+    return configuredModel(id) ? "ready" : "no_model";
+  }
   switch (id) {
     case "anthropic":
       return process.env.ANTHROPIC_API_KEY ? "ready" : "no_key";
     case "openai":
+      if (configuredBaseUrl("openai")) {
+        try {
+          const response = await fetch(
+            `${compatibleBaseUrl("openai")}/models`,
+            { signal: AbortSignal.timeout(3_000) },
+          );
+          return response.ok ? "ready" : "unreachable";
+        } catch {
+          return "unreachable";
+        }
+      }
       return process.env.OPENAI_API_KEY ? "ready" : "no_key";
     case "claude-code": {
       const ssh = getClaudeSshHost();

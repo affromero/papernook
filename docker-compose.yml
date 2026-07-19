@@ -3,11 +3,12 @@
 # PDFs). data/library (chats, crops, canvases, inbox) is never exposed.
 #
 # Required env (put them in .env next to this file):
-#   AI_PROVIDER=claude-code|codex|anthropic|openai
+#   AI_PROVIDER=claude-code|codex|anthropic|openai|ollama|llamacpp|vllm
 #   WEBDAV_USER / WEBDAV_PASS      credentials for PDF Expert
 # Optional:
 #   PUBLIC_EXPOSURE=true           forces profile passwords + lockouts
 #   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST, ANTHROPIC_API_KEY, OPENAI_API_KEY
+#   OLLAMA_HOST / LLAMACPP_BASE_URL / VLLM_BASE_URL and matching *_MODEL
 #   SESSION_SECRET                 pin sessions across container rebuilds
 
 services:
@@ -19,6 +20,11 @@ services:
     env_file: .env
     environment:
       PAPERNOOK_VERSION: ${PAPERNOOK_VERSION:-dev}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      LLAMACPP_BASE_URL: ${LLAMACPP_BASE_URL:-http://host.docker.internal:8080}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-http://host.docker.internal:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/data
       # SSH agent mode: mount keys read-only (BatchMode, no prompts).

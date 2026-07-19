@@ -14,6 +14,7 @@ import type { ProviderId } from "./types";
 interface AgentConfig {
   provider?: ProviderId;
   model?: string;
+  baseUrl?: string;
 }
 
 const FILE = () => path.join(dataRoot(), "agent-config.json");
@@ -34,22 +35,39 @@ function writeConfig(config: AgentConfig): void {
 }
 
 export function setAgentModel(model: string | null): void {
-  const config = readAgentConfig();
-  if (model) config.model = model;
-  else delete config.model;
-  writeConfig(config);
+  updateAgentConfig({ model });
 }
 
 /**
- * Switching provider also clears the model: model ids are provider-specific
- * and a stale one would silently break the new provider.
+ * Apply an admin selection in one atomic filesystem write. Switching provider
+ * clears provider-specific model and endpoint values before applying any
+ * values included in the same update.
  */
-export function setAgentProvider(provider: ProviderId | null): void {
+export function updateAgentConfig(update: {
+  provider?: ProviderId | null;
+  model?: string | null;
+  baseUrl?: string | null;
+}): void {
   const config = readAgentConfig();
-  if (provider) config.provider = provider;
-  else delete config.provider;
-  delete config.model;
+  if (update.provider !== undefined) {
+    if (update.provider) config.provider = update.provider;
+    else delete config.provider;
+    delete config.model;
+    delete config.baseUrl;
+  }
+  if (update.model !== undefined) {
+    if (update.model) config.model = update.model;
+    else delete config.model;
+  }
+  if (update.baseUrl !== undefined) {
+    if (update.baseUrl) config.baseUrl = update.baseUrl;
+    else delete config.baseUrl;
+  }
   writeConfig(config);
+}
+
+export function setAgentProvider(provider: ProviderId | null): void {
+  updateAgentConfig({ provider });
 }
 
 /** Admin-selected provider, before the AI_PROVIDER env fallback. */
@@ -66,8 +84,43 @@ export function configuredModel(provider: ProviderId): string | undefined {
     codex: "CODEX_MODEL",
     anthropic: "ANTHROPIC_MODEL",
     openai: "OPENAI_MODEL",
+    ollama: "OLLAMA_MODEL",
+    llamacpp: "LLAMACPP_MODEL",
+    vllm: "VLLM_MODEL",
   };
   return process.env[envVar[provider]] || undefined;
+}
+
+const DEFAULT_BASE_URLS = {
+  ollama: "http://localhost:11434",
+  llamacpp: "http://localhost:8080",
+  vllm: "http://localhost:8000",
+} as const;
+
+/** The explicitly stored URL for the active provider, if one exists. */
+export function storedBaseUrl(provider: ProviderId): string | undefined {
+  const config = readAgentConfig();
+  if (config.provider !== provider) return undefined;
+  return config.baseUrl;
+}
+
+/** Effective URL: admin file → provider env → local provider default. */
+export function configuredBaseUrl(provider: ProviderId): string | undefined {
+  const stored = storedBaseUrl(provider);
+  if (stored) return stored;
+  const envVar: Partial<Record<ProviderId, string>> = {
+    openai: "OPENAI_BASE_URL",
+    ollama: "OLLAMA_HOST",
+    llamacpp: "LLAMACPP_BASE_URL",
+    vllm: "VLLM_BASE_URL",
+  };
+  const fromEnv = envVar[provider]
+    ? process.env[envVar[provider] as string]
+    : undefined;
+  if (fromEnv) return fromEnv;
+  return provider in DEFAULT_BASE_URLS
+    ? DEFAULT_BASE_URLS[provider as keyof typeof DEFAULT_BASE_URLS]
+    : undefined;
 }
 
 /** Suggested models per provider (free-text stays allowed). */
@@ -97,5 +150,10 @@ export function modelSuggestions(provider: ProviderId): string[] {
       ];
     case "openai":
       return ["gpt-5.5", "gpt-5.5-mini"];
+    case "ollama":
+      return ["qwen3:4b", "qwen3:8b", "gemma3:4b"];
+    case "llamacpp":
+    case "vllm":
+      return [];
   }
 }
