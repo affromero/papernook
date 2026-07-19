@@ -5,6 +5,7 @@ import { isAdmin, listProfiles, toPublicProfile } from "@/lib/auth/users";
 import { AdminMembers } from "@/components/profiles/AdminMembers";
 import { InviteQr } from "@/components/profiles/InviteQr";
 import { ModelPicker } from "@/components/profiles/ModelPicker";
+import { ZoteroCard } from "@/components/profiles/ZoteroCard";
 import { createInviteToken } from "@/lib/auth/gate";
 import { instancePasswordConfigured } from "@/lib/auth/users";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
@@ -72,6 +73,11 @@ export default async function SettingsPage() {
           </li>
         </ol>
         <p>Then on any paper page: Share → Add to papernook → confirm. Done.</p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Zotero sync</h2>
+        <ZoteroCard />
       </section>
 
       {admin && (
