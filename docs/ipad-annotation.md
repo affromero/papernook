@@ -12,10 +12,12 @@ not supported". The connection goes inside the PDF app itself.
 
 ## PDF Expert or Documents (recommended)
 
-1. Install **Documents by Readdle** (free) or **PDF Expert** from the App
-   Store.
+1. Install **Documents by Readdle** (free) or **PDF Viewer by Nutrient**
+   (free, unlimited annotations). PDF Expert also works but is
+   subscription-based.
 2. In Documents: **+ (Plus) → Add Connection → WebDAV Server**. In PDF
-   Expert: **Connections → Add Connection → WebDAV**. Then fill in:
+   Viewer / PDF Expert: add a WebDAV location from the connections screen.
+   Then fill in:
    - URL: `http://<your-host>:8080` (or `https://dav.<your-domain>` if you
      exposed it through Caddy)
    - Login / password: the `WEBDAV_USER` / `WEBDAV_PASS` from the server's
