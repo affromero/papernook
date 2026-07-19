@@ -55,7 +55,7 @@ describe("citation exports", () => {
     expect(record["citation-key"]).toBe(record.id);
   });
 
-  it("emits CSL JSON, RIS, BibTeX, and a plain APA bibliography entry", () => {
+  it("emits portable formats and distinct plain-text bibliographies", () => {
     const source = [paper("attention")];
     const csl = JSON.parse(exportCitations(source, "csl-json")) as {
       DOI: string;
@@ -74,6 +74,12 @@ describe("citation exports", () => {
     expect(apa).toContain("Doe, J.");
     expect(apa).toContain("https://doi.org/10.5555/example.1");
     expect(apa).not.toContain("<div");
+
+    const harvard = exportCitations(source, "harvard");
+    const vancouver = exportCitations(source, "vancouver");
+    expect(harvard).toContain("Doe, J.");
+    expect(vancouver).toContain("Doe J.");
+    expect(new Set([apa, harvard, vancouver]).size).toBe(3);
   });
 
   it("parses legacy BibTeX only when canonical metadata is absent", () => {

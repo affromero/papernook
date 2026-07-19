@@ -13,6 +13,22 @@ import { isAnimalSlug, animalForSeed } from "./avatars";
  * password when configured, otherwise per-profile passwords.
  */
 
+export interface ZoteroLibraryTarget {
+  type: "user" | "group";
+  id: string;
+  name: string;
+}
+
+export interface ZoteroProfileConfig {
+  apiKey: string;
+  /** Owner of the API key; also used to discover accessible groups. */
+  userId: string;
+  /** Missing on legacy profiles, which means the owner's personal library. */
+  target?: ZoteroLibraryTarget;
+  /** Empty or missing means the whole selected library. */
+  collectionKeys?: string[];
+}
+
 export interface Profile {
   username: string;
   displayName: string;
@@ -26,7 +42,7 @@ export interface Profile {
   /** True once the per-profile onboarding wizard has been completed. */
   wizardDone?: boolean;
   /** Connected Zotero library for pull-only sync. */
-  zotero?: { apiKey: string; userId: string };
+  zotero?: ZoteroProfileConfig;
   createdAt: string;
 }
 
@@ -212,7 +228,7 @@ export function markWizardDone(username: string): void {
 /** Connect or disconnect (null) a profile's Zotero library. */
 export function setZoteroConfig(
   username: string,
-  zotero: { apiKey: string; userId: string } | null,
+  zotero: ZoteroProfileConfig | null,
 ): Profile {
   const profile = readProfile(username);
   if (!profile) throw new ProfileError("Unknown profile.");

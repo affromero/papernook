@@ -49,7 +49,11 @@ interface ZoteroLibrary {
     data: Record<string, unknown>;
   }[];
   files: Record<string, Buffer>;
-  collections?: { key: string; name: string }[];
+  collections?: {
+    key: string;
+    name: string;
+    parentCollection?: string | false;
+  }[];
 }
 
 /** Serve a canned Zotero library over the fetch boundary. */
@@ -61,6 +65,16 @@ function stubZoteroApi(library: ZoteroLibrary) {
     if (url.pathname.endsWith("/collections")) {
       return new Response(
         JSON.stringify((library.collections ?? []).map((data) => ({ data }))),
+      );
+    }
+    const childrenMatch = url.pathname.match(/\/items\/([A-Z0-9]+)\/children$/);
+    if (childrenMatch) {
+      return new Response(
+        JSON.stringify(
+          library.items.filter(
+            (item) => item.data.parentItem === childrenMatch[1],
+          ),
+        ),
       );
     }
     const fileMatch = url.pathname.match(/\/items\/([A-Z0-9]+)\/file$/);
@@ -147,7 +161,12 @@ describe("zotero sync", () => {
 
     const { syncProfile } = await import("@/lib/capture/zotero");
     const result = await syncProfile("andres");
-    expect(result).toEqual({ imported: 1, skipped: 0, failed: 0 });
+    expect(result).toEqual({
+      imported: 1,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+    });
 
     const papers = await import("@/lib/library/papers");
     expect(papers.listInbox()).toHaveLength(0);
@@ -183,7 +202,11 @@ describe("zotero sync", () => {
       provider: "zotero",
       key: "PARENT01",
       version: 41,
+      libraryType: "user",
+      libraryId: "1234567",
+      collectionKeys: ["COLL01"],
       collections: ["Foundation Models"],
+      tags: ["Transformers", "Deep Learning"],
     });
 
     const cursor = JSON.parse(
@@ -196,6 +219,39 @@ describe("zotero sync", () => {
     expect(cursor.imported.PARENT01).toBe("attention-is-all-you-need");
   });
 
+  it("prefers stored PDFs over linked attachments for the same item", async () => {
+    mockAgent("A Guessed Title");
+    const library = paperLibrary();
+    library.items[1].data.linkMode = "imported_file";
+    library.items.push({
+      key: "AAAA0001",
+      version: 42,
+      data: {
+        key: "AAAA0001",
+        version: 42,
+        itemType: "attachment",
+        parentItem: "PARENT01",
+        contentType: "application/pdf",
+        linkMode: "linked_file",
+        title: "Linked PDF",
+      },
+    });
+    const calls = stubZoteroApi(library);
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    users.setZoteroConfig("andres", { apiKey: "key", userId: "1234567" });
+
+    const { syncProfile } = await import("@/lib/capture/zotero");
+    expect(await syncProfile("andres")).toEqual({
+      imported: 1,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+    });
+    expect(calls.some((call) => call.includes("ATTACH01/file"))).toBe(true);
+    expect(calls.some((call) => call.includes("AAAA0001/file"))).toBe(false);
+  });
+
   it("re-running is idempotent: nothing past the cursor imports nothing", async () => {
     mockAgent("A Guessed Title");
     const calls = stubZoteroApi(paperLibrary());
@@ -206,7 +262,12 @@ describe("zotero sync", () => {
     const { syncProfile } = await import("@/lib/capture/zotero");
     await syncProfile("andres");
     const again = await syncProfile("andres");
-    expect(again).toEqual({ imported: 0, skipped: 0, failed: 0 });
+    expect(again).toEqual({
+      imported: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+    });
 
     const papers = await import("@/lib/library/papers");
     expect(papers.listPapers()).toHaveLength(1);
@@ -226,7 +287,12 @@ describe("zotero sync", () => {
     const { syncProfile } = await import("@/lib/capture/zotero");
     await syncProfile("andres");
     const second = await syncProfile("guest");
-    expect(second).toEqual({ imported: 0, skipped: 1, failed: 0 });
+    expect(second).toEqual({
+      imported: 0,
+      updated: 0,
+      skipped: 1,
+      failed: 0,
+    });
 
     const papers = await import("@/lib/library/papers");
     expect(papers.listPapers()).toHaveLength(1);
@@ -276,6 +342,7 @@ describe("zotero sync", () => {
     const { syncProfile } = await import("@/lib/capture/zotero");
     expect(await syncProfile("andres")).toEqual({
       imported: 1,
+      updated: 0,
       skipped: 0,
       failed: 1,
     });
@@ -285,7 +352,8 @@ describe("zotero sync", () => {
     library.files.ATTACH02 = Buffer.from("%PDF-1.4 second");
     expect(await syncProfile("andres")).toEqual({
       imported: 1,
-      skipped: 1,
+      updated: 1,
+      skipped: 0,
       failed: 0,
     });
     expect(JSON.parse(fs.readFileSync(cursorFile, "utf8")).lastVersion).toBe(
@@ -311,9 +379,237 @@ describe("zotero sync", () => {
     const { syncProfile } = await import("@/lib/capture/zotero");
     expect(await syncProfile("andres")).toEqual({
       imported: 0,
+      updated: 0,
       skipped: 1,
       failed: 0,
     });
     expect(calls.some((call) => call.includes("ATTACH01/file"))).toBe(false);
+  });
+
+  it("scopes the same item key independently in personal and group libraries", async () => {
+    mockAgent("A Guessed Title");
+    const library = paperLibrary("https://example.org/paper");
+    const calls = stubZoteroApi(library);
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    users.setZoteroConfig("andres", {
+      apiKey: "key",
+      userId: "1234567",
+    });
+
+    const { syncProfile } = await import("@/lib/capture/zotero");
+    expect((await syncProfile("andres"))?.imported).toBe(1);
+    users.setZoteroConfig("andres", {
+      apiKey: "key",
+      userId: "1234567",
+      target: { type: "group", id: "77", name: "Research Group" },
+    });
+    expect((await syncProfile("andres"))?.imported).toBe(1);
+
+    const papers = await import("@/lib/library/papers");
+    expect(papers.listPapers()).toHaveLength(2);
+    expect(
+      papers
+        .listPapers()
+        .map((paper) => paper.meta.source?.libraryId)
+        .sort(),
+    ).toEqual(["1234567", "77"]);
+    expect(calls.some((call) => call.startsWith("/users/1234567/items"))).toBe(
+      true,
+    );
+    expect(calls.some((call) => call.startsWith("/groups/77/items"))).toBe(
+      true,
+    );
+    expect(
+      calls.some((call) => call === "/groups/77/items/ATTACH01/file"),
+    ).toBe(true);
+  });
+
+  it("includes descendant collections and resets scope when filters broaden", async () => {
+    mockAgent("A Guessed Title");
+    const library = paperLibrary("https://example.org/first");
+    library.items[0].data.collections = ["CHILD01"];
+    library.items.push(
+      {
+        key: "PARENT02",
+        version: 41,
+        data: {
+          key: "PARENT02",
+          version: 41,
+          itemType: "report",
+          title: "Sibling Collection Paper",
+          creators: [{ creatorType: "author", name: "Research Lab" }],
+          date: "2025",
+          collections: ["SIBLING"],
+          url: "https://example.org/second",
+        },
+      },
+      {
+        key: "ATTACH02",
+        version: 42,
+        data: {
+          key: "ATTACH02",
+          version: 42,
+          itemType: "attachment",
+          parentItem: "PARENT02",
+          contentType: "application/pdf",
+        },
+      },
+    );
+    library.files.ATTACH02 = Buffer.from("%PDF-1.4 sibling");
+    library.collections = [
+      { key: "ROOT01", name: "Root" },
+      { key: "CHILD01", name: "Child", parentCollection: "ROOT01" },
+      { key: "SIBLING", name: "Sibling" },
+    ];
+    stubZoteroApi(library);
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    users.setZoteroConfig("andres", {
+      apiKey: "key",
+      userId: "1234567",
+      collectionKeys: ["ROOT01"],
+    });
+
+    const { syncProfile } = await import("@/lib/capture/zotero");
+    expect(await syncProfile("andres")).toMatchObject({
+      imported: 1,
+      skipped: 1,
+    });
+    users.setZoteroConfig("andres", {
+      apiKey: "key",
+      userId: "1234567",
+      collectionKeys: [],
+    });
+    expect(await syncProfile("andres")).toMatchObject({
+      imported: 1,
+      updated: 1,
+    });
+    const papers = await import("@/lib/library/papers");
+    expect(papers.listPapers()).toHaveLength(2);
+  });
+
+  it("refreshes Zotero metadata without touching the paper artifacts", async () => {
+    mockAgent("A Guessed Title");
+    const library = paperLibrary("https://example.org/paper");
+    const calls = stubZoteroApi(library);
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    users.setZoteroConfig("andres", { apiKey: "key", userId: "1234567" });
+
+    const { syncProfile } = await import("@/lib/capture/zotero");
+    await syncProfile("andres");
+    const papers = await import("@/lib/library/papers");
+    const before = papers.listPapers()[0];
+    const pdfBefore = fs.readFileSync(before.pdfPath);
+    const summaryBefore = before.summary;
+    const addedAtBefore = before.meta.addedAt;
+
+    library.version = 43;
+    library.items[0].version = 43;
+    library.items[0].data.version = 43;
+    library.items[0].data.title = "Attention Is Still All You Need";
+    library.items[0].data.tags = [{ tag: "Transformers Updated" }];
+    const result = await syncProfile("andres");
+    expect(result).toEqual({
+      imported: 0,
+      updated: 1,
+      skipped: 0,
+      failed: 0,
+    });
+
+    const after = papers.listPapers()[0];
+    expect(after.slug).toBe(before.slug);
+    expect(after.topic).toBe(before.topic);
+    expect(after.meta.title).toBe("Attention Is Still All You Need");
+    expect(after.meta.tags).toEqual(["synced", "Transformers Updated"]);
+    expect(after.meta.addedAt).toBe(addedAtBefore);
+    expect(after.summary).toBe(summaryBefore);
+    expect(fs.readFileSync(after.pdfPath)).toEqual(pdfBefore);
+    expect(calls.filter((call) => call.includes("ATTACH01/file"))).toHaveLength(
+      1,
+    );
+  });
+
+  it("discovers an unchanged PDF when a parent enters a selected collection", async () => {
+    mockAgent("A Guessed Title");
+    const library = paperLibrary("https://example.org/first");
+    library.items[0].data.collections = ["INCLUDED"];
+    library.items.push(
+      {
+        key: "PARENT02",
+        version: 41,
+        data: {
+          key: "PARENT02",
+          version: 41,
+          itemType: "report",
+          title: "Moves Into Scope",
+          creators: [{ creatorType: "author", name: "Research Lab" }],
+          date: "2025",
+          collections: ["OTHER"],
+          url: "https://example.org/second",
+        },
+      },
+      {
+        key: "ATTACH02",
+        version: 42,
+        data: {
+          key: "ATTACH02",
+          version: 42,
+          itemType: "attachment",
+          parentItem: "PARENT02",
+          contentType: "application/pdf",
+        },
+      },
+    );
+    library.files.ATTACH02 = Buffer.from("%PDF-1.4 later");
+    library.collections = [
+      { key: "INCLUDED", name: "Included" },
+      { key: "OTHER", name: "Other" },
+    ];
+    const calls = stubZoteroApi(library);
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    users.setZoteroConfig("andres", {
+      apiKey: "key",
+      userId: "1234567",
+      collectionKeys: ["INCLUDED"],
+    });
+
+    const { syncProfile } = await import("@/lib/capture/zotero");
+    expect((await syncProfile("andres"))?.imported).toBe(1);
+    library.version = 43;
+    library.items[2].version = 43;
+    library.items[2].data.version = 43;
+    library.items[2].data.collections = ["INCLUDED"];
+    expect(await syncProfile("andres")).toMatchObject({ imported: 1 });
+    expect(
+      calls.some((call) =>
+        call.startsWith("/users/1234567/items/PARENT02/children"),
+      ),
+    ).toBe(true);
+  });
+
+  it("refreshes collection display names through stable collection keys", async () => {
+    mockAgent("A Guessed Title");
+    const library = paperLibrary("https://example.org/paper");
+    stubZoteroApi(library);
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    users.setZoteroConfig("andres", { apiKey: "key", userId: "1234567" });
+
+    const { syncProfile } = await import("@/lib/capture/zotero");
+    await syncProfile("andres");
+    library.version = 43;
+    library.collections![0].name = "Renamed Models";
+    expect(await syncProfile("andres")).toMatchObject({ updated: 1 });
+
+    const papers = await import("@/lib/library/papers");
+    expect(papers.listPapers()[0].meta.source?.collectionKeys).toEqual([
+      "COLL01",
+    ]);
+    expect(papers.listPapers()[0].meta.source?.collections).toEqual([
+      "Renamed Models",
+    ]);
   });
 });
