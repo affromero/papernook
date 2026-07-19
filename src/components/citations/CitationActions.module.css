@@ -12,9 +12,21 @@
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  gap: 0.35rem;
   cursor: pointer;
   opacity: 0.7;
   list-style: none;
+}
+
+.menu summary::after {
+  content: "⌄";
+  margin-top: -0.18rem;
+  font-size: 0.8rem;
+  transition: transform 140ms ease;
+}
+
+.menu[open] summary::after {
+  transform: rotate(180deg);
 }
 
 .menu summary::-webkit-details-marker {
@@ -25,7 +37,7 @@
   position: absolute;
   z-index: 40;
   top: calc(100% + 0.3rem);
-  left: 0;
+  right: 0;
   width: 150px;
   display: flex;
   flex-direction: column;
@@ -60,7 +72,7 @@
 .status {
   position: absolute;
   top: calc(100% + 0.35rem);
-  left: 0;
+  right: 0;
   z-index: 30;
   width: max-content;
   max-width: 260px;

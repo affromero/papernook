@@ -26,23 +26,35 @@ export default async function PaperPage({ params }: PaperPageProps) {
   return (
     <main className={styles.root}>
       <header className={styles.header}>
-        <nav className={styles.actions} aria-label="Paper actions">
+        <div className={styles.utilityRow}>
           <Link href="/" className={styles.back}>
-            ← Library
+            <span aria-hidden="true">←</span>
+            Library
           </Link>
-          <Link href={`/paper/${topic}/${slug}/canvas`} className={styles.back}>
-            Open canvas ↗
-          </Link>
-          <ShareButton topic={topic} slug={slug} />
-          <CitationActions topic={topic} slug={slug} />
-        </nav>
-        <div>
-          <h1 className={styles.title}>{meta.title}</h1>
-          <p className={styles.meta}>
-            {meta.authors.join(", ")}
-            {meta.year ? ` · ${meta.year}` : ""}
-            {meta.venue ? ` · ${meta.venue}` : ""} · {topic}
+          <nav className={styles.actions} aria-label="Paper actions">
+            <Link
+              href={`/paper/${topic}/${slug}/canvas`}
+              className={styles.actionLink}
+            >
+              Open canvas
+            </Link>
+            <ShareButton topic={topic} slug={slug} />
+            <CitationActions topic={topic} slug={slug} />
+          </nav>
+        </div>
+        <div className={styles.identity}>
+          <p className={styles.eyebrow}>
+            Paper <span aria-hidden="true">/</span> {topic.replaceAll("-", " ")}
           </p>
+          <h1 className={styles.title}>{meta.title}</h1>
+          <div className={styles.meta}>
+            <p className={styles.authors}>{meta.authors.join(", ")}</p>
+            {(meta.year || meta.venue) && (
+              <p className={styles.publication}>
+                {[meta.year, meta.venue].filter(Boolean).join(" · ")}
+              </p>
+            )}
+          </div>
         </div>
       </header>
 
