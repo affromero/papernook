@@ -43,6 +43,19 @@ test.describe.serial("documentation journeys and screenshots", () => {
       .locator("span")
       .first();
     await expect(avatar).toHaveCSS("border-radius", "50%");
+    const avatarImage = page
+      .getByRole("button", { name: "Switch to Maya" })
+      .locator("img");
+    await expect
+      .poll(() =>
+        avatarImage.evaluate(
+          (image) =>
+            image instanceof HTMLImageElement &&
+            image.complete &&
+            image.naturalWidth > 0,
+        ),
+      )
+      .toBe(true);
     await expect(page).toHaveScreenshot(["setup", "profile-picker.png"], {
       animations: "disabled",
     });
