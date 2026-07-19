@@ -139,7 +139,7 @@ flowchart LR
 
 ## How Papernook is different
 
-The closest tools each solve part of this loop well. Zotero is substantially stronger for citation-heavy academic writing and mature group reference management; Papernook focuses on the annotated-paper-to-understanding loop. This matrix counts only built-in, officially documented behavior that matches the capability exactly—not third-party plugins or handoffs to a separate product.
+The closest tools each solve part of this loop well. Zotero is substantially stronger for citation-heavy academic writing and mature group reference management; Papernook focuses on the annotated-paper-to-understanding loop. This matrix counts only built-in, officially documented behavior that matches the capability exactly, not third-party plugins or handoffs to a separate product.
 
 | Capability                                           | **Papernook** | [Zotero](https://www.zotero.org/support/groups) | [Paperpile](https://paperpile.com/features/) | [Readwise Reader](https://docs.readwise.io/reader/docs) | [NotebookLM](https://support.google.com/notebooklm/answer/16164461) |
 | ---------------------------------------------------- | :-----------: | :---------------------------------------------: | :------------------------------------------: | :-----------------------------------------------------: | :-----------------------------------------------------------------: |
@@ -184,7 +184,7 @@ Images (crops, pasted screenshots) travel per transport: file paths + the Read t
 
 ## Integrations
 
-Pull-only sync from reference managers — papernook fetches new PDF items and
+Pull-only sync from reference managers: papernook fetches new PDF items and
 files them through the regular capture pipeline (AI-proposed topic, tags,
 summary, starter questions), flagged for a one-glance review in the library.
 
@@ -201,7 +201,7 @@ summary, starter questions), flagged for a one-glance review in the library.
 **Settings → Zotero sync** (the user ID is discovered automatically). Each
 profile connects its own library; imports are attributed to that profile.
 Synced papers auto-file and appear in a "needs review" strip on the library
-view — keep the AI's topic or re-file in one click. Dedup is by Zotero item
+view, where you keep the AI's topic or re-file in one click. Dedup is by Zotero item
 key and arXiv ID, so re-syncs and overlapping libraries never import twice.
 
 ## Self-host
