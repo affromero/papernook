@@ -74,6 +74,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await loginAsAdmin(page);
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
+    await expect(
+      page.getByText("Why was removing recurrence such a big deal?"),
+    ).toBeVisible();
     await expect(page).toHaveScreenshot(["product", "paper-and-chat.png"], {
       animations: "disabled",
     });
