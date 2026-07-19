@@ -82,6 +82,20 @@ describe("URL normalization matrix", () => {
   });
 });
 
+describe("capture error page", () => {
+  it("escapes and preserves multiline diagnostic output", async () => {
+    const { errorPage } = await import("@/app/add/pages");
+    const html = errorPage("line one\n<script>alert('&')</script>");
+
+    expect(html).toContain('class="error-details"');
+    expect(html).toContain("white-space: pre-wrap");
+    expect(html).toContain(
+      "line one\n&lt;script&gt;alert('&amp;')&lt;/script&gt;",
+    );
+    expect(html).not.toContain("<script>");
+  });
+});
+
 describe("capture download boundary", () => {
   interface LookupAddress {
     address: string;

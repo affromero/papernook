@@ -57,6 +57,9 @@ async function handle(request: NextRequest): Promise<NextResponse> {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
   } catch (err) {
+    if (!(err instanceof CaptureError)) {
+      console.error("papernook capture failed:", err);
+    }
     const message =
       err instanceof CaptureError
         ? err.message

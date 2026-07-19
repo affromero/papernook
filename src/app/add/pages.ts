@@ -24,6 +24,9 @@ const STYLE = `
           box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
   .meta { opacity: 0.7; font-size: 0.9rem; margin: 0.2rem 0 0.8rem; }
   .summary { font-size: 0.95rem; line-height: 1.5; }
+  .error-details { font: 0.82rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+          white-space: pre-wrap; overflow-wrap: anywhere; max-height: 55vh; overflow: auto;
+          margin: 0; }
   label { display: block; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em;
           opacity: 0.6; margin: 1rem 0 0.3rem; }
   select, input[type=text] { width: 100%; padding: 0.6rem; font-size: 1rem; border-radius: 8px;
@@ -94,6 +97,6 @@ export function errorPage(message: string): string {
   return page(
     "Capture failed",
     `<h1 class="error">Capture failed</h1>
-<div class="card"><p class="summary">${esc(message)}</p></div>`,
+<div class="card"><pre class="error-details">${esc(message)}</pre></div>`,
   );
 }

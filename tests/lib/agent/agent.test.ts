@@ -237,7 +237,12 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     stdin: string[];
   }
 
-  function mockSpawn(calls: SpawnCall[], stdout = "answer") {
+  function mockSpawn(
+    calls: SpawnCall[],
+    stdout = "answer",
+    stderr = "",
+    exitCode = 0,
+  ) {
     vi.doMock("node:child_process", () => ({
       spawn: (command: string, args: string[]) => {
         const call: SpawnCall = { command, args, stdin: [] };
@@ -248,14 +253,19 @@ describe("claude-code argv (mocked spawn boundary)", () => {
               if (event === "data") setImmediate(() => cb(Buffer.from(stdout)));
             },
           },
-          stderr: { on: vi.fn() },
+          stderr: {
+            on: (event: string, cb: (chunk: Buffer) => void) => {
+              if (event === "data" && stderr)
+                setImmediate(() => cb(Buffer.from(stderr)));
+            },
+          },
           stdin: {
             write: (data: string) => call.stdin.push(data),
             end: vi.fn(),
           },
           on: (event: string, cb: (code?: number) => void) => {
             if (event === "close")
-              setImmediate(() => setImmediate(() => cb(0)));
+              setImmediate(() => setImmediate(() => cb(exitCode)));
           },
           kill: vi.fn(),
         };
@@ -298,6 +308,33 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     expect(prompt).toContain("explain this figure");
     vi.doUnmock("node:child_process");
   });
+
+  it("reports bounded multiline output from a failed Claude process", async () => {
+    const calls: SpawnCall[] = [];
+    mockSpawn(
+      calls,
+      "partial response\nwith context",
+      `\u001b[31mprovider error\u001b[0m\n${"detail".repeat(1_000)}`,
+      1,
+    );
+    const { executeClaudeCode } = await import("@/lib/agent/claude-code");
+
+    const failure = executeClaudeCode({
+      system: "",
+      prompt: "analyze this paper",
+    });
+    await expect(failure).rejects.toThrow(/claude-code: exited with code 1/);
+    await expect(failure).rejects.toThrow(/\[stderr\]\nprovider error/);
+    await expect(failure).rejects.toThrow(
+      /\[stdout\]\npartial response\nwith context/,
+    );
+    await expect(failure).rejects.not.toThrow(/\u001b/);
+    await expect(failure).rejects.toThrow(/output omitted/);
+    await failure.catch((error: Error) => {
+      expect(error.message.length).toBeLessThanOrEqual(4_050);
+    });
+    vi.doUnmock("node:child_process");
+  });
 });
 
 describe("model configuration", () => {
@@ -321,17 +358,26 @@ describe("model configuration", () => {
 
   it("every provider has suggestions", async () => {
     const cfg = await import("@/lib/agent/config");
-    for (const p of [
-      "claude-code",
-      "codex",
-      "anthropic",
-      "openai",
-      "ollama",
-    ] as const) {
+    expect(cfg.modelSuggestions("claude-code")).toEqual([
+      "fable",
+      "opus",
+      "sonnet",
+      "haiku",
+    ]);
+    for (const p of ["codex", "anthropic", "openai", "ollama"] as const) {
       expect(cfg.modelSuggestions(p).length).toBeGreaterThan(0);
     }
     expect(cfg.modelSuggestions("llamacpp")).toEqual([]);
     expect(cfg.modelSuggestions("vllm")).toEqual([]);
+  });
+
+  it("offers Claude Code aliases without redundant pinned model ids", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    const { listOfferedModels } = await import("@/lib/agent/models");
+    await expect(listOfferedModels("claude-code")).resolves.toEqual({
+      models: ["fable", "opus", "sonnet", "haiku"],
+      live: false,
+    });
   });
 
   it("uses stored endpoint then env then local default", async () => {

@@ -26,6 +26,31 @@ import {
  * CLAUDE_HOME → process HOME. Cached for the container lifetime.
  */
 let claudeHome: string | null | undefined;
+const MAX_FAILURE_DIAGNOSTIC_CHARS = 4_000;
+
+function cleanDiagnostic(value: string): string {
+  return value
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+    .trim();
+}
+
+function failureDiagnostic(stdout: string, stderr: string): string {
+  const sections: string[] = [];
+  const cleanStderr = cleanDiagnostic(stderr);
+  const cleanStdout = cleanDiagnostic(stdout);
+  if (cleanStderr) sections.push(`[stderr]\n${cleanStderr}`);
+  if (cleanStdout) sections.push(`[stdout]\n${cleanStdout}`);
+  const diagnostic = sections.join("\n\n") || "(no stdout or stderr)";
+  if (diagnostic.length <= MAX_FAILURE_DIAGNOSTIC_CHARS) return diagnostic;
+  const marker = "\n\n[… earlier/middle output omitted …]\n\n";
+  const remaining = MAX_FAILURE_DIAGNOSTIC_CHARS - marker.length;
+  const head = Math.ceil(remaining / 2);
+  const tail = Math.floor(remaining / 2);
+  return `${diagnostic.slice(0, head)}${marker}${diagnostic.slice(-tail)}`;
+}
+
 function ensureClaudeHome(): string | undefined {
   if (claudeHome !== undefined) return claudeHome ?? undefined;
   const credsJson = process.env.CLAUDE_CODE_CREDENTIALS_JSON;
@@ -114,7 +139,7 @@ export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
       if (code !== 0) {
         reject(
           new Error(
-            `claude-code: exited with code ${code}: ${stderr.slice(0, 500)}`,
+            `claude-code: exited with code ${code}\n${failureDiagnostic(stdout, stderr)}`,
           ),
         );
         return;
