@@ -20,21 +20,15 @@
   align-items: center;
 }
 
-.columns {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 1rem;
-  min-height: 0;
-}
-
 .canvas {
+  flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .chat {
+  flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -43,9 +37,6 @@
 @media (max-width: 900px) {
   .root {
     height: auto;
-  }
-  .columns {
-    grid-template-columns: 1fr;
   }
   .canvas {
     height: 70vh;

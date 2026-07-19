@@ -53,9 +53,11 @@ and every new-reader welcome screen will use that exact address.
   _+ blank page_ in papernook; the file grows without moving existing ink.
   If the button reports the file was just modified, the iPad was mid-save;
   wait a few seconds.
-- **Moving papers**: rearranging files/folders on the share is safe. The
-  scanner reconciles the library from disk; just keep a paper's PDF inside a
-  topic folder.
+- **Do not rename or move papers over WebDAV**: WebDAV exposes only the PDF
+  tree, while each paper's metadata and private companion files live in a
+  separate library tree. A WebDAV-only move would split those two halves.
+  Organize papers through Papernook; filesystem administrators must move the
+  PDF and companion directory together.
 - **Alternatives**: any app that writes standard PDF annotations over WebDAV
   works (PDF Viewer, GoodReader). GoodNotes does not; it keeps ink in its
   own format until exported, which is exactly what papernook exists to avoid.

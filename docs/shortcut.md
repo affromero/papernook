@@ -24,11 +24,11 @@ page proposes the filing → **Accept into library**.
 
 ## Regenerate or replace the bundled Shortcut (owner, optional)
 
-The repo ships `public/add-to-papernook.shortcut`. To replace it with one
+The repo ships `assets/add-to-papernook.shortcut`. To replace it with one
 built in the Shortcuts app (or to publish an iCloud link instead), either
 overwrite that file with your own signed export, or set
-`PAPERNOOK_SHORTCUT_URL` in Infisical; the env var wins over the bundled
-file.
+`PAPERNOOK_SHORTCUT_URL` in `.env` or your secret manager; the configured URL
+wins over the bundled file.
 
 ## Build it by hand in the Shortcuts app (owner, alternative)
 
@@ -41,9 +41,8 @@ Built once on any of the owner's Apple devices, then shared for everyone:
    actions as import questions. This is what makes the shared link prompt
    each person for their own server and token at import time.
 3. Share the Shortcut → **Copy iCloud Link**.
-4. Put that link in Infisical as `PAPERNOOK_SHORTCUT_URL` (prod env) and
-   redeploy. The wizard and Settings begin showing the Get the Shortcut
-   button automatically.
+4. Set `PAPERNOOK_SHORTCUT_URL` in `.env` or your secret manager and restart.
+   The wizard and Settings then show that **Get the Shortcut** link.
 
 ## Manual recipe (fallback)
 

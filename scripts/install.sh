@@ -41,6 +41,15 @@ fi
 
 echo "papernook setup"
 echo
+DETECTED_CHOICE=""
+if command -v codex >/dev/null 2>&1 && codex login status >/dev/null 2>&1; then
+  DETECTED_CHOICE="2"
+  echo "Detected Codex CLI and local authentication."
+elif command -v claude >/dev/null 2>&1 && claude auth status >/dev/null 2>&1; then
+  DETECTED_CHOICE="1"
+  echo "Detected Claude Code CLI and local authentication."
+fi
+echo
 echo "How should papernook talk to your AI?"
 echo "  1) claude   : Claude Code CLI on this machine (keyless)"
 echo "  2) codex    : Codex CLI on this machine (keyless)"
@@ -50,17 +59,24 @@ echo "  5) openai   : OpenAI API key"
 echo "  6) ollama   : Ollama on this machine (keyless)"
 echo "  7) llamacpp : llama.cpp server on this machine (keyless)"
 echo "  8) vllm     : vLLM server on this machine (keyless)"
-read -r -p "Choice [1-8]: " CHOICE < /dev/tty
+if [ -n "$DETECTED_CHOICE" ]; then
+  read -r -p "Choice [${DETECTED_CHOICE}, Enter to accept]: " CHOICE < /dev/tty
+  CHOICE=${CHOICE:-$DETECTED_CHOICE}
+else
+  read -r -p "Choice [1-8]: " CHOICE < /dev/tty
+fi
 
 case "$CHOICE" in
   1)
     read -r -p "Claude model [opus/sonnet/haiku, empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=claude-code'
+    [ -f "${HOME}/.claude/.credentials.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_AUTH_FILE=${HOME}/.claude/.credentials.json"
     [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$M"
     ;;
   2)
     read -r -p "Codex model [empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=codex'
+    [ -f "${HOME}/.codex/auth.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_AUTH_FILE=${HOME}/.codex/auth.json"
     [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_MODEL=$M"
     ;;
   3)

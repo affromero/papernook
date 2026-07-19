@@ -7,8 +7,8 @@ import { ModelPicker } from "@/components/profiles/ModelPicker";
 import styles from "./welcome.module.css";
 
 /**
- * One-screen onboarding. Everything the instance knows (from Infisical /
- * .env) renders as a finished value with a Copy button; the only actions
+ * One-screen onboarding. Everything the instance knows from its environment
+ * renders as a finished value with a Copy button; the only actions
  * left are taps. Sections are device-oriented: chat works already, capture
  * is one tap per device, annotation is one login in PDF Expert.
  */
@@ -138,8 +138,9 @@ export function WelcomeFlow({
             <span className={styles.sectionState}>zero setup</span>
           </div>
           <p className={styles.sectionBody}>
-            Paste any link into the <strong>Add paper</strong> box in your
-            library. For one-tap capture from the browser:
+            Paste an arXiv/OpenReview link, a direct PDF, or a publisher page
+            that exposes its PDF into <strong>Add paper</strong>. For one-tap
+            browser capture:
           </p>
           {shortcutUrl && (
             <a className={styles.action} href={shortcutUrl}>

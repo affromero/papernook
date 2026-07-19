@@ -8,9 +8,14 @@ import {
   type ZoteroProfileConfig,
 } from "../auth/users";
 import { usersRoot } from "../data-dir";
+import { beginProfileActivity } from "../auth/profile-activity";
 import { rebuildIndex } from "../library/index-db";
 import {
+  companionDir,
+  exercisesPdfPath,
   listPapers,
+  pdfPath,
+  readMeta,
   writeMeta,
   type CitationAuthor,
   type CitationMeta,
@@ -21,11 +26,7 @@ import {
 } from "../library/papers";
 import { capturePdf } from "./index";
 
-/**
- * Pull-only Zotero sync. A profile selects one personal or group library.
- * PDFs use the regular capture pipeline; later Zotero edits refresh only
- * source-owned metadata and never rewrite the PDF or private companions.
- */
+// Pull-only sync: captures PDFs, then refreshes only Zotero-owned metadata.
 
 const API = "https://api.zotero.org";
 const SYNC_INTERVAL_MS = 30 * 60 * 1000;
@@ -703,7 +704,7 @@ function isBibliographic(item: ZoteroItemData): boolean {
 }
 
 const inFlight = new Set<string>();
-
+const cancelled = new Set<string>();
 export interface ZoteroSyncResult {
   imported: number;
   updated: number;
@@ -721,10 +722,33 @@ export function lastSyncResult(username: string): ZoteroSyncResult | null {
   return lastResults.get(username) ?? null;
 }
 
-/**
- * Pull one profile's selected library. Returns null when disconnected or when
- * another sync for the same profile is already running.
- */
+/** Stop and forget transient sync state before a profile is erased. */
+export function cancelProfileSync(username: string): void {
+  if (inFlight.has(username)) cancelled.add(username);
+  else cancelled.delete(username);
+  lastResults.delete(username);
+}
+
+function removeCancelledImport(
+  username: string,
+  topic: string,
+  slug: string,
+  sourceKey: string,
+): void {
+  const meta = readMeta(topic, slug);
+  if (
+    meta?.addedBy !== username ||
+    meta.source?.provider !== "zotero" ||
+    meta.source.key !== sourceKey
+  ) {
+    return;
+  }
+  fs.rmSync(pdfPath(topic, slug), { force: true });
+  fs.rmSync(exercisesPdfPath(topic, slug), { force: true });
+  fs.rmSync(companionDir(topic, slug), { recursive: true, force: true });
+}
+
+/** Pull the selected library, or null when disconnected/already syncing. */
 export async function syncProfile(
   username: string,
 ): Promise<ZoteroSyncResult | null> {
@@ -732,11 +756,18 @@ export async function syncProfile(
   const cfg = profile?.zotero;
   if (!profile || !cfg || inFlight.has(username)) return null;
   const config: ZoteroConfig = cfg;
+  const activity = beginProfileActivity(username);
+  if (!activity) return null;
+  const profileActivity = activity;
+  const syncCancelled = () =>
+    cancelled.has(username) || profileActivity.cancelled();
+  cancelled.delete(username);
   inFlight.add(username);
   try {
     const target = targetOf(cfg);
     const cursor = readCursor(username, cfg);
     const collectionList = await listCollections(cfg);
+    if (syncCancelled()) return null;
     const collections = new Map(
       collectionList.map((collection) => [collection.key, collection]),
     );
@@ -745,6 +776,7 @@ export async function syncProfile(
       collections,
     );
     const { items, version } = await listChangedItems(cfg, cursor.lastVersion);
+    if (syncCancelled()) return null;
     const changedByKey = new Map(items.map(({ data }) => [data.key, data]));
     const changedAttachments = new Map<string, ZoteroItemData[]>();
     for (const { data } of items) {
@@ -773,42 +805,45 @@ export async function syncProfile(
     async function processItem(
       item: ZoteroItemData,
       attachmentKeys?: string[],
-    ): Promise<void> {
-      if (processed.has(item.key)) return;
+    ): Promise<boolean> {
+      if (syncCancelled()) return false;
+      if (processed.has(item.key)) return true;
       processed.add(item.key);
       try {
         const currentPaper = listPapers().find((paper) =>
           sourceMatches(paper, target, username, item.key),
         );
         if (currentPaper) {
+          if (syncCancelled()) return false;
           refreshPaper(currentPaper, item, target, collections);
           cursor.imported[item.key] = currentPaper.slug;
           updated += 1;
-          return;
+          return true;
         }
         if (cursor.imported[item.key] === "") {
           skipped += 1;
-          return;
+          return true;
         }
         if (Object.hasOwn(cursor.imported, item.key)) {
           delete cursor.imported[item.key];
         }
         if (!inSelectedCollections(item, selected)) {
           skipped += 1;
-          return;
+          return true;
         }
         const pdfKeys =
           attachmentKeys ??
           (cursor.lastVersion > 0 ? await pdfChildKeys(config, item.key) : []);
+        if (syncCancelled()) return false;
         if (pdfKeys.length === 0) {
           skipped += 1;
-          return;
+          return true;
         }
         const arxivId = arxivIdOf(item);
         if (arxivId && knownArxiv.has(arxivId)) {
           cursor.imported[item.key] = "";
           skipped += 1;
-          return;
+          return true;
         }
         let bytes: Buffer | null = null;
         let lastDownloadError: unknown = new ZoteroError(
@@ -817,32 +852,49 @@ export async function syncProfile(
         for (const pdfKey of pdfKeys) {
           try {
             bytes = await downloadAttachment(config, pdfKey);
+            if (syncCancelled()) return false;
             break;
           } catch (error) {
             lastDownloadError = error;
           }
         }
         if (!bytes) throw lastDownloadError;
-        const result = await capturePdf(bytes, {
-          sourceUrl:
-            optional(item.url) ??
-            `https://www.zotero.org/${target.type === "user" ? "users" : "groups"}/${target.id}/items/${item.key}`,
-          username,
-          arxivId,
-          autoFile: true,
-          source: sourceOf(item, target, collections),
-          overrides: overridesOf(item),
-          sourceTags: sourceTags(item),
-        });
+        const result = await capturePdf(
+          bytes,
+          {
+            sourceUrl:
+              optional(item.url) ??
+              `https://www.zotero.org/${target.type === "user" ? "users" : "groups"}/${target.id}/items/${item.key}`,
+            username,
+            arxivId,
+            autoFile: true,
+            source: sourceOf(item, target, collections),
+            overrides: overridesOf(item),
+            sourceTags: sourceTags(item),
+          },
+          profileActivity,
+        );
+        if (syncCancelled()) {
+          removeCancelledImport(
+            username,
+            result.proposedTopic,
+            result.slug,
+            item.key,
+          );
+          return false;
+        }
         cursor.imported[item.key] = result.slug;
         if (arxivId) knownArxiv.add(arxivId);
         imported += 1;
+        return true;
       } catch (error) {
+        if (syncCancelled()) return false;
         console.error(
           `zotero sync: item ${item.key} failed for ${username}:`,
           error,
         );
         failed += 1;
+        return true;
       }
     }
 
@@ -855,21 +907,28 @@ export async function syncProfile(
         data.contentType === "application/pdf" &&
         !data.parentItem
       ) {
-        await processItem(data, [data.key]);
+        if (!(await processItem(data, [data.key]))) return null;
       }
     }
 
     for (const parentKey of [...parentKeys].sort()) {
+      if (syncCancelled()) return null;
       try {
         const parent =
           changedByKey.get(parentKey) ?? (await getItem(cfg, parentKey));
+        if (syncCancelled()) return null;
         if (!isBibliographic(parent)) continue;
         const attachments = changedAttachments.get(parentKey);
-        await processItem(
-          parent,
-          attachments ? orderedAttachmentKeys(attachments) : undefined,
-        );
+        if (
+          !(await processItem(
+            parent,
+            attachments ? orderedAttachmentKeys(attachments) : undefined,
+          ))
+        ) {
+          return null;
+        }
       } catch (error) {
+        if (syncCancelled()) return null;
         console.error(
           `zotero sync: parent ${parentKey} failed for ${username}:`,
           error,
@@ -879,6 +938,7 @@ export async function syncProfile(
     }
 
     for (const paper of listPapers()) {
+      if (syncCancelled()) return null;
       if (
         processed.has(paper.meta.source?.key ?? "") ||
         !sourceMatches(paper, target, username)
@@ -906,6 +966,7 @@ export async function syncProfile(
       }
     }
 
+    if (syncCancelled()) return null;
     if (failed === 0) cursor.lastVersion = version;
     writeCursor(username, cursor);
     if (imported > 0 || updated > 0) rebuildIndex();
@@ -914,6 +975,8 @@ export async function syncProfile(
     return result;
   } finally {
     inFlight.delete(username);
+    cancelled.delete(username);
+    profileActivity.finish();
   }
 }
 

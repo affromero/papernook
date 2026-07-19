@@ -63,11 +63,14 @@ export function getProvider(id?: ProviderId): AgentProvider {
 }
 
 /**
- * Lightweight availability probe, ported from Sotto's agent-availability.ts:
- * `<cli> --version` locally or over SSH, short timeout, no full execution.
+ * Lightweight CLI probe locally or over SSH, with a short timeout.
  */
-function cliResponds(cli: string, sshHost?: string): Promise<boolean> {
-  const { command, args } = buildAgentInvocation(cli, ["--version"], sshHost);
+function cliResponds(
+  cli: string,
+  cliArgs: string[],
+  sshHost?: string,
+): Promise<boolean> {
+  const { command, args } = buildAgentInvocation(cli, cliArgs, sshHost);
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "ignore", "ignore"],
@@ -92,15 +95,38 @@ export async function isProviderAvailable(id: ProviderId): Promise<boolean> {
 }
 
 /**
+ * Discover a ready keyless CLI when the admin has not selected a provider.
+ * Codex is preferred when both CLIs answer; explicit configuration always
+ * remains authoritative through `configuredProviderId`.
+ */
+export async function detectLocalCliProvider(): Promise<
+  "codex" | "claude-code" | null
+> {
+  const [codex, claude] = await Promise.all([
+    providerStatus("codex"),
+    providerStatus("claude-code"),
+  ]);
+  if (codex === "ready") return "codex";
+  if (claude === "ready") return "claude-code";
+  return null;
+}
+
+/**
  * flight-finder-style readiness per provider:
  *   ready          answers now
  *   no_key         API provider without its key
  *   no_model       local endpoint is ready but no model is selected
  *   not_installed  local CLI missing
+ *   not_authenticated local CLI exists but has no usable login
  *   unreachable    CLI configured over SSH but not answering
  */
 export type ProviderReadiness =
-  "ready" | "no_key" | "no_model" | "not_installed" | "unreachable";
+  | "ready"
+  | "no_key"
+  | "no_model"
+  | "not_installed"
+  | "not_authenticated"
+  | "unreachable";
 
 export async function providerStatus(
   id: ProviderId,
@@ -127,13 +153,21 @@ export async function providerStatus(
       return process.env.OPENAI_API_KEY ? "ready" : "no_key";
     case "claude-code": {
       const ssh = getClaudeSshHost();
-      if (await cliResponds("claude", ssh)) return "ready";
-      return ssh ? "unreachable" : "not_installed";
+      if (!(await cliResponds("claude", ["--version"], ssh))) {
+        return ssh ? "unreachable" : "not_installed";
+      }
+      return (await cliResponds("claude", ["auth", "status"], ssh))
+        ? "ready"
+        : "not_authenticated";
     }
     case "codex": {
       const ssh = getCodexSshHost();
-      if (await cliResponds("codex", ssh)) return "ready";
-      return ssh ? "unreachable" : "not_installed";
+      if (!(await cliResponds("codex", ["--version"], ssh))) {
+        return ssh ? "unreachable" : "not_installed";
+      }
+      return (await cliResponds("codex", ["login", "status"], ssh))
+        ? "ready"
+        : "not_authenticated";
     }
   }
 }

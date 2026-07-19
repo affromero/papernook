@@ -1,16 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { hash as argon2Hash, verify as argon2Verify } from "@node-rs/argon2";
-import { usersRoot, ensureDataDirs, isPublicExposure } from "../data-dir";
+import { usersRoot, ensureDataDirs } from "../data-dir";
+import { deleteChatsByUser } from "../library/chats";
+import { rebuildIndex } from "../library/index-db";
+import { anonymizePapersByUser } from "../library/papers";
 import { deleteSharesByOwner } from "../library/shares";
 import { isAnimalSlug, animalForSeed } from "./avatars";
 
 /**
  * Profiles on disk: data/users/<username>/profile.json. The shared library is
  * common to everyone; chats and capture tokens are per-profile. Private
- * requests use an open picker. Public requests use the instance access
- * password when configured, otherwise per-profile passwords.
+ * requests use an open picker. Public requests use the single instance access
+ * password configured by the admin.
  */
 
 export interface ZoteroLibraryTarget {
@@ -37,7 +39,9 @@ export interface Profile {
   role?: "admin" | "member";
   /** Attributes /add captures (and their starter chats) to this profile. */
   captureToken: string;
-  /** argon2 hash; null until the profile sets a password. */
+  /** Revokes every signed session when the profile is deleted and recreated. */
+  sessionEpoch?: string;
+  /** Legacy field retained for existing profile files; no longer used. */
   passwordHash: string | null;
   /** True once the per-profile onboarding wizard has been completed. */
   wizardDone?: boolean;
@@ -51,7 +55,6 @@ export interface PublicProfile {
   username: string;
   displayName: string;
   avatarSlug: string;
-  hasPassword: boolean;
   isAdmin: boolean;
 }
 
@@ -110,7 +113,6 @@ export function toPublicProfile(profile: Profile): PublicProfile {
     username: profile.username,
     displayName: profile.displayName,
     avatarSlug: profile.avatarSlug,
-    hasPassword: profile.passwordHash !== null,
     isAdmin: profile.role === "admin",
   };
 }
@@ -140,6 +142,7 @@ export function createProfile(
     avatarSlug: slug,
     role: isFirst ? "admin" : "member",
     captureToken: crypto.randomBytes(24).toString("hex"),
+    sessionEpoch: crypto.randomBytes(16).toString("hex"),
     passwordHash: null,
     createdAt: new Date().toISOString(),
   };
@@ -147,45 +150,10 @@ export function createProfile(
   return profile;
 }
 
-export async function setPassword(
-  username: string,
-  password: string,
-): Promise<void> {
-  const profile = readProfile(username);
-  if (!profile) throw new ProfileError("Unknown profile.");
-  if (password.length < 8)
-    throw new ProfileError("Password must be at least 8 characters.");
-  profile.passwordHash = await argon2Hash(password);
-  writeProfile(profile);
-}
-
-export async function verifyPassword(
-  username: string,
-  password: string,
-): Promise<boolean> {
-  const profile = readProfile(username);
-  if (!profile || profile.passwordHash === null) return false;
-  try {
-    return await argon2Verify(profile.passwordHash, password);
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Whether opening a profile requires a password right now. Private mode:
- * never. Public exposure: always.
- */
-export function requiresPassword(): boolean {
-  return isPublicExposure();
-}
-
-/**
- * Instance-level access password (PAPERNOOK_PASSWORD, e.g. from Infisical).
- * When set, it is THE password for every profile in public mode: login and
- * profile creation verify against it, and no per-profile password is ever
- * prompted for. When unset, public mode falls back to per-profile
- * passwords set on first login.
+ * Admin-owned instance access password (`PAPERNOOK_PASSWORD`). It is the only
+ * application password in public mode: visitors pass the gate once, then
+ * select or create a member profile without another password.
  */
 export function instancePasswordConfigured(): boolean {
   return Boolean(process.env.PAPERNOOK_PASSWORD);
@@ -211,11 +179,20 @@ export function isAdmin(profile: Profile): boolean {
 export function deleteProfile(username: string): void {
   const profile = readProfile(username);
   if (!profile) throw new ProfileError("Unknown profile.");
-  if (profile.role === "admin") {
-    throw new ProfileError("The admin profile cannot be deleted.");
-  }
+
+  deleteChatsByUser(username);
   deleteSharesByOwner(username);
+  anonymizePapersByUser(username);
   fs.rmSync(path.join(usersRoot(), username), { recursive: true, force: true });
+  rebuildIndex();
+
+  if (profile.role === "admin") {
+    const successor = listProfiles()[0];
+    if (successor) {
+      successor.role = "admin";
+      writeProfile(successor);
+    }
+  }
 }
 
 export function markWizardDone(username: string): void {

@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+
+if [ "${1:-}" = "--version" ]; then
+  echo "codex-cli 0.0.0-playwright"
+  exit 0
+fi
+
+if [ "${1:-}" = "login" ] && [ "${2:-}" = "status" ]; then
+  echo "Logged in for Playwright"
+  exit 0
+fi
+
+echo "The Playwright Codex fixture only supports readiness checks." >&2
+exit 1

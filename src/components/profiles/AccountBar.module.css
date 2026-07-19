@@ -26,7 +26,12 @@
 }
 
 .avatar {
-  border-radius: 8px;
+  border: 2px solid var(--background, #fff);
+  border-radius: 50%;
+  outline: 2px solid
+    color-mix(in oklab, var(--color-primary, #b88a52) 72%, #d7a65a);
+  outline-offset: 1px;
+  box-shadow: 0 3px 10px rgba(30, 38, 32, 0.2);
   transition: transform 120ms ease;
 }
 

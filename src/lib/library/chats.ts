@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { libraryRoot } from "../data-dir";
 import { companionDir } from "./papers";
 import { assertSlug } from "./slug";
 
@@ -127,4 +128,57 @@ export function listChats(
     if (chat) headers.push(chat.header);
   }
   return headers.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * Erase one profile's conversations and their pasted-image files everywhere.
+ * Shared paper companions remain intact for the other profiles.
+ */
+export function deleteChatsByUser(username: string): void {
+  assertSlug(username);
+  const root = libraryRoot();
+  if (!fs.existsSync(root)) return;
+
+  const visit = (directory: string): void => {
+    if (!fs.existsSync(directory)) return;
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const resolved = path.join(directory, entry.name);
+      if (entry.name === username && path.basename(directory) === "chats") {
+        const companion = path.dirname(directory);
+        const imagePaths = new Set<string>();
+        for (const chatFile of fs.readdirSync(resolved)) {
+          if (!chatFile.endsWith(".jsonl")) continue;
+          const raw = fs.readFileSync(path.join(resolved, chatFile), "utf8");
+          for (const line of raw.split("\n").slice(1)) {
+            if (!line.trim()) continue;
+            try {
+              const message = JSON.parse(line) as ChatMessage;
+              for (const image of message.images ?? []) {
+                if (/^crops\/[a-zA-Z0-9._-]+$/.test(image)) {
+                  imagePaths.add(path.join(companion, image));
+                }
+              }
+            } catch {
+              // A malformed chat is still removed; it must not block erasure.
+            }
+          }
+        }
+        fs.rmSync(resolved, { recursive: true, force: true });
+        for (const imagePath of imagePaths) {
+          fs.rmSync(imagePath, { force: true });
+        }
+        const crops = path.join(companion, "crops");
+        try {
+          if (fs.readdirSync(crops).length === 0) fs.rmdirSync(crops);
+        } catch {
+          // Missing/non-empty crops directory: nothing else to remove.
+        }
+        continue;
+      }
+      visit(resolved);
+    }
+  };
+
+  visit(root);
 }

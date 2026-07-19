@@ -38,12 +38,13 @@ Ask your own AI grounded questions, then share a revocable, view-only reading.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/affromero/papernook/main/scripts/install.sh | bash
-# clones the repo, picks your AI (CLI / SSH / API key), writes .env, docker compose up
+# clones the repo, detects Codex/Claude when available, writes .env, docker compose up
 ```
 
 Open **http://localhost:3000** and create a profile. The two-minute wizard
-checks the agent, creates personal capture tools, and walks through iPad
-WebDAV setup.
+checks the configured agent—or, when none is configured, selects a ready local
+Codex/Claude CLI—creates personal capture tools, and walks through iPad WebDAV
+setup. An explicit provider that is unavailable is reported, never replaced.
 
 ![Papernook library with topic navigation, search, and paper cards](docs/images/product/library.png)
 
@@ -153,7 +154,7 @@ the capability exactly, without third-party plugins or handoffs.
 
 | Capability                                           | **Papernook** | [Zotero](https://www.zotero.org/support/groups) | [Paperpile](https://paperpile.com/features/) | [Readwise Reader](https://docs.readwise.io/reader/docs) | [NotebookLM](https://support.google.com/notebooklm/answer/16164461) |
 | ---------------------------------------------------- | :-----------: | :---------------------------------------------: | :------------------------------------------: | :-----------------------------------------------------: | :-----------------------------------------------------------------: |
-| One-click capture from publisher and article pages   |       ✓       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
+| One-click capture from supported publisher/PDF pages |       ✓       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
 | Organize with collections/folders, tags, and search  |       ✓       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
 | Built-in PDF highlighting and annotation editor      |       ✗       |                        ✓                        |                      ✓                       |                            ✓                            |                                  ✗                                  |
 | Export reference metadata as RIS or BibTeX           |       ✓       |                        ✓                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
@@ -207,6 +208,14 @@ Images use the native attachment mechanism for each transport. Local image chat
 requires a vision-capable model, and paper capture needs enough context for
 roughly 60,000 characters. Provider errors surface without silent fallback.
 
+The installer prefers an authenticated local Codex CLI, then Claude Code. In
+Docker, Compose mounts only the selected CLI credential file read-only and the
+entrypoint copies that file into a writable container home. It does not mount
+CLI history, sessions, or project configuration. An installed but logged-out
+CLI is shown as needing login, not ready. macOS keeps Claude credentials in
+Keychain, which containers cannot read; run `claude setup-token` and set
+`CLAUDE_CODE_OAUTH_TOKEN` in `.env` when using Claude Code through Docker.
+
 </details>
 
 ## Integrations
@@ -252,6 +261,11 @@ Docker Compose runs the Next.js app and an rclone WebDAV sidecar. WebDAV serves
 [Tailscale](https://tailscale.com) or a hardened custom domain. Settings
 generates the correct device QR code for the address in use.
 
+For a custom domain, the admin owns one `PAPERNOOK_PASSWORD`. Friends pass that
+single gate or use a signed invite, then create a profile without setting a
+password. For Tailscale-only access, machine/tailnet membership is the outer
+boundary. See [Invite a friend](docs/user-guide.md#invite-a-friend).
+
 ## Documentation
 
 Start with the **[visual documentation home](docs/README.md)**.
@@ -270,6 +284,8 @@ Start with the **[visual documentation home](docs/README.md)**.
 npm install          # postinstall copies the sidedoor service worker
 npm run dev
 npm run ci           # lint + typecheck + vitest + build (pre-push runs this too)
+npm run test:e2e     # Playwright journeys against committed docs screenshots
+npm run screenshots # intentionally refresh docs/images
 pre-commit install --install-hooks   # two-tier local gate
 ```
 

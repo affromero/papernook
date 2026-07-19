@@ -4,16 +4,18 @@ import { activeProfile } from "@/lib/auth/session";
 import { isAdmin } from "@/lib/auth/users";
 import {
   configuredProviderId,
+  detectLocalCliProvider,
   isProviderAvailable,
 } from "@/lib/agent/registry";
+import { setAgentProvider } from "@/lib/agent/config";
 import { resolveWebdavUrl } from "@/lib/webdav-url";
 import { WelcomeFlow } from "./WelcomeFlow";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The wizard autocompletes from the environment (.env / Infisical): agent
- * status, the Shortcut share link, and the WebDAV credentials are all read
+ * The wizard autocompletes from the environment (.env / secret manager):
+ * agent status, the Shortcut share link, and the WebDAV credentials are read
  * server-side so the page shows values instead of instructions wherever the
  * instance is already provisioned.
  */
@@ -34,7 +36,14 @@ export default async function WelcomePage() {
       agentProvider as Parameters<typeof isProviderAvailable>[0],
     );
   } catch {
-    // unconfigured; the wizard explains instead of failing
+    // Auto-select only when no provider has been configured. An explicitly
+    // selected provider that is unavailable remains visible as unavailable.
+    const detected = await detectLocalCliProvider();
+    if (detected) {
+      setAgentProvider(detected);
+      agentProvider = detected;
+      agentAvailable = true;
+    }
   }
 
   return (

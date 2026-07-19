@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
 import { CitationActions } from "@/components/citations/CitationActions";
 import { PdfReader } from "@/components/pdf/PdfReader";
 import { ShareButton } from "@/components/share/ShareButton";
@@ -45,18 +46,21 @@ export default async function PaperPage({ params }: PaperPageProps) {
         </div>
       </header>
 
-      <div className={styles.columns}>
-        <section className={styles.viewer} aria-label="Paper PDF">
+      <ReadingWorkspace
+        mainLabel="Paper PDF"
+        main={
           <PdfReader
             src={`/api/v1/papers/${topic}/${slug}/pdf`}
             title={meta.title}
           />
-        </section>
-        <aside className={styles.chat}>
-          {paper.summary && <p className={styles.summary}>{paper.summary}</p>}
-          <ChatPanel topic={topic} slug={slug} />
-        </aside>
-      </div>
+        }
+        chat={
+          <div id="paper-chat-panel" className={styles.chat}>
+            {paper.summary && <p className={styles.summary}>{paper.summary}</p>}
+            <ChatPanel topic={topic} slug={slug} />
+          </div>
+        }
+      />
     </main>
   );
 }

@@ -6,8 +6,9 @@
 
 ### Add a paper
 
-- **From anywhere:** copy the paper URL, open Papernook, paste it into
-  **Add paper**, and select **Add paper**.
+- **From anywhere:** copy an arXiv/OpenReview URL, direct PDF URL, or publisher
+  page that exposes a PDF link; paste it into **Add paper**, then select
+  **Add paper**.
 - **From Safari on iPhone, iPad, or Mac:** Share →
   **Add to Papernook**. Install it once from **Get the Shortcut**; see the
   [Shortcut guide](shortcut.md).
@@ -27,6 +28,12 @@ question, continue an earlier conversation, or paste a marked-up screenshot
 and ask what it means.
 
 ![A paper open beside its private conversation](images/product/paper-and-chat.png)
+
+Select **Focus reading** to hide the chat and give the PDF or canvas the full
+workspace. Select **Show chat** to restore it. Papernook remembers that choice
+between papers and when you switch between the reader and canvas.
+
+![Full-width paper view with chat hidden](images/product/paper-focus.png)
 
 To write with Apple Pencil, open the same PDF from Papernook's WebDAV
 connection in Documents, PDF Viewer, PDF Expert, or another compatible PDF
@@ -65,6 +72,7 @@ The result is the same in both cases:
 
 - **Shared:** papers, folders, tags, annotations, exercises, and canvases.
 - **Private to each profile:** chats, capture token, and Zotero connection.
+- **One admin-owned public password:** friends never set a profile password.
 
 ### Option A: custom domain
 
@@ -152,3 +160,18 @@ and [machine-sharing steps](https://tailscale.com/docs/features/sharing).
    `WEBDAV_USER` and `WEBDAV_PASS`.
 
 View or rotate your personal capture token at any time in **Settings**.
+
+## Delete a profile and its private data
+
+Every reader can open **Settings → Delete my profile**, type their username,
+and erase their own personal data. An admin can use **Settings → Members** to
+remove another reader completely.
+
+Deletion removes the profile, session access, capture token, Zotero
+configuration and cursor, chats, pasted chat crops, unconfirmed captures,
+owned share links, and stored login-rate state. Confirmed PDFs, annotations,
+canvases, exercises, summaries, and metadata remain part of the shared
+library; the deleted username is removed from their capture attribution. If
+the admin deletes their own profile, the oldest remaining profile becomes the
+admin. Deletion waits for active capture and Zotero work to stop and clean up,
+and revokes that profile's sessions on every device.

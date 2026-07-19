@@ -4,9 +4,10 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid rgba(127, 127, 127, 0.25);
-  border-radius: 12px;
-  background: #30332f;
+  border: 1px solid #c8cbc7;
+  border-radius: 8px;
+  background: #d9dcda;
+  box-shadow: 0 12px 32px rgba(27, 34, 29, 0.12);
 }
 
 .toolbar {
@@ -16,9 +17,9 @@
   align-items: center;
   gap: 1rem;
   padding: 0 0.8rem;
-  color: #f5f2e9;
-  background: #20231f;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  color: #27322b;
+  background: #f4f5f2;
+  border-bottom: 1px solid #c8cbc7;
   font-size: 0.76rem;
 }
 
@@ -40,9 +41,10 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
   color: inherit;
-  background: rgba(255, 255, 255, 0.09);
+  background: transparent;
   cursor: pointer;
   font: inherit;
   font-size: 1rem;
@@ -50,7 +52,8 @@
 
 .toolbar button:hover,
 .originalLink:hover {
-  background: rgba(255, 255, 255, 0.18);
+  border-color: #bcc2bd;
+  background: #fff;
 }
 
 .toolbar button:disabled {
@@ -69,13 +72,19 @@
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: 0.66;
+  color: #68736c;
+  font-family: var(--font-geist-mono), monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
 }
 
 .stage {
   position: relative;
   flex: 1;
   min-height: 0;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)), #d9dcda;
 }
 
 .container {
@@ -85,11 +94,13 @@
 }
 
 .container :global(.pdfViewer) {
-  padding: 14px 0 22px;
+  padding: 22px 18px 36px;
 }
 
 .container :global(.pdfViewer .page) {
-  box-shadow: 0 3px 16px rgba(0, 0, 0, 0.28);
+  margin: 0 auto 18px;
+  border: 1px solid rgba(38, 47, 41, 0.16);
+  box-shadow: 0 5px 22px rgba(24, 31, 26, 0.2);
 }
 
 .container :global(.annotationLayer .linkAnnotation > a:hover) {
@@ -102,7 +113,7 @@
   inset: 50% auto auto 50%;
   transform: translate(-50%, -50%);
   margin: 0;
-  color: #f5f2e9;
+  color: #27322b;
   font-size: 0.9rem;
 }
 

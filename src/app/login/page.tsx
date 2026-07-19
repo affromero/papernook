@@ -11,17 +11,16 @@ import { gateRequired } from "@/lib/auth/gate";
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  // Public instance with a shared password: the picker stays hidden (no
-  // profile names, no Add button) until the access password is entered.
+  const publicMode = await requestIsPublic();
+  const passwordConfigured = instancePasswordConfigured();
+  if (publicMode && !passwordConfigured) {
+    return <AccessGate configured={false} />;
+  }
+  // Public instances keep profile names and Add profile behind the one
+  // admin-configured access password.
   if (await gateRequired()) {
     return <AccessGate />;
   }
   const profiles = listProfiles().map(toPublicProfile);
-  return (
-    <ProfilePicker
-      profiles={profiles}
-      publicMode={await requestIsPublic()}
-      instancePassword={instancePasswordConfigured()}
-    />
-  );
+  return <ProfilePicker profiles={profiles} />;
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import styles from "./AdminMembers.module.css";
 
-/** Admin-only member list with removal (chats and tokens go with it). */
+/** Admin-only member list with complete profile erasure. */
 
 interface Member {
   username: string;
@@ -16,10 +16,19 @@ export function AdminMembers({ members }: { members: Member[] }) {
   const [error, setError] = useState<string | null>(null);
 
   async function remove(username: string): Promise<void> {
+    if (
+      !window.confirm(
+        `Completely remove ${username}? Their profile, chats, captures, and owned share links will be erased. Shared confirmed papers remain.`,
+      )
+    ) {
+      return;
+    }
     setError(null);
     const res = await fetch(`/api/v1/profiles/${username}`, {
       method: "DELETE",
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
+      body: JSON.stringify({ confirmation: username }),
     });
     if (res.ok) {
       setGone((g) => [...g, username]);
@@ -45,7 +54,7 @@ export function AdminMembers({ members }: { members: Member[] }) {
                 className={styles.remove}
                 onClick={() => void remove(m.username)}
               >
-                Remove
+                Remove completely
               </button>
             )}
           </li>

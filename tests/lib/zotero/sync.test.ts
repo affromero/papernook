@@ -386,6 +386,56 @@ describe("zotero sync", () => {
     expect(calls.some((call) => call.includes("ATTACH01/file"))).toBe(false);
   });
 
+  it("does not recreate profile data when deletion races an active sync", async () => {
+    let releaseAnalysis: (() => void) | undefined;
+    let analysisStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      analysisStarted = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseAnalysis = resolve;
+    });
+    vi.doMock("@/lib/agent/registry", () => ({
+      getProvider: () => ({
+        id: "codex",
+        execute: async () => {
+          analysisStarted?.();
+          await release;
+          return JSON.stringify({
+            title: "Deleted profile import",
+            authors: ["Researcher"],
+            year: 2026,
+            venue: null,
+            bibtex: null,
+            topic: "Synced Topic",
+            tags: ["synced"],
+            summary: "Must be removed.",
+            related: [],
+            starterQuestions: ["Why?"],
+          });
+        },
+        stream: async function* () {},
+      }),
+    }));
+    stubZoteroApi(paperLibrary());
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    users.setZoteroConfig("andres", { apiKey: "key", userId: "1234567" });
+    const zotero = await import("@/lib/capture/zotero");
+
+    const syncing = zotero.syncProfile("andres");
+    await started;
+    zotero.cancelProfileSync("andres");
+    users.deleteProfile("andres");
+    releaseAnalysis?.();
+
+    expect(await syncing).toBeNull();
+    const papers = await import("@/lib/library/papers");
+    expect(papers.listPapers()).toEqual([]);
+    expect(papers.listInbox()).toEqual([]);
+    expect(users.getProfile("andres")).toBeNull();
+  });
+
   it("scopes the same item key independently in personal and group libraries", async () => {
     mockAgent("A Guessed Title");
     const library = paperLibrary("https://example.org/paper");
