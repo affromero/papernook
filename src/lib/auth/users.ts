@@ -3,6 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { hash as argon2Hash, verify as argon2Verify } from "@node-rs/argon2";
 import { usersRoot, ensureDataDirs, isPublicExposure } from "../data-dir";
+import { deleteSharesByOwner } from "../library/shares";
 import { isAnimalSlug, animalForSeed } from "./avatars";
 
 /**
@@ -195,6 +196,7 @@ export function deleteProfile(username: string): void {
   if (profile.role === "admin") {
     throw new ProfileError("The admin profile cannot be deleted.");
   }
+  deleteSharesByOwner(username);
   fs.rmSync(path.join(usersRoot(), username), { recursive: true, force: true });
 }
 

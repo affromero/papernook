@@ -13,8 +13,10 @@ const PUBLIC_PATHS = [
   "/api/v1/session",
   "/api/v1/gate",
   "/invite",
+  "/share",
   "/api/v1/profiles",
   "/api/v1/health",
+  "/api/v1/shares",
 ];
 
 export const config = {
@@ -28,7 +30,13 @@ export function proxy(request: NextRequest): NextResponse {
   if (
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
   ) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    if (pathname === "/share" || pathname.startsWith("/share/")) {
+      response.headers.set("Cache-Control", "private, no-store");
+      response.headers.set("Referrer-Policy", "no-referrer");
+      response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    }
+    return response;
   }
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (token && verifySessionToken(token)) {

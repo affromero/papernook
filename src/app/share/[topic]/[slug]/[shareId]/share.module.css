@@ -1,0 +1,280 @@
+.root {
+  --ink: #18201c;
+  --paper: #f4f0e6;
+  --paper-deep: #e7e0d1;
+  --rule: rgba(24, 32, 28, 0.17);
+  --accent: #315f4c;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0 4.8rem,
+      rgba(164, 63, 47, 0.2) 4.8rem calc(4.8rem + 1px),
+      transparent calc(4.8rem + 1px)
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 31px,
+      rgba(49, 95, 76, 0.075) 31px 32px
+    ),
+    var(--paper);
+  padding: 0 4.8vw 2.5rem;
+}
+
+.masthead {
+  height: 4.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--rule);
+}
+
+.brand {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.permission {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.7rem;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lock {
+  font-size: 0.9rem;
+}
+
+.intro {
+  max-width: 920px;
+  padding: clamp(2.5rem, 7vw, 6.5rem) 0 clamp(2rem, 4vw, 4rem);
+}
+
+.eyebrow,
+.sectionLabel {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.69rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  margin: 0 0 1rem;
+  color: var(--accent);
+}
+
+.title {
+  max-width: 850px;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.3rem, 5.4vw, 5.7rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+}
+
+.meta {
+  margin: 1.3rem 0 0;
+  font-size: 0.9rem;
+  opacity: 0.72;
+}
+
+.note {
+  max-width: 660px;
+  margin: 2rem 0 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--accent);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
+  gap: clamp(1.5rem, 3vw, 3.5rem);
+  align-items: start;
+}
+
+.paperColumn,
+.studyColumn {
+  min-width: 0;
+}
+
+.sectionLabel {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 0 0.75rem;
+  color: var(--accent);
+}
+
+.sectionLabel span:last-child {
+  color: var(--ink);
+  opacity: 0.5;
+}
+
+.pdfFrame {
+  display: block;
+  width: 100%;
+  height: min(78vh, 980px);
+  border: 1px solid var(--rule);
+  background: #fff;
+  box-shadow: 0 18px 55px rgba(45, 40, 31, 0.13);
+}
+
+.studyColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 2.75rem;
+}
+
+.summary {
+  padding: 1.2rem 1.35rem 1.35rem;
+  border: 1px solid var(--rule);
+  background: rgba(255, 253, 247, 0.68);
+}
+
+.summary h2 {
+  margin: 0 0 0.7rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.summary p,
+.empty {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.96rem;
+  line-height: 1.62;
+}
+
+.conversations {
+  min-width: 0;
+}
+
+.conversation {
+  padding: 1.25rem 0 1.75rem;
+  border-top: 1px solid var(--rule);
+}
+
+.conversation h2 {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: 0.6rem;
+  margin: 0 0 1.2rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.conversation h2 span {
+  padding-top: 0.22rem;
+  color: var(--accent);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.68rem;
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.readerMessage,
+.agentMessage {
+  padding: 0.9rem 1rem;
+  border-left: 2px solid transparent;
+  background: rgba(255, 253, 247, 0.56);
+}
+
+.readerMessage {
+  margin-left: 1.6rem;
+  border-left-color: rgba(164, 63, 47, 0.55);
+}
+
+.agentMessage {
+  margin-right: 1.6rem;
+  border-left-color: var(--accent);
+}
+
+.role {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.58;
+}
+
+.messageText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.crop {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  margin: 0 0 0.7rem;
+  border: 1px solid var(--rule);
+}
+
+.empty {
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--rule);
+  opacity: 0.68;
+}
+
+.footer {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  opacity: 0.58;
+}
+
+@media (max-width: 900px) {
+  .root {
+    padding-inline: 1rem;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent 0 31px,
+        rgba(49, 95, 76, 0.075) 31px 32px
+      ),
+      var(--paper);
+  }
+
+  .columns {
+    grid-template-columns: 1fr;
+  }
+
+  .pdfFrame {
+    height: 68vh;
+  }
+
+  .studyColumn {
+    gap: 2rem;
+  }
+}

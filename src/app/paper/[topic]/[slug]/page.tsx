@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { ShareButton } from "@/components/share/ShareButton";
 import styles from "./paper.module.css";
 
 export const dynamic = "force-dynamic";
@@ -22,12 +23,15 @@ export default async function PaperPage({ params }: PaperPageProps) {
   return (
     <main className={styles.root}>
       <header className={styles.header}>
-        <Link href="/" className={styles.back}>
-          ← Library
-        </Link>
-        <Link href={`/paper/${topic}/${slug}/canvas`} className={styles.back}>
-          Open canvas ↗
-        </Link>
+        <nav className={styles.actions} aria-label="Paper actions">
+          <Link href="/" className={styles.back}>
+            ← Library
+          </Link>
+          <Link href={`/paper/${topic}/${slug}/canvas`} className={styles.back}>
+            Open canvas ↗
+          </Link>
+          <ShareButton topic={topic} slug={slug} />
+        </nav>
         <div>
           <h1 className={styles.title}>{meta.title}</h1>
           <p className={styles.meta}>

@@ -13,6 +13,13 @@
   gap: 1rem;
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  white-space: nowrap;
+}
+
 .back {
   text-decoration: none;
   color: inherit;
@@ -76,6 +83,13 @@
   }
   .columns {
     grid-template-columns: 1fr;
+  }
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .actions {
+    flex-wrap: wrap;
   }
   .pdfFrame {
     height: 60vh;
