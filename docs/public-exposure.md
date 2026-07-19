@@ -61,25 +61,27 @@ if your installed client reports different syntax.
 
 ## What visitors see
 
-With `PAPERNOOK_PASSWORD` configured, a new public visitor sees one
-instance-level access prompt before the profile picker. Profiles do not each
-need another password.
+The server admin creates the one instance password by setting
+`PAPERNOOK_PASSWORD`. A new public visitor sees that access prompt before any
+profile names. Readers never create, reset, or manage a separate profile
+password.
 
 The admin can instead open **Settings → Invite a friend** and send the signed
 link or QR code. It bypasses the access prompt, expires after seven days, and
-opens the picker. The friend still creates a normal member profile.
+opens the picker. The friend selects **Add profile**, chooses a name and avatar,
+and goes straight to their welcome screen.
 
-If `PAPERNOOK_PASSWORD` is omitted, public mode falls back to per-profile
-passwords set on first login. That compatibility path is less convenient for
-inviting a new reader; the shared instance password is the recommended setup.
+If `PAPERNOOK_PASSWORD` is omitted, public mode fails closed with an admin
+setup message. Set it in `.env` (or inject it through your secret manager) and
+restart before sharing the public address.
 
 ## What the flag changes
 
-- Public requests require either the instance access gate or the fallback
-  per-profile password flow.
-- Failed instance-gate authentication is throttled per IP. The fallback
-  profile-password path is throttled per IP and per account. Password
-  comparisons are constant-time.
+- Public requests require the instance access gate. A signed invite proves the
+  same boundary without putting the password in a message.
+- Failed instance-gate authentication is throttled per IP. Direct API login is
+  throttled per IP and selected account. Password comparisons are
+  constant-time.
 - Sessions remain HMAC-signed HttpOnly cookies for 90 days and rotate at
   login. A stable `SESSION_SECRET` preserves them across container rebuilds.
 
@@ -105,4 +107,4 @@ inviting a new reader; the shared instance password is the recommended setup.
 - [ ] WebDAV accepts its own credentials and exposes only paper PDFs.
 - [ ] The admin invite link uses the public hostname.
 - [ ] `SESSION_SECRET`, `PAPERNOOK_PASSWORD`, and `WEBDAV_PASS` are backed up
-      in the secret manager, not committed to Git.
+      in `.env` or a secret manager, never committed to Git.

@@ -191,6 +191,27 @@ export function writeText(
   fs.writeFileSync(path.join(dir, TEXT_FILE), text);
 }
 
+/**
+ * Remove private inbox captures owned by a deleted profile and anonymize its
+ * attribution on confirmed shared papers.
+ */
+export function anonymizePapersByUser(username: string): void {
+  assertSlug(username);
+  for (const paper of listInbox()) {
+    if (paper.meta.addedBy === username) {
+      fs.rmSync(paper.companionDir, { recursive: true, force: true });
+    }
+  }
+  for (const paper of listPapers()) {
+    if (paper.meta.addedBy === username) {
+      writeMeta(paper.topic, paper.slug, {
+        ...paper.meta,
+        addedBy: "deleted-profile",
+      });
+    }
+  }
+}
+
 function loadPaper(topic: string | null, slug: string): Paper | null {
   const meta = readMeta(topic, slug);
   if (!meta) return null;

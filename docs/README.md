@@ -16,6 +16,12 @@ library.
 | WebDAV: `https://dav.papernook.example.com`                                                                             | WebDAV: `http://papernook-server:8080`                                                                               |
 | [Harden a public domain →](public-exposure.md)                                                                          | [Invite over Tailscale →](user-guide.md#option-b-tailscale)                                                          |
 
+On a public domain, the admin sets one instance password. A friend either
+opens a seven-day signed invite or enters that shared password once before the
+profile picker; they never create a profile password.
+
+![Public access gate shown before profile names](images/setup/access-gate.png)
+
 Tailscale Serve supplies the HTTPS address the app needs for secure sessions.
 Using both routes is supported: `PAPERNOOK_PUBLIC_HOST` gives the custom domain
 its password gate while the `.ts.net` address keeps the private household
@@ -64,7 +70,11 @@ to use. The QR code preserves that domain, Tailscale hostname, or LAN address.
 ![Paper reader beside a grounded conversation](images/product/paper-and-chat.png)
 
 Read the live PDF, resume prior chats, save exercises, open the canvas, or
-create a view-only reading from one screen.
+create a view-only reading from one screen. **Focus reading** hides chat and
+expands the PDF or canvas; the preference persists until **Show chat** is
+selected.
+
+![Full-width paper view with chat hidden](images/product/paper-focus.png)
 
 ### A spatial view of the library
 
@@ -110,6 +120,8 @@ WebDAV. The welcome flow gives each reader the exact address and credentials.
 ## Owner checklist
 
 - Keep `data/` backed up. The filesystem, not SQLite, is the source of truth.
+- For a subscription CLI, log in on the Docker host first. Papernook checks
+  both installation and authentication before calling the provider ready.
 - Use a long, unique `WEBDAV_PASS`.
 - For a custom domain, set `PUBLIC_EXPOSURE`, `PAPERNOOK_PUBLIC_HOST`,
   `PAPERNOOK_PASSWORD`, `SESSION_SECRET`, and loopback port bindings before
@@ -117,5 +129,21 @@ WebDAV. The welcome flow gives each reader the exact address and credentials.
 - Generate friend links from **Settings → Invite a friend** while visiting the
   URL the friend will use.
 - Rotate a capture token in Settings if it appears anywhere it should not.
+- Readers can erase their own private data from Settings; admins can remove
+  members completely. Shared confirmed papers remain with anonymized
+  attribution.
+
+## Screenshot contract
+
+The images in this guide are browser snapshots of seeded, synthetic data—never
+a private library. The Playwright journey verifies the public gate, profile
+creation without a password, local CLI detection, reading focus mode, sharing,
+graph, setup cards, and tablet layouts.
+
+```bash
+npx playwright install chromium  # once per development machine
+npm run test:e2e                 # compare the UI with committed screenshots
+npm run screenshots              # intentionally regenerate docs/images
+```
 
 <p align="center"><a href="../README.md">← Project README</a></p>

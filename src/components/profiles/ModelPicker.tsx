@@ -10,13 +10,19 @@ import styles from "./ModelPicker.module.css";
  */
 
 type Readiness =
-  "ready" | "no_key" | "no_model" | "not_installed" | "unreachable";
+  | "ready"
+  | "no_key"
+  | "no_model"
+  | "not_installed"
+  | "not_authenticated"
+  | "unreachable";
 
 const READINESS_LABEL: Record<Readiness, string> = {
   ready: "ready",
   no_key: "needs API key",
   no_model: "select a model",
   not_installed: "CLI not installed",
+  not_authenticated: "CLI needs login",
   unreachable: "endpoint or SSH host not answering",
 };
 

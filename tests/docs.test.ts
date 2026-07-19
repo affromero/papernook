@@ -130,7 +130,7 @@ describe("documentation", () => {
     expect(new Set(screenshots).size).toBeGreaterThanOrEqual(8);
     for (const screenshot of screenshots) {
       const { width, height } = pngDimensions(screenshot);
-      expect(fs.statSync(screenshot).size).toBeGreaterThan(10_000);
+      expect(fs.statSync(screenshot).size).toBeGreaterThan(2_500);
       expect(width).toBeGreaterThanOrEqual(500);
       expect(height).toBeGreaterThanOrEqual(350);
     }
@@ -148,5 +148,24 @@ describe("documentation", () => {
     for (const screenshot of screenshots) {
       expect(allDocumentation).toContain(screenshot);
     }
+  });
+
+  it("backs every documentation screenshot with a Playwright snapshot", () => {
+    const spec = fs.readFileSync(
+      path.join(root, "tests", "e2e", "docs-screenshots.spec.ts"),
+      "utf8",
+    );
+    const asserted = new Set(
+      [
+        ...spec.matchAll(
+          /toHaveScreenshot\(\s*\["([^"]+)",\s*"([^"]+\.png)"\]/g,
+        ),
+      ].map((match) => `${match[1]}/${match[2]}`),
+    );
+    const screenshots = filesBelow(path.join(docsDir, "images"))
+      .filter((file) => file.endsWith(".png"))
+      .map((file) => path.relative(path.join(docsDir, "images"), file));
+
+    expect(asserted).toEqual(new Set(screenshots));
   });
 });

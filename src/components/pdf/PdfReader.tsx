@@ -196,9 +196,7 @@ export function PdfReader({ src, title }: PdfReaderProps) {
             →
           </button>
         </div>
-        <span className={styles.hint}>
-          Reference links preview without losing your place
-        </span>
+        <span className={styles.hint}>Paper view</span>
         <div className={styles.toolbarGroup}>
           <button
             type="button"

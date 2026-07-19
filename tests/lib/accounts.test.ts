@@ -13,7 +13,9 @@ beforeEach(() => {
   vi.resetModules();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  const { closeIndex } = await import("@/lib/library/index-db");
+  closeIndex();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -104,31 +106,6 @@ describe("sessions", () => {
   });
 });
 
-describe("passwords under public exposure", () => {
-  it("verifies a set password and rejects wrong ones", async () => {
-    const u = await users();
-    u.createProfile("Ana");
-    await u.setPassword("ana", "correct horse battery");
-    expect(await u.verifyPassword("ana", "correct horse battery")).toBe(true);
-    expect(await u.verifyPassword("ana", "wrong")).toBe(false);
-    expect(await u.verifyPassword("ana", "")).toBe(false);
-  });
-
-  it("passwordless profiles never verify (no bypass via empty hash)", async () => {
-    const u = await users();
-    u.createProfile("Ana");
-    expect(await u.verifyPassword("ana", "")).toBe(false);
-    expect(await u.verifyPassword("ana", "anything")).toBe(false);
-  });
-
-  it("requiresPassword follows the exposure flag", async () => {
-    const u = await users();
-    expect(u.requiresPassword()).toBe(false);
-    process.env.PUBLIC_EXPOSURE = "true";
-    expect(u.requiresPassword()).toBe(true);
-  });
-});
-
 describe("login rate limiting", () => {
   it("locks out after repeated failures with growing delays", async () => {
     const rl = await rateLimit();
@@ -170,7 +147,7 @@ describe("wizard flag", () => {
   });
 });
 
-describe("instance password (from Infisical)", () => {
+describe("admin-owned instance password", () => {
   it("verifies only the exact configured password", async () => {
     process.env.PAPERNOOK_PASSWORD = "correct-horse-battery";
     const u = await users();
@@ -201,13 +178,88 @@ describe("admin role", () => {
     expect(u.toPublicProfile(second).isAdmin).toBe(false);
   });
 
-  it("members can be deleted, the admin cannot", async () => {
+  it("promotes the oldest remaining profile when the admin is deleted", async () => {
     const u = await users();
     u.createProfile("Andres");
     u.createProfile("Ana");
+    u.createProfile("Ben");
+    u.deleteProfile("andres");
+    expect(u.getProfile("andres")).toBeNull();
+    expect(u.getProfile("ana")?.role).toBe("admin");
+    expect(u.getProfile("ben")?.role).toBe("member");
+  });
+
+  it("erases private data while preserving anonymized shared papers", async () => {
+    const u = await users();
+    u.createProfile("Andres");
+    u.createProfile("Ana");
+    const papers = await import("@/lib/library/papers");
+    const chats = await import("@/lib/library/chats");
+    const index = await import("@/lib/library/index-db");
+
+    const meta = {
+      title: "A shared paper",
+      authors: ["A. Researcher"],
+      year: 2026,
+      venue: null,
+      arxivId: null,
+      bibtex: null,
+      tags: ["testing"],
+      related: [],
+      sourceUrl: "https://example.test/paper.pdf",
+      addedAt: "2026-07-19T00:00:00.000Z",
+      addedBy: "ana",
+    };
+    papers.writeMeta("research", "shared-paper", meta);
+    fs.mkdirSync(path.dirname(papers.pdfPath("research", "shared-paper")), {
+      recursive: true,
+    });
+    fs.writeFileSync(papers.pdfPath("research", "shared-paper"), "pdf");
+
+    papers.writeMeta(null, "pending-paper", {
+      ...meta,
+      title: "Private pending capture",
+    });
+    fs.writeFileSync(papers.pdfPath(null, "pending-paper"), "pdf");
+
+    const chat = chats.createChat(
+      "research",
+      "shared-paper",
+      "ana",
+      "Private notes",
+    );
+    const cropPath = path.join(
+      papers.companionDir("research", "shared-paper"),
+      "crops",
+      "private.png",
+    );
+    fs.mkdirSync(path.dirname(cropPath), { recursive: true });
+    fs.writeFileSync(cropPath, "image");
+    chats.appendMessage("research", "shared-paper", "ana", chat.id, {
+      role: "user",
+      content: "Private question",
+      images: ["crops/private.png"],
+      at: "2026-07-19T00:00:00.000Z",
+    });
+    index.rebuildIndex();
+
     u.deleteProfile("ana");
+
     expect(u.getProfile("ana")).toBeNull();
-    expect(() => u.deleteProfile("andres")).toThrow(/admin/);
-    expect(u.getProfile("andres")).not.toBeNull();
+    expect(chats.listChats("research", "shared-paper", "ana")).toEqual([]);
+    expect(fs.existsSync(cropPath)).toBe(false);
+    expect(papers.readMeta(null, "pending-paper")).toBeNull();
+    expect(fs.existsSync(papers.pdfPath("research", "shared-paper"))).toBe(
+      true,
+    );
+    expect(papers.readMeta("research", "shared-paper")?.addedBy).toBe(
+      "deleted-profile",
+    );
+    expect(index.allIndexed()).toEqual([
+      expect.objectContaining({
+        slug: "shared-paper",
+        addedBy: "deleted-profile",
+      }),
+    ]);
   });
 });

@@ -41,6 +41,15 @@ fi
 
 echo "papernook setup"
 echo
+DETECTED_CHOICE=""
+if command -v codex >/dev/null 2>&1 && [ -d "${HOME}/.codex" ]; then
+  DETECTED_CHOICE="2"
+  echo "Detected Codex CLI and local authentication."
+elif command -v claude >/dev/null 2>&1 && [ -d "${HOME}/.claude" ]; then
+  DETECTED_CHOICE="1"
+  echo "Detected Claude Code CLI and local authentication."
+fi
+echo
 echo "How should papernook talk to your AI?"
 echo "  1) claude   : Claude Code CLI on this machine (keyless)"
 echo "  2) codex    : Codex CLI on this machine (keyless)"
@@ -50,7 +59,12 @@ echo "  5) openai   : OpenAI API key"
 echo "  6) ollama   : Ollama on this machine (keyless)"
 echo "  7) llamacpp : llama.cpp server on this machine (keyless)"
 echo "  8) vllm     : vLLM server on this machine (keyless)"
-read -r -p "Choice [1-8]: " CHOICE < /dev/tty
+if [ -n "$DETECTED_CHOICE" ]; then
+  read -r -p "Choice [${DETECTED_CHOICE}, Enter to accept]: " CHOICE < /dev/tty
+  CHOICE=${CHOICE:-$DETECTED_CHOICE}
+else
+  read -r -p "Choice [1-8]: " CHOICE < /dev/tty
+fi
 
 case "$CHOICE" in
   1)

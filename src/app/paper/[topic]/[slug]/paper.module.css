@@ -42,19 +42,8 @@
   opacity: 0.7;
 }
 
-.columns {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 1rem;
-  min-height: 0;
-}
-
-.viewer {
-  min-height: 0;
-}
-
 .chat {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -74,17 +63,11 @@
   .root {
     height: auto;
   }
-  .columns {
-    grid-template-columns: 1fr;
-  }
   .header {
     align-items: flex-start;
     flex-direction: column;
   }
   .actions {
     flex-wrap: wrap;
-  }
-  .viewer {
-    height: 60vh;
   }
 }

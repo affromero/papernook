@@ -44,6 +44,10 @@ export function recordSuccess(key: string): void {
   buckets.delete(key);
 }
 
+export function forgetAccountRateLimit(username: string): void {
+  buckets.delete(`user:${username}`);
+}
+
 /** Test hook: reset all state. */
 export function resetRateLimits(): void {
   buckets.clear();

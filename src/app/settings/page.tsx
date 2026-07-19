@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
 import { isAdmin, listProfiles, toPublicProfile } from "@/lib/auth/users";
 import { AdminMembers } from "@/components/profiles/AdminMembers";
+import { DeleteProfile } from "@/components/profiles/DeleteProfile";
 import { InviteQr } from "@/components/profiles/InviteQr";
 import { ModelPicker } from "@/components/profiles/ModelPicker";
 import { ZoteroCard } from "@/components/profiles/ZoteroCard";
@@ -93,8 +94,8 @@ export default async function SettingsPage() {
           <h2>Members</h2>
           <p>
             You are the admin: you own the instance configuration (agent,
-            passwords, secrets in Infisical). Members only pick a name and an
-            avatar.
+            instance password, and secrets in .env or your secret manager).
+            Members only pick a name and an avatar.
           </p>
           <AdminMembers
             members={listProfiles()
@@ -175,6 +176,15 @@ export default async function SettingsPage() {
           <strong>{profile.displayName}</strong>. Keep it private; anyone with
           it can add papers as you.
         </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Delete my profile</h2>
+        <p>
+          You control your personal data. Review the exact deletion boundary
+          before confirming.
+        </p>
+        <DeleteProfile username={profile.username} />
       </section>
     </main>
   );

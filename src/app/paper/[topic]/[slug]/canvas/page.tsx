@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
 import { CanvasClient } from "./CanvasClient";
 import styles from "./canvas.module.css";
 
@@ -26,14 +27,19 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
           ← {paper.meta.title}
         </Link>
       </header>
-      <div className={styles.columns}>
-        <div className={styles.canvas}>
-          <CanvasClient topic={topic} slug={slug} />
-        </div>
-        <aside className={styles.chat}>
-          <ChatPanel topic={topic} slug={slug} />
-        </aside>
-      </div>
+      <ReadingWorkspace
+        mainLabel="Paper canvas"
+        main={
+          <div className={styles.canvas}>
+            <CanvasClient topic={topic} slug={slug} />
+          </div>
+        }
+        chat={
+          <div id="paper-chat-panel" className={styles.chat}>
+            <ChatPanel topic={topic} slug={slug} />
+          </div>
+        }
+      />
     </main>
   );
 }

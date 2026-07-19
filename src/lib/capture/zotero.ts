@@ -4,7 +4,11 @@ import { z } from "zod";
 import { usersRoot } from "../data-dir";
 import { getProfile, listProfiles } from "../auth/users";
 import {
+  companionDir,
+  exercisesPdfPath,
   listPapers,
+  pdfPath,
+  readMeta,
   type CitationAuthor,
   type CitationMeta,
   type CitationType,
@@ -370,6 +374,7 @@ function overridesOf(item: ZoteroItemData): Partial<PaperMeta> {
 }
 
 const inFlight = new Set<string>();
+const cancelled = new Set<string>();
 export interface ZoteroSyncResult {
   imported: number;
   skipped: number;
@@ -385,6 +390,32 @@ export function lastSyncResult(username: string): ZoteroSyncResult | null {
   return lastResults.get(username) ?? null;
 }
 
+/** Stop and forget transient sync state before a profile is erased. */
+export function cancelProfileSync(username: string): void {
+  if (inFlight.has(username)) cancelled.add(username);
+  else cancelled.delete(username);
+  lastResults.delete(username);
+}
+
+function removeCancelledImport(
+  username: string,
+  topic: string,
+  slug: string,
+  sourceKey: string,
+): void {
+  const meta = readMeta(topic, slug);
+  if (
+    meta?.addedBy !== username ||
+    meta.source?.provider !== "zotero" ||
+    meta.source.key !== sourceKey
+  ) {
+    return;
+  }
+  fs.rmSync(pdfPath(topic, slug), { force: true });
+  fs.rmSync(exercisesPdfPath(topic, slug), { force: true });
+  fs.rmSync(companionDir(topic, slug), { recursive: true, force: true });
+}
+
 /**
  * Pull new PDF items for one profile. Returns null when the profile has no
  * Zotero config or a sync is already running; otherwise counts.
@@ -396,6 +427,7 @@ export async function syncProfile(
   const cfg = profile?.zotero;
   if (!profile || !cfg) return null;
   if (inFlight.has(username)) return null;
+  cancelled.delete(username);
   inFlight.add(username);
   try {
     const cursor = readCursor(username);
@@ -410,6 +442,7 @@ export async function syncProfile(
     let skipped = 0;
     let failed = 0;
     for (const { item, attachmentKey } of items) {
+      if (cancelled.has(username)) return null;
       if (Object.hasOwn(cursor.imported, item.key)) {
         skipped += 1;
         continue;
@@ -424,6 +457,7 @@ export async function syncProfile(
       }
       try {
         const bytes = await downloadAttachment(cfg, attachmentKey);
+        if (cancelled.has(username)) return null;
         const result = await capturePdf(bytes, {
           sourceUrl:
             item.url ||
@@ -443,6 +477,15 @@ export async function syncProfile(
           overrides: overridesOf(item),
           sourceTags: (item.tags ?? []).map(({ tag }) => tag),
         });
+        if (cancelled.has(username)) {
+          removeCancelledImport(
+            username,
+            result.proposedTopic,
+            result.slug,
+            item.key,
+          );
+          return null;
+        }
         cursor.imported[item.key] = result.slug;
         if (arxivId) knownArxiv.add(arxivId);
         imported += 1;
@@ -455,6 +498,7 @@ export async function syncProfile(
         failed += 1;
       }
     }
+    if (cancelled.has(username)) return null;
     if (failed === 0) cursor.lastVersion = version;
     writeCursor(username, cursor);
     if (imported > 0) rebuildIndex();
@@ -463,6 +507,7 @@ export async function syncProfile(
     return result;
   } finally {
     inFlight.delete(username);
+    cancelled.delete(username);
   }
 }
 

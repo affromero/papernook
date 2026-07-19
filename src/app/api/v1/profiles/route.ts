@@ -80,9 +80,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         {
           error: instancePasswordConfigured()
             ? "The access password is required to create a profile."
-            : "Ask an existing member to create your profile from Settings.",
+            : "Public access is not configured. The admin must set PAPERNOOK_PASSWORD.",
         },
-        { status: 403 },
+        { status: instancePasswordConfigured() ? 403 : 503 },
       );
     }
     recordSuccess(ipKey);

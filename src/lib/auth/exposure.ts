@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { isPublicExposure } from "../data-dir";
-import { instancePasswordConfigured } from "./users";
 
 /**
  * Request-aware exposure: the same instance can be reached through the
@@ -33,7 +32,7 @@ export async function requestIsPublic(): Promise<boolean> {
   );
 }
 
-/** Gate applies: public request on an instance with the shared password. */
+/** Every public request requires the gate; missing password config fails shut. */
 export async function requestNeedsGate(): Promise<boolean> {
-  return (await requestIsPublic()) && instancePasswordConfigured();
+  return requestIsPublic();
 }

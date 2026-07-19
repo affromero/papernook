@@ -109,6 +109,45 @@ describe("provider registry", () => {
     expect(await isProviderAvailable("openai")).toBe(true);
   });
 
+  it("auto-detects Codex first, then Claude Code, without silent fallback", async () => {
+    let codexReady = true;
+    vi.doMock("node:child_process", () => ({
+      spawn: (command: string) => ({
+        kill: vi.fn(),
+        on: (event: string, callback: (code?: number) => void) => {
+          if (event === "close") {
+            const ready =
+              command === "codex" ? codexReady : command === "claude";
+            setImmediate(() => callback(ready ? 0 : 1));
+          }
+        },
+      }),
+    }));
+    const { detectLocalCliProvider } = await import("@/lib/agent/registry");
+
+    expect(await detectLocalCliProvider()).toBe("codex");
+    codexReady = false;
+    expect(await detectLocalCliProvider()).toBe("claude-code");
+    vi.doUnmock("node:child_process");
+  });
+
+  it("does not call an installed but unauthenticated CLI ready", async () => {
+    vi.doMock("node:child_process", () => ({
+      spawn: (_command: string, args: string[]) => ({
+        kill: vi.fn(),
+        on: (event: string, callback: (code?: number) => void) => {
+          if (event === "close") {
+            setImmediate(() => callback(args.includes("--version") ? 0 : 1));
+          }
+        },
+      }),
+    }));
+    const { providerStatus } = await import("@/lib/agent/registry");
+
+    expect(await providerStatus("codex")).toBe("not_authenticated");
+    vi.doUnmock("node:child_process");
+  });
+
   it("probes local and custom OpenAI endpoints instead of requiring keys", async () => {
     vi.stubEnv("OLLAMA_HOST", "http://models.test:11434/v1/");
     vi.stubEnv("OLLAMA_MODEL", "qwen3:4b");

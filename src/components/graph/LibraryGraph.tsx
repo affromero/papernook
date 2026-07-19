@@ -58,9 +58,16 @@ export function LibraryGraph() {
       cy = cytoscape({
         container: containerRef.current,
         elements: [
-          ...nodes.map((n) => ({
-            data: { id: n.id, label: n.label, kind: n.kind, href: n.href },
-          })),
+          ...nodes.map((n, index) => {
+            const angle = (index / Math.max(nodes.length, 1)) * Math.PI * 2;
+            return {
+              data: { id: n.id, label: n.label, kind: n.kind, href: n.href },
+              position: {
+                x: 400 + Math.cos(angle) * 220,
+                y: 300 + Math.sin(angle) * 220,
+              },
+            };
+          }),
           ...(data.edges ?? []).map((e, i) => ({
             data: {
               id: `e${i}`,
@@ -110,10 +117,10 @@ export function LibraryGraph() {
         layout: {
           name: "fcose",
           animate: false,
+          randomize: false,
           nodeRepulsion: 6000,
           idealEdgeLength: 60,
         } as cytoscape.LayoutOptions,
-        wheelSensitivity: 0.2,
       });
       cy.on("tap", "node", (event) => {
         const href = event.target.data("href") as string | undefined;

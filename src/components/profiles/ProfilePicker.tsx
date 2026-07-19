@@ -11,40 +11,23 @@ export interface PickerProfile {
   username: string;
   displayName: string;
   avatarSlug: string;
-  hasPassword: boolean;
 }
 
 interface ProfilePickerProps {
   profiles: PickerProfile[];
-  /** True when the instance requires passwords (public exposure). */
-  publicMode: boolean;
-  /** True when one shared access password (from Infisical) is configured. */
-  instancePassword: boolean;
 }
 
-type Editor =
-  | { mode: "create" }
-  | { mode: "password"; profile: PickerProfile; mustSet: boolean }
-  | null;
+type Editor = { mode: "create" } | null;
 
-export function ProfilePicker({
-  profiles,
-  publicMode,
-  instancePassword,
-}: ProfilePickerProps) {
+export function ProfilePicker({ profiles }: ProfilePickerProps) {
   const router = useRouter();
   const [editor, setEditor] = useState<Editor>(null);
   const [name, setName] = useState("");
   const [avatarSlug, setAvatarSlug] = useState(ANIMAL_AVATARS[0].slug);
-  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function login(
-    username: string,
-    pw?: string,
-    newPw?: string,
-  ): Promise<void> {
+  async function login(username: string): Promise<void> {
     setBusy(true);
     setError(null);
     try {
@@ -52,22 +35,10 @@ export function ProfilePicker({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ username, password: pw, newPassword: newPw }),
+        body: JSON.stringify({ username }),
       });
-      const body = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        mustSetPassword?: boolean;
-      };
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        if (body.mustSetPassword) {
-          const profile = profiles.find((p) => p.username === username);
-          if (profile) {
-            setPassword("");
-            setEditor({ mode: "password", profile, mustSet: true });
-            setBusy(false);
-            return;
-          }
-        }
         throw new Error(body.error ?? "Could not sign in.");
       }
       router.push("/");
@@ -80,16 +51,7 @@ export function ProfilePicker({
 
   function pick(profile: PickerProfile): void {
     if (busy) return;
-    if (publicMode && !instancePassword) {
-      setPassword("");
-      setEditor({
-        mode: "password",
-        profile,
-        mustSet: !profile.hasPassword,
-      });
-      return;
-    }
-    // Private mode, or gated instance mode: log in directly.
+    // Private mode is trusted; public mode already passed the shared gate.
     void login(profile.username);
   }
 
@@ -110,25 +72,6 @@ export function ProfilePicker({
       if (!res.ok || !body.profile)
         throw new Error(body.error ?? "Could not create the profile.");
       setBusy(false);
-      if (instancePassword) {
-        // The gate already proved the password; log straight in.
-        await login(body.profile.username);
-        return;
-      }
-      if (publicMode) {
-        setPassword("");
-        setEditor({
-          mode: "password",
-          profile: {
-            username: body.profile.username,
-            displayName: name.trim(),
-            avatarSlug,
-            hasPassword: false,
-          },
-          mustSet: true,
-        });
-        return;
-      }
       await login(body.profile.username);
     } catch (e) {
       setError(
@@ -141,78 +84,6 @@ export function ProfilePicker({
   function closeEditor(): void {
     setEditor(null);
     setError(null);
-  }
-
-  if (editor?.mode === "password") {
-    const { profile, mustSet } = editor;
-    return (
-      <div className={styles.root}>
-        <div className={styles.brand}>papernook</div>
-        <div
-          className={styles.panel}
-          role="dialog"
-          aria-modal="true"
-          aria-label={mustSet ? "Set a password" : "Enter password"}
-        >
-          <h1 className={styles.panelTitle}>
-            {mustSet
-              ? `Set a password for ${profile.displayName}`
-              : `Hi ${profile.displayName}`}
-          </h1>
-          <label className={styles.fieldLabel} htmlFor="profile-password">
-            {mustSet ? "New password (min 8 characters)" : "Password"}
-          </label>
-          <input
-            id="profile-password"
-            className={styles.nameInput}
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            maxLength={200}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && password.length > 0) {
-                void login(
-                  profile.username,
-                  mustSet ? undefined : password,
-                  mustSet ? password : undefined,
-                );
-              }
-            }}
-          />
-          {error && (
-            <p className={styles.error} role="alert">
-              {error}
-            </p>
-          )}
-          <div className={styles.panelActions}>
-            <button
-              type="button"
-              className={styles.ghostBtn}
-              onClick={closeEditor}
-              disabled={busy}
-            >
-              <X size={16} aria-hidden="true" /> Cancel
-            </button>
-            <button
-              type="button"
-              className={styles.primaryBtn}
-              onClick={() =>
-                login(
-                  profile.username,
-                  mustSet ? undefined : password,
-                  mustSet ? password : undefined,
-                )
-              }
-              disabled={busy || password.length === 0}
-            >
-              <Check size={16} aria-hidden="true" />{" "}
-              {mustSet ? "Set & enter" : "Enter"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   if (editor?.mode === "create") {
@@ -328,7 +199,6 @@ export function ProfilePicker({
           className={`${styles.profile} ${styles.add}`}
           onClick={() => {
             setName("");
-            setPassword("");
             setAvatarSlug(ANIMAL_AVATARS[0].slug);
             setError(null);
             setEditor({ mode: "create" });

@@ -8,7 +8,7 @@ import styles from "./ProfilePicker.module.css";
  * The front-door password prompt for a public instance. No profile names or
  * Add button exist until this passes; on success it reloads into the picker.
  */
-export function AccessGate() {
+export function AccessGate({ configured = true }: { configured?: boolean }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,43 +45,51 @@ export function AccessGate() {
         aria-modal="true"
         aria-label="Access password"
       >
-        <h1 className={styles.panelTitle}>Enter the access password</h1>
+        <h1 className={styles.panelTitle}>
+          {configured
+            ? "Enter the access password"
+            : "Public access needs admin setup"}
+        </h1>
         <p className={styles.gateHint}>
-          This is a private paper library. The person who runs it has the
-          password; ask them, or use the invite link/QR they can generate in
-          their Settings.
+          {configured
+            ? "This is a private paper library. The admin created the access password; ask them for it, or use an invite link or QR from their Settings."
+            : "The admin must set PAPERNOOK_PASSWORD in .env and restart Papernook before anyone can use this public address."}
         </p>
-        <label className={styles.fieldLabel} htmlFor="gate-password">
-          Password
-        </label>
-        <input
-          id="gate-password"
-          className={styles.nameInput}
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          maxLength={200}
-          autoFocus
-          autoComplete="current-password"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void submit();
-          }}
-        />
-        {error && (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
+        {configured && (
+          <>
+            <label className={styles.fieldLabel} htmlFor="gate-password">
+              Password
+            </label>
+            <input
+              id="gate-password"
+              className={styles.nameInput}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              maxLength={200}
+              autoFocus
+              autoComplete="current-password"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void submit();
+              }}
+            />
+            {error && (
+              <p className={styles.error} role="alert">
+                {error}
+              </p>
+            )}
+            <div className={styles.panelActions}>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={() => void submit()}
+                disabled={busy || password.length === 0}
+              >
+                Enter
+              </button>
+            </div>
+          </>
         )}
-        <div className={styles.panelActions}>
-          <button
-            type="button"
-            className={styles.primaryBtn}
-            onClick={() => void submit()}
-            disabled={busy || password.length === 0}
-          >
-            Enter
-          </button>
-        </div>
       </div>
     </div>
   );

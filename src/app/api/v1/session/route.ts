@@ -2,8 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import {
   getProfile,
-  setPassword,
-  verifyPassword,
   toPublicProfile,
   instancePasswordConfigured,
   verifyInstancePassword,
@@ -24,10 +22,8 @@ import {
 
 const loginSchema = z.object({
   username: z.string().min(2).max(31),
-  /** Required in public mode; ignored in private mode. */
+  /** Optional direct-API alternative to first passing the shared gate. */
   password: z.string().max(200).optional(),
-  /** First login in public mode on a passwordless profile sets the password. */
-  newPassword: z.string().min(8).max(200).optional(),
 });
 
 function clientIp(request: NextRequest): string {
@@ -48,13 +44,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!body.success) {
     return NextResponse.json({ error: "Invalid login." }, { status: 400 });
   }
-  const { username, password, newPassword } = body.data;
+  const { username, password } = body.data;
   const profile = getProfile(username);
   if (!profile) {
     return NextResponse.json({ error: "Unknown profile." }, { status: 404 });
   }
 
   if (await requestIsPublic()) {
+    if (!instancePasswordConfigured()) {
+      return NextResponse.json(
+        {
+          error:
+            "Public access is not configured. The admin must set PAPERNOOK_PASSWORD.",
+        },
+        { status: 503 },
+      );
+    }
     const ipKey = `ip:${clientIp(request)}`;
     const accountKey = `user:${username}`;
     const wait = Math.max(retryAfterMs(ipKey), retryAfterMs(accountKey));
@@ -68,33 +73,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (instancePasswordConfigured()) {
-      // Instance password is THE password. A valid gate cookie already
-      // proved it, so a gated request logs in directly; otherwise the
-      // password must be supplied here.
-      if (!(await gatePassed())) {
-        if (!password || !verifyInstancePassword(password)) {
-          recordFailure(ipKey);
-          recordFailure(accountKey);
-          return NextResponse.json(
-            { error: "Wrong password." },
-            { status: 401 },
-          );
-        }
+    // A valid gate cookie already proved the admin-created password. Direct
+    // API clients may supply that same instance password with the login.
+    if (!(await gatePassed())) {
+      if (!password || !verifyInstancePassword(password)) {
+        recordFailure(ipKey);
+        recordFailure(accountKey);
+        return NextResponse.json({ error: "Wrong password." }, { status: 401 });
       }
-    } else if (profile.passwordHash === null) {
-      // Public mode + passwordless profile: first login must set a password.
-      if (!newPassword) {
-        return NextResponse.json(
-          { error: "This profile must set a password.", mustSetPassword: true },
-          { status: 403 },
-        );
-      }
-      await setPassword(username, newPassword);
-    } else if (!password || !(await verifyPassword(username, password))) {
-      recordFailure(ipKey);
-      recordFailure(accountKey);
-      return NextResponse.json({ error: "Wrong password." }, { status: 401 });
     }
     recordSuccess(ipKey);
     recordSuccess(accountKey);
