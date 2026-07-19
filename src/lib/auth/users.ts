@@ -25,6 +25,8 @@ export interface Profile {
   passwordHash: string | null;
   /** True once the per-profile onboarding wizard has been completed. */
   wizardDone?: boolean;
+  /** Connected Zotero library for pull-only sync. */
+  zotero?: { apiKey: string; userId: string };
   createdAt: string;
 }
 
@@ -205,6 +207,19 @@ export function markWizardDone(username: string): void {
   if (!profile) throw new ProfileError("Unknown profile.");
   profile.wizardDone = true;
   writeProfile(profile);
+}
+
+/** Connect or disconnect (null) a profile's Zotero library. */
+export function setZoteroConfig(
+  username: string,
+  zotero: { apiKey: string; userId: string } | null,
+): Profile {
+  const profile = readProfile(username);
+  if (!profile) throw new ProfileError("Unknown profile.");
+  if (zotero) profile.zotero = zotero;
+  else delete profile.zotero;
+  writeProfile(profile);
+  return profile;
 }
 
 export function rotateCaptureToken(username: string): Profile {

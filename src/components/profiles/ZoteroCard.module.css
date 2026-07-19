@@ -1,0 +1,60 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.line {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.input {
+  flex: 1;
+  min-width: 180px;
+  min-height: 36px;
+  padding: 0 0.6rem;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
+}
+
+.save {
+  min-height: 36px;
+  padding: 0 0.9rem;
+  border-radius: 8px;
+  border: 0;
+  background: #3f4fb0;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.save:disabled {
+  opacity: 0.6;
+}
+
+.secondary {
+  min-height: 36px;
+  padding: 0 0.9rem;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
+}
+
+.status {
+  margin: 0;
+  font-size: 0.82rem;
+  opacity: 0.8;
+}

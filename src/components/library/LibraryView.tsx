@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { AddPaperBox } from "./AddPaperBox";
+import { ReviewStrip } from "./ReviewStrip";
 import { ViewToggle } from "./ViewToggle";
 import {
+  allIndexed,
   searchIndex,
   allTags,
   type IndexedPaper,
@@ -45,6 +47,9 @@ export function LibraryView({
   const topics = listTopics();
   const tags = allTags();
   const inboxCount = listInbox().length;
+  const flagged = allIndexed()
+    .filter((p) => p.needsReview && p.topic !== null)
+    .map((p) => ({ slug: p.slug, topic: p.topic as string, title: p.title }));
 
   return (
     <div className={styles.root}>
@@ -101,6 +106,7 @@ export function LibraryView({
 
       <section className={styles.main}>
         <ViewToggle active="library" />
+        <ReviewStrip flagged={flagged} topics={topics} />
         <AddPaperBox captureToken={captureToken} />
         <form className={styles.searchRow} action="/" method="get">
           <input

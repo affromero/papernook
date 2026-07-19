@@ -182,6 +182,28 @@ Papernook does not publish local-model ports.
 
 Images (crops, pasted screenshots) travel per transport: file paths + the Read tool for the local claude CLI, `-i` for codex, `scp` to a temp dir for SSH modes, base64 content blocks for the APIs. Local chats with images require a vision-capable model and server. Paper capture can send roughly 60,000 characters, so choose a model with enough context; provider errors are surfaced rather than silently truncating or falling back.
 
+## Integrations
+
+Pull-only sync from reference managers — papernook fetches new PDF items and
+files them through the regular capture pipeline (AI-proposed topic, tags,
+summary, starter questions), flagged for a one-glance review in the library.
+
+| Tool              | Sync            | How                                                                     |
+| ----------------- | --------------- | ----------------------------------------------------------------------- |
+| Zotero            | ✅ built in     | Per-profile API key; new PDF items pull in every 30 min or on demand    |
+| Mendeley          | possible        | Public REST API still up, but OAuth app registration adds friction      |
+| Readwise Reader   | possible        | Clean token-authed V3 API exposes saved documents                       |
+| Paperpile         | workaround only | No public API; its Google Drive folder sync could feed a watched folder |
+| EndNote, ReadCube | ❌              | No usable public API                                                    |
+
+**Zotero setup:** create a key with library read access at
+[zotero.org/settings/keys](https://www.zotero.org/settings/keys), paste it in
+**Settings → Zotero sync** (the user ID is discovered automatically). Each
+profile connects its own library; imports are attributed to that profile.
+Synced papers auto-file and appear in a "needs review" strip on the library
+view — keep the AI's topic or re-file in one click. Dedup is by Zotero item
+key and arXiv ID, so re-syncs and overlapping libraries never import twice.
+
 ## Self-host
 
 `docker-compose.yml` runs two containers: the app (Next.js standalone; poppler + openssh-client baked in; `data/` volume) and `rclone serve webdav` over **`data/papers` only**; chats, crops, and canvases never touch WebDAV. A public share can read only its current confirmed PDF and explicitly snapshotted conversation assets through token-scoped, no-store routes. Private-first reach via [Tailscale](https://tailscale.com) and [sidedoor](https://www.npmjs.com/package/thesidedoor) (QR + Add to Home Screen from Settings). Public exposure is a deliberate opt-in: see `Caddyfile.example` and [docs/public-exposure.md](docs/public-exposure.md).

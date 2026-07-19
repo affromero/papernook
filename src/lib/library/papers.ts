@@ -13,6 +13,15 @@ import { assertSlug, isValidSlug } from "./slug";
  * unconfirmed captures never appear over WebDAV.
  */
 
+/** Provenance for papers imported by an integration sync. */
+export interface PaperSource {
+  provider: "zotero";
+  /** Item key in the source library. */
+  key: string;
+  /** Source library version at import time. */
+  version: number;
+}
+
 export interface PaperMeta {
   title: string;
   authors: string[];
@@ -27,6 +36,10 @@ export interface PaperMeta {
   addedAt: string;
   /** Username of the profile whose capture token added it. */
   addedBy: string;
+  /** Set when an integration sync imported this paper. */
+  source?: PaperSource;
+  /** Auto-filed by a sync and awaiting user review. */
+  needsReview?: boolean;
 }
 
 export interface Paper {
@@ -239,6 +252,47 @@ export function acceptFromInbox(slug: string, topic: string): Paper {
   const paper = loadPaper(topic, slug);
   if (!paper) throw new Error(`Accept failed for "${slug}".`);
   return paper;
+}
+
+/**
+ * Move a confirmed paper to another topic: atomic renames of the WebDAV
+ * artifacts and the companion dir (same filesystem, so each rename is atomic;
+ * the PDF moves first, keeping any half-moved state invisible to queries that
+ * require both to exist).
+ */
+export function movePaper(
+  topic: string,
+  slug: string,
+  newTopic: string,
+): Paper {
+  assertSlug(topic);
+  assertSlug(slug);
+  assertSlug(newTopic);
+  const existing = loadPaper(topic, slug);
+  if (!existing) throw new Error(`No paper "${slug}" in topic "${topic}".`);
+  if (newTopic === topic) return existing;
+  const toPdf = pdfPath(newTopic, slug);
+  const toDir = companionDir(newTopic, slug);
+  fs.mkdirSync(path.dirname(toPdf), { recursive: true });
+  fs.mkdirSync(path.dirname(toDir), { recursive: true });
+  fs.renameSync(pdfPath(topic, slug), toPdf);
+  const exercises = exercisesPdfPath(topic, slug);
+  if (fs.existsSync(exercises)) {
+    fs.renameSync(exercises, exercisesPdfPath(newTopic, slug));
+  }
+  fs.renameSync(companionDir(topic, slug), toDir);
+  const paper = loadPaper(newTopic, slug);
+  if (!paper) throw new Error(`Move failed for "${slug}".`);
+  return paper;
+}
+
+/** Clear the sync-review flag once the user keeps or re-files the paper. */
+export function clearNeedsReview(topic: string, slug: string): void {
+  const meta = readMeta(topic, slug);
+  if (!meta) throw new Error(`No paper "${slug}" in topic "${topic}".`);
+  if (!meta.needsReview) return;
+  delete meta.needsReview;
+  writeMeta(topic, slug, meta);
 }
 
 /** Accept an inbox capture only when it belongs to the profile's capture token. */

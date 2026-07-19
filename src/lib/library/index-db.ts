@@ -20,6 +20,7 @@ export interface IndexedPaper {
   addedBy: string;
   addedAt: string;
   summarySnippet: string | null;
+  needsReview: boolean;
 }
 
 let db: Database.Database | null = null;
@@ -29,6 +30,13 @@ function connection(): Database.Database {
   fs.mkdirSync(dataRoot(), { recursive: true });
   db = new Database(path.join(dataRoot(), "index.db"));
   db.pragma("journal_mode = WAL");
+  // The DB is a rebuildable cache: on any schema change, drop and let the
+  // boot-time rebuild repopulate instead of migrating.
+  const SCHEMA_VERSION = 2;
+  if (db.pragma("user_version", { simple: true }) !== SCHEMA_VERSION) {
+    db.exec("DROP TABLE IF EXISTS papers; DROP TABLE IF EXISTS papers_fts;");
+    db.pragma(`user_version = ${SCHEMA_VERSION}`);
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS papers (
       slug TEXT PRIMARY KEY,
@@ -39,7 +47,8 @@ function connection(): Database.Database {
       tags TEXT NOT NULL,
       added_by TEXT NOT NULL,
       added_at TEXT NOT NULL,
-      summary_snippet TEXT
+      summary_snippet TEXT,
+      needs_review INTEGER NOT NULL DEFAULT 0
     );
     CREATE VIRTUAL TABLE IF NOT EXISTS papers_fts USING fts5(
       slug UNINDEXED, title, authors, tags, summary, fulltext
@@ -71,6 +80,7 @@ function indexOne(
     paper.meta.addedBy,
     paper.meta.addedAt,
     snippet,
+    paper.meta.needsReview ? 1 : 0,
   );
   insertFts.run(
     paper.slug,
@@ -86,7 +96,7 @@ function indexOne(
 export function rebuildIndex(): void {
   const conn = connection();
   const insertPaper = conn.prepare(
-    "INSERT INTO papers (slug, topic, title, authors, year, tags, added_by, added_at, summary_snippet) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO papers (slug, topic, title, authors, year, tags, added_by, added_at, summary_snippet, needs_review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const insertFts = conn.prepare(
     "INSERT INTO papers_fts (slug, title, authors, tags, summary, fulltext) VALUES (?, ?, ?, ?, ?, ?)",
@@ -109,6 +119,7 @@ interface PaperRow {
   added_by: string;
   added_at: string;
   summary_snippet: string | null;
+  needs_review: number;
 }
 
 function rowToIndexed(row: PaperRow): IndexedPaper {
@@ -122,6 +133,7 @@ function rowToIndexed(row: PaperRow): IndexedPaper {
     addedBy: row.added_by,
     addedAt: row.added_at,
     summarySnippet: row.summary_snippet,
+    needsReview: row.needs_review === 1,
   };
 }
 
