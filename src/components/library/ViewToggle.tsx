@@ -6,6 +6,7 @@ import styles from "./ViewToggle.module.css";
 const VIEWS = [
   { id: "library", label: "Library", href: "/" },
   { id: "graph", label: "Graph", href: "/graph" },
+  { id: "discover", label: "Discover", href: "/discover" },
 ] as const;
 
 export type ViewId = (typeof VIEWS)[number]["id"];
