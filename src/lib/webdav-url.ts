@@ -29,3 +29,17 @@ export function resolveWebdavUrl(
   }
   return `${app.protocol}//${app.hostname}:8080`;
 }
+
+export function optionalWebdavUrl(
+  appUrl: string,
+  configuredUrl: string | undefined,
+  username: string | undefined,
+  password: string | undefined,
+): string | null {
+  if (!username || !password) return null;
+  try {
+    return resolveWebdavUrl(appUrl, configuredUrl);
+  } catch {
+    return null;
+  }
+}

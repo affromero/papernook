@@ -10,7 +10,7 @@ import styles from "./welcome.module.css";
  * One-screen onboarding. Everything the instance knows from its environment
  * renders as a finished value with a Copy button; the only actions
  * left are taps. Sections are device-oriented: chat works already, capture
- * is one tap per device, annotation is one login in PDF Expert.
+ * is one tap per device, and annotations work in the web reader.
  */
 
 interface WelcomeFlowProps {
@@ -18,7 +18,7 @@ interface WelcomeFlowProps {
   avatarSlug: string;
   captureToken: string;
   baseUrl: string;
-  webdavUrl: string;
+  webdavUrl: string | null;
   shortcutUrl: string | null;
   agentProvider: string | null;
   agentAvailable: boolean;
@@ -99,7 +99,7 @@ export function WelcomeFlow({
           <div>
             <h1 className={styles.heroTitle}>Welcome, {displayName}</h1>
             <p className={styles.heroSub}>
-              Your library is ready. Two taps and one login below, then read.
+              Your library is ready. Add your capture tools, then start reading.
             </p>
           </div>
         </header>
@@ -165,31 +165,25 @@ export function WelcomeFlow({
           <div className={styles.sectionHead}>
             <span className={styles.dotOk} aria-hidden="true" />
             <h2 className={styles.sectionTitle}>Write on papers</h2>
-            <span className={styles.sectionState}>one login</span>
+            <span className={styles.sectionState}>works now</span>
           </div>
           <p className={styles.sectionBody}>
-            Not in Apple&rsquo;s Files app; its &ldquo;Connect to Server&rdquo;
-            only speaks SMB and rejects this address. Inside the PDF app:
+            Open papernook in Safari on iPad or any desktop browser. Highlights,
+            text, and Pencil ink save back to the same paper, with chat beside
+            it.
           </p>
-          <ol className={styles.steps}>
-            <li>
-              Install <strong>Documents by Readdle</strong> (free) or{" "}
-              <strong>PDF Viewer by Nutrient</strong> (free, unlimited
-              annotations). PDF Expert works too but needs a subscription.
-            </li>
-            <li>
-              Documents: <strong>+ Add Connection → WebDAV Server</strong>. PDF
-              Viewer / PDF Expert: add a WebDAV location from the connections
-              screen.
-            </li>
-            <li>
-              Paste the values below. Open a paper, write with the Pencil; ink
-              saves into the PDF here. No exports, ever.
-            </li>
-          </ol>
-          <CopyRow label="Address" value={webdavUrl} />
-          {webdavUser && <CopyRow label="User" value={webdavUser} />}
-          {webdavPass && <CopyRow label="Password" value={webdavPass} secret />}
+          {webdavUrl && webdavUser && webdavPass && (
+            <details className={styles.compatibility}>
+              <summary>Use an external PDF app instead</summary>
+              <p className={styles.sectionBody}>
+                Optional compatibility for Documents, PDF Viewer, or PDF Expert
+                over WebDAV.
+              </p>
+              <CopyRow label="Address" value={webdavUrl} />
+              <CopyRow label="User" value={webdavUser} />
+              <CopyRow label="Password" value={webdavPass} secret />
+            </details>
+          )}
         </section>
 
         <button

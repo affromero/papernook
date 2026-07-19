@@ -1,18 +1,18 @@
-# iPad annotation over WebDAV
+# iPad annotation
 
 [← Documentation home](README.md)
 
-papernook serves **only** `data/papers/` (your annotatable PDFs and rendered
-exercise sheets) through an rclone WebDAV sidecar. Chats, crops, and canvases
-never appear on the share.
+Open Papernook in Safari, choose a paper, and use the same annotation toolbar
+as desktop. Apple Pencil input enables Draw automatically. Highlights, text,
+and ink autosave into the PDF, while Reading and Chat remain available as
+separate tablet tabs.
 
-## Where NOT to add it
+## Optional external PDF apps
 
-Apple's built-in Files app cannot do this: its "Connect to Server" option
-only supports SMB and rejects any https:// WebDAV address with "this URL is
-not supported". The connection goes inside the PDF app itself.
-
-## PDF Expert or Documents (recommended)
+When WebDAV is fully configured, Settings shows an **External PDF app
+compatibility** disclosure. Papernook serves only `data/papers/` through that
+route; chats and private companion files never appear on it. Apple Files does
+not support WebDAV, so add the connection inside the PDF app.
 
 1. Install **Documents by Readdle** (free) or **PDF Viewer by Nutrient**
    (free, unlimited annotations). PDF Expert also works but is
@@ -36,8 +36,6 @@ not supported". The connection goes inside the PDF app itself.
    server**. papernook, other devices, and future exports all see them.
    There is no export step and no proprietary format.
 
-![WebDAV values ready to copy from the welcome flow](images/setup/welcome-webdav.png)
-
 > **Important:** the app and WebDAV addresses must both be reachable through
 > the selected route. A friend using Tailscale should use the server's
 > Tailscale hostname or IP for both, not `dav-<tailscale-hostname>`.
@@ -51,10 +49,6 @@ possible domain.
 
 - **Exercises**: `<paper>.exercises.pdf` sits next to each paper — solutions
   go straight in with the Pencil.
-- **More writing room**: use the canvas toolbar's _+ margin space_ /
-  _+ blank page_ in papernook; the file grows without moving existing ink.
-  If the button reports the file was just modified, the iPad was mid-save;
-  wait a few seconds.
 - **Do not rename or move papers over WebDAV**: WebDAV exposes only the PDF
   tree, while each paper's metadata and private companion files live in a
   separate library tree. A WebDAV-only move would split those two halves.

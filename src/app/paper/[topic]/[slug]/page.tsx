@@ -32,12 +32,6 @@ export default async function PaperPage({ params }: PaperPageProps) {
             Library
           </Link>
           <nav className={styles.actions} aria-label="Paper actions">
-            <Link
-              href={`/paper/${topic}/${slug}/canvas`}
-              className={styles.actionLink}
-            >
-              Open canvas
-            </Link>
             <ShareButton topic={topic} slug={slug} />
             <CitationActions topic={topic} slug={slug} />
           </nav>
@@ -68,7 +62,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
           />
         }
         chat={
-          <div id="paper-chat-panel" className={styles.chat}>
+          <div className={styles.chat}>
             {paper.summary && <p className={styles.summary}>{paper.summary}</p>}
             <ChatPanel topic={topic} slug={slug} />
           </div>

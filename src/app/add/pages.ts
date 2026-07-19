@@ -87,7 +87,7 @@ export function acceptedPage(slug: string, topic: string): string {
     "Added",
     `<h1>Filed ✓</h1>
 <div class="card">
-  <p>The paper is now in <strong>${esc(topic)}</strong>. It will appear in PDF Expert over WebDAV, and its chat is ready in papernook.</p>
+  <p>The paper is now in <strong>${esc(topic)}</strong>, ready to annotate and discuss in papernook.</p>
   <p><a href="/paper/${esc(topic)}/${esc(slug)}">Open it in papernook →</a></p>
 </div>`,
   );

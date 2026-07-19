@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveWebdavUrl } from "@/lib/webdav-url";
+import { optionalWebdavUrl, resolveWebdavUrl } from "@/lib/webdav-url";
 
 describe("WebDAV setup URL", () => {
   it("requires an explicit endpoint for a custom HTTPS domain", () => {
@@ -36,5 +36,32 @@ describe("WebDAV setup URL", () => {
     expect(() =>
       resolveWebdavUrl("https://papers.example.com", "file:///private/papers"),
     ).toThrow(/http or https/);
+  });
+
+  it("only advertises optional WebDAV when the full connection is usable", () => {
+    expect(
+      optionalWebdavUrl(
+        "https://papers.example.com",
+        undefined,
+        "reader",
+        "secret",
+      ),
+    ).toBeNull();
+    expect(
+      optionalWebdavUrl(
+        "https://papers.example.com",
+        "https://dav.example.com",
+        "reader",
+        "secret",
+      ),
+    ).toBe("https://dav.example.com");
+    expect(
+      optionalWebdavUrl(
+        "https://papers.example.com",
+        "https://dav.example.com",
+        undefined,
+        "secret",
+      ),
+    ).toBeNull();
   });
 });

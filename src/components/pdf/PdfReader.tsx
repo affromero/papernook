@@ -7,14 +7,21 @@ import {
   Save,
   Type as TypeIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type {
   PDFDocumentLoadingTask,
   PDFDocumentProxy,
   RenderTask,
 } from "pdfjs-dist";
 import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
-import { resolvePdfDestinationPage } from "@/lib/pdf/destinations";
+import {
+  resolvePdfDestination,
+  type ResolvedPdfDestination,
+} from "@/lib/pdf/destinations";
+import {
+  createPdfAutosave,
+  type PdfAutosaveCoordinator,
+} from "@/lib/pdf/autosave";
 import "pdfjs-dist/web/pdf_viewer.css";
 import styles from "./PdfReader.module.css";
 
@@ -25,7 +32,9 @@ interface PdfReaderProps {
 }
 
 interface Preview {
-  pageNumber: number;
+  destination: ResolvedPdfDestination;
+  horizontal: "left" | "right";
+  vertical: "top" | "bottom";
 }
 
 type EditMode = "select" | "highlight" | "text" | "draw";
@@ -40,8 +49,9 @@ interface EditorTypes {
 interface MutableAnnotationStorage {
   onSetModified: (() => void) | null;
   onResetModified: (() => void) | null;
-  resetModified(): void;
 }
+
+class PdfSaveConflictError extends Error {}
 
 function errorMessage(payload: unknown, fallback: string): string {
   if (
@@ -57,12 +67,21 @@ function errorMessage(payload: unknown, fallback: string): string {
 
 export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const pdfViewerRef = useRef<PDFViewer | null>(null);
   const documentRef = useRef<PDFDocumentProxy | null>(null);
   const etagRef = useRef<string | null>(null);
   const editorTypesRef = useRef<EditorTypes | null>(null);
+  const autosaveRef = useRef<PdfAutosaveCoordinator | null>(null);
+  const pendingPenRef = useRef(false);
+  const pinchDistanceRef = useRef<number | null>(null);
+  const referenceAnchorRef = useRef<Pick<
+    Preview,
+    "horizontal" | "vertical"
+  > | null>(null);
   const dirtyRef = useRef(false);
+  const savingRef = useRef(false);
   const previewRef = useRef<Preview | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
@@ -75,6 +94,8 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
+  const [remoteUpdate, setRemoteUpdate] = useState(false);
+  const [pencilMode, setPencilMode] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -128,19 +149,32 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
         ) => {
           const document = documentRef.current;
           if (!document) return;
-          const targetPage = await resolvePdfDestinationPage(
-            document,
-            destination,
-          );
-          if (!targetPage) {
+          const target = await resolvePdfDestination(document, destination);
+          if (!target) {
             await originalGoToDestination(destination);
             return;
           }
-          if (previewRef.current?.pageNumber === targetPage) {
-            window.open(`${src}#page=${targetPage}`, "_blank", "noopener");
-            return;
-          }
-          const nextPreview = { pageNumber: targetPage };
+          const focusedLink =
+            window.document.activeElement instanceof HTMLElement
+              ? window.document.activeElement.closest("a")
+              : null;
+          const focusedRect = focusedLink?.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const anchor = referenceAnchorRef.current ?? {
+            horizontal:
+              focusedRect &&
+              focusedRect.left + focusedRect.width / 2 <
+                containerRect.left + containerRect.width / 2
+                ? "left"
+                : "right",
+            vertical:
+              focusedRect &&
+              focusedRect.top + focusedRect.height / 2 <
+                containerRect.top + containerRect.height / 2
+                ? "top"
+                : "bottom",
+          };
+          const nextPreview = { destination: target, ...anchor };
           previewRef.current = nextPreview;
           setPreview(nextPreview);
         };
@@ -170,7 +204,20 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
             setZoom(Math.round(event.scale * 100));
           }
         };
-        const onAnnotationEditorReady = () => setEditorReady(true);
+        const onAnnotationEditorReady = () => {
+          setEditorReady(true);
+          if (pendingPenRef.current) {
+            pendingPenRef.current = false;
+            setPencilMode(true);
+            pdfViewer.annotationEditorMode = {
+              mode: pdfjs.AnnotationEditorType.INK,
+            };
+            setEditMode("draw");
+            setSaveStatus(
+              "Pencil detected; Draw enabled, touch reserved for pinch zoom",
+            );
+          }
+        };
         eventBus.on("pagesinit", onPagesInit);
         eventBus.on("pagechanging", onPageChanging);
         eventBus.on("scalechanging", onScaleChanging);
@@ -202,15 +249,70 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
         if (editable) {
           const storage =
             document.annotationStorage as unknown as MutableAnnotationStorage;
+          const coordinator = createPdfAutosave({
+            delayMs: 1_800,
+            save: async () => {
+              const expectedEtag = etagRef.current;
+              if (!expectedEtag) {
+                throw new Error("The PDF has no save version.");
+              }
+              const focused = containerRef.current?.querySelector(":focus");
+              if (focused instanceof HTMLElement) focused.blur();
+              const bytes = await document.saveDocument();
+              const response = await fetch(src, {
+                method: "PUT",
+                credentials: "same-origin",
+                headers: {
+                  "content-type": "application/pdf",
+                  "if-match": expectedEtag,
+                },
+                body: bytes,
+              });
+              const payload: unknown = await response.json().catch(() => null);
+              if (response.status === 409 || response.status === 412) {
+                throw new PdfSaveConflictError(
+                  errorMessage(
+                    payload,
+                    "The PDF changed elsewhere. Reload before saving.",
+                  ),
+                );
+              }
+              if (!response.ok) {
+                throw new Error(
+                  errorMessage(payload, `Save failed with ${response.status}.`),
+                );
+              }
+              const nextEtag = response.headers.get("etag");
+              if (!nextEtag) {
+                throw new Error("The save response had no PDF version.");
+              }
+              etagRef.current = nextEtag;
+            },
+            onChange: (next) => {
+              dirtyRef.current = next.dirty;
+              savingRef.current = next.saving;
+              setDirty(next.dirty);
+              setSaving(next.saving);
+              if (next.saving) {
+                setSaveStatus("Saving annotations…");
+              } else if (next.error instanceof PdfSaveConflictError) {
+                setRemoteUpdate(true);
+                setSaveStatus(next.error.message);
+                autosaveRef.current?.pause();
+              } else if (next.error) {
+                setSaveStatus(next.error.message);
+              } else if (next.dirty) {
+                setSaveStatus("Unsaved changes");
+              } else {
+                setSaveStatus("Saved");
+              }
+            },
+          });
+          autosaveRef.current = coordinator;
           storage.onSetModified = () => {
-            dirtyRef.current = true;
-            setDirty(true);
-            setSaveStatus("Unsaved changes");
+            coordinator.markDirty();
           };
-          storage.onResetModified = () => {
-            dirtyRef.current = false;
-            setDirty(false);
-          };
+          storage.onResetModified = null;
         }
         linkService.setDocument(document);
         pdfViewer.setDocument(document);
@@ -225,6 +327,8 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
               document.annotationStorage as unknown as MutableAnnotationStorage;
             storage.onSetModified = null;
             storage.onResetModified = null;
+            autosaveRef.current?.stop();
+            autosaveRef.current = null;
           }
           pdfViewer.cleanup();
         };
@@ -246,7 +350,12 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
       documentRef.current = null;
       etagRef.current = null;
       editorTypesRef.current = null;
+      autosaveRef.current?.stop();
+      autosaveRef.current = null;
       dirtyRef.current = false;
+      savingRef.current = false;
+      pendingPenRef.current = false;
+      pinchDistanceRef.current = null;
       setEditorReady(false);
       void loadingTask?.destroy();
     };
@@ -262,6 +371,118 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
   }, [editable]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !pencilMode) return;
+    const reserveTouch = (event: TouchEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const touchDistance = (event: TouchEvent): number | null => {
+      if (event.touches.length !== 2) return null;
+      const first = event.touches[0];
+      const second = event.touches[1];
+      if (!first || !second) return null;
+      return Math.hypot(
+        second.clientX - first.clientX,
+        second.clientY - first.clientY,
+      );
+    };
+    const beginGesture = (event: TouchEvent) => {
+      reserveTouch(event);
+      pinchDistanceRef.current = touchDistance(event);
+    };
+    const updateGesture = (event: TouchEvent) => {
+      reserveTouch(event);
+      const nextDistance = touchDistance(event);
+      const previousDistance = pinchDistanceRef.current;
+      if (!nextDistance || !previousDistance) {
+        pinchDistanceRef.current = nextDistance;
+        return;
+      }
+      const first = event.touches[0];
+      const second = event.touches[1];
+      if (!first || !second) return;
+      pdfViewerRef.current?.updateScale({
+        drawingDelay: 180,
+        scaleFactor: nextDistance / previousDistance,
+        origin: [
+          (first.clientX + second.clientX) / 2,
+          (first.clientY + second.clientY) / 2,
+        ],
+      });
+      pinchDistanceRef.current = nextDistance;
+    };
+    const endGesture = (event: TouchEvent) => {
+      reserveTouch(event);
+      if (event.touches.length < 2) pinchDistanceRef.current = null;
+    };
+    const options: AddEventListenerOptions = {
+      capture: true,
+      passive: false,
+    };
+    stage.addEventListener("touchstart", beginGesture, options);
+    stage.addEventListener("touchmove", updateGesture, options);
+    stage.addEventListener("touchend", endGesture, options);
+    stage.addEventListener("touchcancel", endGesture, options);
+    return () => {
+      stage.removeEventListener("touchstart", beginGesture, options);
+      stage.removeEventListener("touchmove", updateGesture, options);
+      stage.removeEventListener("touchend", endGesture, options);
+      stage.removeEventListener("touchcancel", endGesture, options);
+    };
+  }, [pencilMode]);
+
+  useEffect(() => {
+    if (!editable || !pdfDocument) return;
+
+    let disposed = false;
+    const checkVersion = async () => {
+      if (
+        disposed ||
+        document.visibilityState !== "visible" ||
+        savingRef.current ||
+        remoteUpdate
+      ) {
+        return;
+      }
+      const baseline = etagRef.current;
+      if (!baseline) return;
+      try {
+        const response = await fetch(src, {
+          method: "HEAD",
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+        if (disposed || response.status === 409) return;
+        if (!response.ok) return;
+        const current = response.headers.get("etag");
+        if (current && current !== baseline && etagRef.current === baseline) {
+          autosaveRef.current?.pause();
+          setRemoteUpdate(true);
+          setSaveStatus(
+            dirtyRef.current
+              ? "This PDF changed elsewhere while you have unsaved annotations."
+              : "This PDF changed elsewhere. Reload to see the latest version.",
+          );
+        }
+      } catch {
+        // Connectivity errors are transient; the next poll checks again.
+      }
+    };
+
+    const interval = window.setInterval(() => void checkVersion(), 30_000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void checkVersion();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [editable, pdfDocument, remoteUpdate, src]);
 
   function chooseEditMode(nextMode: EditMode): void {
     const viewer = pdfViewerRef.current;
@@ -285,47 +506,57 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
   }
 
   async function saveAnnotations(): Promise<void> {
-    const document = documentRef.current;
-    const expectedEtag = etagRef.current;
-    if (!document || !expectedEtag || saving || !dirty) return;
+    await autosaveRef.current?.flush();
+  }
 
-    setSaving(true);
-    setSaveStatus("Saving annotations…");
-    try {
-      const bytes = await document.saveDocument();
-      const response = await fetch(src, {
-        method: "PUT",
-        credentials: "same-origin",
-        headers: {
-          "content-type": "application/pdf",
-          "if-match": expectedEtag,
-        },
-        body: bytes,
-      });
-      const payload: unknown = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(
-          errorMessage(payload, `Save failed with ${response.status}.`),
-        );
-      }
-      const nextEtag = response.headers.get("etag");
-      if (!nextEtag) throw new Error("The save response had no PDF version.");
-      etagRef.current = nextEtag;
-      const storage =
-        document.annotationStorage as unknown as MutableAnnotationStorage;
-      storage.resetModified();
-      dirtyRef.current = false;
-      setDirty(false);
-      setSaveStatus("Saved in the PDF");
-    } catch (error) {
-      setSaveStatus(
-        error instanceof Error
-          ? error.message
-          : "Annotations could not be saved.",
-      );
-    } finally {
-      setSaving(false);
+  function captureReferenceAnchor(event: PointerEvent<HTMLDivElement>): void {
+    const target = event.target;
+    if (!(target instanceof Element) || !target.closest("a")) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    referenceAnchorRef.current = {
+      horizontal:
+        event.clientX - bounds.left < bounds.width / 2 ? "left" : "right",
+      vertical:
+        event.clientY - bounds.top < bounds.height / 2 ? "top" : "bottom",
+    };
+  }
+
+  function enablePencilDrawing(event: PointerEvent<HTMLDivElement>): void {
+    captureReferenceAnchor(event);
+    if (pencilMode && event.pointerType === "touch") {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
     }
+    if (!editable || event.pointerType !== "pen") return;
+    setPencilMode(true);
+    if (editMode === "draw") {
+      setSaveStatus("Pencil detected; touch reserved for pinch zoom");
+      return;
+    }
+    const viewer = pdfViewerRef.current;
+    const editorTypes = editorTypesRef.current;
+    if (!viewer || !editorTypes || !editorReady) {
+      pendingPenRef.current = true;
+      return;
+    }
+    viewer.annotationEditorMode = { mode: editorTypes.INK };
+    setEditMode("draw");
+    setSaveStatus(
+      "Pencil detected; Draw enabled, touch reserved for pinch zoom",
+    );
+  }
+
+  function reloadLatest(): void {
+    if (
+      dirtyRef.current &&
+      !window.confirm(
+        "Reloading will discard your unsaved browser annotations. Continue?",
+      )
+    ) {
+      return;
+    }
+    window.location.reload();
   }
 
   function closePreview(): void {
@@ -343,7 +574,10 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
   }, [preview]);
 
   return (
-    <div className={styles.root} aria-label={title}>
+    <div
+      className={`${styles.root} ${saving ? styles.saving : ""}`}
+      aria-label={title}
+    >
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
           <button
@@ -405,7 +639,7 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
               className={styles.saveButton}
               type="button"
               onClick={() => void saveAnnotations()}
-              disabled={!editorReady || !dirty || saving}
+              disabled={!editorReady || !dirty || saving || remoteUpdate}
               aria-label="Save annotations in PDF"
               title="Save annotations in PDF"
             >
@@ -443,7 +677,7 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
           </a>
         </div>
       </div>
-      {editable && saveStatus && (
+      {editable && saveStatus && !remoteUpdate && (
         <div
           className={`${styles.saveStatus} ${dirty ? styles.unsaved : ""}`}
           role="status"
@@ -451,7 +685,19 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
           {saveStatus}
         </div>
       )}
-      <div className={styles.stage}>
+      {editable && remoteUpdate && (
+        <div className={styles.remoteUpdate} role="alert">
+          <span>{saveStatus}</span>
+          <button type="button" onClick={reloadLatest}>
+            Reload latest
+          </button>
+        </div>
+      )}
+      <div
+        ref={stageRef}
+        className={`${styles.stage} ${pencilMode ? styles.pencilMode : ""}`}
+        onPointerDownCapture={enablePencilDrawing}
+      >
         <div className={styles.container} ref={containerRef}>
           <div className="pdfViewer" ref={viewerRef} />
           {status && (
@@ -463,8 +709,7 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
         {preview && pdfDocument && (
           <ReferencePreview
             document={pdfDocument}
-            pageNumber={preview.pageNumber}
-            src={src}
+            preview={preview}
             onClose={closePreview}
           />
         )}
@@ -506,19 +751,18 @@ function EditorButton({
 
 interface ReferencePreviewProps {
   document: PDFDocumentProxy;
-  pageNumber: number;
-  src: string;
+  preview: Preview;
   onClose(): void;
 }
 
 function ReferencePreview({
   document,
-  pageNumber,
-  src,
+  preview,
   onClose,
 }: ReferencePreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState("Loading reference…");
+  const { destination } = preview;
 
   useEffect(() => {
     let disposed = false;
@@ -526,28 +770,59 @@ function ReferencePreview({
 
     void (async () => {
       try {
-        const page = await document.getPage(pageNumber);
+        const page = await document.getPage(destination.pageNumber);
         if (disposed) return;
         const canvas = canvasRef.current;
         const context = canvas?.getContext("2d");
         if (!canvas || !context) return;
 
-        const unscaled = page.getViewport({ scale: 1 });
-        const scale = Math.min(1.35, 620 / unscaled.width);
-        const viewport = page.getViewport({ scale });
         const pixelRatio = window.devicePixelRatio || 1;
-        canvas.width = Math.floor(viewport.width * pixelRatio);
-        canvas.height = Math.floor(viewport.height * pixelRatio);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
-        const renderViewport = page.getViewport({ scale: scale * pixelRatio });
+        const scale = 1.45;
+        const viewport = page.getViewport({ scale: scale * pixelRatio });
+        const source = window.document.createElement("canvas");
+        source.width = Math.ceil(viewport.width);
+        source.height = Math.ceil(viewport.height);
+        const sourceContext = source.getContext("2d");
+        if (!sourceContext) return;
         renderTask = page.render({
-          canvas,
-          canvasContext: context,
-          viewport: renderViewport,
+          canvas: source,
+          canvasContext: sourceContext,
+          viewport,
         });
         await renderTask.promise;
-        if (!disposed) setStatus("");
+        if (disposed) return;
+
+        const cropWidth = Math.min(source.width, Math.round(440 * pixelRatio));
+        const cropHeight = Math.min(
+          source.height,
+          Math.round(190 * pixelRatio),
+        );
+        const point =
+          destination.left !== null && destination.top !== null
+            ? viewport.convertToViewportPoint(destination.left, destination.top)
+            : [source.width / 2, Math.min(source.height / 2, cropHeight / 2)];
+        const sourceX = Math.max(
+          0,
+          Math.min(source.width - cropWidth, point[0] - cropWidth / 2),
+        );
+        const sourceY = Math.max(
+          0,
+          Math.min(source.height - cropHeight, point[1] - cropHeight / 3),
+        );
+        canvas.width = cropWidth;
+        canvas.height = cropHeight;
+        context.drawImage(
+          source,
+          sourceX,
+          sourceY,
+          cropWidth,
+          cropHeight,
+          0,
+          0,
+          cropWidth,
+          cropHeight,
+        );
+        setStatus("");
       } catch (error) {
         if (
           !disposed &&
@@ -563,18 +838,21 @@ function ReferencePreview({
       disposed = true;
       renderTask?.cancel();
     };
-  }, [document, pageNumber]);
+  }, [destination, document]);
 
   return (
     <aside
-      className={styles.preview}
-      aria-label={`Reference preview, page ${pageNumber}`}
+      className={`${styles.preview} ${
+        preview.horizontal === "left" ? styles.previewLeft : styles.previewRight
+      } ${
+        preview.vertical === "top" ? styles.previewTop : styles.previewBottom
+      }`}
+      aria-label={`Reference preview, page ${destination.pageNumber}`}
     >
       <div className={styles.previewHeader}>
-        <div>
-          <span className={styles.previewEyebrow}>Reference preview</span>
-          <strong>Page {pageNumber}</strong>
-        </div>
+        <span className={styles.previewEyebrow}>
+          Reference · page {destination.pageNumber}
+        </span>
         <button
           className={styles.close}
           type="button"
@@ -584,22 +862,10 @@ function ReferencePreview({
           ×
         </button>
       </div>
-      <p className={styles.previewHelp}>
-        Your reading position is unchanged. Select the same reference again or
-        open it separately.
-      </p>
       <div className={styles.previewPage}>
         <canvas ref={canvasRef} />
         {status && <p className={styles.previewStatus}>{status}</p>}
       </div>
-      <a
-        className={styles.openLink}
-        href={`${src}#page=${pageNumber}`}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Open page in new tab ↗
-      </a>
     </aside>
   );
 }

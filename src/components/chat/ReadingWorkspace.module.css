@@ -17,6 +17,10 @@
   min-height: 0;
 }
 
+.mobileTabs {
+  display: none;
+}
+
 .main {
   grid-column: 1;
   grid-row: 2;
@@ -38,6 +42,10 @@
 
 .focusMode .main {
   grid-column: 1;
+}
+
+.desktopChatHidden {
+  display: none;
 }
 
 .toggle {
@@ -70,20 +78,60 @@
 @media (max-width: 900px) {
   .root {
     grid-template-columns: minmax(0, 1fr);
-    min-height: calc(100dvh - 11rem);
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: calc(100dvh - 9rem);
+    row-gap: 0.6rem;
   }
 
-  .main {
-    min-height: 68vh;
+  .mobileTabs {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: center;
+    display: inline-grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 3px;
+    border: 1px solid rgba(34, 45, 38, 0.18);
+    border-radius: 999px;
+    background: rgba(235, 236, 231, 0.9);
+  }
+
+  .mobileTabs button {
+    min-width: 108px;
+    min-height: 44px;
+    padding: 0 1rem;
+    border: 0;
+    border-radius: 999px;
+    color: #68716c;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 750;
+  }
+
+  .mobileTabs button[aria-selected="true"] {
+    color: #20352a;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(27, 34, 29, 0.12);
+  }
+
+  .main,
+  .chat {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 0;
   }
 
   .chat {
-    grid-column: 1;
-    grid-row: 3;
-    min-height: 62vh;
+    display: flex;
   }
 
   .toggle {
-    grid-column: 1;
+    display: none;
+  }
+
+  .root[data-compact-tab="reading"] .chat,
+  .root[data-compact-tab="chat"] .main {
+    display: none;
   }
 }

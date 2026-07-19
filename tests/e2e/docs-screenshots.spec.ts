@@ -74,6 +74,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await loginAsAdmin(page);
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
+    const readerUrl = page.url();
     await expect(
       page.getByText("Why was removing recurrence such a big deal?"),
     ).toBeVisible();
@@ -91,11 +92,8 @@ test.describe.serial("documentation journeys and screenshots", () => {
       animations: "disabled",
     });
 
-    await page.getByRole("link", { name: /Open canvas/ }).click();
-    await expect(page.getByRole("button", { name: "Show chat" })).toBeVisible();
-    await expect(page).toHaveScreenshot(["product", "canvas.png"], {
-      animations: "disabled",
-    });
+    await page.goto(`${readerUrl}/canvas`);
+    await expect(page).toHaveURL(readerUrl);
   });
 
   test("sharing, graph, invitations, and device setup are visible before sending", async ({
@@ -158,18 +156,13 @@ test.describe.serial("documentation journeys and screenshots", () => {
       page.getByRole("heading", { name: "Welcome, Jordan" }),
     ).toBeVisible();
     await expect(page.getByText(/Set a password/i)).not.toBeVisible();
-    await expect(page.getByText("works now")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("works now").first()).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page).toHaveScreenshot(["setup", "welcome.png"], {
       animations: "disabled",
       fullPage: true,
     });
-    const webdav = page
-      .getByRole("heading", { name: "Write on papers" })
-      .locator("xpath=ancestor::section[1]");
-    await expect(webdav).toHaveScreenshot(["setup", "welcome-webdav.png"], {
-      animations: "disabled",
-    });
-
     await page.getByRole("button", { name: "Open my library" }).click();
     await page.goto("/settings");
     await page
@@ -196,12 +189,16 @@ test.describe.serial("documentation journeys and screenshots", () => {
     });
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Reading" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     await expect(
       page.getByText("Why was removing recurrence such a big deal?"),
-    ).toBeVisible();
+    ).not.toBeVisible();
     await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();
     const renderedPage = page
-      .getByRole("region", { name: "Paper PDF" })
+      .getByRole("tabpanel", { name: "Reading" })
       .locator(".page canvas")
       .first();
     await expect(renderedPage).toBeVisible();
@@ -215,5 +212,79 @@ test.describe.serial("documentation journeys and screenshots", () => {
       animations: "disabled",
       fullPage: true,
     });
+
+    const pageBox = await renderedPage.boundingBox();
+    expect(pageBox).not.toBeNull();
+    await renderedPage.dispatchEvent("pointerdown", {
+      bubbles: true,
+      clientX: pageBox!.x + pageBox!.width / 2,
+      clientY: pageBox!.y + pageBox!.height / 2,
+      pointerId: 7,
+      pointerType: "pen",
+    });
+    await expect(page.getByRole("button", { name: "Draw" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(
+      page.getByText(/touch reserved for pinch zoom/i),
+    ).toBeVisible();
+
+    const cdp = await page.context().newCDPSession(page);
+    const centerX = pageBox!.x + pageBox!.width / 2;
+    const centerY = pageBox!.y + Math.min(pageBox!.height / 2, 320);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: centerX, y: centerY }],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: centerX + 24, y: centerY + 16 }],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    await expect(
+      page.getByRole("button", { name: "Save annotations in PDF" }),
+    ).toBeDisabled();
+
+    const initialZoom = await page
+      .locator("span")
+      .filter({ hasText: /^\d+%$/ })
+      .textContent();
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [
+        { x: centerX - 45, y: centerY },
+        { x: centerX + 45, y: centerY },
+      ],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [
+        { x: centerX - 75, y: centerY },
+        { x: centerX + 75, y: centerY },
+      ],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    await expect
+      .poll(() =>
+        page
+          .locator("span")
+          .filter({ hasText: /^\d+%$/ })
+          .textContent(),
+      )
+      .not.toBe(initialZoom);
+
+    await page.getByRole("tab", { name: "Chat" }).click();
+    await expect(
+      page.getByText("Why was removing recurrence such a big deal?"),
+    ).toBeVisible();
+    await page.getByRole("tab", { name: "Chat" }).press("ArrowLeft");
+    await expect(page.getByRole("tab", { name: "Reading" })).toBeFocused();
   });
 });

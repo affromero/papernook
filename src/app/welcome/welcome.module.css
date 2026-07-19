@@ -214,3 +214,18 @@
 .steps li {
   margin-bottom: 0.25rem;
 }
+
+.compatibility {
+  margin-top: 0.9rem;
+}
+
+.compatibility summary {
+  width: fit-content;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.compatibility[open] summary {
+  margin-bottom: 0.75rem;
+}

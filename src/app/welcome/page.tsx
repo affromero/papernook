@@ -8,7 +8,7 @@ import {
   isProviderAvailable,
 } from "@/lib/agent/registry";
 import { setAgentProvider } from "@/lib/agent/config";
-import { resolveWebdavUrl } from "@/lib/webdav-url";
+import { optionalWebdavUrl } from "@/lib/webdav-url";
 import { WelcomeFlow } from "./WelcomeFlow";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,12 @@ export default async function WelcomePage() {
       avatarSlug={profile.avatarSlug}
       captureToken={profile.captureToken}
       baseUrl={baseUrl}
-      webdavUrl={resolveWebdavUrl(baseUrl, process.env.PAPERNOOK_WEBDAV_URL)}
+      webdavUrl={optionalWebdavUrl(
+        baseUrl,
+        process.env.PAPERNOOK_WEBDAV_URL,
+        process.env.WEBDAV_USER,
+        process.env.WEBDAV_PASS,
+      )}
       shortcutUrl={process.env.PAPERNOOK_SHORTCUT_URL ?? "/api/v1/shortcut"}
       agentProvider={agentProvider}
       agentAvailable={agentAvailable}

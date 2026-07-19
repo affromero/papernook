@@ -174,7 +174,7 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                   <strong>View only</strong>
                   <p>
                     The link shows the current annotated PDF. It cannot edit the
-                    paper, canvas, or conversations.
+                    paper or conversations.
                   </p>
                 </div>
               </section>

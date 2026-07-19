@@ -11,7 +11,7 @@ import { ModelPicker } from "@/components/profiles/ModelPicker";
 import { ZoteroCard } from "@/components/profiles/ZoteroCard";
 import { createInviteToken } from "@/lib/auth/gate";
 import { instancePasswordConfigured } from "@/lib/auth/users";
-import { resolveWebdavUrl } from "@/lib/webdav-url";
+import { optionalWebdavUrl } from "@/lib/webdav-url";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
 import styles from "./settings.module.css";
 
@@ -30,6 +30,12 @@ export default async function SettingsPage() {
   const shortcutUrl = `${base}/add`;
   const shortcutShareUrl =
     process.env.PAPERNOOK_SHORTCUT_URL ?? "/api/v1/shortcut";
+  const webdavUrl = optionalWebdavUrl(
+    base,
+    process.env.PAPERNOOK_WEBDAV_URL,
+    process.env.WEBDAV_USER,
+    process.env.WEBDAV_PASS,
+  );
 
   return (
     <>
@@ -230,7 +236,7 @@ export default async function SettingsPage() {
                 </span>
                 <div>
                   <h2>Devices</h2>
-                  <p>Open papernook on mobile or connect an annotation app.</p>
+                  <p>Open the same reader and chat on every device.</p>
                 </div>
               </div>
 
@@ -240,45 +246,39 @@ export default async function SettingsPage() {
                 <DevicePanel url={base} />
               </div>
 
-              <div className={styles.subsection}>
-                <h3>iPad WebDAV login</h3>
-                <dl className={styles.credentials}>
-                  <div>
-                    <dt>Address</dt>
-                    <dd>
-                      <code>
-                        {resolveWebdavUrl(
-                          base,
-                          process.env.PAPERNOOK_WEBDAV_URL,
-                        )}
-                      </code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>User</dt>
-                    <dd>
-                      <code>
-                        {process.env.WEBDAV_USER ?? "(not configured)"}
-                      </code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Password</dt>
-                    <dd>
-                      {process.env.WEBDAV_PASS ? (
+              {webdavUrl && (
+                <details className={`${styles.subsection} ${styles.webdav}`}>
+                  <summary>External PDF app compatibility</summary>
+                  <p>
+                    Optional WebDAV access for apps that edit the PDF directly.
+                  </p>
+                  <dl className={styles.credentials}>
+                    <div>
+                      <dt>Address</dt>
+                      <dd>
+                        <code>{webdavUrl}</code>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>User</dt>
+                      <dd>
+                        <code>{process.env.WEBDAV_USER}</code>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Password</dt>
+                      <dd>
                         <details className={styles.revealDetails}>
                           <summary>Reveal password</summary>
                           <code className={styles.token}>
                             {process.env.WEBDAV_PASS}
                           </code>
                         </details>
-                      ) : (
-                        <code>(not configured)</code>
-                      )}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
+                      </dd>
+                    </div>
+                  </dl>
+                </details>
+              )}
             </section>
 
             <section className={styles.section} id="profile">

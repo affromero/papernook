@@ -34,8 +34,8 @@ the commands.
 2. **Add a paper:** paste a link into the library, install the
    [Safari/iOS Shortcut](shortcut.md), or use the Chrome bookmarklet from
    Settings.
-3. **Write on the PDF:** connect an iPad PDF app using the
-   [WebDAV walkthrough](ipad-annotation.md).
+3. **Write on the PDF:** open the paper in Papernook on desktop or iPad; see
+   the [iPad guide](ipad-annotation.md).
 4. **Bring in another reader:** follow the
    [domain or Tailscale invite flow](user-guide.md#invite-a-friend).
 
@@ -47,13 +47,13 @@ the commands.
 
 ![Profile picker with two readers and an Add profile action](images/setup/profile-picker.png)
 
-Each person chooses a profile. Papers, folders, tags, annotations, exercises,
-and canvases are shared. Chats, capture tokens, and Zotero connections remain
+Each person chooses a profile. Papers, folders, tags, annotations, and exercises
+are shared. Chats, capture tokens, and Zotero connections remain
 per-profile.
 
 ### A setup screen that fills itself in
 
-![Welcome screen with chat, capture, and WebDAV setup](images/setup/welcome.png)
+![Welcome screen with chat, capture, and reader setup](images/setup/welcome.png)
 
 The welcome flow reads the server configuration and presents the exact links
 and credentials that person needs. Secrets stay masked until copied.
@@ -69,10 +69,11 @@ to use. The QR code preserves that domain, Tailscale hostname, or LAN address.
 
 ![Paper reader beside a grounded conversation](images/product/paper-and-chat.png)
 
-Read the live PDF, resume prior chats, save exercises, open the canvas, or
-create a view-only reading from one screen. **Focus reading** hides chat and
-expands the PDF or canvas; the preference persists until **Show chat** is
-selected.
+Read and annotate the live PDF, resume prior chats, save exercises, or create a
+view-only reading from one screen. **Focus reading** hides chat on desktop and
+expands the PDF; the preference persists until **Show chat** is selected.
+
+![Web reader with annotation tools and chat](product-preview.png)
 
 ![Full-width paper view with chat hidden](images/product/paper-focus.png)
 
@@ -81,10 +82,6 @@ selected.
 ![Relationship graph connecting papers, authors, topics, and tags](images/product/relationship-graph.png)
 
 The graph connects papers to their authors, topics, tags, and related readings.
-The infinite canvas gives each individual paper a place for drawings, notes,
-embeds, and selected-region explanations.
-
-![Infinite canvas with PDF pages, drawing tools, and chat](images/product/canvas.png)
 
 ### Explicit, revocable sharing
 
@@ -101,21 +98,20 @@ The library and paper workspace adapt to a tablet-sized screen:
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | ![Papernook library on a tablet viewport](images/product/library-tablet.png) | ![Papernook paper and chat on a tablet viewport](images/product/paper-tablet.png) |
 
-For Pencil annotation, use a PDF app that writes standard annotations over
-WebDAV. The welcome flow gives each reader the exact address and credentials.
-
-![WebDAV setup card from the welcome flow](images/setup/welcome-webdav.png)
+Open the paper in Safari. Papernook detects Apple Pencil input, enables Draw,
+autosaves annotations, and keeps Chat available in its own tablet tab. WebDAV
+is optional compatibility for external PDF apps.
 
 ## Guides
 
-| Goal                                                                | Guide                                             |
-| ------------------------------------------------------------------- | ------------------------------------------------- |
-| Learn the everyday capture, reading, chat, canvas, and sharing flow | [User guide](user-guide.md)                       |
-| Invite a friend through a domain or Tailscale                       | [Invite a friend](user-guide.md#invite-a-friend)  |
-| Install or rebuild the Safari/iOS Shortcut                          | [Add to Papernook Shortcut](shortcut.md)          |
-| Annotate the live PDF with Apple Pencil                             | [iPad annotation over WebDAV](ipad-annotation.md) |
-| Put the app behind a public HTTPS domain safely                     | [Public exposure hardening](public-exposure.md)   |
-| Understand the security model or report a vulnerability             | [Security policy](../SECURITY.md)                 |
+| Goal                                                        | Guide                                            |
+| ----------------------------------------------------------- | ------------------------------------------------ |
+| Learn the everyday capture, reading, chat, and sharing flow | [User guide](user-guide.md)                      |
+| Invite a friend through a domain or Tailscale               | [Invite a friend](user-guide.md#invite-a-friend) |
+| Install or rebuild the Safari/iOS Shortcut                  | [Add to Papernook Shortcut](shortcut.md)         |
+| Annotate the live PDF with Apple Pencil                     | [iPad annotation guide](ipad-annotation.md)      |
+| Put the app behind a public HTTPS domain safely             | [Public exposure hardening](public-exposure.md)  |
+| Understand the security model or report a vulnerability     | [Security policy](../SECURITY.md)                |
 
 ## Owner checklist
 

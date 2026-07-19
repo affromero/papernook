@@ -7,6 +7,7 @@ import {
   PdfConflictError,
   PdfFileError,
   PdfTooLargeError,
+  readStablePdfVersion,
   readVersionedPdf,
   replacePdf,
 } from "@/lib/library/pdf/file";
@@ -84,6 +85,37 @@ export async function GET(_req: NextRequest, { params }: Params) {
       etag: pdf.etag,
     },
   });
+}
+
+export async function HEAD(_req: NextRequest, { params }: Params) {
+  const profile = await activeProfile();
+  if (!profile) {
+    return new NextResponse(null, { status: 401 });
+  }
+  const parsedParams = paramsSchema.safeParse(await params);
+  if (!parsedParams.success) {
+    return new NextResponse(null, { status: 400 });
+  }
+
+  try {
+    const { topic, slug } = parsedParams.data;
+    const pdf = await readStablePdfVersion(topic, slug);
+    if (!pdf) return new NextResponse(null, { status: 404 });
+    return new NextResponse(null, {
+      headers: {
+        "cache-control": "private, no-store",
+        etag: pdf.etag,
+      },
+    });
+  } catch (error) {
+    if (error instanceof PdfBusyError) {
+      return new NextResponse(null, {
+        status: 409,
+        headers: { "retry-after": "5" },
+      });
+    }
+    throw error;
+  }
 }
 
 export async function PUT(request: NextRequest, { params }: Params) {

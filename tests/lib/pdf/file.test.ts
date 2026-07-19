@@ -103,6 +103,51 @@ describe("versioned PDF files", () => {
 });
 
 describe("authenticated PDF route", () => {
+  it("reports the current version without returning the PDF body", async () => {
+    const pdfPath = await placePaper();
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    await signedInAs("andres");
+    const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
+    const params = {
+      params: Promise.resolve({ topic: "nlp", slug: "attention" }),
+    };
+    const request = new NextRequest(
+      "http://localhost/api/v1/papers/nlp/attention/pdf",
+      { method: "HEAD" },
+    );
+
+    const opened = await route.GET(request, params);
+    const unchanged = await route.HEAD(request, params);
+
+    expect(unchanged.status).toBe(200);
+    expect(unchanged.headers.get("etag")).toBe(opened.headers.get("etag"));
+    expect(await unchanged.text()).toBe("");
+
+    fs.writeFileSync(pdfPath, await makePdf("external Pencil edit"));
+    expect((await route.HEAD(request, params)).status).toBe(409);
+
+    const old = new Date(Date.now() - 60_000);
+    fs.utimesSync(pdfPath, old, old);
+    const changed = await route.HEAD(request, params);
+    expect(changed.status).toBe(200);
+    expect(changed.headers.get("etag")).not.toBe(opened.headers.get("etag"));
+  });
+
+  it("requires a signed-in profile to check a PDF version", async () => {
+    await placePaper();
+    await signedInAs(null);
+    const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
+    const response = await route.HEAD(
+      new NextRequest("http://localhost/api/v1/papers/nlp/attention/pdf", {
+        method: "HEAD",
+      }),
+      { params: Promise.resolve({ topic: "nlp", slug: "attention" }) },
+    );
+
+    expect(response.status).toBe(401);
+  });
+
   it("round-trips a native PDF save and rejects the stale version", async () => {
     await placePaper();
     const users = await import("@/lib/auth/users");

@@ -8,6 +8,7 @@ import { getPaper } from "../papers";
 const RECENT_WRITE_MS = 5_000;
 const PDF_LOCK_WAIT_MS = 2_000;
 const recentAppWrites = new Map<string, { etag: string; writtenAt: number }>();
+const versionCache = new Map<string, { identity: string; etag: string }>();
 
 export class PdfFileError extends Error {}
 export class PdfConflictError extends PdfFileError {}
@@ -20,9 +21,34 @@ export interface VersionedPdf {
   etag: string;
 }
 
+function statIdentity(stat: {
+  dev: number;
+  ino: number;
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+}): string {
+  return [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
+}
+
 export function pdfEtag(bytes: Uint8Array): string {
   const digest = crypto.createHash("sha256").update(bytes).digest("hex");
   return `"${digest}"`;
+}
+
+async function readStableFile(pdfPath: string): Promise<VersionedPdf> {
+  const before = await fs.stat(pdfPath);
+  const bytes = new Uint8Array(await fs.readFile(pdfPath));
+  const after = await fs.stat(pdfPath);
+  const identity = statIdentity(after);
+  if (statIdentity(before) !== identity || after.size !== bytes.byteLength) {
+    throw new PdfBusyError(
+      "The PDF is still being written. Try again in a moment.",
+    );
+  }
+  const etag = pdfEtag(bytes);
+  versionCache.set(pdfPath, { identity, etag });
+  return { bytes, etag };
 }
 
 export async function readVersionedPdf(
@@ -31,8 +57,29 @@ export async function readVersionedPdf(
 ): Promise<VersionedPdf | null> {
   const paper = getPaper(topic, slug);
   if (!paper) return null;
-  const bytes = new Uint8Array(await fs.readFile(paper.pdfPath));
-  return { bytes, etag: pdfEtag(bytes) };
+  return readStableFile(paper.pdfPath);
+}
+
+export async function readStablePdfVersion(
+  topic: string,
+  slug: string,
+): Promise<{ etag: string } | null> {
+  const paper = getPaper(topic, slug);
+  if (!paper) return null;
+
+  const stat = await fs.stat(paper.pdfPath);
+  const identity = statIdentity(stat);
+  const cached = versionCache.get(paper.pdfPath);
+  if (cached?.identity === identity) return { etag: cached.etag };
+
+  if (Date.now() - stat.mtimeMs < RECENT_WRITE_MS) {
+    throw new PdfBusyError(
+      "The PDF is still being written. Try again in a moment.",
+    );
+  }
+
+  const version = await readStableFile(paper.pdfPath);
+  return { etag: version.etag };
 }
 
 function assertWritablePdf(bytes: Uint8Array): void {
@@ -68,7 +115,7 @@ async function assertNotRecentlyWritten(
 async function atomicReplace(
   pdfPath: string,
   bytes: Uint8Array,
-): Promise<void> {
+): Promise<string> {
   const stat = await fs.stat(pdfPath);
   const tempPath = path.join(
     path.dirname(pdfPath),
@@ -77,6 +124,10 @@ async function atomicReplace(
   try {
     await fs.writeFile(tempPath, bytes, { mode: stat.mode & 0o777 });
     await fs.rename(tempPath, pdfPath);
+    const identity = statIdentity(await fs.stat(pdfPath));
+    const etag = pdfEtag(bytes);
+    versionCache.set(pdfPath, { identity, etag });
+    return etag;
   } finally {
     await fs.rm(tempPath, { force: true }).catch(() => undefined);
   }
@@ -123,8 +174,7 @@ export async function replacePdf(
       );
     }
     await assertNotRecentlyWritten(pdfPath, expectedEtag);
-    await atomicReplace(pdfPath, bytes);
-    const etag = pdfEtag(bytes);
+    const etag = await atomicReplace(pdfPath, bytes);
     recentAppWrites.set(pdfPath, { etag, writtenAt: Date.now() });
     return { etag };
   });
@@ -139,9 +189,9 @@ export async function rewritePdf(
     await assertNotRecentlyWritten(pdfPath);
     const next = await transform(new Uint8Array(await fs.readFile(pdfPath)));
     assertWritablePdf(next);
-    await atomicReplace(pdfPath, next);
+    const etag = await atomicReplace(pdfPath, next);
     recentAppWrites.set(pdfPath, {
-      etag: pdfEtag(next),
+      etag,
       writtenAt: Date.now(),
     });
   });

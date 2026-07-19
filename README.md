@@ -22,7 +22,6 @@ Ask your own AI grounded questions, then share a revocable, view-only reading.
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-FTS5-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/fts5.html)
-[![tldraw](https://img.shields.io/badge/canvas-tldraw-1a1a1a)](https://tldraw.dev)
 
 <sub>The filesystem is the source of truth. Delete the index, keep your library.</sub>
 
@@ -43,18 +42,21 @@ curl -fsSL https://raw.githubusercontent.com/affromero/papernook/main/scripts/in
 
 Open **http://localhost:3000** and create a profile. The two-minute wizard
 checks the configured agent—or, when none is configured, selects a ready local
-Codex/Claude CLI—creates personal capture tools, and walks through iPad WebDAV
-setup. An explicit provider that is unavailable is reported, never replaced.
+Codex/Claude CLI—creates personal capture tools, and shows optional WebDAV
+compatibility when configured. An explicit provider that is unavailable is
+reported, never replaced.
 
 ![Papernook library with topic navigation, search, and paper cards](docs/images/product/library.png)
 
 ## The reading loop
 
+![Papernook web reader with PDF annotation tools and grounded chat](docs/product-preview.png)
+
 | Step              | What happens                                                                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **1. Capture**    | Save arXiv, PDF, and publisher pages from Safari, Chrome, or Papernook. AI proposes the topic, tags, summary, and links. |
-| **2. Annotate**   | Highlight, add text, or draw in the web reader—or use Pencil over WebDAV. Every annotation stays embedded in the PDF.    |
-| **3. Understand** | Chat with the paper, paste marked-up screenshots, or send a canvas selection for explanation.                            |
+| **2. Annotate**   | Highlight, add text, or draw in the web reader. Apple Pencil selects drawing automatically, and changes save to the PDF. |
+| **3. Understand** | Chat with the paper beside the reader or switch between Reading and Chat on a tablet.                                    |
 | **4. Practice**   | Turn an answer into a Pencil-ready exercise PDF, add margins, or append blank pages without shifting existing ink.       |
 | **5. Share**      | Send a revocable annotated reading. Conversation snapshots are explicit, immutable, and off by default.                  |
 
@@ -62,9 +64,9 @@ setup. An explicit provider that is unavailable is reported, never replaced.
 
 | Your workflow                  | Papernook's approach                                                                              |
 | ------------------------------ | ------------------------------------------------------------------------------------------------- |
-| **Files stay portable**        | PDFs hold their own annotations; metadata, summaries, canvases, and chats use plain files.        |
+| **Files stay portable**        | PDFs hold their own annotations; metadata, summaries, and chats use plain files.                  |
 | **Your AI stays replaceable**  | Choose Claude Code, Codex, an API provider, or a local OpenAI-compatible server.                  |
-| **Reading stays connected**    | Search, citations, grounded chat, exercises, and a spatial canvas live beside the paper.          |
+| **Reading stays connected**    | Search, citation previews, grounded chat, and exercises live beside the paper.                    |
 | **People stay separate**       | The library is shared; profiles keep chats, capture tokens, and Zotero connections private.       |
 | **Sharing stays intentional**  | Links are revocable and view-only; private conversations appear only when explicitly snapshotted. |
 | **The index stays disposable** | SQLite accelerates search, but the filesystem remains the source of truth and rebuilds the index. |
@@ -74,16 +76,15 @@ setup. An explicit provider that is unavailable is reported, never replaced.
 
 Every node is a real module in this repository.
 
-The PDF is the portable annotation layer. Its latest embedded highlights, text,
-and ink refresh into the canvas whenever the canvas opens. Canvas-only shapes
-stay in `canvas.json` and never write back into the PDF implicitly.
+The PDF is the portable annotation layer. The web reader writes highlights,
+text, and ink back with version checks so another device cannot be overwritten
+silently.
 
-| Reading surface        | Source of truth                           | Sync boundary                                                                 |
-| ---------------------- | ----------------------------------------- | ----------------------------------------------------------------------------- |
-| Native PDF annotations | `data/papers/<topic>/<slug>.pdf`          | Flow to the web reader, WebDAV, shared readings, and canvas page backgrounds. |
-| Spatial canvas marks   | `data/library/<topic>/<slug>/canvas.json` | Stay on the canvas; only an explicit selection is sent to chat.               |
-| Reference preview      | Current PDF                               | Read-only navigation; it never changes the PDF or canvas.                     |
-| Conversations          | Per-profile JSONL                         | Stay private unless the owner snapshots selected chats into a share.          |
+| Reading surface        | Source of truth                  | Sync boundary                                                                 |
+| ---------------------- | -------------------------------- | ----------------------------------------------------------------------------- |
+| Native PDF annotations | `data/papers/<topic>/<slug>.pdf` | Autosave from the web reader and flow to shared readings and optional WebDAV. |
+| Reference preview      | Current PDF                      | Opens a cropped destination beside the citation without moving the reader.    |
+| Conversations          | Per-profile JSONL                | Stay private unless the owner snapshots selected chats into a share.          |
 
 ```mermaid
 flowchart LR
@@ -119,14 +120,13 @@ flowchart LR
       libview["LibraryView"]
       chatpanel["ChatPanel"]
       pdfreader["PdfReader<br/>pdf.js annotations + reference previews"]
-      canvas["CanvasBoard<br/>tldraw + pdf.js"]
       wizard["WelcomeFlow"]
       shareview["ShareButton + /share<br/>view-only reading"]
       citeui["CitationActions + export routes"]
     end
 
     dav["rclone WebDAV sidecar<br/>docker-compose.yml<br/>serves data/papers ONLY"]
-    ipad["iPad · PDF Expert<br/>Pencil ink in the PDF"]
+    ipad["iPad browser<br/>Pencil ink + chat"]
     sidedoor["thesidedoor<br/>PWA + QR reach"]
 
     add --> pipe --> papers
@@ -145,9 +145,8 @@ flowchart LR
     citeui --> citations --> papers
     citations --> index
     expand --> pdffile --> papers
-    papers -->|"latest annotated pages"| canvas
-    canvas --> chatpanel
     pdfreader -->|"ETag + If-Match"| pdffile
+    ipad --> pdfreader
     libview --> index
     picker --> wizard
     sidedoor --> ui
@@ -185,7 +184,6 @@ the capability exactly, without third-party plugins or handoffs.
 | Choose a local, SSH, or API AI backend                |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
 | Generate printable exercise PDFs from a paper         |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
 | Grow PDF margins or add pages without shifting ink    |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
-| Infinite canvas around each paper                     |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
 | Whole-library visual relationship graph               |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
 | Share an uploaded, annotated PDF by link              |       ✓       |                        ✗                        |                      ✓                       |                            ✗                            |                                  ✗                                  |
 | Share selected owner conversations beside that PDF    |       ✓       |                        ✗                        |                      ✗                       |                            ✗                            |                                  ✗                                  |
@@ -301,11 +299,9 @@ active search, topic, and tag filters.
 
 ## Self-host
 
-Docker Compose runs the Next.js app and an rclone WebDAV sidecar. WebDAV is a
-standard protocol for opening and saving remote files: it lets an iPad PDF app
-edit the server's PDF directly instead of creating an app-specific copy or
-requiring an export. Pencil ink stays embedded in the portable PDF and appears
-in Papernook as soon as the file is saved.
+Docker Compose runs the Next.js app and an rclone WebDAV sidecar. The web
+reader is the primary annotation surface on desktop and iPad. WebDAV remains
+an optional compatibility route for external PDF apps when fully configured.
 
 The WebDAV sidecar serves **`data/papers` only**; chats, crops, canvases, and
 unconfirmed captures stay private. Connect through
@@ -326,7 +322,7 @@ Start with the **[visual documentation home](docs/README.md)**.
 | Learn the everyday workflow           | [User guide](docs/user-guide.md)                      |
 | Invite someone by domain or Tailscale | [Invite a friend](docs/user-guide.md#invite-a-friend) |
 | Capture from Safari or iOS            | [Shortcut setup](docs/shortcut.md)                    |
-| Annotate from an iPad                 | [WebDAV walkthrough](docs/ipad-annotation.md)         |
+| Annotate from an iPad                 | [iPad annotation guide](docs/ipad-annotation.md)      |
 | Expose a custom domain safely         | [Public hardening](docs/public-exposure.md)           |
 
 ## Development
@@ -341,5 +337,5 @@ pre-commit install --install-hooks   # two-tier local gate
 ```
 
 <div align="center">
-<sub>Avatars shared with <a href="https://github.com/affromero/Sotto">Sotto</a> · canvas by <a href="https://tldraw.dev">tldraw</a> (watermark license) · reach by <a href="https://github.com/affromero/sidedoor">sidedoor</a></sub>
+<sub>Avatars shared with <a href="https://github.com/affromero/Sotto">Sotto</a> · reach by <a href="https://github.com/affromero/sidedoor">sidedoor</a></sub>
 </div>

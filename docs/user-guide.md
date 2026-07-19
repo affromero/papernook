@@ -29,25 +29,21 @@ and ask what it means.
 
 ![A paper open beside its private conversation](images/product/paper-and-chat.png)
 
-Select **Focus reading** to hide the chat and give the PDF or canvas the full
-workspace. Select **Show chat** to restore it. Papernook remembers that choice
-between papers and when you switch between the reader and canvas.
+On desktop, select **Focus reading** to give the PDF the full workspace and
+**Show chat** to restore it. On a tablet, use the persistent **Reading** and
+**Chat** tabs.
 
 ![Full-width paper view with chat hidden](images/product/paper-focus.png)
 
-To write with Apple Pencil, open the same PDF from Papernook's WebDAV
-connection in Documents, PDF Viewer, PDF Expert, or another compatible PDF
-app. Ink saves into the file on the server; there is no export step. Follow
-the [iPad annotation guide](ipad-annotation.md).
+To write with Apple Pencil, open the paper in Safari and start drawing.
+Papernook enables Draw for pen input and autosaves into the PDF. WebDAV is
+available as optional external-app compatibility; see the
+[iPad annotation guide](ipad-annotation.md).
 
 ### Explore and practice
 
-- Select **Open canvas** to arrange pages on an infinite board, add notes,
-  paste embeds, draw, and send a selection to chat.
 - On an assistant answer, select **Save as exercise**. Papernook renders
   `<paper>.exercises.pdf` beside the paper over WebDAV.
-- From the canvas toolbar, use **+ margin space** or **+ blank page** when a
-  paper needs more writing room. Existing ink does not move.
 - Open **Graph** to move through connections among papers, authors, topics,
   tags, and related readings.
 
@@ -70,7 +66,7 @@ First choose the route that matches your server:
 
 The result is the same in both cases:
 
-- **Shared:** papers, folders, tags, annotations, exercises, and canvases.
+- **Shared:** papers, folders, tags, annotations, and exercises.
 - **Private to each profile:** chats, capture token, and Zotero connection.
 - **One admin-owned public password:** friends never set a profile password.
 
@@ -99,8 +95,7 @@ invite links.
 friend enters it once, then follows **Add profile**.
 
 > **Expected result:** the new profile opens its own welcome flow with a
-> personal capture token and the server's WebDAV details. No existing chat is
-> visible.
+> personal capture token and reader setup. No existing chat is visible.
 
 ### Option B: Tailscale
 
