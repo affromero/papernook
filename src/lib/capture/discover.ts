@@ -75,6 +75,10 @@ export async function discoverRelated(
   focus: DiscoverFocus = {},
 ): Promise<Discovery> {
   const { system, prompt } = discoveryPrompt(focus);
-  const raw = await getProvider().execute({ system, prompt });
+  const raw = await getProvider().execute({
+    system,
+    prompt,
+    responseFormat: "json_object",
+  });
   return discoverySchema.parse(extractJson(raw));
 }

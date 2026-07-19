@@ -108,6 +108,53 @@ describe("provider registry", () => {
     expect(await isProviderAvailable("anthropic")).toBe(false);
     expect(await isProviderAvailable("openai")).toBe(true);
   });
+
+  it("probes local and custom OpenAI endpoints instead of requiring keys", async () => {
+    vi.stubEnv("OLLAMA_HOST", "http://models.test:11434/v1/");
+    vi.stubEnv("OLLAMA_MODEL", "qwen3:4b");
+    vi.stubEnv("OPENAI_BASE_URL", "http://gateway.test/v1");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        urls.push(String(input));
+        return new Response("{}", { status: 200 });
+      }),
+    );
+    const { providerStatus } = await import("@/lib/agent/registry");
+
+    expect(await providerStatus("ollama")).toBe("ready");
+    expect(await providerStatus("openai")).toBe("ready");
+    expect(urls).toEqual([
+      "http://models.test:11434/api/tags",
+      "http://gateway.test/v1/models",
+    ]);
+    vi.unstubAllGlobals();
+  });
+
+  it("reports an unreachable local endpoint without falling back", async () => {
+    vi.stubEnv("VLLM_BASE_URL", "http://models.test:8000");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Promise.reject(new Error("down"))),
+    );
+    const { providerStatus } = await import("@/lib/agent/registry");
+    expect(await providerStatus("vllm")).toBe("unreachable");
+    vi.unstubAllGlobals();
+  });
+
+  it("does not report a reachable local endpoint as usable without a model", async () => {
+    vi.stubEnv("LLAMACPP_BASE_URL", "http://models.test:8080");
+    vi.stubEnv("LLAMACPP_MODEL", "");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 200 })),
+    );
+    const { providerStatus } = await import("@/lib/agent/registry");
+    expect(await providerStatus("llamacpp")).toBe("no_model");
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("claude-code argv (mocked spawn boundary)", () => {
@@ -201,9 +248,41 @@ describe("model configuration", () => {
 
   it("every provider has suggestions", async () => {
     const cfg = await import("@/lib/agent/config");
-    for (const p of ["claude-code", "codex", "anthropic", "openai"] as const) {
+    for (const p of [
+      "claude-code",
+      "codex",
+      "anthropic",
+      "openai",
+      "ollama",
+    ] as const) {
       expect(cfg.modelSuggestions(p).length).toBeGreaterThan(0);
     }
+    expect(cfg.modelSuggestions("llamacpp")).toEqual([]);
+    expect(cfg.modelSuggestions("vllm")).toEqual([]);
+  });
+
+  it("uses stored endpoint then env then local default", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-url-"));
+    vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
+    vi.stubEnv("OLLAMA_HOST", "http://env.test:11434");
+    const cfg = await import("@/lib/agent/config");
+
+    expect(cfg.configuredBaseUrl("ollama")).toBe("http://env.test:11434");
+    cfg.updateAgentConfig({
+      provider: "ollama",
+      model: "qwen3:4b",
+      baseUrl: "http://stored.test:11434",
+    });
+    expect(cfg.configuredBaseUrl("ollama")).toBe("http://stored.test:11434");
+    cfg.setAgentProvider("vllm");
+    expect(cfg.configuredModel("vllm")).toBeUndefined();
+    expect(cfg.storedBaseUrl("vllm")).toBeUndefined();
+    vi.stubEnv("VLLM_BASE_URL", "");
+    expect(cfg.configuredBaseUrl("vllm")).toBe("http://localhost:8000");
+    fs.rmSync(tmp, { recursive: true, force: true });
   });
 });
 
@@ -225,5 +304,80 @@ describe("provider override", () => {
     cfg.setAgentProvider(null);
     expect(configuredProviderId()).toBe("claude-code"); // env again
     fs.rmSync(tmp, { recursive: true, force: true });
+  });
+});
+
+describe("OpenAI-compatible local providers", () => {
+  it("canonicalizes endpoint URLs without duplicating /v1", async () => {
+    const { ensureV1Suffix } = await import("@/lib/agent/local");
+    expect(ensureV1Suffix("http://localhost:11434")).toBe(
+      "http://localhost:11434/v1",
+    );
+    expect(ensureV1Suffix("http://localhost:11434/v1/")).toBe(
+      "http://localhost:11434/v1",
+    );
+  });
+
+  it("uses the selected local model, endpoint, JSON mode, and no API key", async () => {
+    const clients: { apiKey?: string; baseURL?: string }[] = [];
+    const requests: unknown[] = [];
+    vi.stubEnv("VLLM_MODEL", "Qwen/Qwen3-8B");
+    vi.stubEnv("VLLM_BASE_URL", "http://gpu.test:8000");
+    vi.doMock("openai", () => ({
+      default: class {
+        chat = {
+          completions: {
+            create: async (request: unknown) => {
+              requests.push(request);
+              return { choices: [{ message: { content: '{"ok":true}' } }] };
+            },
+          },
+        };
+
+        constructor(options: { apiKey?: string; baseURL?: string }) {
+          clients.push(options);
+        }
+      },
+    }));
+    const { vllmProvider } = await import("@/lib/agent/api");
+    const result = await vllmProvider.execute({
+      system: "Return JSON.",
+      prompt: "Analyze.",
+      responseFormat: "json_object",
+    });
+
+    expect(result).toBe('{"ok":true}');
+    expect(clients).toEqual([
+      { apiKey: "unused", baseURL: "http://gpu.test:8000/v1" },
+    ]);
+    expect(requests).toEqual([
+      expect.objectContaining({
+        model: "Qwen/Qwen3-8B",
+        response_format: { type: "json_object" },
+      }),
+    ]);
+    vi.doUnmock("openai");
+  });
+
+  it("discovers installed Ollama models from the native tags endpoint", async () => {
+    vi.stubEnv("OLLAMA_HOST", "http://models.test:11434/v1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          models: [{ name: "qwen3:4b" }, { name: "gemma3:4b" }],
+        }),
+      ),
+    );
+    const { listOfferedModels } = await import("@/lib/agent/models");
+    await expect(listOfferedModels("ollama")).resolves.toEqual({
+      models: ["qwen3:4b", "gemma3:4b"],
+      live: true,
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      "http://models.test:11434/api/tags",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    vi.unstubAllGlobals();
   });
 });

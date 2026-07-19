@@ -104,6 +104,10 @@ export async function analyzePaper(
   text: string,
 ): Promise<Analysis> {
   const { system, prompt } = analysisPrompt(sourceUrl, text);
-  const raw = await getProvider().execute({ system, prompt });
+  const raw = await getProvider().execute({
+    system,
+    prompt,
+    responseFormat: "json_object",
+  });
   return parseAnalysis(raw);
 }

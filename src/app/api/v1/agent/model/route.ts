@@ -3,18 +3,23 @@ import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
 import { isAdmin } from "@/lib/auth/users";
 import {
+  configuredBaseUrl,
   configuredModel,
-  setAgentModel,
-  setAgentProvider,
+  storedBaseUrl,
+  updateAgentConfig,
 } from "@/lib/agent/config";
-import { listOfferedModels } from "@/lib/agent/models";
+import { listOfferedModels, resetModelCache } from "@/lib/agent/models";
 import {
   configuredProviderId,
   isProviderAvailable,
   allProviderStatuses,
   resetProviderStatusCache,
 } from "@/lib/agent/registry";
-import type { ProviderId } from "@/lib/agent/types";
+import {
+  PROVIDER_IDS,
+  isLocalProvider,
+  type ProviderId,
+} from "@/lib/agent/types";
 
 /**
  * Admin agent controls: which provider answers and with which model.
@@ -41,6 +46,13 @@ async function snapshot(admin: boolean) {
     provider,
     statuses,
     model: provider ? (configuredModel(provider) ?? null) : null,
+    baseUrl: admin && provider ? (storedBaseUrl(provider) ?? null) : null,
+    baseUrlPlaceholder:
+      admin && provider ? (configuredBaseUrl(provider) ?? null) : null,
+    endpointConfigurable:
+      admin && provider
+        ? provider === "openai" || isLocalProvider(provider)
+        : false,
     suggestions: offered.models,
     liveList: offered.live,
     admin,
@@ -54,9 +66,27 @@ export async function GET(): Promise<NextResponse> {
   return NextResponse.json(await snapshot(isAdmin(me)));
 }
 
+const baseUrlSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return (
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        !url.username &&
+        !url.password
+      );
+    } catch {
+      return false;
+    }
+  }, "Endpoint must be an HTTP(S) URL without embedded credentials.");
+
 const schema = z.object({
-  provider: z.enum(["anthropic", "openai", "claude-code", "codex"]).optional(),
-  model: z.string().max(80).nullable().optional(),
+  provider: z.enum(PROVIDER_IDS).optional(),
+  model: z.string().max(200).nullable().optional(),
+  baseUrl: baseUrlSchema.nullable().optional(),
 });
 
 export async function PUT(request: NextRequest): Promise<NextResponse> {
@@ -70,13 +100,30 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   if (!body.success) {
     return NextResponse.json({ error: "Invalid selection." }, { status: 400 });
   }
-  if (body.data.provider) {
-    setAgentProvider(body.data.provider);
-    resetProviderStatusCache();
+  const targetProvider = body.data.provider ?? configuredProviderId();
+  if (
+    body.data.baseUrl !== undefined &&
+    targetProvider !== "openai" &&
+    !isLocalProvider(targetProvider)
+  ) {
+    return NextResponse.json(
+      { error: "This provider does not accept a custom endpoint." },
+      { status: 400 },
+    );
   }
-  if (body.data.model !== undefined) {
-    setAgentModel(body.data.model?.trim() || null);
-  }
+  updateAgentConfig({
+    provider: body.data.provider,
+    model:
+      body.data.model === undefined
+        ? undefined
+        : body.data.model?.trim() || null,
+    baseUrl:
+      body.data.baseUrl === undefined
+        ? undefined
+        : body.data.baseUrl?.trim() || null,
+  });
+  resetProviderStatusCache();
+  resetModelCache();
   const provider = configuredProviderId();
   const available = await isProviderAvailable(provider);
   return NextResponse.json({ ...(await snapshot(true)), available });

@@ -44,7 +44,10 @@ echo "  2) codex    : Codex CLI on this machine (keyless)"
 echo "  3) ssh      : Claude Code CLI on another machine, over SSH"
 echo "  4) anthropic : Anthropic API key"
 echo "  5) openai   : OpenAI API key"
-read -r -p "Choice [1-5]: " CHOICE < /dev/tty
+echo "  6) ollama   : Ollama on this machine (keyless)"
+echo "  7) llamacpp : llama.cpp server on this machine (keyless)"
+echo "  8) vllm     : vLLM server on this machine (keyless)"
+read -r -p "Choice [1-8]: " CHOICE < /dev/tty
 
 case "$CHOICE" in
   1)
@@ -70,6 +73,27 @@ case "$CHOICE" in
   5)
     read -r -p "OpenAI API key: " AI_KEY < /dev/tty
     AI_BLOCK=$'AI_PROVIDER=openai\n'"OPENAI_API_KEY=${AI_KEY}"
+    ;;
+  6)
+    read -r -p "Ollama model (for example qwen3:4b): " M < /dev/tty
+    [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
+    read -r -p "Ollama URL [http://host.docker.internal:11434]: " ENDPOINT < /dev/tty
+    ENDPOINT=${ENDPOINT:-http://host.docker.internal:11434}
+    AI_BLOCK=$'AI_PROVIDER=ollama\n'"OLLAMA_HOST=${ENDPOINT}"$'\n'"OLLAMA_MODEL=${M}"
+    ;;
+  7)
+    read -r -p "llama.cpp model id: " M < /dev/tty
+    [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
+    read -r -p "llama.cpp URL [http://host.docker.internal:8080]: " ENDPOINT < /dev/tty
+    ENDPOINT=${ENDPOINT:-http://host.docker.internal:8080}
+    AI_BLOCK=$'AI_PROVIDER=llamacpp\n'"LLAMACPP_BASE_URL=${ENDPOINT}"$'\n'"LLAMACPP_MODEL=${M}"
+    ;;
+  8)
+    read -r -p "vLLM model id: " M < /dev/tty
+    [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
+    read -r -p "vLLM URL [http://host.docker.internal:8000]: " ENDPOINT < /dev/tty
+    ENDPOINT=${ENDPOINT:-http://host.docker.internal:8000}
+    AI_BLOCK=$'AI_PROVIDER=vllm\n'"VLLM_BASE_URL=${ENDPOINT}"$'\n'"VLLM_MODEL=${M}"
     ;;
   *)
     echo "Unknown choice." >&2

@@ -9,19 +9,24 @@ import styles from "./ModelPicker.module.css";
  * from the provider's API when reachable, curated otherwise.
  */
 
-type Readiness = "ready" | "no_key" | "not_installed" | "unreachable";
+type Readiness =
+  "ready" | "no_key" | "no_model" | "not_installed" | "unreachable";
 
 const READINESS_LABEL: Record<Readiness, string> = {
   ready: "ready",
   no_key: "needs API key",
+  no_model: "select a model",
   not_installed: "CLI not installed",
-  unreachable: "SSH host not answering",
+  unreachable: "endpoint or SSH host not answering",
 };
 
 interface AgentState {
   provider: string | null;
   statuses: Record<string, Readiness>;
   model: string | null;
+  baseUrl: string | null;
+  baseUrlPlaceholder: string | null;
+  endpointConfigurable: boolean;
   suggestions: string[];
   liveList: boolean;
   admin: boolean;
@@ -31,6 +36,7 @@ interface AgentState {
 export function ModelPicker() {
   const [state, setState] = useState<AgentState | null>(null);
   const [value, setValue] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -40,6 +46,7 @@ export function ModelPicker() {
       .then((d: AgentState) => {
         setState(d);
         setValue(d.model ?? "");
+        setBaseUrl(d.baseUrl ?? "");
       });
   }, []);
 
@@ -48,6 +55,7 @@ export function ModelPicker() {
   async function save(body: {
     provider?: string;
     model?: string | null;
+    baseUrl?: string | null;
   }): Promise<void> {
     setBusy(true);
     setStatus(null);
@@ -65,6 +73,7 @@ export function ModelPicker() {
     }
     setState(data);
     setValue(data.model ?? "");
+    setBaseUrl(data.baseUrl ?? "");
     setStatus(
       data.available
         ? `${data.provider} answers with ${data.model ?? "its default model"}.`
@@ -100,6 +109,44 @@ export function ModelPicker() {
           </button>
         ))}
       </div>
+      {state.endpointConfigurable && (
+        <>
+          <p className={styles.line}>
+            Endpoint{" "}
+            <span className={styles.hint}>
+              (HTTP(S), reachable from the papernook server)
+            </span>
+          </p>
+          <div className={styles.controls}>
+            <input
+              className={styles.input}
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder={
+                state.baseUrlPlaceholder ??
+                (state.provider === "openai"
+                  ? "https://api.openai.com/v1"
+                  : "http://localhost:8000")
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  void save({ baseUrl: baseUrl.trim() || null });
+                }
+              }}
+              disabled={busy}
+              inputMode="url"
+            />
+            <button
+              type="button"
+              className={styles.save}
+              onClick={() => void save({ baseUrl: baseUrl.trim() || null })}
+              disabled={busy}
+            >
+              Save endpoint
+            </button>
+          </div>
+        </>
+      )}
       <p className={styles.line}>
         Model{" "}
         <span className={styles.hint}>

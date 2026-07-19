@@ -2,10 +2,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { readImageBase64 } from "./attachments";
 import { configuredModel } from "./config";
+import { compatibleBaseUrl } from "./local";
 import {
   DEFAULT_TIMEOUT_MS,
   type AgentProvider,
   type AgentTurn,
+  type LocalProviderId,
 } from "./types";
 
 /**
@@ -31,10 +33,15 @@ function anthropic(): Anthropic {
   return anthropicClient;
 }
 
-let openaiClient: OpenAI | null = null;
-function openai(): OpenAI {
-  openaiClient ??= new OpenAI();
-  return openaiClient;
+function openai(provider: "openai" | LocalProviderId): OpenAI {
+  const baseURL = compatibleBaseUrl(provider);
+  return new OpenAI({
+    apiKey:
+      provider === "openai"
+        ? process.env.OPENAI_API_KEY || (baseURL ? "unused" : undefined)
+        : "unused",
+    baseURL,
+  });
 }
 
 type AnthropicImageBlock = {
@@ -129,17 +136,47 @@ function openaiMessages(
   return messages;
 }
 
-async function executeOpenAI(turn: AgentTurn): Promise<string> {
-  const completion = await openai().chat.completions.create(
-    { model: openaiModel(), messages: openaiMessages(turn) },
+function compatibleModel(provider: "openai" | LocalProviderId): string {
+  const model =
+    provider === "openai" ? openaiModel() : configuredModel(provider);
+  if (!model) {
+    throw new Error(
+      `${provider}: select a model in Settings before using this provider`,
+    );
+  }
+  return model;
+}
+
+async function executeCompatible(
+  provider: "openai" | LocalProviderId,
+  turn: AgentTurn,
+): Promise<string> {
+  const completion = await openai(provider).chat.completions.create(
+    {
+      model: compatibleModel(provider),
+      messages: openaiMessages(turn),
+      ...(turn.responseFormat
+        ? { response_format: { type: turn.responseFormat } }
+        : {}),
+    },
     { timeout: turn.timeoutMs ?? DEFAULT_TIMEOUT_MS },
   );
   return completion.choices[0]?.message?.content ?? "";
 }
 
-async function* streamOpenAI(turn: AgentTurn): AsyncGenerator<string> {
-  const stream = await openai().chat.completions.create(
-    { model: openaiModel(), messages: openaiMessages(turn), stream: true },
+async function* streamCompatible(
+  provider: "openai" | LocalProviderId,
+  turn: AgentTurn,
+): AsyncGenerator<string> {
+  const stream = await openai(provider).chat.completions.create(
+    {
+      model: compatibleModel(provider),
+      messages: openaiMessages(turn),
+      stream: true,
+      ...(turn.responseFormat
+        ? { response_format: { type: turn.responseFormat } }
+        : {}),
+    },
     { timeout: turn.timeoutMs ?? DEFAULT_TIMEOUT_MS },
   );
   for await (const chunk of stream) {
@@ -156,6 +193,18 @@ export const anthropicProvider: AgentProvider = {
 
 export const openaiProvider: AgentProvider = {
   id: "openai",
-  execute: executeOpenAI,
-  stream: streamOpenAI,
+  execute: (turn) => executeCompatible("openai", turn),
+  stream: (turn) => streamCompatible("openai", turn),
 };
+
+function localProvider(id: LocalProviderId): AgentProvider {
+  return {
+    id,
+    execute: (turn) => executeCompatible(id, turn),
+    stream: (turn) => streamCompatible(id, turn),
+  };
+}
+
+export const ollamaProvider = localProvider("ollama");
+export const llamacppProvider = localProvider("llamacpp");
+export const vllmProvider = localProvider("vllm");

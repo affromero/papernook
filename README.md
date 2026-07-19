@@ -75,7 +75,7 @@ flowchart LR
       registry["registry.ts<br/>AI_PROVIDER"]
       claude["claude-code.ts"]
       codex["codex.ts"]
-      api["api.ts<br/>anthropic · openai"]
+      api["api.ts<br/>anthropic · openai · local"]
       attach["attachments.ts<br/>paths · scp · base64"]
     end
 
@@ -168,8 +168,16 @@ Sources for the less obvious distinctions: [Zotero’s collection, search, and 8
 | Codex over SSH         | `AI_PROVIDER=codex` + `CODEX_SSH_HOST=you@host`             | ✅      |
 | Anthropic API          | `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`               | ❌      |
 | OpenAI API             | `AI_PROVIDER=openai` + `OPENAI_API_KEY`                     | ❌      |
+| Ollama                 | `AI_PROVIDER=ollama` + `OLLAMA_MODEL=qwen3:4b`              | ✅      |
+| llama.cpp server       | `AI_PROVIDER=llamacpp` + `LLAMACPP_MODEL=<model-id>`        | ✅      |
+| vLLM server            | `AI_PROVIDER=vllm` + `VLLM_MODEL=<model-id>`                | ✅      |
 
-Images (crops, pasted screenshots) travel per transport: file paths + the Read tool for the local claude CLI, `-i` for codex, `scp` to a temp dir for SSH modes, base64 content blocks for the APIs.
+Local endpoints and installed models are detected from Settings. The installer
+uses `host.docker.internal` so the app container can reach a model server on the
+Docker host; the server must listen on an interface reachable from Docker.
+Papernook does not publish local-model ports.
+
+Images (crops, pasted screenshots) travel per transport: file paths + the Read tool for the local claude CLI, `-i` for codex, `scp` to a temp dir for SSH modes, base64 content blocks for the APIs. Local chats with images require a vision-capable model and server. Paper capture can send roughly 60,000 characters, so choose a model with enough context; provider errors are surfaced rather than silently truncating or falling back.
 
 ## Self-host
 

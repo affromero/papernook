@@ -25,7 +25,8 @@ Architecture diagram (code-accurate) in README.md.
   be safe. The chokidar scanner reconciles from disk; disk always wins.
 - **The AI provider is never hardcoded.** `AI_PROVIDER` env (set by
   `scripts/install.sh` or `.env`) selects anthropic | openai | claude-code |
-  codex; SSH modes via `CLAUDE_CODE_SSH_HOST` / `CODEX_SSH_HOST`. All
+  codex | ollama | llamacpp | vllm; SSH modes via `CLAUDE_CODE_SSH_HOST` /
+  `CODEX_SSH_HOST`. All
   provider calls go through `src/lib/agent/registry.ts`; never spawn a CLI
   or hit an AI API from feature code.
 - **Per-account privacy**: chats and capture tokens belong to a profile;
@@ -40,15 +41,15 @@ Architecture diagram (code-accurate) in README.md.
 
 ## Layout
 
-| Where              | What                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------- |
-| `src/lib/library/` | papers, chats, index-db, scanner, slug, exercises, expand, chat-context                           |
-| `src/lib/agent/`   | provider registry, claude-code/codex CLI clients, API clients, attachments (images per transport) |
-| `src/lib/capture/` | normalize (URL matrix), download (polite fetch), analyze (agent filing), orchestration            |
-| `src/lib/auth/`    | users (profiles on disk), session (HMAC cookies), rate-limit, avatars                             |
-| `src/app/add/`     | token-authed capture endpoint + logged-out HTML confirmation pages                                |
-| `src/app/api/v1/`  | session-authed JSON APIs (Zod-validated inputs)                                                   |
-| `src/components/`  | CSS Modules only; no Tailwind, no inline styles                                                   |
+| Where              | What                                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| `src/lib/library/` | papers, chats, index-db, scanner, slug, exercises, expand, chat-context                        |
+| `src/lib/agent/`   | provider registry, CLI/API/OpenAI-compatible local clients, attachments (images per transport) |
+| `src/lib/capture/` | normalize (URL matrix), download (polite fetch), analyze (agent filing), orchestration         |
+| `src/lib/auth/`    | users (profiles on disk), session (HMAC cookies), rate-limit, avatars                          |
+| `src/app/add/`     | token-authed capture endpoint + logged-out HTML confirmation pages                             |
+| `src/app/api/v1/`  | session-authed JSON APIs (Zod-validated inputs)                                                |
+| `src/components/`  | CSS Modules only; no Tailwind, no inline styles                                                |
 
 ## Commands
 
