@@ -20,6 +20,51 @@ export interface PaperSource {
   key: string;
   /** Source library version at import time. */
   version: number;
+  /** Zotero collection names retained without forcing them into one topic. */
+  collections?: string[];
+}
+
+export const CITATION_TYPES = [
+  "article",
+  "article-journal",
+  "book",
+  "chapter",
+  "dataset",
+  "document",
+  "manuscript",
+  "paper-conference",
+  "report",
+  "thesis",
+  "webpage",
+] as const;
+
+export type CitationType = (typeof CITATION_TYPES)[number];
+
+export interface CitationAuthor {
+  family?: string;
+  given?: string;
+  literal?: string;
+}
+
+/**
+ * Canonical bibliographic metadata. When present it is authoritative for
+ * exports; legacy `bibtex` is consulted only for older records without this.
+ */
+export interface CitationMeta {
+  type: CitationType;
+  authors: CitationAuthor[];
+  DOI?: string;
+  containerTitle?: string;
+  volume?: string;
+  issue?: string;
+  pages?: string;
+  publisher?: string;
+  publisherPlace?: string;
+  abstract?: string;
+  URL?: string;
+  language?: string;
+  ISBN?: string;
+  ISSN?: string;
 }
 
 export interface PaperMeta {
@@ -40,6 +85,7 @@ export interface PaperMeta {
   source?: PaperSource;
   /** Auto-filed by a sync and awaiting user review. */
   needsReview?: boolean;
+  citation?: CitationMeta;
 }
 
 export interface Paper {

@@ -69,6 +69,7 @@ describe("zotero settings route", () => {
       connected: true,
       userId: "1234567",
       syncing: false,
+      lastResult: null,
     });
     expect(body).not.toContain(secret);
     expect(body).not.toContain("captureToken");

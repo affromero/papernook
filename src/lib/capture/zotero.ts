@@ -1,8 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 import { usersRoot } from "../data-dir";
 import { getProfile, listProfiles } from "../auth/users";
-import { listPapers, type PaperMeta } from "../library/papers";
+import {
+  listPapers,
+  type CitationAuthor,
+  type CitationMeta,
+  type CitationType,
+  type PaperMeta,
+} from "../library/papers";
 import { rebuildIndex } from "../library/index-db";
 import { capturePdf } from "./index";
 
@@ -23,39 +30,79 @@ export interface ZoteroConfig {
   userId: string;
 }
 
-interface ZoteroCreator {
-  creatorType?: string;
-  name?: string;
-  firstName?: string;
-  lastName?: string;
-}
+const boundedString = z.string().max(10_000);
+const itemDataSchema = z
+  .object({
+    key: z.string().min(1).max(64),
+    version: z.number().int().nonnegative(),
+    itemType: z.string().min(1).max(64),
+    parentItem: z.string().min(1).max(64).optional(),
+    contentType: z.string().max(256).optional(),
+    title: boundedString.optional(),
+    creators: z
+      .array(
+        z
+          .object({
+            creatorType: z.string().max(64).optional(),
+            name: z.string().max(1_000).optional(),
+            firstName: z.string().max(1_000).optional(),
+            lastName: z.string().max(1_000).optional(),
+          })
+          .passthrough(),
+      )
+      .max(500)
+      .optional(),
+    date: z.string().max(256).optional(),
+    publicationTitle: boundedString.optional(),
+    conferenceName: boundedString.optional(),
+    university: boundedString.optional(),
+    institution: boundedString.optional(),
+    url: boundedString.optional(),
+    DOI: z.string().max(1_000).optional(),
+    extra: boundedString.optional(),
+    volume: z.string().max(256).optional(),
+    issue: z.string().max(256).optional(),
+    pages: z.string().max(256).optional(),
+    publisher: boundedString.optional(),
+    place: boundedString.optional(),
+    abstractNote: boundedString.optional(),
+    language: z.string().max(256).optional(),
+    ISBN: z.string().max(256).optional(),
+    ISSN: z.string().max(256).optional(),
+    tags: z
+      .array(z.object({ tag: z.string().max(500) }).passthrough())
+      .max(1_000)
+      .optional(),
+    collections: z.array(z.string().min(1).max(64)).max(1_000).optional(),
+  })
+  .passthrough();
+type ZoteroItemData = z.infer<typeof itemDataSchema>;
 
-interface ZoteroItemData {
-  key: string;
-  version: number;
-  itemType: string;
-  parentItem?: string;
-  contentType?: string;
-  title?: string;
-  creators?: ZoteroCreator[];
-  date?: string;
-  publicationTitle?: string;
-  url?: string;
-  DOI?: string;
-  extra?: string;
-}
+const itemSchema = z.object({
+  key: z.string().min(1).max(64),
+  version: z.number().int().nonnegative(),
+  data: itemDataSchema,
+});
+type ZoteroItem = z.infer<typeof itemSchema>;
 
-interface ZoteroItem {
-  key: string;
-  version: number;
-  data: ZoteroItemData;
-}
+const collectionSchema = z.object({
+  data: z.object({
+    key: z.string().min(1).max(64),
+    name: z.string().trim().min(1).max(1_000),
+  }),
+});
 
-interface SyncCursor {
-  lastVersion: number;
+const keyResponseSchema = z.object({
+  userID: z.number().int().nonnegative(),
+  username: z.string().max(1_000).optional(),
+});
+
+const cursorSchema = z.object({
+  lastVersion: z.number().int().nonnegative(),
   /** Zotero item key → library slug, for idempotent re-runs. */
-  imported: Record<string, string>;
-}
+  imported: z.record(z.string().min(1).max(64), z.string().max(1_000)),
+});
+type SyncCursor = z.infer<typeof cursorSchema>;
 
 export class ZoteroError extends Error {}
 
@@ -67,7 +114,10 @@ async function zoteroFetch(
   const url = new URL(`${API}${pathname}`);
   for (const [k, v] of Object.entries(search)) url.searchParams.set(k, v);
   const res = await fetch(url, {
-    headers: { "Zotero-API-Key": cfg.apiKey },
+    headers: {
+      "Zotero-API-Key": cfg.apiKey,
+      "Zotero-API-Version": "3",
+    },
   });
   if (!res.ok) {
     throw new ZoteroError(`Zotero API ${res.status} for ${pathname}`);
@@ -80,12 +130,18 @@ export async function verifyKey(
   apiKey: string,
 ): Promise<{ userId: string; username: string } | null> {
   const res = await fetch(`${API}/keys/current`, {
-    headers: { "Zotero-API-Key": apiKey },
+    headers: {
+      "Zotero-API-Key": apiKey,
+      "Zotero-API-Version": "3",
+    },
   });
   if (!res.ok) return null;
-  const body = (await res.json()) as { userID?: number; username?: string };
-  if (typeof body.userID !== "number") return null;
-  return { userId: String(body.userID), username: body.username ?? "" };
+  const parsed = keyResponseSchema.safeParse(await res.json());
+  if (!parsed.success) return null;
+  return {
+    userId: String(parsed.data.userID),
+    username: parsed.data.username ?? "",
+  };
 }
 
 /**
@@ -108,8 +164,14 @@ export async function listNewPdfItems(
       limit: "100",
       start: String(start),
     });
-    version = Number(res.headers.get("Last-Modified-Version") ?? version);
-    const page = (await res.json()) as ZoteroItem[];
+    const headerVersion = Number(res.headers.get("Last-Modified-Version"));
+    if (Number.isInteger(headerVersion) && headerVersion >= 0) {
+      version = headerVersion;
+    }
+    const parsed = z.array(itemSchema).safeParse(await res.json());
+    if (!parsed.success)
+      throw new ZoteroError("Zotero returned invalid items.");
+    const page: ZoteroItem[] = parsed.data;
     changed.push(...page);
     start += page.length;
     if (page.length < 100) break;
@@ -132,11 +194,36 @@ export async function listNewPdfItems(
         cfg,
         `/users/${cfg.userId}/items/${data.parentItem}`,
       );
-      parent = ((await res.json()) as ZoteroItem).data;
+      const parsed = itemSchema.safeParse(await res.json());
+      if (!parsed.success)
+        throw new ZoteroError("Zotero returned an invalid parent item.");
+      parent = parsed.data.data;
     }
     items.push({ item: parent, attachmentKey: data.key });
   }
   return { items, version };
+}
+
+async function collectionNames(
+  cfg: ZoteroConfig,
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  for (let start = 0; ;) {
+    const res = await zoteroFetch(cfg, `/users/${cfg.userId}/collections`, {
+      format: "json",
+      limit: "100",
+      start: String(start),
+    });
+    const parsed = z.array(collectionSchema).safeParse(await res.json());
+    if (!parsed.success)
+      throw new ZoteroError("Zotero returned invalid collections.");
+    for (const collection of parsed.data) {
+      names.set(collection.data.key, collection.data.name.trim());
+    }
+    start += parsed.data.length;
+    if (parsed.data.length < 100) break;
+  }
+  return names;
 }
 
 export async function downloadAttachment(
@@ -156,9 +243,9 @@ function cursorPath(username: string): string {
 
 function readCursor(username: string): SyncCursor {
   try {
-    return JSON.parse(
-      fs.readFileSync(cursorPath(username), "utf8"),
-    ) as SyncCursor;
+    return cursorSchema.parse(
+      JSON.parse(fs.readFileSync(cursorPath(username), "utf8")),
+    );
   } catch {
     // Cursor lost or first run: rebuild the imported map from meta.json
     // provenance — the filesystem is the source of truth, the cursor is cache.
@@ -185,8 +272,91 @@ function arxivIdOf(item: ZoteroItemData): string | null {
   return match ? match[1] : null;
 }
 
+const TYPE_MAP: Record<string, CitationType> = {
+  journalArticle: "article-journal",
+  conferencePaper: "paper-conference",
+  book: "book",
+  bookSection: "chapter",
+  thesis: "thesis",
+  report: "report",
+  manuscript: "manuscript",
+  webpage: "webpage",
+  dataset: "dataset",
+  preprint: "article",
+};
+
+function normalizedDoi(value: string | undefined): string | undefined {
+  const doi = value
+    ?.trim()
+    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "")
+    .replace(/^doi:\s*/i, "");
+  return doi && /^10\.\d{4,9}\/\S+$/i.test(doi) ? doi : undefined;
+}
+
+function citationAuthors(item: ZoteroItemData): CitationAuthor[] {
+  return (item.creators ?? [])
+    .filter(
+      (creator) => !creator.creatorType || creator.creatorType === "author",
+    )
+    .map<CitationAuthor>((creator) => {
+      const literal = creator.name?.trim();
+      if (literal) return { literal };
+      const family = creator.lastName?.trim();
+      const given = creator.firstName?.trim();
+      return {
+        ...(family ? { family } : {}),
+        ...(given ? { given } : {}),
+      };
+    })
+    .filter((creator) => creator.literal || creator.family || creator.given);
+}
+
+function optional(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+function citationOf(item: ZoteroItemData): CitationMeta {
+  const DOI = normalizedDoi(item.DOI);
+  const containerTitle = [
+    item.publicationTitle,
+    item.conferenceName,
+    item.university,
+  ]
+    .map(optional)
+    .find(Boolean);
+  const publisher = [item.publisher, item.institution]
+    .map(optional)
+    .find(Boolean);
+  const volume = optional(item.volume);
+  const issue = optional(item.issue);
+  const pages = optional(item.pages);
+  const publisherPlace = optional(item.place);
+  const abstract = optional(item.abstractNote);
+  const URL = optional(item.url);
+  const language = optional(item.language);
+  const ISBN = optional(item.ISBN);
+  const ISSN = optional(item.ISSN);
+  return {
+    type: TYPE_MAP[item.itemType] ?? "document",
+    authors: citationAuthors(item),
+    ...(DOI ? { DOI } : {}),
+    ...(containerTitle ? { containerTitle } : {}),
+    ...(volume ? { volume } : {}),
+    ...(issue ? { issue } : {}),
+    ...(pages ? { pages } : {}),
+    ...(publisher ? { publisher } : {}),
+    ...(publisherPlace ? { publisherPlace } : {}),
+    ...(abstract ? { abstract } : {}),
+    ...(URL ? { URL } : {}),
+    ...(language ? { language } : {}),
+    ...(ISBN ? { ISBN } : {}),
+    ...(ISSN ? { ISSN } : {}),
+  };
+}
+
 function overridesOf(item: ZoteroItemData): Partial<PaperMeta> {
-  const overrides: Partial<PaperMeta> = {};
+  const overrides: Partial<PaperMeta> = { citation: citationOf(item) };
   if (item.title) overrides.title = item.title;
   const authors = (item.creators ?? [])
     .filter((c) => !c.creatorType || c.creatorType === "author")
@@ -200,9 +370,19 @@ function overridesOf(item: ZoteroItemData): Partial<PaperMeta> {
 }
 
 const inFlight = new Set<string>();
+export interface ZoteroSyncResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+}
+const lastResults = new Map<string, ZoteroSyncResult>();
 
 export function isSyncing(username: string): boolean {
   return inFlight.has(username);
+}
+
+export function lastSyncResult(username: string): ZoteroSyncResult | null {
+  return lastResults.get(username) ?? null;
 }
 
 /**
@@ -211,7 +391,7 @@ export function isSyncing(username: string): boolean {
  */
 export async function syncProfile(
   username: string,
-): Promise<{ imported: number; skipped: number } | null> {
+): Promise<ZoteroSyncResult | null> {
   const profile = getProfile(username); // validates username before path use
   const cfg = profile?.zotero;
   if (!profile || !cfg) return null;
@@ -220,6 +400,7 @@ export async function syncProfile(
   try {
     const cursor = readCursor(username);
     const { items, version } = await listNewPdfItems(cfg, cursor.lastVersion);
+    const collections = items.length ? await collectionNames(cfg) : new Map();
     const knownArxiv = new Set(
       listPapers()
         .map((p) => p.meta.arxivId)
@@ -227,8 +408,9 @@ export async function syncProfile(
     );
     let imported = 0;
     let skipped = 0;
+    let failed = 0;
     for (const { item, attachmentKey } of items) {
-      if (cursor.imported[item.key]) {
+      if (Object.hasOwn(cursor.imported, item.key)) {
         skipped += 1;
         continue;
       }
@@ -249,8 +431,17 @@ export async function syncProfile(
           username,
           arxivId,
           autoFile: true,
-          source: { provider: "zotero", key: item.key, version: item.version },
+          source: {
+            provider: "zotero",
+            key: item.key,
+            version: item.version,
+            collections: [...new Set(item.collections ?? [])]
+              .map((key) => collections.get(key))
+              .filter((name): name is string => Boolean(name))
+              .sort((a, b) => a.localeCompare(b)),
+          },
           overrides: overridesOf(item),
+          sourceTags: (item.tags ?? []).map(({ tag }) => tag),
         });
         cursor.imported[item.key] = result.slug;
         if (arxivId) knownArxiv.add(arxivId);
@@ -261,12 +452,15 @@ export async function syncProfile(
           `zotero sync: item ${item.key} failed for ${username}:`,
           error,
         );
+        failed += 1;
       }
     }
-    cursor.lastVersion = version;
+    if (failed === 0) cursor.lastVersion = version;
     writeCursor(username, cursor);
     if (imported > 0) rebuildIndex();
-    return { imported, skipped };
+    const result = { imported, skipped, failed };
+    lastResults.set(username, result);
+    return result;
   } finally {
     inFlight.delete(username);
   }

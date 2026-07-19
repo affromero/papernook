@@ -46,19 +46,20 @@ Open **http://localhost:3000**, create your profile, and the two-minute wizard t
 
 ## Everything you can do
 
-| Moment          | From                                                             | What you can do                                                                                  | What Papernook keeps                                               |
-| --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| Capture         | Safari share sheet, Chrome bookmarklet, or the app               | Save arXiv pages, direct PDFs, and publisher pages in one tap                                    | Original PDF in a private inbox until you confirm it               |
-| File            | Capture confirmation                                             | Accept AI-proposed metadata, BibTeX, topic, tags, summary, related papers, and starter questions | Plain `meta.json`, `summary.md`, `text.txt`, and the confirmed PDF |
-| Find            | Library search or relationship graph                             | Search titles, authors, tags, and full text; move through paper/author/topic/tag connections     | Rebuildable SQLite FTS index; disk remains truth                   |
-| Read            | Browser, iPad, or any WebDAV PDF app                             | Read the same PDF everywhere; preview internal references without losing your place              | One standard PDF, never a proprietary annotation format            |
-| Annotate        | Apple Pencil in PDF Expert or another standards-compliant editor | Highlight, draw, and write directly on the paper                                                 | Ink embedded in the PDF on your server                             |
-| Ask             | Paper chat                                                       | Run resumable, grounded, image-capable conversations                                             | Per-profile append-only JSONL conversations                        |
-| Explore         | Infinite canvas                                                  | Arrange PDF pages with notes, drawings, embeds, and selected-region explanations                 | Shared `canvas.json` beside the paper                              |
-| Practice        | Any assistant answer                                             | Save an answer as an exercise and render a Pencil-ready exercise PDF                             | Markdown exercises plus `<slug>.exercises.pdf`                     |
-| Make room       | Paper controls                                                   | Grow far-edge margins or append blank pages                                                      | Atomic, origin-fixed PDF rewrite that preserves ink coordinates    |
-| Share a reading | Paper Share button                                               | Send the live annotated PDF alone or with selected conversation snapshots                        | A revocable 256-bit view-only link; no recipient account required  |
-| Separate people | Profile picker                                                   | Share the paper library while keeping chats and capture tokens private                           | Per-profile credentials and chat folders on disk                   |
+| Moment          | From                                                             | What you can do                                                                                  | What Papernook keeps                                                |
+| --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Capture         | Safari share sheet, Chrome bookmarklet, or the app               | Save arXiv pages, direct PDFs, and publisher pages in one tap                                    | Original PDF in a private inbox until you confirm it                |
+| File            | Capture confirmation                                             | Accept AI-proposed metadata, BibTeX, topic, tags, summary, related papers, and starter questions | Plain `meta.json`, `summary.md`, `text.txt`, and the confirmed PDF  |
+| Find            | Library search or relationship graph                             | Search titles, authors, tags, and full text; move through paper/author/topic/tag connections     | Rebuildable SQLite FTS index; disk remains truth                    |
+| Read            | Browser, iPad, or any WebDAV PDF app                             | Read the same PDF everywhere; preview internal references without losing your place              | One standard PDF, never a proprietary annotation format             |
+| Annotate        | Apple Pencil in PDF Expert or another standards-compliant editor | Highlight, draw, and write directly on the paper                                                 | Ink embedded in the PDF on your server                              |
+| Ask             | Paper chat                                                       | Run resumable, grounded, image-capable conversations                                             | Per-profile append-only JSONL conversations                         |
+| Explore         | Infinite canvas                                                  | Arrange PDF pages with notes, drawings, embeds, and selected-region explanations                 | Shared `canvas.json` beside the paper                               |
+| Practice        | Any assistant answer                                             | Save an answer as an exercise and render a Pencil-ready exercise PDF                             | Markdown exercises plus `<slug>.exercises.pdf`                      |
+| Make room       | Paper controls                                                   | Grow far-edge margins or append blank pages                                                      | Atomic, origin-fixed PDF rewrite that preserves ink coordinates     |
+| Cite            | A paper or filtered library view                                 | Copy an APA entry or export CSL JSON, RIS, and BibTeX                                            | Canonical citation fields in `meta.json`; legacy BibTeX still works |
+| Share a reading | Paper Share button                                               | Send the live annotated PDF alone or with selected conversation snapshots                        | A revocable 256-bit view-only link; no recipient account required   |
+| Separate people | Profile picker                                                   | Share the paper library while keeping chats and capture tokens private                           | Per-profile credentials and chat folders on disk                    |
 
 ## Architecture
 
@@ -128,6 +129,7 @@ flowchart LR
 - **AI filing on arrival**: metadata, bibtex, topic proposal (existing folders preferred), tags, summary, cross-links to related papers in your library, and a seeded starter-questions chat.
 - **Lossless iPad annotation**: standard PDF annotations over WebDAV; the file on the server _is_ the annotated source of truth.
 - **Non-disruptive references**: internal PDF links open an inline page preview without moving the main reader; select the same reference again or use the preview action to open it in a new tab.
+- **Portable citations**: copy an APA bibliography entry from any paper, or export one paper or the current filtered library view as CSL JSON, RIS, or BibTeX.
 - **Grounded chats** per paper, per profile: resumable, streaming, image-capable (paste iOS-markup screenshots or canvas selections).
 - **Infinite canvas** per paper: pdf.js pages as tldraw shapes; notes, embeds, and Pencil drawing around them; `canvas.json` on disk.
 - **PDF growth**: widen margins (origin-fixed, existing ink never shifts) or append blank pages, atomically, with an iPad-mid-save guard.
@@ -139,13 +141,14 @@ flowchart LR
 
 ## How Papernook is different
 
-The closest tools each solve part of this loop well. Zotero is substantially stronger for citation-heavy academic writing and mature group reference management; Papernook focuses on the annotated-paper-to-understanding loop. This matrix counts only built-in, officially documented behavior that matches the capability exactly, not third-party plugins or handoffs to a separate product.
+The closest tools each solve part of this loop well. Papernook can now pull a Zotero library's PDFs with their tags and publication metadata, then copy or export portable citations. Zotero remains substantially stronger for live citations in writing tools, thousands of styles, and mature group reference management; Papernook focuses on the annotated-paper-to-understanding loop. This matrix counts only built-in, officially documented behavior that matches the capability exactly, not third-party plugins or handoffs to a separate product.
 
 | Capability                                           | **Papernook** | [Zotero](https://www.zotero.org/support/groups) | [Paperpile](https://paperpile.com/features/) | [Readwise Reader](https://docs.readwise.io/reader/docs) | [NotebookLM](https://support.google.com/notebooklm/answer/16164461) |
 | ---------------------------------------------------- | :-----------: | :---------------------------------------------: | :------------------------------------------: | :-----------------------------------------------------: | :-----------------------------------------------------------------: |
 | One-click capture from publisher and article pages   |      ✅       |                       ✅                        |                      ✅                      |                           ✅                            |                                 ❌                                  |
 | Organize with collections/folders, tags, and search  |      ✅       |                       ✅                        |                      ✅                      |                           ✅                            |                                 ❌                                  |
 | Built-in PDF highlighting and annotation editor      |      ❌       |                       ✅                        |                      ✅                      |                           ✅                            |                                 ❌                                  |
+| Export reference metadata as RIS or BibTeX           |      ✅       |                       ✅                        |                      ✅                      |                           ❌                            |                                 ❌                                  |
 | Live citations and bibliographies in writing tools   |      ❌       |                       ✅                        |                      ✅                      |                           ❌                            |                                 ❌                                  |
 | Dedicated collaborative group libraries with roles   |      ❌       |                       ✅                        |                      ✅                      |                           ❌                            |                                 ❌                                  |
 | Self-host the complete app and data                  |      ✅       |                       ❌                        |                      ❌                      |                           ❌                            |                                 ❌                                  |
@@ -157,7 +160,7 @@ The closest tools each solve part of this loop well. Zotero is substantially str
 | Share an uploaded, annotated PDF by link             |      ✅       |                       ❌                        |                      ✅                      |                           ❌                            |                                 ❌                                  |
 | Share selected owner conversations beside that PDF   |      ✅       |                       ❌                        |                      ❌                      |                           ❌                            |                                 ❌                                  |
 
-Sources for the less obvious distinctions: [Zotero’s collection, search, and 8,000+ citation-style features](https://www.zotero.org/support/quick_start_guide), [Zotero’s Word, LibreOffice, and Google Docs integration](https://www.zotero.org/support/word_processor_integration), [Zotero stores annotations outside the PDF](https://www.zotero.org/support/kb/annotations_in_database), [Paperpile embeds annotations in the PDF](https://paperpile.com/h/view-annotate-with-other-pdf-viewers/), [Paperpile annotation sharing](https://paperpile.com/h/sharing-notes-annotations/), [Readwise document chat](https://docs.readwise.io/reader/guides/ghostreader/chat), and [Readwise excludes uploaded PDFs from public links](https://docs.readwise.io/reader/docs/faqs/sharing).
+Sources for the less obvious distinctions: [Zotero’s collection, search, and 8,000+ citation-style features](https://www.zotero.org/support/quick_start_guide), [Zotero’s Word, LibreOffice, and Google Docs integration](https://www.zotero.org/support/word_processor_integration), [Zotero’s standardized citation formats](https://www.zotero.org/support/kb/importing_standardized_formats), [Zotero stores annotations outside the PDF](https://www.zotero.org/support/kb/annotations_in_database), [Paperpile’s RIS and BibTeX exports](https://paperpile.com/h/export-library-data/), [Paperpile embeds annotations in the PDF](https://paperpile.com/h/view-annotate-with-other-pdf-viewers/), [Paperpile annotation sharing](https://paperpile.com/h/sharing-notes-annotations/), [Readwise document chat](https://docs.readwise.io/reader/guides/ghostreader/chat), [Readwise’s documented export formats](https://docs.readwise.io/reader/docs/faqs/exporting), and [Readwise excludes uploaded PDFs from public links](https://docs.readwise.io/reader/docs/faqs/sharing).
 
 ## Bring your own agent
 
@@ -187,6 +190,8 @@ Images (crops, pasted screenshots) travel per transport: file paths + the Read t
 Pull-only sync from reference managers: papernook fetches new PDF items and
 files them through the regular capture pipeline (AI-proposed topic, tags,
 summary, starter questions), flagged for a one-glance review in the library.
+Zotero tags, collection names, structured authors, DOI, venue, volume, issue,
+pages, publisher, abstract, URL, language, ISBN, and ISSN are preserved.
 
 | Tool              | Sync            | How                                                                     |
 | ----------------- | --------------- | ----------------------------------------------------------------------- |
@@ -201,8 +206,15 @@ summary, starter questions), flagged for a one-glance review in the library.
 **Settings → Zotero sync** (the user ID is discovered automatically). Each
 profile connects its own library; imports are attributed to that profile.
 Synced papers auto-file and appear in a "needs review" strip on the library
-view, where you keep the AI's topic or re-file in one click. Dedup is by Zotero item
-key and arXiv ID, so re-syncs and overlapping libraries never import twice.
+view, where you keep the AI's topic or re-file in one click. Dedup is by Zotero
+item key and arXiv ID, so re-syncs and overlapping libraries never import
+twice. A failed item is reported without advancing the sync cursor; successful
+items stay recorded and only the failure is retried on the next run.
+
+Every paper's **Cite** menu copies an APA bibliography entry or downloads CSL
+JSON, RIS, or BibTeX. The library export uses the current search, topic, and tag
+filters, so a reading list can move back into Zotero or another reference
+manager without exposing inbox papers.
 
 ## Self-host
 

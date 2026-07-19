@@ -43,8 +43,13 @@ export interface CapturePdfOptions {
   source?: PaperSource;
   /** Trusted bibliographic metadata that wins over the AI's guess. */
   overrides?: Partial<
-    Pick<PaperMeta, "title" | "authors" | "year" | "venue" | "bibtex">
+    Pick<
+      PaperMeta,
+      "title" | "authors" | "year" | "venue" | "bibtex" | "citation"
+    >
   >;
+  /** Trusted source tags merged after AI-proposed tags. */
+  sourceTags?: string[];
 }
 
 export async function capture(
@@ -90,7 +95,7 @@ export async function capturePdf(
     venue: analysis.venue,
     arxivId: opts.arxivId ?? null,
     bibtex: analysis.bibtex,
-    tags: analysis.tags,
+    tags: mergeTags(analysis.tags, opts.sourceTags ?? []),
     related: analysis.related,
     ...opts.overrides,
     sourceUrl: opts.sourceUrl,
@@ -123,6 +128,17 @@ export async function capturePdf(
     rebuildIndex();
   }
   return { slug: finalSlug, proposedTopic, analysis };
+}
+
+function mergeTags(proposed: string[], source: string[]): string[] {
+  const merged = new Map<string, string>();
+  for (const value of [...proposed, ...source]) {
+    const tag = value.trim();
+    if (!tag) continue;
+    const key = tag.toLocaleLowerCase();
+    if (!merged.has(key)) merged.set(key, tag);
+  }
+  return [...merged.values()];
 }
 
 function provisionalBase(url: string): string {

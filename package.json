@@ -26,6 +26,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
+    "@citation-js/core": "^0.8.1",
+    "@citation-js/plugin-bibtex": "^0.8.1",
+    "@citation-js/plugin-csl": "^0.8.1",
+    "@citation-js/plugin-ris": "^0.8.1",
     "@node-rs/argon2": "^2.0.2",
     "better-sqlite3": "^12.11.1",
     "chokidar": "^5.0.0",

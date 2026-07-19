@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { CitationActions } from "@/components/citations/CitationActions";
 import { PdfReader } from "@/components/pdf/PdfReader";
 import { ShareButton } from "@/components/share/ShareButton";
 import styles from "./paper.module.css";
@@ -32,6 +33,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
             Open canvas ↗
           </Link>
           <ShareButton topic={topic} slug={slug} />
+          <CitationActions topic={topic} slug={slug} />
         </nav>
         <div>
           <h1 className={styles.title}>{meta.title}</h1>

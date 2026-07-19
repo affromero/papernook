@@ -13,6 +13,7 @@ interface ZoteroState {
   connected: boolean;
   userId: string | null;
   syncing: boolean;
+  lastResult: { imported: number; skipped: number; failed: number } | null;
 }
 
 export function ZoteroCard() {
@@ -50,7 +51,11 @@ export function ZoteroCard() {
         if (data && !data.syncing && pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
-          setStatus("Sync finished. New papers are filed in the library.");
+          setStatus(
+            data.lastResult?.failed
+              ? `Sync imported ${data.lastResult.imported}; ${data.lastResult.failed} failed and will retry automatically.`
+              : `Sync finished. ${data.lastResult?.imported ?? 0} new papers were filed in the library.`,
+          );
         }
       });
     }, 3000);

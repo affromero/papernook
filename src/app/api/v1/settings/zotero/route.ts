@@ -7,7 +7,12 @@ import {
   recordSuccess,
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
-import { verifyKey, syncProfile, isSyncing } from "@/lib/capture/zotero";
+import {
+  verifyKey,
+  syncProfile,
+  isSyncing,
+  lastSyncResult,
+} from "@/lib/capture/zotero";
 
 /**
  * Per-profile Zotero connection: connect with an API key (verified against
@@ -22,6 +27,7 @@ function snapshot(profile: { zotero?: { userId: string }; username: string }) {
     connected: Boolean(profile.zotero),
     userId: profile.zotero?.userId ?? null,
     syncing: isSyncing(profile.username),
+    lastResult: lastSyncResult(profile.username),
   };
 }
 

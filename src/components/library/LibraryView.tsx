@@ -8,7 +8,9 @@ import {
   allTags,
   type IndexedPaper,
 } from "@/lib/library/index-db";
+import { matchesLibraryFilters } from "@/lib/library/citations/filters";
 import { listTopics, listInbox } from "@/lib/library/papers";
+import { LibraryCitationExport } from "./LibraryCitationExport";
 import styles from "./LibraryView.module.css";
 
 interface LibraryViewProps {
@@ -16,17 +18,6 @@ interface LibraryViewProps {
   activeTag: string | null;
   activeTopic: string | null;
   captureToken: string;
-}
-
-function matches(
-  paper: IndexedPaper,
-  tag: string | null,
-  topic: string | null,
-): boolean {
-  if (tag && !paper.tags.includes(tag)) return false;
-  if (topic === "_inbox") return paper.topic === null;
-  if (topic && paper.topic !== topic) return false;
-  return true;
 }
 
 function paperHref(paper: IndexedPaper): string {
@@ -41,8 +32,11 @@ export function LibraryView({
   activeTopic,
   captureToken,
 }: LibraryViewProps) {
-  const papers = searchIndex(query).filter((p) =>
-    matches(p, activeTag, activeTopic),
+  const papers = searchIndex(query).filter((paper) =>
+    matchesLibraryFilters(paper, {
+      tag: activeTag,
+      topic: activeTopic,
+    }),
   );
   const topics = listTopics();
   const tags = allTags();
@@ -108,6 +102,11 @@ export function LibraryView({
         <ViewToggle active="library" />
         <ReviewStrip flagged={flagged} topics={topics} />
         <AddPaperBox captureToken={captureToken} />
+        <LibraryCitationExport
+          query={query}
+          tag={activeTag}
+          topic={activeTopic}
+        />
         <form className={styles.searchRow} action="/" method="get">
           <input
             className={styles.search}

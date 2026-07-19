@@ -1,0 +1,73 @@
+.root {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu summary {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  opacity: 0.7;
+  list-style: none;
+}
+
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  width: 150px;
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 10px;
+  background: var(--background);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.panel a,
+.panel button {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 0.65rem;
+  border: 0;
+  border-radius: 7px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.panel a:hover,
+.panel button:hover {
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.status {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 30;
+  width: max-content;
+  max-width: 260px;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  color: var(--foreground);
+  background: var(--background);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.16);
+  font-size: 0.72rem;
+}
