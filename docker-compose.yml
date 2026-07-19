@@ -8,6 +8,7 @@
 # Optional:
 #   PUBLIC_EXPOSURE=true           hardens public-host authentication
 #   PAPERNOOK_PUBLIC_HOST          domain that receives the public gate
+#   PAPERNOOK_WEBDAV_URL           required public WebDAV HTTPS endpoint
 #   PAPERNOOK_PASSWORD             shared instance access password
 #   APP_HOST / WEBDAV_HOST         use 127.0.0.1 behind a public TLS proxy
 #   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST, ANTHROPIC_API_KEY, OPENAI_API_KEY

@@ -19,7 +19,7 @@ export function hostIsPublic(
   if (!host) return true;
   const bare = host.split(":")[0].toLowerCase();
   const pub = publicHost.toLowerCase();
-  return bare === pub || bare === `dav.${pub}` || bare.endsWith(`.${pub}`);
+  return bare === pub || bare === `dav-${pub}` || bare.endsWith(`.${pub}`);
 }
 
 /** Does THIS request require the public hardening (gate + password)? */

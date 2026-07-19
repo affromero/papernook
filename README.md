@@ -301,8 +301,14 @@ active search, topic, and tag filters.
 
 ## Self-host
 
-Docker Compose runs the Next.js app and an rclone WebDAV sidecar. WebDAV serves
-**`data/papers` only**; chats, crops, and canvases stay private. Connect through
+Docker Compose runs the Next.js app and an rclone WebDAV sidecar. WebDAV is a
+standard protocol for opening and saving remote files: it lets an iPad PDF app
+edit the server's PDF directly instead of creating an app-specific copy or
+requiring an export. Pencil ink stays embedded in the portable PDF and appears
+in Papernook as soon as the file is saved.
+
+The WebDAV sidecar serves **`data/papers` only**; chats, crops, canvases, and
+unconfirmed captures stay private. Connect through
 [Tailscale](https://tailscale.com) or a hardened custom domain. Settings
 generates the correct device QR code for the address in use.
 

@@ -21,7 +21,7 @@ not supported". The connection goes inside the PDF app itself.
 
    | Setup                                       | WebDAV address                           |
    | ------------------------------------------- | ---------------------------------------- |
-   | Custom domain with the example Caddy layout | `https://dav.papernook.example.com`      |
+   | Custom domain with the example Caddy layout | `https://dav-papernook.example.com`      |
    | Tailscale                                   | `http://<tailscale-hostname-or-ip>:8080` |
    | Same LAN                                    | `http://<lan-hostname-or-ip>:8080`       |
 
@@ -40,10 +40,12 @@ not supported". The connection goes inside the PDF app itself.
 
 > **Important:** the app and WebDAV addresses must both be reachable through
 > the selected route. A friend using Tailscale should use the server's
-> Tailscale hostname or IP for both, not `dav.<tailscale-hostname>`.
+> Tailscale hostname or IP for both, not `dav-<tailscale-hostname>`.
 
-For a nonstandard proxy layout, set `PAPERNOOK_WEBDAV_URL` in `.env`. Settings
-and every new-reader welcome screen will use that exact address.
+For a custom public domain, set `PAPERNOOK_WEBDAV_URL` in `.env`. Settings and
+every new-reader welcome screen will use that exact address. Papernook requires
+the explicit URL because it cannot safely infer a sibling hostname from every
+possible domain.
 
 ## Good to know
 

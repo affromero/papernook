@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { resolveWebdavUrl } from "@/lib/webdav-url";
 
 describe("WebDAV setup URL", () => {
-  it("uses the public dav subdomain for a custom HTTPS domain", () => {
-    expect(resolveWebdavUrl("https://papernook.example.com")).toBe(
-      "https://dav.papernook.example.com",
+  it("requires an explicit endpoint for a custom HTTPS domain", () => {
+    expect(() => resolveWebdavUrl("https://papernook.example.com")).toThrow(
+      /PAPERNOOK_WEBDAV_URL/,
+    );
+    expect(() => resolveWebdavUrl("https://example.com")).toThrow(
+      /PAPERNOOK_WEBDAV_URL/,
     );
   });
 

@@ -135,11 +135,16 @@ case "$PUBLIC" in
         exit 1
         ;;
     esac
+    read -r -p \
+      "Public WebDAV URL (for example https://dav-papernook.example.com): " \
+      PUBLIC_WEBDAV_URL < /dev/tty
+    validate_public_webdav_url "$PUBLIC_WEBDAV_URL" || exit 1
     read -r -s -p "Shared Papernook access password (12–200 characters): " PAPERNOOK_PASSWORD < /dev/tty
     echo
     validate_papernook_password "$PAPERNOOK_PASSWORD" || exit 1
     PUBLIC_BLOCK=$'PUBLIC_EXPOSURE=true\n'
     PUBLIC_BLOCK+="PAPERNOOK_PUBLIC_HOST=${PUBLIC_HOST}"$'\n'
+    PUBLIC_BLOCK+="PAPERNOOK_WEBDAV_URL=$(dotenv_quote "$PUBLIC_WEBDAV_URL")"$'\n'
     PUBLIC_BLOCK+="PAPERNOOK_PASSWORD=$(dotenv_quote "$PAPERNOOK_PASSWORD")"$'\n'
     PUBLIC_BLOCK+=$'APP_HOST=127.0.0.1\nWEBDAV_HOST=127.0.0.1'
     ;;

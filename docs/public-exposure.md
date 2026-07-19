@@ -13,6 +13,7 @@ Add these values to `.env`:
 ```dotenv
 PUBLIC_EXPOSURE=true
 PAPERNOOK_PUBLIC_HOST=papernook.example.com
+PAPERNOOK_WEBDAV_URL=https://dav-papernook.example.com
 PAPERNOOK_PASSWORD=<long unique access password>
 SESSION_SECRET=<at least 32 random characters>
 
@@ -24,11 +25,13 @@ WEBDAV_HOST=127.0.0.1
 Then:
 
 1. Replace `papernook.example.com` with the app hostname.
-2. Generate `SESSION_SECRET` once with `openssl rand -hex 32`.
-3. Put Caddy or another TLS proxy in front of the app. Start with
+2. Replace `dav-papernook.example.com` with the WebDAV hostname routed to the
+   sidecar. This explicit value prevents Papernook from guessing a hostname.
+3. Generate `SESSION_SECRET` once with `openssl rand -hex 32`.
+4. Put Caddy or another TLS proxy in front of the app. Start with
    [`Caddyfile.example`](../Caddyfile.example).
-4. Restart with `docker compose up -d`.
-5. Open the HTTPS domain in a private browser window. The access-password
+5. Restart with `docker compose up -d`.
+6. Open the HTTPS domain in a private browser window. The access-password
    screen must appear before any profile names.
 
 `PAPERNOOK_PUBLIC_HOST` matters when the same server is also used through
@@ -95,8 +98,8 @@ restart before sharing the public address.
 - **Terminate TLS at the proxy.** Do not serve the app publicly over plain
   HTTP.
 - **Protect WebDAV separately.** Use a strong, unique `WEBDAV_PASS`. Either
-  proxy it at `https://dav.<your-domain>` or keep it Tailscale-only, even when
-  the app is public.
+  set `PAPERNOOK_WEBDAV_URL` to that HTTPS endpoint, and proxy it separately
+  from the app; or keep WebDAV Tailscale-only.
 - **Treat capture tokens as secrets.** They ride in bookmarklet URLs by
   design, are unique per profile, and can be rotated in Settings.
 - **Add edge controls when needed.** A Caddy rate-limit plugin or fail2ban can

@@ -1,9 +1,10 @@
 /**
  * Derive the WebDAV endpoint shown in Settings and onboarding.
  *
- * Public-domain installs conventionally use a dav subdomain. Tailscale Serve
- * gives the app an HTTPS *.ts.net URL while forwarding WebDAV as raw HTTP on
- * port 8080, so it must keep the same hostname instead.
+ * Public-domain installs must configure their WebDAV URL explicitly because
+ * an app hostname does not contain enough information to derive another safe
+ * hostname. Tailscale Serve gives the app an HTTPS *.ts.net URL while
+ * forwarding WebDAV as raw HTTP on port 8080, so it keeps the same hostname.
  */
 export function resolveWebdavUrl(
   appUrl: string,
@@ -22,7 +23,9 @@ export function resolveWebdavUrl(
     return `http://${app.hostname}:8080`;
   }
   if (!app.port || app.port === "443") {
-    return `https://dav.${app.hostname}`;
+    throw new Error(
+      "PAPERNOOK_WEBDAV_URL is required for custom HTTPS domains.",
+    );
   }
   return `${app.protocol}//${app.hostname}:8080`;
 }

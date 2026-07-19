@@ -44,4 +44,29 @@ describe("installer environment values", () => {
     expect(run("validate_papernook_password", "a".repeat(200)).status).toBe(0);
     expect(run("validate_papernook_password", "a".repeat(201)).status).toBe(1);
   });
+
+  it("accepts only usable public WebDAV HTTPS URLs", () => {
+    expect(
+      run("validate_public_webdav_url", "https://dav-papernook.example.com")
+        .status,
+    ).toBe(0);
+    expect(
+      run(
+        "validate_public_webdav_url",
+        "https://storage.example.com:8443/papers",
+      ).status,
+    ).toBe(0);
+
+    for (const value of [
+      "http://dav.example.com",
+      "https://.",
+      "https://dav.example.com:abc",
+      "https://dav.example.com:65536",
+      "https://user@dav.example.com",
+      "https://dav.example.com/papers?token=value",
+      "https://-dav.example.com",
+    ]) {
+      expect(run("validate_public_webdav_url", value).status, value).toBe(1);
+    }
+  });
 });

@@ -1,6 +1,7 @@
 # Custom-domain opt-in: add these blocks to the VPS Caddyfile. In .env, set
-# PUBLIC_EXPOSURE=true, PAPERNOOK_PUBLIC_HOST, PAPERNOOK_PASSWORD,
-# SESSION_SECRET, APP_HOST=127.0.0.1, and WEBDAV_HOST=127.0.0.1.
+# PUBLIC_EXPOSURE=true, PAPERNOOK_PUBLIC_HOST, PAPERNOOK_WEBDAV_URL,
+# PAPERNOOK_PASSWORD, SESSION_SECRET, APP_HOST=127.0.0.1, and
+# WEBDAV_HOST=127.0.0.1.
 # Private-only Tailscale setups do not need Caddy or the public auth settings.
 
 papernook.example.com {
@@ -12,6 +13,6 @@ papernook.example.com {
 }
 
 # WebDAV for PDF Expert: its own subdomain, its own basic-auth (rclone).
-dav.papernook.example.com {
+dav-papernook.example.com {
 	reverse_proxy localhost:8080
 }
