@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AddPaperBox } from "./AddPaperBox";
+import { ViewToggle } from "./ViewToggle";
 import {
   searchIndex,
   allTags,
@@ -99,6 +100,7 @@ export function LibraryView({
       </aside>
 
       <section className={styles.main}>
+        <ViewToggle active="library" />
         <AddPaperBox captureToken={captureToken} />
         <form className={styles.searchRow} action="/" method="get">
           <input

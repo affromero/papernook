@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
+import { ViewToggle } from "@/components/library/ViewToggle";
 import { GraphClient } from "./GraphClient";
 import styles from "./graph.module.css";
 
@@ -12,9 +12,7 @@ export default async function GraphPage() {
   return (
     <main className={styles.root}>
       <header className={styles.header}>
-        <Link href="/" className={styles.back}>
-          ← Library
-        </Link>
+        <ViewToggle active="graph" />
         <h1 className={styles.title}>How your papers relate</h1>
       </header>
       <GraphClient />
