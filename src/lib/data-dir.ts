@@ -10,7 +10,8 @@ import crypto from "node:crypto";
  * data/library/  App-private tree: companion folders (meta, summary, text,
  *                per-account chats, crops, canvas) and _inbox. Never exposed
  *                over WebDAV.
- * data/users/    Profiles: <username>/profile.json.
+ * data/users/    Profiles plus private integration caches:
+ *                <username>/profile.json + zotero-catalog.json.
  */
 
 export function dataRoot(): string {

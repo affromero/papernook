@@ -22,22 +22,59 @@ interface ZoteroState {
   collectionKeys: string[];
   syncing: boolean;
   lastResult: {
-    imported: number;
+    discovered: number;
     updated: number;
-    skipped: number;
+    removed: number;
+    available: number;
     failed: number;
   } | null;
 }
 
 interface ZoteroOptions extends ZoteroState {
-  libraries: ZoteroTarget[];
+  libraries: (ZoteroTarget & { canImportFiles: boolean | null })[];
   collections: ZoteroCollection[];
   previewTarget: ZoteroTarget;
   warning: string | null;
 }
 
+interface ZoteroCatalogItem {
+  key: string;
+  title: string;
+  authors: string[];
+  year: number | null;
+  annotationCount: number;
+  hasStoredPdf: boolean;
+  imported: { topic: string; slug: string } | null;
+}
+
+interface ZoteroCatalogPage {
+  items: ZoteroCatalogItem[];
+  total: number;
+  importable: number;
+  imported: number;
+  page: number;
+  limit: number;
+  refreshedAt: string | null;
+}
+
 function targetValue(target: ZoteroTarget): string {
   return `${target.type}:${target.id}`;
+}
+
+async function fetchCatalog(
+  query: string,
+  page = 1,
+): Promise<ZoteroCatalogPage | null> {
+  const params = new URLSearchParams({
+    q: query.trim(),
+    page: String(page),
+    limit: "20",
+  });
+  const response = await fetch(
+    `/api/v1/settings/zotero/items?${params.toString()}`,
+    { credentials: "include" },
+  );
+  return response.ok ? ((await response.json()) as ZoteroCatalogPage) : null;
 }
 
 export function ZoteroCard() {
@@ -48,6 +85,9 @@ export function ZoteroCard() {
   const [options, setOptions] = useState<ZoteroOptions | null>(null);
   const [selectedTarget, setSelectedTarget] = useState("");
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
+  const [catalog, setCatalog] = useState<ZoteroCatalogPage | null>(null);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [importingKey, setImportingKey] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function refresh(): Promise<ZoteroState | null> {
@@ -66,7 +106,13 @@ export function ZoteroCard() {
         response.ok ? (response.json() as Promise<ZoteroState>) : null,
       )
       .then((data) => {
-        if (data) setState(data);
+        if (!data) return;
+        setState(data);
+        if (data.connected) {
+          void fetchCatalog("").then((catalogData) => {
+            if (catalogData) setCatalog(catalogData);
+          });
+        }
       });
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -82,9 +128,10 @@ export function ZoteroCard() {
           pollRef.current = null;
           setStatus(
             data.lastResult?.failed
-              ? `Sync imported ${data.lastResult.imported}, refreshed ${data.lastResult.updated}; ${data.lastResult.failed} failed and will retry automatically.`
-              : `Sync finished: ${data.lastResult?.imported ?? 0} imported and ${data.lastResult?.updated ?? 0} refreshed.`,
+              ? "Zotero catalog refresh failed. It will retry automatically."
+              : `Catalog refreshed: ${data.lastResult?.available ?? 0} papers with stored PDFs; no PDFs downloaded and no AI calls made.`,
           );
+          void loadCatalog();
         }
       });
     }, 3000);
@@ -113,17 +160,67 @@ export function ZoteroCard() {
       setOptions(null);
       if (method === "PUT") {
         setApiKey("");
-        setStatus("Connected to your personal Zotero library.");
+        setCatalog(null);
+        setStatus(
+          "Connected. Refresh the metadata catalog to browse papers; nothing is downloaded automatically.",
+        );
       }
-      if (method === "DELETE") setStatus("Disconnected.");
+      if (method === "DELETE") {
+        setCatalog(null);
+        setStatus("Disconnected.");
+      }
       if (method === "POST") {
-        setStatus("Sync started…");
+        setStatus("Refreshing metadata and annotations…");
         watchSync();
       }
     } catch {
       setStatus("Could not reach the Zotero settings service.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function loadCatalog(query = catalogQuery, page = 1): Promise<void> {
+    try {
+      const data = await fetchCatalog(query, page);
+      if (data) setCatalog(data);
+    } catch {
+      setStatus("Could not load the Zotero catalog.");
+    }
+  }
+
+  async function importItem(item: ZoteroCatalogItem): Promise<void> {
+    setImportingKey(item.key);
+    setStatus(
+      `Importing “${item.title}”… This downloads one PDF and runs the configured AI analysis.`,
+    );
+    try {
+      const response = await fetch("/api/v1/settings/zotero/items", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemKey: item.key }),
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        topic?: string;
+        slug?: string;
+        created?: boolean;
+      };
+      if (!response.ok) {
+        setStatus(data.error ?? "Could not import this Zotero paper.");
+        return;
+      }
+      setStatus(
+        data.created
+          ? `Imported “${item.title}” into Papernook.`
+          : `“${item.title}” was already in Papernook.`,
+      );
+      await loadCatalog(catalogQuery, catalog?.page ?? 1);
+    } catch {
+      setStatus("Could not import this Zotero paper.");
+    } finally {
+      setImportingKey(null);
     }
   }
 
@@ -201,10 +298,11 @@ export function ZoteroCard() {
       }
       setState(data);
       setOptions(null);
+      await loadCatalog();
       setStatus(
         selectedCollections.length === 0
-          ? `Syncing all of ${target.name}.`
-          : `Syncing ${selectedCollections.length} selected collection${selectedCollections.length === 1 ? "" : "s"} in ${target.name}.`,
+          ? `Cataloging all of ${target.name}.`
+          : `Cataloging ${selectedCollections.length} selected collection${selectedCollections.length === 1 ? "" : "s"} in ${target.name}.`,
       );
     } catch {
       setStatus("Could not save the Zotero sync source.");
@@ -227,8 +325,8 @@ export function ZoteroCard() {
           >
             zotero.org/settings/keys
           </a>
-          . Enable read access to your personal library and files and/or any
-          groups you want to sync. Write access is not needed.
+          . Enable library read access. File access is needed only when you
+          explicitly import a PDF; write access is never needed.
         </p>
         <div className={styles.controls}>
           <input
@@ -267,7 +365,9 @@ export function ZoteroCard() {
         {state.collectionKeys.length === 0
           ? " All collections are included."
           : ` ${state.collectionKeys.length} collection filter${state.collectionKeys.length === 1 ? " is" : "s are"} active.`}{" "}
-        New PDFs sync every 30 minutes.
+        Metadata and annotations refresh every 30 minutes. PDFs are downloaded
+        only when you explicitly import one, and catalog refreshes never call an
+        AI provider.
       </p>
 
       {options && (
@@ -287,6 +387,14 @@ export function ZoteroCard() {
                 </option>
               ))}
             </select>
+            {options.libraries.find(
+              (library) => targetValue(library) === selectedTarget,
+            )?.canImportFiles === false && (
+              <span className={styles.hint}>
+                This key can catalog metadata but cannot download PDFs from this
+                personal library. Enable file read access to import.
+              </span>
+            )}
           </label>
           <fieldset className={styles.collections}>
             <legend>Collections</legend>
@@ -347,7 +455,7 @@ export function ZoteroCard() {
             onClick={() => void call("POST")}
             disabled={busy || state.syncing}
           >
-            {state.syncing ? "Syncing…" : "Sync now"}
+            {state.syncing ? "Refreshing…" : "Refresh catalog"}
           </button>
           <button
             type="button"
@@ -365,6 +473,107 @@ export function ZoteroCard() {
           >
             Disconnect
           </button>
+        </div>
+      )}
+      {!options && catalog && (
+        <div className={styles.catalog}>
+          <div className={styles.catalogHeader}>
+            <div>
+              <strong>Zotero catalog</strong>
+              <p className={styles.hint}>
+                {catalog.total} papers in scope · {catalog.importable} with a
+                stored PDF · {catalog.imported} imported
+              </p>
+            </div>
+            <div className={styles.catalogSearch}>
+              <input
+                className={styles.input}
+                type="search"
+                value={catalogQuery}
+                onChange={(event) => setCatalogQuery(event.target.value)}
+                placeholder="Search Zotero metadata"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void loadCatalog(catalogQuery, 1);
+                }}
+              />
+              <button
+                type="button"
+                className={styles.secondary}
+                onClick={() => void loadCatalog(catalogQuery, 1)}
+              >
+                Search
+              </button>
+            </div>
+          </div>
+          <div className={styles.catalogList}>
+            {catalog.items.map((item) => (
+              <div key={item.key} className={styles.catalogItem}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p className={styles.hint}>
+                    {[item.authors.join(", "), item.year]
+                      .filter(Boolean)
+                      .join(" · ") || "Metadata only"}
+                    {item.annotationCount > 0
+                      ? ` · ${item.annotationCount} annotation${item.annotationCount === 1 ? "" : "s"}`
+                      : ""}
+                  </p>
+                </div>
+                {item.imported ? (
+                  <a
+                    className={styles.secondary}
+                    href={`/paper/${item.imported.topic}/${item.imported.slug}`}
+                  >
+                    Open
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.save}
+                    disabled={!item.hasStoredPdf || importingKey !== null}
+                    onClick={() => void importItem(item)}
+                    title={
+                      item.hasStoredPdf
+                        ? "Download this PDF and run AI analysis"
+                        : "No stored Zotero PDF is available"
+                    }
+                  >
+                    {importingKey === item.key ? "Importing…" : "Import"}
+                  </button>
+                )}
+              </div>
+            ))}
+            {catalog.items.length === 0 && (
+              <p className={styles.hint}>
+                Refresh the catalog, or adjust the current search and collection
+                filters.
+              </p>
+            )}
+          </div>
+          {catalog.total > catalog.limit && (
+            <div className={styles.catalogPagination}>
+              <button
+                type="button"
+                className={styles.secondary}
+                disabled={catalog.page <= 1}
+                onClick={() => void loadCatalog(catalogQuery, catalog.page - 1)}
+              >
+                Previous
+              </button>
+              <span className={styles.hint}>
+                Page {catalog.page} of{" "}
+                {Math.max(1, Math.ceil(catalog.total / catalog.limit))}
+              </span>
+              <button
+                type="button"
+                className={styles.secondary}
+                disabled={catalog.page * catalog.limit >= catalog.total}
+                onClick={() => void loadCatalog(catalogQuery, catalog.page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       )}
       {status && (

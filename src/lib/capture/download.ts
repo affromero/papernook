@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { Agent, fetch, type Response } from "undici";
 import { normalizeUrl, pdfUrlFromHtml } from "./normalize";
+import { readBoundedResponse, ResponseTooLargeError } from "./bounded-response";
 
 /**
  * Polite fetching: descriptive User-Agent (arxiv policy) and a per-host
@@ -11,7 +12,7 @@ import { normalizeUrl, pdfUrlFromHtml } from "./normalize";
 const USER_AGENT =
   "papernook/0.1 (self-hosted paper library; +https://github.com/afromero)";
 const HOST_COOLDOWN_MS = 3_000;
-const MAX_PDF_BYTES = 100 * 1024 * 1024;
+export const MAX_PDF_BYTES = 100 * 1024 * 1024;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 
@@ -165,38 +166,14 @@ async function readBody(
   maxBytes: number,
   close: () => Promise<void>,
 ): Promise<Buffer> {
-  const contentLength = response.headers.get("content-length");
-  if (contentLength && Number(contentLength) > maxBytes) {
-    await close();
-    throw new CaptureError(
-      `Response is too large (limit ${Math.round(maxBytes / 1e6)} MB).`,
-    );
-  }
-  const reader = response.body?.getReader();
-  if (!reader) {
-    await close();
-    return Buffer.alloc(0);
-  }
-  const chunks: Buffer[] = [];
-  let size = 0;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > maxBytes) {
-        await reader.cancel();
-        throw new CaptureError(
-          `Response is too large (limit ${Math.round(maxBytes / 1e6)} MB).`,
-        );
-      }
-      chunks.push(Buffer.from(value));
+    return await readBoundedResponse(response, maxBytes, close);
+  } catch (error) {
+    if (error instanceof ResponseTooLargeError) {
+      throw new CaptureError(error.message);
     }
-  } finally {
-    reader.releaseLock();
-    await close();
+    throw error;
   }
-  return Buffer.concat(chunks, size);
 }
 
 function looksLikePdf(response: Response, bytes: Buffer): boolean {

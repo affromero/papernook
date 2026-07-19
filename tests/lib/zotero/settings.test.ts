@@ -146,7 +146,7 @@ describe("zotero settings route", () => {
     expect(users.getProfile("andres")?.zotero).toBeUndefined();
   });
 
-  it("requires library and file read permissions", async () => {
+  it("allows metadata-only connection without personal file permission", async () => {
     const users = await import("@/lib/auth/users");
     users.createProfile("Andres");
     await signedInAs("andres");
@@ -168,9 +168,11 @@ describe("zotero settings route", () => {
 
     const route = await import("@/app/api/v1/settings/zotero/route");
     const response = await route.PUT(putRequest({ apiKey: "x".repeat(24) }));
-    expect(response.status).toBe(422);
-    expect(await response.text()).toContain("personal or group library");
-    expect(users.getProfile("andres")?.zotero).toBeUndefined();
+    expect(response.status).toBe(200);
+    expect(users.getProfile("andres")?.zotero?.target).toMatchObject({
+      type: "user",
+      id: "1234567",
+    });
   });
 
   it("lists accessible libraries and validates group collection filters", async () => {
@@ -326,6 +328,11 @@ describe("zotero settings route", () => {
     vi.stubGlobal("fetch", async (input: URL | string) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith("/collections")) return pendingCollections;
+      if (url.pathname.endsWith("/deleted")) {
+        return new Response(JSON.stringify({ items: [] }), {
+          headers: { "Last-Modified-Version": "1" },
+        });
+      }
       return new Response(JSON.stringify([]), {
         headers: { "Last-Modified-Version": "1" },
       });

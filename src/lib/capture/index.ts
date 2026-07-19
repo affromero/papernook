@@ -24,6 +24,7 @@ import {
   type ProfileActivity,
 } from "../auth/profile-activity";
 import { CaptureError } from "./download";
+import { captureLockKey, withZoteroLock } from "./zotero-lock";
 
 /**
  * Capture orchestration: URL → inbox paper with proposed filing.
@@ -102,6 +103,16 @@ async function capturePdfActive(
   opts: CapturePdfOptions,
   activity: ProfileActivity,
 ): Promise<CaptureResult> {
+  return withZoteroLock(captureLockKey(), 10 * 60_000, () =>
+    capturePdfLocked(bytes, opts, activity),
+  );
+}
+
+async function capturePdfLocked(
+  bytes: Buffer,
+  opts: CapturePdfOptions,
+  activity: ProfileActivity,
+): Promise<CaptureResult> {
   ensureDataDirs();
   assertActive(activity);
 
@@ -166,11 +177,12 @@ async function capturePdfActive(
     if (opts.autoFile) {
       // Same inbox→library path the confirm page uses: the PDF only reaches
       // data/papers/ (and thus WebDAV) via the accept function's atomic rename.
-      // No per-paper rebuildIndex here — sync batches one rebuild at the end.
+      // No per-paper rebuildIndex here — callers may batch one rebuild.
       acceptInboxCapture(finalSlug, proposedTopic, opts.username);
     } else {
       rebuildIndex();
     }
+    assertActive(activity);
     return { slug: finalSlug, proposedTopic, analysis };
   } catch (error) {
     removeOwnedCapture(opts.username, finalSlug, proposedTopic);
@@ -191,7 +203,7 @@ function profileDeletedError(): CaptureError {
   );
 }
 
-function removeOwnedCapture(
+export function removeOwnedCapture(
   username: string,
   slug: string,
   topic: string | null,
