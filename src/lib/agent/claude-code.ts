@@ -47,7 +47,12 @@ function ensureClaudeHome(): string | undefined {
   return claudeHome ?? undefined;
 }
 
-function cleanEnv(): NodeJS.ProcessEnv {
+/**
+ * The process environment used by every local Claude CLI probe and turn.
+ * Readiness must use this too, otherwise env-provided credentials work for
+ * real prompts while Settings incorrectly reports that the CLI needs login.
+ */
+export function claudeCodeEnvironment(): NodeJS.ProcessEnv {
   // Strip CLAUDECODE to prevent "cannot launch inside another session".
   const baseEnv = { ...process.env };
   delete baseEnv.CLAUDECODE;
@@ -89,7 +94,7 @@ export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, spawnArgs, {
       stdio: ["pipe", "pipe", "pipe"],
-      env: cleanEnv(),
+      env: claudeCodeEnvironment(),
     });
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
@@ -175,7 +180,7 @@ export async function* streamClaudeCode(
   );
   const child = spawn(command, spawnArgs, {
     stdio: ["pipe", "pipe", "pipe"],
-    env: cleanEnv(),
+    env: claudeCodeEnvironment(),
   });
   const timer = setTimeout(() => child.kill("SIGTERM"), timeoutMs);
 

@@ -148,6 +148,40 @@ describe("provider registry", () => {
     vi.doUnmock("node:child_process");
   });
 
+  it("checks Claude readiness with the same credential environment as turns", async () => {
+    vi.stubEnv("CLAUDE_HOME", "/tmp/papernook-test-claude-home");
+    vi.stubEnv("CLAUDECODE", "nested-session");
+    const homes: Array<string | undefined> = [];
+    vi.doMock("node:child_process", () => ({
+      spawn: (
+        _command: string,
+        _args: string[],
+        options: { env?: NodeJS.ProcessEnv },
+      ) => {
+        homes.push(options.env?.HOME);
+        const hasUsableEnv =
+          options.env?.HOME === "/tmp/papernook-test-claude-home" &&
+          options.env.CLAUDECODE === undefined;
+        return {
+          kill: vi.fn(),
+          on: (event: string, callback: (code?: number) => void) => {
+            if (event === "close") {
+              setImmediate(() => callback(hasUsableEnv ? 0 : 1));
+            }
+          },
+        };
+      },
+    }));
+    const { providerStatus } = await import("@/lib/agent/registry");
+
+    expect(await providerStatus("claude-code")).toBe("ready");
+    expect(homes).toEqual([
+      "/tmp/papernook-test-claude-home",
+      "/tmp/papernook-test-claude-home",
+    ]);
+    vi.doUnmock("node:child_process");
+  });
+
   it("probes local and custom OpenAI endpoints instead of requiring keys", async () => {
     vi.stubEnv("OLLAMA_HOST", "http://models.test:11434/v1/");
     vi.stubEnv("OLLAMA_MODEL", "qwen3:4b");

@@ -4,7 +4,7 @@ import {
   getClaudeSshHost,
   getCodexSshHost,
 } from "./invocation";
-import { claudeCodeProvider } from "./claude-code";
+import { claudeCodeEnvironment, claudeCodeProvider } from "./claude-code";
 import { codexProvider } from "./codex";
 import {
   anthropicProvider,
@@ -69,11 +69,13 @@ function cliResponds(
   cli: string,
   cliArgs: string[],
   sshHost?: string,
+  env?: NodeJS.ProcessEnv,
 ): Promise<boolean> {
   const { command, args } = buildAgentInvocation(cli, cliArgs, sshHost);
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "ignore", "ignore"],
+      env,
     });
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
@@ -153,10 +155,11 @@ export async function providerStatus(
       return process.env.OPENAI_API_KEY ? "ready" : "no_key";
     case "claude-code": {
       const ssh = getClaudeSshHost();
-      if (!(await cliResponds("claude", ["--version"], ssh))) {
+      const env = ssh ? undefined : claudeCodeEnvironment();
+      if (!(await cliResponds("claude", ["--version"], ssh, env))) {
         return ssh ? "unreachable" : "not_installed";
       }
-      return (await cliResponds("claude", ["auth", "status"], ssh))
+      return (await cliResponds("claude", ["auth", "status"], ssh, env))
         ? "ready"
         : "not_authenticated";
     }
