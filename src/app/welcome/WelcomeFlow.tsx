@@ -18,20 +18,13 @@ interface WelcomeFlowProps {
   avatarSlug: string;
   captureToken: string;
   baseUrl: string;
+  webdavUrl: string;
   shortcutUrl: string | null;
   agentProvider: string | null;
   agentAvailable: boolean;
   webdavUser: string | null;
   webdavPass: string | null;
   admin: boolean;
-}
-
-function webdavUrl(baseUrl: string): string {
-  const url = new URL(baseUrl);
-  if (!url.port || url.port === "443") {
-    return `https://dav.${url.hostname}`;
-  }
-  return `${url.protocol}//${url.hostname}:8080`;
 }
 
 function CopyRow({
@@ -70,6 +63,7 @@ export function WelcomeFlow({
   avatarSlug,
   captureToken,
   baseUrl,
+  webdavUrl,
   shortcutUrl,
   agentProvider,
   agentAvailable,
@@ -192,7 +186,7 @@ export function WelcomeFlow({
               saves into the PDF here. No exports, ever.
             </li>
           </ol>
-          <CopyRow label="Address" value={webdavUrl(baseUrl)} />
+          <CopyRow label="Address" value={webdavUrl} />
           {webdavUser && <CopyRow label="User" value={webdavUser} />}
           {webdavPass && <CopyRow label="Password" value={webdavPass} secret />}
         </section>

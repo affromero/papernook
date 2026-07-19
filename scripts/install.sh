@@ -17,6 +17,9 @@ else
   exec ./scripts/install.sh "$@"
 fi
 
+# Loaded only after the self-bootstrap above has entered the cloned repo.
+source ./scripts/install-env.sh
+
 # Non-interactive: pull everything from an existing Infisical project.
 #   INFISICAL_TOKEN=... INFISICAL_PROJECT_ID=... ./scripts/install.sh --from-infisical
 if [ "${1:-}" = "--from-infisical" ]; then
@@ -104,16 +107,34 @@ esac
 read -r -p "WebDAV username for PDF Expert [papers]: " WEBDAV_USER < /dev/tty
 WEBDAV_USER=${WEBDAV_USER:-papers}
 read -r -p "WebDAV password: " WEBDAV_PASS < /dev/tty
-read -r -p "Expose publicly (forces profile passwords)? [y/N]: " PUBLIC < /dev/tty
+read -r -p "Expose publicly through a custom domain? [y/N]: " PUBLIC < /dev/tty
+
+PUBLIC_BLOCK=""
+case "$PUBLIC" in
+  y | Y)
+    read -r -p "Public hostname (for example papernook.example.com): " PUBLIC_HOST < /dev/tty
+    case "$PUBLIC_HOST" in
+      "" | *"://"* | *"/"* | *" "* | *":"*)
+        echo "Enter a hostname only, without a scheme, path, port, or spaces." >&2
+        exit 1
+        ;;
+    esac
+    read -r -s -p "Shared Papernook access password (12–200 characters): " PAPERNOOK_PASSWORD < /dev/tty
+    echo
+    validate_papernook_password "$PAPERNOOK_PASSWORD" || exit 1
+    PUBLIC_BLOCK=$'PUBLIC_EXPOSURE=true\n'
+    PUBLIC_BLOCK+="PAPERNOOK_PUBLIC_HOST=${PUBLIC_HOST}"$'\n'
+    PUBLIC_BLOCK+="PAPERNOOK_PASSWORD=$(dotenv_quote "$PAPERNOOK_PASSWORD")"$'\n'
+    PUBLIC_BLOCK+=$'APP_HOST=127.0.0.1\nWEBDAV_HOST=127.0.0.1'
+    ;;
+esac
 
 {
   echo "$AI_BLOCK"
   echo "WEBDAV_USER=${WEBDAV_USER}"
   echo "WEBDAV_PASS=${WEBDAV_PASS}"
   echo "SESSION_SECRET=$(openssl rand -hex 32)"
-  case "$PUBLIC" in
-    y | Y) echo "PUBLIC_EXPOSURE=true" ;;
-  esac
+  [ -z "$PUBLIC_BLOCK" ] || echo "$PUBLIC_BLOCK"
 } > .env
 
 echo
@@ -123,3 +144,10 @@ echo
 echo "papernook is up:"
 echo "  app:    http://localhost:3000  (open it and create your profile)"
 echo "  webdav: http://localhost:8080  (PDF Expert → WebDAV, user ${WEBDAV_USER})"
+case "$PUBLIC" in
+  y | Y)
+    echo
+    echo "Custom-domain settings are ready for ${PUBLIC_HOST}."
+    echo "Configure HTTPS with Caddyfile.example before opening it publicly."
+    ;;
+esac

@@ -8,6 +8,7 @@ import { ModelPicker } from "@/components/profiles/ModelPicker";
 import { ZoteroCard } from "@/components/profiles/ZoteroCard";
 import { createInviteToken } from "@/lib/auth/gate";
 import { instancePasswordConfigured } from "@/lib/auth/users";
+import { resolveWebdavUrl } from "@/lib/webdav-url";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
 import styles from "./settings.module.css";
 
@@ -144,12 +145,7 @@ export default async function SettingsPage() {
           <li>
             Address:{" "}
             <code>
-              {(() => {
-                const url = new URL(base);
-                return !url.port || url.port === "443"
-                  ? `https://dav.${url.hostname}`
-                  : `${url.protocol}//${url.hostname}:8080`;
-              })()}
+              {resolveWebdavUrl(base, process.env.PAPERNOOK_WEBDAV_URL)}
             </code>
           </li>
           <li>
