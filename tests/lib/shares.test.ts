@@ -270,9 +270,12 @@ describe("public share boundaries", () => {
 
     expect(html).toContain("View only");
     expect(html).toContain("Why does attention help?");
-    expect(html).not.toContain("<button");
+    expect(html).toContain('aria-label="Previous page"');
+    expect(html).toContain('aria-label="Zoom in"');
     expect(html).not.toContain("<form");
     expect(html).not.toContain("<textarea");
     expect(html).not.toContain("Save as exercise");
+    expect(html).not.toContain("Create share");
+    expect(html).not.toContain("Revoke");
   });
 });

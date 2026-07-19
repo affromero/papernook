@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { PdfReader } from "@/components/pdf/PdfReader";
 import { ShareButton } from "@/components/share/ShareButton";
 import styles from "./paper.module.css";
 
@@ -44,8 +45,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
 
       <div className={styles.columns}>
         <section className={styles.viewer} aria-label="Paper PDF">
-          <iframe
-            className={styles.pdfFrame}
+          <PdfReader
             src={`/api/v1/papers/${topic}/${slug}/pdf`}
             title={meta.title}
           />

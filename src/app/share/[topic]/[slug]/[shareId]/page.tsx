@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { PdfReader } from "@/components/pdf/PdfReader";
 import { getPaper } from "@/lib/library/papers";
 import { getShare, type PaperShare } from "@/lib/library/shares";
 import styles from "./share.module.css";
@@ -61,11 +62,12 @@ export default async function SharePage({ params }: SharePageProps) {
             <span>Annotated paper</span>
             <span>Live copy</span>
           </div>
-          <iframe
-            className={styles.pdfFrame}
-            src={`/api/v1/shares/${topic}/${slug}/${shareId}/pdf`}
-            title={meta.title}
-          />
+          <div className={styles.pdfFrame}>
+            <PdfReader
+              src={`/api/v1/shares/${topic}/${slug}/${shareId}/pdf`}
+              title={meta.title}
+            />
+          </div>
         </section>
 
         <aside className={styles.studyColumn}>
