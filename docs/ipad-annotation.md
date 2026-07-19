@@ -1,5 +1,7 @@
 # iPad annotation over WebDAV
 
+[← Documentation home](README.md)
+
 papernook serves **only** `data/papers/` (your annotatable PDFs and rendered
 exercise sheets) through an rclone WebDAV sidecar. Chats, crops, and canvases
 never appear on the share.
@@ -15,17 +17,33 @@ not supported". The connection goes inside the PDF app itself.
 1. Install **Documents by Readdle** (free) or **PDF Viewer by Nutrient**
    (free, unlimited annotations). PDF Expert also works but is
    subscription-based.
-2. In Documents: **+ (Plus) → Add Connection → WebDAV Server**. In PDF
+2. Choose the address for the way this iPad reaches Papernook:
+
+   | Setup                                       | WebDAV address                           |
+   | ------------------------------------------- | ---------------------------------------- |
+   | Custom domain with the example Caddy layout | `https://dav.papernook.example.com`      |
+   | Tailscale                                   | `http://<tailscale-hostname-or-ip>:8080` |
+   | Same LAN                                    | `http://<lan-hostname-or-ip>:8080`       |
+
+3. In Documents: **+ (Plus) → Add Connection → WebDAV Server**. In PDF
    Viewer / PDF Expert: add a WebDAV location from the connections screen.
    Then fill in:
-   - URL: `http://<your-host>:8080` (or `https://dav.<your-domain>` if you
-     exposed it through Caddy)
+   - URL: the address selected above
    - Login / password: the `WEBDAV_USER` / `WEBDAV_PASS` from the server's
      `.env` (the installer set these).
-3. Browse to a topic folder, open a paper, write with the Pencil.
-4. Saving writes standard PDF annotations **into the same file on your
+4. Browse to a topic folder, open a paper, write with the Pencil.
+5. Saving writes standard PDF annotations **into the same file on your
    server**. papernook, other devices, and future exports all see them.
    There is no export step and no proprietary format.
+
+![WebDAV values ready to copy from the welcome flow](images/setup/welcome-webdav.png)
+
+> **Important:** the app and WebDAV addresses must both be reachable through
+> the selected route. A friend using Tailscale should use the server's
+> Tailscale hostname or IP for both, not `dav.<tailscale-hostname>`.
+
+For a nonstandard proxy layout, set `PAPERNOOK_WEBDAV_URL` in `.env`. Settings
+and every new-reader welcome screen will use that exact address.
 
 ## Good to know
 

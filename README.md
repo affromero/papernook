@@ -36,6 +36,8 @@ curl -fsSL https://raw.githubusercontent.com/affromero/papernook/main/scripts/in
 
 Open **http://localhost:3000**, create your profile, and the two-minute wizard takes it from there: agent test → personal bookmarklet + Shortcut → iPad WebDAV walkthrough.
 
+![Papernook library with topic navigation, search, and paper cards](docs/images/product/library.png)
+
 ## The loop
 
 1. **Capture.** On any arxiv/paper page: click the bookmarklet (Chrome) or Share → _Add to papernook_ (Safari/iPhone/iPad). Your AI reads the PDF, proposes a topic folder, tags, a summary, related papers already in your library, and seeds starter questions. One tap to accept.
@@ -136,7 +138,7 @@ flowchart LR
 - **Exercises** that render to a Pencil-ready PDF next to the paper.
 - **Revocable shared readings**: a 256-bit view-only link serves the current annotated PDF and, only when selected, immutable conversation snapshots. No recipient login; no chat, canvas, or paper mutations.
 - **Multiple profiles, shared library**: Netflix-style picker with the eight tropic-animal avatars; chats and tokens are private per profile.
-- **Adaptive auth**: open picker on a private network; `PUBLIC_EXPOSURE=true` forces per-profile passwords (argon2) with per-IP/per-account exponential lockout.
+- **Adaptive auth**: open picker on a private network; a public hostname can use one instance access password and signed friend invites, with a per-profile password compatibility path and exponential lockout.
 - **Filesystem truth**: two trees (`data/papers` shared over WebDAV, `data/library` app-private) indexed by a rebuildable SQLite FTS5 database. Move files by hand and the scanner reconciles; delete `index.db` any time.
 
 ## How Papernook is different
@@ -218,13 +220,16 @@ manager without exposing inbox papers.
 
 ## Self-host
 
-`docker-compose.yml` runs two containers: the app (Next.js standalone; poppler + openssh-client baked in; `data/` volume) and `rclone serve webdav` over **`data/papers` only**; chats, crops, and canvases never touch WebDAV. A public share can read only its current confirmed PDF and explicitly snapshotted conversation assets through token-scoped, no-store routes. Private-first reach via [Tailscale](https://tailscale.com) and [sidedoor](https://www.npmjs.com/package/thesidedoor) (QR + Add to Home Screen from Settings). Public exposure is a deliberate opt-in: see `Caddyfile.example` and [docs/public-exposure.md](docs/public-exposure.md).
+`docker-compose.yml` runs two containers: the app (Next.js standalone; poppler + openssh-client baked in; `data/` volume) and `rclone serve webdav` over **`data/papers` only**; chats, crops, and canvases never touch WebDAV. A public share can read only its current confirmed PDF and explicitly snapshotted conversation assets through token-scoped, no-store routes. Reach Papernook privately through [Tailscale](https://tailscale.com) or from any browser through a deliberately hardened custom domain. Settings provides the correct QR and Add to Home Screen URL for the address in use.
 
 ## Docs
 
-- [User guide: daily use and inviting a friend](docs/user-guide.md)
-- [The Safari/iOS Shortcut, step by step](docs/shortcut.md)
-- [iPad annotation with PDF Expert over WebDAV](docs/ipad-annotation.md)
+Start at the **[Papernook documentation home](docs/README.md)** for visual
+walkthroughs and separate custom-domain and Tailscale paths.
+
+- [User guide and inviting a friend](docs/user-guide.md)
+- [Safari/iOS Shortcut](docs/shortcut.md)
+- [iPad annotation over WebDAV](docs/ipad-annotation.md)
 - [Public exposure hardening](docs/public-exposure.md)
 
 ## Development

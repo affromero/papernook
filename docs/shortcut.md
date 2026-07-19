@@ -1,5 +1,7 @@
 # The "Add to papernook" Shortcut (Safari / iPhone / iPad / Mac)
 
+[← Documentation home](README.md)
+
 Two ways to get it. The import link is the normal path; the manual recipe
 exists for instances that have not published a Shortcut link yet.
 

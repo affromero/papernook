@@ -6,6 +6,7 @@ import {
   configuredProviderId,
   isProviderAvailable,
 } from "@/lib/agent/registry";
+import { resolveWebdavUrl } from "@/lib/webdav-url";
 import { WelcomeFlow } from "./WelcomeFlow";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function WelcomePage() {
   const headerStore = await headers();
   const host = headerStore.get("host") ?? "localhost:3000";
   const proto = headerStore.get("x-forwarded-proto") ?? "http";
+  const baseUrl = `${proto}://${host}`;
 
   let agentProvider: string | null = null;
   let agentAvailable = false;
@@ -40,7 +42,8 @@ export default async function WelcomePage() {
       displayName={profile.displayName}
       avatarSlug={profile.avatarSlug}
       captureToken={profile.captureToken}
-      baseUrl={`${proto}://${host}`}
+      baseUrl={baseUrl}
+      webdavUrl={resolveWebdavUrl(baseUrl, process.env.PAPERNOOK_WEBDAV_URL)}
       shortcutUrl={process.env.PAPERNOOK_SHORTCUT_URL ?? "/api/v1/shortcut"}
       agentProvider={agentProvider}
       agentAvailable={agentAvailable}

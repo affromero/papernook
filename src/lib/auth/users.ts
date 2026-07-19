@@ -8,9 +8,9 @@ import { isAnimalSlug, animalForSeed } from "./avatars";
 
 /**
  * Profiles on disk: data/users/<username>/profile.json. The shared library is
- * common to everyone; chats, reading state, and capture tokens are
- * per-profile. In private mode the picker is open (no password); with
- * PUBLIC_EXPOSURE=true every profile must have a password.
+ * common to everyone; chats and capture tokens are per-profile. Private
+ * requests use an open picker. Public requests use the instance access
+ * password when configured, otherwise per-profile passwords.
  */
 
 export interface Profile {

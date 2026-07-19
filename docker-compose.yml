@@ -6,7 +6,10 @@
 #   AI_PROVIDER=claude-code|codex|anthropic|openai|ollama|llamacpp|vllm
 #   WEBDAV_USER / WEBDAV_PASS      credentials for PDF Expert
 # Optional:
-#   PUBLIC_EXPOSURE=true           forces profile passwords + lockouts
+#   PUBLIC_EXPOSURE=true           hardens public-host authentication
+#   PAPERNOOK_PUBLIC_HOST          domain that receives the public gate
+#   PAPERNOOK_PASSWORD             shared instance access password
+#   APP_HOST / WEBDAV_HOST         use 127.0.0.1 behind a public TLS proxy
 #   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST, ANTHROPIC_API_KEY, OPENAI_API_KEY
 #   OLLAMA_HOST / LLAMACPP_BASE_URL / VLLM_BASE_URL and matching *_MODEL
 #   SESSION_SECRET                 pin sessions across container rebuilds
