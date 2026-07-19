@@ -80,8 +80,8 @@ function analysisPrompt(
   return { system, prompt };
 }
 
-/** Strip accidental markdown fences and parse the analysis JSON. */
-export function parseAnalysis(raw: string): Analysis {
+/** Strip accidental markdown fences and pull the outermost JSON object. */
+export function extractJson(raw: string): unknown {
   const cleaned = raw
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -91,7 +91,12 @@ export function parseAnalysis(raw: string): Analysis {
   if (start === -1 || end === -1) {
     throw new Error(`Agent returned no JSON: ${raw.slice(0, 200)}`);
   }
-  return analysisSchema.parse(JSON.parse(cleaned.slice(start, end + 1)));
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
+/** Parse the librarian's analysis JSON. */
+export function parseAnalysis(raw: string): Analysis {
+  return analysisSchema.parse(extractJson(raw));
 }
 
 export async function analyzePaper(

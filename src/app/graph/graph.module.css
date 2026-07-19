@@ -9,17 +9,12 @@
 
 .header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 1rem;
 }
 
-.back {
-  text-decoration: none;
-  color: inherit;
-  opacity: 0.7;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
+.header > nav {
+  margin-bottom: 0;
 }
 
 .title {
