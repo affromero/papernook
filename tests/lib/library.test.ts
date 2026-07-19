@@ -107,6 +107,15 @@ describe("paper CRUD on disk", () => {
     expect(lib.listInbox()).toHaveLength(0);
   });
 
+  it("only lets the capturing profile accept an inbox paper", async () => {
+    const lib = await placePaper(null, "fresh", "Fresh Capture");
+    expect(() => lib.acceptInboxCapture("fresh", "nlp", "ana")).toThrow(
+      /No pending capture/,
+    );
+    expect(lib.listInbox()).toHaveLength(1);
+    expect(lib.acceptInboxCapture("fresh", "nlp", "andres").topic).toBe("nlp");
+  });
+
   it("uniqueSlug avoids collisions across library and inbox", async () => {
     await placePaper("nlp", "attention", "Attention");
     const lib = await placePaper(null, "attention-2", "Attention again");
