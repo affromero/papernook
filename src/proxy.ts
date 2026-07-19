@@ -20,13 +20,12 @@ const PUBLIC_PATHS = [
 ];
 
 export const config = {
-  runtime: "nodejs",
   matcher: [
     "/((?!_next/|avatars/|favicon\\.ico|icon\\.svg|apple-icon\\.png|logo\\.(?:svg|png)|manifest\\.webmanifest|sw\\.js).*)",
   ],
 };
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   if (
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))

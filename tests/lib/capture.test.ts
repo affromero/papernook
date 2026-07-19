@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { NextRequest } from "next/server";
 
 let tmpDir: string;
 
@@ -12,6 +13,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -77,6 +79,210 @@ describe("URL normalization matrix", () => {
       ),
     ).toBe("https://pub.example.com/page/files/paper.pdf?dl=1");
     expect(pdfUrlFromHtml(`<p>nothing here</p>`, "https://x.com")).toBeNull();
+  });
+});
+
+describe("capture download boundary", () => {
+  type ConnectLookup = (
+    hostname: string,
+    options: unknown,
+    callback: (error: Error | null, address: string, family: number) => void,
+  ) => void;
+
+  function mockNetwork(
+    fetchMock = vi.fn(),
+    address: string | string[] = "93.184.216.34",
+  ) {
+    const lookupCalls: ConnectLookup[] = [];
+    vi.doMock("node:dns/promises", () => ({
+      lookup: async () =>
+        (Array.isArray(address) ? address : [address]).map((address) => ({
+          address,
+        })),
+    }));
+    vi.doMock("undici", () => ({
+      fetch: fetchMock,
+      Agent: class {
+        constructor(options: { connect: { lookup: ConnectLookup } }) {
+          lookupCalls.push(options.connect.lookup);
+        }
+
+        async close() {}
+      },
+    }));
+    return { fetchMock, lookupCalls };
+  }
+
+  it("rejects private network targets before issuing a fetch", async () => {
+    const { fetchMock } = mockNetwork();
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(downloadPdf("http://127.0.0.1/private.pdf")).rejects.toThrow(
+      /public internet addresses/,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects bracketed IPv6 loopback literals before issuing a fetch", async () => {
+    const { fetchMock } = mockNetwork();
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(downloadPdf("http://[::1]/private.pdf")).rejects.toThrow(
+      /public internet addresses/,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects URLs with unsupported schemes or embedded credentials", async () => {
+    const { fetchMock } = mockNetwork();
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(downloadPdf("file:///etc/passwd")).rejects.toThrow(
+      /HTTP or HTTPS/,
+    );
+    await expect(
+      downloadPdf("https://token@papers.example/paper.pdf"),
+    ).rejects.toThrow(/cannot include credentials/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects hostnames that resolve to a private network address", async () => {
+    const { fetchMock } = mockNetwork(vi.fn(), "10.0.0.8");
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(
+      downloadPdf("https://papers.example/paper.pdf"),
+    ).rejects.toThrow(/public internet addresses/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a hostname when any DNS answer is private", async () => {
+    const { fetchMock } = mockNetwork(vi.fn(), ["93.184.216.34", "10.0.0.8"]);
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(
+      downloadPdf("https://papers.example/paper.pdf"),
+    ).rejects.toThrow(/public internet addresses/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["::7f00:1", "::ffff:7f00:1", "::ffff:127.0.0.1"])(
+    "rejects IPv6 loopback forms (%s)",
+    async (address) => {
+      const { fetchMock } = mockNetwork(vi.fn(), address);
+      const { downloadPdf } = await import("@/lib/capture/download");
+
+      await expect(
+        downloadPdf("https://papers.example/paper.pdf"),
+      ).rejects.toThrow(/public internet addresses/);
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("pins the connection lookup to the public address it validated", async () => {
+    const { lookupCalls } = mockNetwork(
+      vi.fn().mockResolvedValue(
+        new Response("%PDF-1.4", {
+          headers: { "content-type": "application/pdf" },
+        }),
+      ),
+      "93.184.216.34",
+    );
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await downloadPdf("https://papers.example/paper.pdf");
+    let result: [Error | null, string, number] | undefined;
+    lookupCalls[0](
+      "papers.example",
+      {},
+      (...args: [Error | null, string, number]) => {
+        result = args;
+      },
+    );
+    expect(result).toEqual([null, "93.184.216.34", 4]);
+  });
+
+  it("rejects redirects into a private network", async () => {
+    const { fetchMock } = mockNetwork(
+      vi.fn().mockResolvedValue(
+        new Response(null, {
+          status: 302,
+          headers: { location: "http://127.0.0.1/private.pdf" },
+        }),
+      ),
+    );
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(
+      downloadPdf("https://papers.example/paper.pdf"),
+    ).rejects.toThrow(/public internet addresses/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns network failures into safe capture errors", async () => {
+    mockNetwork(vi.fn().mockRejectedValue(new Error("socket reset")));
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(
+      downloadPdf("https://papers.example/paper.pdf"),
+    ).rejects.toThrow(/Fetch failed/);
+  });
+
+  it("rejects oversized HTML before buffering it", async () => {
+    mockNetwork(
+      vi.fn().mockResolvedValue(
+        new Response("", {
+          headers: { "content-length": String(2 * 1024 * 1024 + 1) },
+        }),
+      ),
+    );
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(downloadPdf("https://papers.example/paper")).rejects.toThrow(
+      /too large/,
+    );
+  });
+
+  it("rejects oversized PDFs from their declared content length", async () => {
+    mockNetwork(
+      vi.fn().mockResolvedValue(
+        new Response("%PDF-1.4", {
+          headers: {
+            "content-type": "application/pdf",
+            "content-length": String(100 * 1024 * 1024 + 1),
+          },
+        }),
+      ),
+    );
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(
+      downloadPdf("https://papers.example/paper.pdf"),
+    ).rejects.toThrow(/too large/);
+  });
+
+  it("stops a streamed HTML response once it exceeds its byte limit", async () => {
+    const chunk = new Uint8Array(1024 * 1024);
+    mockNetwork(
+      vi.fn().mockResolvedValue(
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(chunk);
+              controller.enqueue(chunk);
+              controller.enqueue(chunk);
+              controller.close();
+            },
+          }),
+          { headers: { "content-type": "text/html" } },
+        ),
+      ),
+    );
+    const { downloadPdf } = await import("@/lib/capture/download");
+
+    await expect(downloadPdf("https://papers.example/paper")).rejects.toThrow(
+      /too large/,
+    );
   });
 });
 
@@ -213,5 +419,55 @@ describe("capture orchestration (mocked download + agent)", () => {
 
     vi.doUnmock("@/lib/capture/download");
     vi.doUnmock("@/lib/agent/registry");
+  });
+});
+
+describe("capture confirmation authorization", () => {
+  it("does not let one valid capture token file another profile's inbox paper", async () => {
+    const users = await import("@/lib/auth/users");
+    const papers = await import("@/lib/library/papers");
+    const { POST } = await import("@/app/add/confirm/route");
+    const owner = users.createProfile("Owner");
+    const other = users.createProfile("Other");
+    papers.writeMeta(null, "private-capture", {
+      title: "Private Capture",
+      authors: [],
+      year: null,
+      venue: null,
+      arxivId: null,
+      bibtex: null,
+      tags: [],
+      related: [],
+      sourceUrl: "https://example.com/paper.pdf",
+      addedAt: new Date().toISOString(),
+      addedBy: owner.username,
+    });
+    const pdf = papers.pdfPath(null, "private-capture");
+    fs.writeFileSync(pdf, "%PDF-1.4");
+
+    const form = new FormData();
+    form.set("token", other.captureToken);
+    form.set("slug", "private-capture");
+    form.set("topic", "nlp");
+    const response = await POST(
+      new NextRequest("http://papernook.test/add/confirm", {
+        method: "POST",
+        body: form,
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(papers.getPaper(null, "private-capture")).not.toBeNull();
+    expect(fs.existsSync(papers.pdfPath("nlp", "private-capture"))).toBe(false);
+
+    form.set("token", owner.captureToken);
+    const ownerResponse = await POST(
+      new NextRequest("http://papernook.test/add/confirm", {
+        method: "POST",
+        body: form,
+      }),
+    );
+    expect(ownerResponse.status).toBe(200);
+    expect(papers.getPaper("nlp", "private-capture")).not.toBeNull();
   });
 });

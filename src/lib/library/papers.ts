@@ -39,6 +39,8 @@ export interface Paper {
   summary: string | null;
 }
 
+export class CaptureOwnershipError extends Error {}
+
 const META_FILE = "meta.json";
 const SUMMARY_FILE = "summary.md";
 const TEXT_FILE = "text.txt";
@@ -237,4 +239,21 @@ export function acceptFromInbox(slug: string, topic: string): Paper {
   const paper = loadPaper(topic, slug);
   if (!paper) throw new Error(`Accept failed for "${slug}".`);
   return paper;
+}
+
+/** Accept an inbox capture only when it belongs to the profile's capture token. */
+export function acceptInboxCapture(
+  slug: string,
+  topic: string,
+  username: string,
+): Paper {
+  assertSlug(slug);
+  assertSlug(topic);
+  const meta = readMeta(null, slug);
+  if (!meta || meta.addedBy !== username) {
+    throw new CaptureOwnershipError(
+      "No pending capture is available for this profile.",
+    );
+  }
+  return acceptFromInbox(slug, topic);
 }
