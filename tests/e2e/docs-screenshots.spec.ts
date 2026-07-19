@@ -179,6 +179,17 @@ test.describe.serial("documentation journeys and screenshots", () => {
     });
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
+    const renderedPage = page
+      .getByRole("region", { name: "Paper PDF" })
+      .locator(".page canvas")
+      .first();
+    await expect(renderedPage).toBeVisible();
+    await expect
+      .poll(async () => {
+        const box = await renderedPage.boundingBox();
+        return box ? Math.min(box.width, box.height) : 0;
+      })
+      .toBeGreaterThan(100);
     await expect(page).toHaveScreenshot(["product", "paper-tablet.png"], {
       animations: "disabled",
       fullPage: true,

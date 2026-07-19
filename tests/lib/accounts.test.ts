@@ -87,21 +87,39 @@ describe("capture token attribution", () => {
 
 describe("sessions", () => {
   it("round-trips a valid token and rejects tampering", async () => {
+    const u = await users();
+    u.createProfile("Ana");
     const s = await session();
     const token = s.createSessionToken("ana");
     expect(s.verifySessionToken(token)).toBe("ana");
     // Forged username with the original signature must fail.
     const parts = token.split(".");
-    expect(s.verifySessionToken(`ben.${parts[1]}.${parts[2]}`)).toBeNull();
+    expect(
+      s.verifySessionToken(`ben.${parts[1]}.${parts[2]}.${parts[3]}`),
+    ).toBeNull();
     // Truncated / garbage tokens must fail, not throw.
     expect(s.verifySessionToken("ana")).toBeNull();
     expect(s.verifySessionToken("")).toBeNull();
   });
 
   it("rejects expired tokens", async () => {
+    const u = await users();
+    u.createProfile("Ana");
     const s = await session();
     const past = Date.now() - 1000 * 60 * 60 * 24 * 120;
     const token = s.createSessionToken("ana", past);
+    expect(s.verifySessionToken(token)).toBeNull();
+  });
+
+  it("revokes sessions when a profile is deleted or recreated", async () => {
+    const u = await users();
+    u.createProfile("Ana");
+    const s = await session();
+    const token = s.createSessionToken("ana");
+
+    u.deleteProfile("ana");
+    expect(s.verifySessionToken(token)).toBeNull();
+    u.createProfile("Ana");
     expect(s.verifySessionToken(token)).toBeNull();
   });
 });

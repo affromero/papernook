@@ -39,6 +39,8 @@ export interface Profile {
   role?: "admin" | "member";
   /** Attributes /add captures (and their starter chats) to this profile. */
   captureToken: string;
+  /** Revokes every signed session when the profile is deleted and recreated. */
+  sessionEpoch?: string;
   /** Legacy field retained for existing profile files; no longer used. */
   passwordHash: string | null;
   /** True once the per-profile onboarding wizard has been completed. */
@@ -140,6 +142,7 @@ export function createProfile(
     avatarSlug: slug,
     role: isFirst ? "admin" : "member",
     captureToken: crypto.randomBytes(24).toString("hex"),
+    sessionEpoch: crypto.randomBytes(16).toString("hex"),
     passwordHash: null,
     createdAt: new Date().toISOString(),
   };

@@ -29,10 +29,11 @@ export default defineConfig({
       `SESSION_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ` +
       `PUBLIC_EXPOSURE=true PAPERNOOK_PUBLIC_HOST=127.0.0.1 ` +
       `PAPERNOOK_PASSWORD=admin-created-password ` +
+      `PATH="${process.cwd()}/tests/e2e/bin:$PATH" AI_PROVIDER=codex ` +
       `WEBDAV_USER=papers WEBDAV_PASS=annotate-locally ` +
       `npm run dev -- --hostname 127.0.0.1 --port 3107`,
     url: "http://127.0.0.1:3107/login",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

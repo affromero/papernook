@@ -32,10 +32,10 @@ services:
       - ./data:/data
       # SSH agent mode: mount keys read-only (BatchMode, no prompts).
       - ${SSH_DIR:-~/.ssh}:/root/.ssh:ro
-      # Local subscription CLIs: entrypoint copies these read-only mounts into
-      # writable container homes before the readiness probe runs.
-      - ~/.codex:/root/.codex-host:ro
-      - ~/.claude:/root/.claude-host:ro
+      # Only the selected CLI's credential file is mounted. The installer sets
+      # one path; /dev/null keeps the other provider unavailable.
+      - ${CODEX_AUTH_FILE:-/dev/null}:/run/host-auth/codex-auth.json:ro
+      - ${CLAUDE_AUTH_FILE:-/dev/null}:/run/host-auth/claude-credentials.json:ro
 
   webdav:
     image: rclone/rclone:latest

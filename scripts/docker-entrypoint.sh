@@ -2,13 +2,14 @@
 
 set -eu
 
-copy_auth_dir() {
-  source_dir="$1"
-  target_dir="$2"
+copy_auth_file() {
+  source_file="$1"
+  target_file="$2"
   label="$3"
-  if [ -d "$source_dir" ] && [ -n "$(ls -A "$source_dir" 2>/dev/null)" ]; then
-    mkdir -p "$target_dir"
-    if cp -R "$source_dir"/. "$target_dir"/ 2>/dev/null; then
+  if [ -f "$source_file" ] && [ -s "$source_file" ]; then
+    mkdir -p "$(dirname "$target_file")"
+    if cp "$source_file" "$target_file" 2>/dev/null; then
+      chmod 600 "$target_file"
       echo "[setup] Copied ${label} authentication from the host"
     else
       echo "[setup] WARNING: ${label} authentication files are not readable"
@@ -16,7 +17,7 @@ copy_auth_dir() {
   fi
 }
 
-copy_auth_dir /root/.codex-host /root/.codex "Codex"
-copy_auth_dir /root/.claude-host /root/.claude "Claude Code"
+copy_auth_file /run/host-auth/codex-auth.json /root/.codex/auth.json "Codex"
+copy_auth_file /run/host-auth/claude-credentials.json /root/.claude/.credentials.json "Claude Code"
 
 exec "$@"

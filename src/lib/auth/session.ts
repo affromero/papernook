@@ -4,9 +4,8 @@ import { sessionSecret } from "../data-dir";
 import { getProfile, type Profile } from "./users";
 
 /**
- * Cookie sessions: `papernook_session` = `<username>.<expiry>.<hmac>` signed
- * with the instance secret. No server-side store; the filesystem stays the
- * only state. Sessions rotate on every login (fresh expiry + signature).
+ * Cookie sessions include the profile's on-disk epoch. Deleting and recreating
+ * the same username therefore invalidates every old device session.
  */
 
 export const SESSION_COOKIE = "papernook_session";
@@ -19,9 +18,22 @@ function sign(payload: string): string {
     .digest("hex");
 }
 
+function sessionEpoch(profile: Profile): string {
+  return (
+    profile.sessionEpoch ??
+    crypto
+      .createHash("sha256")
+      .update(profile.createdAt)
+      .digest("hex")
+      .slice(0, 32)
+  );
+}
+
 export function createSessionToken(username: string, now = Date.now()): string {
+  const profile = getProfile(username);
+  if (!profile) throw new Error(`Cannot create a session for ${username}.`);
   const expiry = now + SESSION_TTL_MS;
-  const payload = `${username}.${expiry}`;
+  const payload = `${username}.${expiry}.${sessionEpoch(profile)}`;
   return `${payload}.${sign(payload)}`;
 }
 
@@ -30,9 +42,9 @@ export function verifySessionToken(
   now = Date.now(),
 ): string | null {
   const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [username, expiryRaw, sig] = parts;
-  const payload = `${username}.${expiryRaw}`;
+  if (parts.length !== 4) return null;
+  const [username, expiryRaw, epoch, sig] = parts;
+  const payload = `${username}.${expiryRaw}.${epoch}`;
   const expected = sign(payload);
   const sigBuf = Buffer.from(sig);
   const expectedBuf = Buffer.from(expected);
@@ -44,6 +56,8 @@ export function verifySessionToken(
   }
   const expiry = Number(expiryRaw);
   if (!Number.isFinite(expiry) || expiry < now) return null;
+  const profile = getProfile(username);
+  if (!profile || epoch !== sessionEpoch(profile)) return null;
   return username;
 }
 

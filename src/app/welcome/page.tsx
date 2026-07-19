@@ -35,18 +35,9 @@ export default async function WelcomePage() {
     agentAvailable = await isProviderAvailable(
       agentProvider as Parameters<typeof isProviderAvailable>[0],
     );
-    if (
-      !agentAvailable &&
-      (agentProvider === "codex" || agentProvider === "claude-code")
-    ) {
-      const detected = await detectLocalCliProvider();
-      if (detected) {
-        setAgentProvider(detected);
-        agentProvider = detected;
-        agentAvailable = true;
-      }
-    }
   } catch {
+    // Auto-select only when no provider has been configured. An explicitly
+    // selected provider that is unavailable remains visible as unavailable.
     const detected = await detectLocalCliProvider();
     if (detected) {
       setAgentProvider(detected);

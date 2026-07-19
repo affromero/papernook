@@ -472,6 +472,61 @@ describe("capture orchestration (mocked download + agent)", () => {
 
     vi.doUnmock("@/lib/agent/registry");
   });
+
+  it("waits for an active capture to clean up before profile erasure completes", async () => {
+    let analysisStarted: (() => void) | undefined;
+    let releaseAnalysis: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      analysisStarted = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseAnalysis = resolve;
+    });
+    vi.doMock("@/lib/agent/registry", () => ({
+      getProvider: () => ({
+        id: "codex",
+        execute: async () => {
+          analysisStarted?.();
+          await release;
+          return JSON.stringify({
+            title: "Erased capture",
+            authors: [],
+            year: 2026,
+            venue: null,
+            bibtex: null,
+            topic: "Private",
+            tags: [],
+            summary: "Private",
+            related: [],
+            starterQuestions: [],
+          });
+        },
+        stream: async function* () {},
+      }),
+    }));
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    const { capturePdf } = await import("@/lib/capture");
+    const capturePromise = capturePdf(Buffer.from("%PDF-1.4 fake pdf"), {
+      sourceUrl: "https://example.test/private.pdf",
+      username: "andres",
+    });
+    await started;
+
+    const { beginProfileErasure } = await import("@/lib/auth/profile-activity");
+    const erasure = beginProfileErasure("andres");
+    releaseAnalysis?.();
+    await expect(capturePromise).rejects.toThrow(/profile was deleted/i);
+    const finishErasure = await erasure;
+    users.deleteProfile("andres");
+    finishErasure();
+
+    const papers = await import("@/lib/library/papers");
+    expect(papers.listPapers()).toEqual([]);
+    expect(papers.listInbox()).toEqual([]);
+    expect(users.getProfile("andres")).toBeNull();
+    vi.doUnmock("@/lib/agent/registry");
+  });
 });
 
 describe("capture confirmation authorization", () => {

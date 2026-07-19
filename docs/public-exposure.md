@@ -82,8 +82,10 @@ restart before sharing the public address.
 - Failed instance-gate authentication is throttled per IP. Direct API login is
   throttled per IP and selected account. Password comparisons are
   constant-time.
-- Sessions remain HMAC-signed HttpOnly cookies for 90 days and rotate at
-  login. A stable `SESSION_SECRET` preserves them across container rebuilds.
+- Sessions remain HMAC-signed HttpOnly cookies for up to 90 days and rotate at
+  login. They are bound to the current on-disk profile epoch, so deletion
+  immediately revokes that profile on every device. A stable `SESSION_SECRET`
+  preserves sessions across container rebuilds.
 
 ## Still on you
 

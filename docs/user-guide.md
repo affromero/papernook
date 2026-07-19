@@ -173,4 +173,5 @@ owned share links, and stored login-rate state. Confirmed PDFs, annotations,
 canvases, exercises, summaries, and metadata remain part of the shared
 library; the deleted username is removed from their capture attribution. If
 the admin deletes their own profile, the oldest remaining profile becomes the
-admin.
+admin. Deletion waits for active capture and Zotero work to stop and clean up,
+and revokes that profile's sessions on every device.

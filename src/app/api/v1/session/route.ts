@@ -45,10 +45,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid login." }, { status: 400 });
   }
   const { username, password } = body.data;
-  const profile = getProfile(username);
-  if (!profile) {
-    return NextResponse.json({ error: "Unknown profile." }, { status: 404 });
-  }
 
   if (await requestIsPublic()) {
     if (!instancePasswordConfigured()) {
@@ -84,6 +80,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     recordSuccess(ipKey);
     recordSuccess(accountKey);
+  }
+
+  const profile = getProfile(username);
+  if (!profile) {
+    return NextResponse.json({ error: "Invalid login." }, { status: 401 });
   }
 
   const response = NextResponse.json({ profile: toPublicProfile(profile) });

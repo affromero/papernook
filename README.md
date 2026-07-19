@@ -42,8 +42,9 @@ curl -fsSL https://raw.githubusercontent.com/affromero/papernook/main/scripts/in
 ```
 
 Open **http://localhost:3000** and create a profile. The two-minute wizard
-checks the configured agent—or auto-connects a ready local Codex/Claude
-CLI—creates personal capture tools, and walks through iPad WebDAV setup.
+checks the configured agent—or, when none is configured, selects a ready local
+Codex/Claude CLI—creates personal capture tools, and walks through iPad WebDAV
+setup. An explicit provider that is unavailable is reported, never replaced.
 
 ![Papernook library with topic navigation, search, and paper cards](docs/images/product/library.png)
 
@@ -208,10 +209,11 @@ requires a vision-capable model, and paper capture needs enough context for
 roughly 60,000 characters. Provider errors surface without silent fallback.
 
 The installer prefers an authenticated local Codex CLI, then Claude Code. In
-Docker, Compose mounts the host CLI configuration read-only and the entrypoint
-copies it into a writable container home. An installed but logged-out CLI is
-shown as needing login, not ready. macOS keeps Claude credentials in Keychain,
-which containers cannot read; run `claude setup-token` and set
+Docker, Compose mounts only the selected CLI credential file read-only and the
+entrypoint copies that file into a writable container home. It does not mount
+CLI history, sessions, or project configuration. An installed but logged-out
+CLI is shown as needing login, not ready. macOS keeps Claude credentials in
+Keychain, which containers cannot read; run `claude setup-token` and set
 `CLAUDE_CODE_OAUTH_TOKEN` in `.env` when using Claude Code through Docker.
 
 </details>

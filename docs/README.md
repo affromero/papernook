@@ -122,6 +122,8 @@ WebDAV. The welcome flow gives each reader the exact address and credentials.
 - Keep `data/` backed up. The filesystem, not SQLite, is the source of truth.
 - For a subscription CLI, log in on the Docker host first. Papernook checks
   both installation and authentication before calling the provider ready.
+  Docker mounts only the selected provider's credential file; see
+  `.env.example` for `CODEX_AUTH_FILE` and `CLAUDE_AUTH_FILE`.
 - Use a long, unique `WEBDAV_PASS`.
 - For a custom domain, set `PUBLIC_EXPOSURE`, `PAPERNOOK_PUBLIC_HOST`,
   `PAPERNOOK_PASSWORD`, `SESSION_SECRET`, and loopback port bindings before

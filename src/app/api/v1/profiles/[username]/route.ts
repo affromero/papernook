@@ -8,7 +8,7 @@ import {
 import { GATE_COOKIE, gateCookieOptions } from "@/lib/auth/gate";
 import { forgetAccountRateLimit } from "@/lib/auth/rate-limit";
 import { deleteProfile, isAdmin, ProfileError } from "@/lib/auth/users";
-import { cancelProfileSync } from "@/lib/capture/zotero";
+import { beginProfileErasure } from "@/lib/auth/profile-activity";
 
 /** Complete self-erasure or admin-managed member erasure. */
 
@@ -39,9 +39,13 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     );
   }
   try {
-    cancelProfileSync(username);
-    forgetAccountRateLimit(username);
-    deleteProfile(username);
+    const finishErasure = await beginProfileErasure(username);
+    try {
+      forgetAccountRateLimit(username);
+      deleteProfile(username);
+    } finally {
+      finishErasure();
+    }
     const response = NextResponse.json({ ok: true });
     if (me.username === username) {
       response.cookies.set(SESSION_COOKIE, "", {
