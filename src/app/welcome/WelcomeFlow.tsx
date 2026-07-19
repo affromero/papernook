@@ -173,10 +173,25 @@ export function WelcomeFlow({
             <span className={styles.sectionState}>one login</span>
           </div>
           <p className={styles.sectionBody}>
-            On the iPad, open <strong>PDF Expert</strong> (or Documents) and add
-            a WebDAV connection. Pencil ink saves into the PDF here; no exports,
-            ever.
+            Not in Apple&rsquo;s Files app; its &ldquo;Connect to Server&rdquo;
+            only speaks SMB and rejects this address. Inside the PDF app:
           </p>
+          <ol className={styles.steps}>
+            <li>
+              Install <strong>Documents by Readdle</strong> (free) or{" "}
+              <strong>PDF Viewer by Nutrient</strong> (free, unlimited
+              annotations). PDF Expert works too but needs a subscription.
+            </li>
+            <li>
+              Documents: <strong>+ Add Connection → WebDAV Server</strong>. PDF
+              Viewer / PDF Expert: add a WebDAV location from the connections
+              screen.
+            </li>
+            <li>
+              Paste the values below. Open a paper, write with the Pencil; ink
+              saves into the PDF here. No exports, ever.
+            </li>
+          </ol>
           <CopyRow label="Address" value={webdavUrl(baseUrl)} />
           {webdavUser && <CopyRow label="User" value={webdavUser} />}
           {webdavPass && <CopyRow label="Password" value={webdavPass} secret />}
