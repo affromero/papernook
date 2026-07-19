@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
-import { setZoteroConfig } from "@/lib/auth/users";
 import {
   recordFailure,
   recordSuccess,
@@ -15,6 +14,11 @@ import {
   listLibraryTargets,
   listCollections,
 } from "@/lib/capture/zotero";
+import {
+  disconnectZotero,
+  saveZoteroConfig,
+} from "@/lib/capture/zotero-service";
+import { ZoteroBusyError } from "@/lib/capture/zotero-lock";
 import type {
   Profile,
   ZoteroLibraryTarget,
@@ -85,11 +89,11 @@ export async function GET(request?: NextRequest): Promise<NextResponse> {
         { status: 422 },
       );
     }
-    const personalReadable = verified.personalLibrary && verified.personalFiles;
+    const personalReadable = verified.personalLibrary;
     const libraries = await listLibraryTargets(me.zotero, personalReadable);
     if (libraries.length === 0) {
       return NextResponse.json(
-        { error: "This key cannot read any Zotero library with PDF files." },
+        { error: "This key cannot read any Zotero library metadata." },
         { status: 422 },
       );
     }
@@ -129,7 +133,11 @@ export async function GET(request?: NextRequest): Promise<NextResponse> {
     });
     return NextResponse.json({
       ...snapshot(me),
-      libraries,
+      libraries: libraries.map((library) => ({
+        ...library,
+        canImportFiles:
+          library.type === "group" ? null : verified.personalFiles,
+      })),
       collections,
       previewTarget: target,
       warning,
@@ -169,7 +177,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       { status: 422 },
     );
   }
-  const personalReadable = verified.personalLibrary && verified.personalFiles;
+  const personalReadable = verified.personalLibrary;
   const config = {
     apiKey: body.data.apiKey.trim(),
     userId: verified.userId,
@@ -179,7 +187,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     recordFailure(limitKey);
     return NextResponse.json(
       {
-        error: "This key cannot read a personal or group library with PDFs.",
+        error: "This key cannot read a personal or group Zotero library.",
       },
       { status: 422 },
     );
@@ -188,12 +196,19 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   const target = personalReadable
     ? libraries.find((library) => library.type === "user")!
     : libraries[0];
-  const profile = setZoteroConfig(me.username, {
-    ...config,
-    target,
-    collectionKeys: [],
-  });
-  return NextResponse.json(snapshot(profile));
+  try {
+    const profile = await saveZoteroConfig(me.username, {
+      ...config,
+      target,
+      collectionKeys: [],
+    });
+    return NextResponse.json(snapshot(profile));
+  } catch (error) {
+    if (error instanceof ZoteroBusyError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(): Promise<NextResponse> {
@@ -206,7 +221,17 @@ export async function DELETE(): Promise<NextResponse> {
       { status: 409 },
     );
   }
-  return NextResponse.json(snapshot(setZoteroConfig(me.username, null)));
+  try {
+    await disconnectZotero(me.username);
+    const disconnected = { ...me };
+    delete disconnected.zotero;
+    return NextResponse.json(snapshot(disconnected));
+  } catch (error) {
+    if (error instanceof ZoteroBusyError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    throw error;
+  }
 }
 
 const targetSchema = z.object({
@@ -250,7 +275,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   }
   const libraries = await listLibraryTargets(
     me.zotero,
-    verified.personalLibrary && verified.personalFiles,
+    verified.personalLibrary,
   );
   const target = libraries.find(
     (library) =>
@@ -273,11 +298,18 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       { status: 422 },
     );
   }
-  const profile = setZoteroConfig(me.username, {
-    ...proposed,
-    collectionKeys,
-  });
-  return NextResponse.json(snapshot(profile));
+  try {
+    const profile = await saveZoteroConfig(me.username, {
+      ...proposed,
+      collectionKeys,
+    });
+    return NextResponse.json(snapshot(profile));
+  } catch (error) {
+    if (error instanceof ZoteroBusyError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    throw error;
+  }
 }
 
 /** Kick off a sync in the background; poll GET for completion. */

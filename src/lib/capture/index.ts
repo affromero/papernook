@@ -17,6 +17,7 @@ import { createChat, appendMessage } from "../library/chats";
 import { rebuildIndex } from "../library/index-db";
 import { downloadPdf } from "./download";
 import { extractPdfText, analyzePaper, type Analysis } from "./analyze";
+import { captureLockKey, withZoteroLock } from "./zotero-lock";
 
 /**
  * Capture orchestration: URL → inbox paper with proposed filing.
@@ -69,6 +70,15 @@ export async function capturePdf(
   bytes: Buffer,
   opts: CapturePdfOptions,
 ): Promise<CaptureResult> {
+  return withZoteroLock(captureLockKey(), 10 * 60_000, () =>
+    capturePdfLocked(bytes, opts),
+  );
+}
+
+async function capturePdfLocked(
+  bytes: Buffer,
+  opts: CapturePdfOptions,
+): Promise<CaptureResult> {
   ensureDataDirs();
 
   // Slug from the analyzed title once we have it; provisional from URL now.
@@ -78,56 +88,80 @@ export async function capturePdf(
   const inboxPdf = pdfPath(null, provisional);
   fs.mkdirSync(path.dirname(inboxPdf), { recursive: true });
   fs.writeFileSync(inboxPdf, bytes);
+  let cleanupSlug = provisional;
+  let cleanupTopic: string | null = null;
 
-  const text = await extractPdfText(inboxPdf);
-  const analysis = await analyzePaper(opts.sourceUrl, text);
+  try {
+    const text = await extractPdfText(inboxPdf);
+    const analysis = await analyzePaper(opts.sourceUrl, text);
 
-  // Rename to a title-based slug now that the title is known.
-  const finalSlug = retargetSlug(
-    provisional,
-    opts.overrides?.title ?? analysis.title,
-  );
+    // Rename to a title-based slug now that the title is known.
+    const finalSlug = retargetSlug(
+      provisional,
+      opts.overrides?.title ?? analysis.title,
+    );
+    cleanupSlug = finalSlug;
 
-  const meta: PaperMeta = {
-    title: analysis.title,
-    authors: analysis.authors,
-    year: analysis.year,
-    venue: analysis.venue,
-    arxivId: opts.arxivId ?? null,
-    bibtex: analysis.bibtex,
-    tags: mergeTags(analysis.tags, opts.sourceTags ?? []),
-    related: analysis.related,
-    ...opts.overrides,
-    sourceUrl: opts.sourceUrl,
-    addedAt: new Date().toISOString(),
-    addedBy: opts.username,
-  };
-  if (opts.source) meta.source = opts.source;
-  if (opts.autoFile) meta.needsReview = true;
-  writeMeta(null, finalSlug, meta);
-  writeSummary(null, finalSlug, analysis.summary);
-  if (text) writeText(null, finalSlug, text);
+    const meta: PaperMeta = {
+      title: analysis.title,
+      authors: analysis.authors,
+      year: analysis.year,
+      venue: analysis.venue,
+      arxivId: opts.arxivId ?? null,
+      bibtex: analysis.bibtex,
+      tags: mergeTags(analysis.tags, opts.sourceTags ?? []),
+      related: analysis.related,
+      ...opts.overrides,
+      sourceUrl: opts.sourceUrl,
+      addedAt: new Date().toISOString(),
+      addedBy: opts.username,
+    };
+    if (opts.source) meta.source = opts.source;
+    if (opts.autoFile) meta.needsReview = true;
+    writeMeta(null, finalSlug, meta);
+    writeSummary(null, finalSlug, analysis.summary);
+    if (text) writeText(null, finalSlug, text);
 
-  // Seed the capturing profile's first chat with the starter questions.
-  const chat = createChat(null, finalSlug, opts.username, "Starter questions");
-  appendMessage(null, finalSlug, opts.username, chat.id, {
-    role: "assistant",
-    content:
-      "Some questions to start studying this paper:\n\n" +
-      analysis.starterQuestions.map((q) => `- ${q}`).join("\n"),
-    at: new Date().toISOString(),
-  });
+    // Seed the capturing profile's first chat with the starter questions.
+    const chat = createChat(
+      null,
+      finalSlug,
+      opts.username,
+      "Starter questions",
+    );
+    appendMessage(null, finalSlug, opts.username, chat.id, {
+      role: "assistant",
+      content:
+        "Some questions to start studying this paper:\n\n" +
+        analysis.starterQuestions.map((q) => `- ${q}`).join("\n"),
+      at: new Date().toISOString(),
+    });
 
-  const proposedTopic = slugify(analysis.topic) || "unsorted";
-  if (opts.autoFile) {
-    // Same inbox→library path the confirm page uses: the PDF only reaches
-    // data/papers/ (and thus WebDAV) via the accept function's atomic rename.
-    // No per-paper rebuildIndex here — sync batches one rebuild at the end.
-    acceptInboxCapture(finalSlug, proposedTopic, opts.username);
-  } else {
-    rebuildIndex();
+    const proposedTopic = slugify(analysis.topic) || "unsorted";
+    if (opts.autoFile) {
+      // Same inbox→library path the confirm page uses: the PDF only reaches
+      // data/papers/ (and thus WebDAV) via the accept function's atomic rename.
+      // No per-paper rebuildIndex here — callers may batch one rebuild.
+      cleanupTopic = proposedTopic;
+      acceptInboxCapture(finalSlug, proposedTopic, opts.username);
+    } else {
+      rebuildIndex();
+    }
+    return { slug: finalSlug, proposedTopic, analysis };
+  } catch (error) {
+    fs.rmSync(companionDir(null, cleanupSlug), {
+      recursive: true,
+      force: true,
+    });
+    if (cleanupTopic) {
+      fs.rmSync(pdfPath(cleanupTopic, cleanupSlug), { force: true });
+      fs.rmSync(companionDir(cleanupTopic, cleanupSlug), {
+        recursive: true,
+        force: true,
+      });
+    }
+    throw error;
   }
-  return { slug: finalSlug, proposedTopic, analysis };
 }
 
 function mergeTags(proposed: string[], source: string[]): string[] {

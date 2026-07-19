@@ -83,7 +83,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     at: new Date().toISOString(),
   });
 
-  const system = buildChatSystem(paper);
+  const system = await buildChatSystem(paper, profile.username);
   const prompt = buildChatPrompt(chat.messages, body.data.content);
   const provider = getProvider();
 

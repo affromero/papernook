@@ -78,7 +78,8 @@ flowchart LR
     subgraph capture["Capture"]
       add["/add route<br/>src/app/add"]
       pipe["capture pipeline<br/>src/lib/capture<br/>normalize · download · analyze"]
-      zotero["zotero.ts<br/>personal/group pull · scoped retry cursor"]
+      zotero["zotero.ts<br/>metadata-only refresh · personal/group"]
+      zcatalog["zotero-catalog.json<br/>profile-private · compact · atomic"]
     end
 
     subgraph agent["Agent layer (src/lib/agent)"]
@@ -116,7 +117,8 @@ flowchart LR
     sidedoor["thesidedoor<br/>PWA + QR reach"]
 
     add --> pipe --> papers
-    zotero --> pipe
+    zotero --> zcatalog
+    zcatalog -->|"explicit one-paper import"| pipe
     pipe --> registry
     chatpanel --> registry
     registry --> claude & codex & api
@@ -213,20 +215,41 @@ roughly 60,000 characters. Provider errors surface without silent fallback.
 
 ### Zotero
 
-Each profile independently selects one personal or accessible group Zotero
-library. It can sync the whole library or selected collections; subcollections
-are included automatically. New PDF items pull every 30 minutes or on demand,
-pass through the normal AI filing flow, and appear in a one-glance review
-strip. Later Zotero edits refresh source-owned metadata without rewriting the
-PDF, annotations, topic, summary, chats, canvas, or exercises.
+Each profile independently connects one personal or accessible group Zotero
+library. Papernook refreshes a compact, profile-private catalog of metadata and
+annotations every 30 minutes or on demand. It can catalog the whole library or
+selected collections; subcollections are included automatically.
+
+**Connecting never downloads PDFs and never calls an AI provider.** Browse or
+search the catalog in Settings, then explicitly import one paper when you want
+it in Papernook. That action downloads only that paper (100 MB maximum), runs
+the configured AI filing flow once, and adds it to the shared library. Existing
+Zotero annotations for that paper become private context for the connected
+profile's conversations. They are treated as untrusted quoted source material
+and are never added directly to shared links.
 
 Create a dedicated key at
-[zotero.org/settings/keys](https://www.zotero.org/settings/keys), enable read
-access to the personal library and files and/or the groups you want to use,
-then open **Settings → Zotero sync**. Write access is not required. Imports join the
-shared Papernook paper library; connections and chats remain per-profile.
-Deduplication scopes Zotero item keys to their source library and also checks
-arXiv IDs. Failed items retry without replaying successful imports.
+[zotero.org/settings/keys](https://www.zotero.org/settings/keys), enable library
+read access, then open **Settings → Zotero sync**. File access is required only
+to import stored PDFs; write access is never required. Imports join the shared
+Papernook paper library, while connections, catalog associations, annotation
+context, and chats remain per-profile. Deduplication scopes Zotero item keys to
+their source library and also checks DOI and arXiv identity.
+
+The catalog is a disposable cache under
+`data/users/<username>/zotero-catalog.json`; Zotero remains its source of truth.
+The size of Zotero file storage—even libraries larger than 1 GB—does not cause
+Papernook to copy those files: refresh transfers metadata only. The local
+catalog is capped at 200,000 records and 64 MB; if metadata exceeds either
+limit, refresh fails visibly without advancing the sync cursor or replacing the
+last valid catalog.
+Incremental refreshes process metadata updates and deletions without deleting
+already imported Papernook papers. Later Zotero edits refresh only
+Zotero-owned metadata, leaving the PDF, Pencil ink, topic, summary, chats,
+canvas, and exercises untouched. See Zotero's
+[versioned sync API](https://www.zotero.org/support/dev/web_api/v3/syncing),
+[annotation storage model](https://www.zotero.org/support/kb/annotations_in_database),
+and [full-text API](https://www.zotero.org/support/dev/web_api/v3/fulltext_content).
 
 Every paper’s **Cite** menu copies APA, Harvard, or Vancouver bibliography
 entries, or downloads CSL JSON, RIS, or BibTeX. Library exports respect the
@@ -237,7 +260,7 @@ active search, topic, and tag filters.
 
 | Tool              | Sync            | How                                                                     |
 | ----------------- | --------------- | ----------------------------------------------------------------------- |
-| Zotero            | ✓ built in      | Per-profile personal/group source with collection filters and refresh   |
+| Zotero            | ✓ built in      | Metadata-first catalog; explicitly import individual PDFs for AI        |
 | Mendeley          | possible        | Public REST API still up, but OAuth app registration adds friction      |
 | Readwise Reader   | possible        | Clean token-authed V3 API exposes saved documents                       |
 | Paperpile         | workaround only | No public API; its Google Drive folder sync could feed a watched folder |

@@ -472,6 +472,75 @@ describe("capture orchestration (mocked download + agent)", () => {
 
     vi.doUnmock("@/lib/agent/registry");
   });
+
+  it("serializes concurrent captures so title-derived slugs stay distinct", async () => {
+    vi.doMock("@/lib/agent/registry", () => ({
+      getProvider: () => ({
+        id: "test",
+        execute: async () =>
+          JSON.stringify({
+            title: "Concurrent Paper",
+            authors: [],
+            year: null,
+            venue: null,
+            bibtex: null,
+            topic: "Concurrency",
+            tags: [],
+            summary: "A concurrent capture.",
+            related: [],
+            starterQuestions: ["What is the contribution?"],
+          }),
+        stream: async function* () {},
+      }),
+    }));
+    const { capturePdf } = await import("@/lib/capture");
+    const results = await Promise.all([
+      capturePdf(Buffer.from("%PDF-1.4 first"), {
+        sourceUrl: "https://example.org/first",
+        username: "andres",
+        autoFile: true,
+      }),
+      capturePdf(Buffer.from("%PDF-1.4 second"), {
+        sourceUrl: "https://example.org/second",
+        username: "ana",
+        autoFile: true,
+      }),
+    ]);
+
+    expect(new Set(results.map((result) => result.slug)).size).toBe(2);
+    const papers = await import("@/lib/library/papers");
+    expect(papers.listPapers()).toHaveLength(2);
+    expect(
+      papers
+        .listPapers()
+        .every((paper) => fs.readFileSync(paper.pdfPath).length > 0),
+    ).toBe(true);
+    vi.doUnmock("@/lib/agent/registry");
+  });
+
+  it("removes inbox artifacts when AI analysis fails", async () => {
+    vi.doMock("@/lib/agent/registry", () => ({
+      getProvider: () => ({
+        id: "test",
+        execute: async () => {
+          throw new Error("provider unavailable");
+        },
+        stream: async function* () {},
+      }),
+    }));
+    const { capturePdf } = await import("@/lib/capture");
+    await expect(
+      capturePdf(Buffer.from("%PDF-1.4 failed"), {
+        sourceUrl: "https://example.org/failing-paper",
+        username: "andres",
+        autoFile: true,
+      }),
+    ).rejects.toThrow("provider unavailable");
+    const papers = await import("@/lib/library/papers");
+    expect(papers.listInbox()).toEqual([]);
+    expect(papers.listPapers()).toEqual([]);
+    vi.doUnmock("@/lib/agent/registry");
+  });
 });
 
 describe("capture confirmation authorization", () => {
