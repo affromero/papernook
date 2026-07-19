@@ -2,6 +2,8 @@
 
 import {
   Highlighter,
+  Maximize2,
+  Minimize2,
   MousePointer2,
   PenLine,
   Save,
@@ -96,6 +98,7 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
   const [saveStatus, setSaveStatus] = useState("");
   const [remoteUpdate, setRemoteUpdate] = useState(false);
   const [pencilMode, setPencilMode] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -573,9 +576,20 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [preview]);
 
+  useEffect(() => {
+    if (!fullscreen) return;
+    const exitOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFullscreen(false);
+    };
+    window.addEventListener("keydown", exitOnEscape);
+    return () => window.removeEventListener("keydown", exitOnEscape);
+  }, [fullscreen]);
+
   return (
     <div
-      className={`${styles.root} ${saving ? styles.saving : ""}`}
+      className={`${styles.root} ${saving ? styles.saving : ""} ${
+        fullscreen ? styles.fullscreen : ""
+      }`}
       aria-label={title}
     >
       <div className={styles.toolbar}>
@@ -665,6 +679,21 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
             aria-label="Zoom in"
           >
             +
+          </button>
+          <button
+            type="button"
+            onClick={() => setFullscreen((current) => !current)}
+            aria-label={
+              fullscreen ? "Exit paper fullscreen" : "Paper fullscreen"
+            }
+            aria-pressed={fullscreen}
+            title={fullscreen ? "Exit paper fullscreen" : "Paper fullscreen"}
+          >
+            {fullscreen ? (
+              <Minimize2 aria-hidden="true" />
+            ) : (
+              <Maximize2 aria-hidden="true" />
+            )}
           </button>
           <a
             className={styles.originalLink}

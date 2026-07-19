@@ -92,6 +92,20 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page).toHaveScreenshot(["product", "paper-focus.png"], {
       animations: "disabled",
     });
+    await page
+      .getByRole("button", { name: "Paper fullscreen", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Exit paper fullscreen" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    const fullscreenReader = page.getByLabel("Attention Is All You Need");
+    await expect
+      .poll(async () => (await fullscreenReader.boundingBox())?.height ?? 0)
+      .toBe(page.viewportSize()!.height);
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("button", { name: "Paper fullscreen", exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
 
     await page.goto(`${readerUrl}/canvas`);
     await expect(page).toHaveURL(`${readerUrl}/canvas`);

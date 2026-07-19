@@ -10,6 +10,16 @@
   box-shadow: 0 12px 32px rgba(27, 34, 29, 0.12);
 }
 
+.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100dvh;
+  border: 0;
+  border-radius: 0;
+}
+
 .toolbar {
   min-height: 42px;
   display: grid;
@@ -67,7 +77,8 @@
 }
 
 .editorButton svg,
-.saveButton svg {
+.saveButton svg,
+.toolbarGroup svg {
   width: 15px;
   height: 15px;
   stroke-width: 1.8;
