@@ -2,6 +2,17 @@
   "name": "papernook",
   "version": "0.1.0",
   "private": true,
+  "description": "A self-hosted paper library for capture, annotation, and AI-assisted reading.",
+  "homepage": "https://github.com/affromero/papernook#readme",
+  "bugs": {
+    "url": "https://github.com/affromero/papernook/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/affromero/papernook.git"
+  },
+  "license": "MIT",
+  "author": "Andres Romero <me@afromero.co>",
   "scripts": {
     "build": "next build && node scripts/prepare-runtime.mjs && node scripts/assert-standalone-safe.mjs",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
@@ -67,5 +78,8 @@
     "sort-package-json": "^4.0.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

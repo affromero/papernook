@@ -36,7 +36,7 @@ Startup recovers an interrupted cross-topic move before rebuilding
 
 1. Run a backup and record the current Git tag or commit.
 2. Read release notes for authentication or filesystem changes.
-3. Check out the intended signed release/tag and run
+3. Check out the intended release tag and run
    `docker compose up -d --build`.
 4. Verify container health, sign-in, capture, chat, and WebDAV.
 

@@ -15,6 +15,8 @@ Ask your own AI grounded questions, then share a revocable, view-only reading.
 
 [![Self-hostable](https://img.shields.io/badge/self--hostable-yes-1F8A5B)](#self-host)
 [![BYOA](https://img.shields.io/badge/bring%20your%20own-Claude%20Code%20%2F%20Codex-3F4FB0)](#bring-your-own-agent)
+[![Release](https://img.shields.io/github/v/release/affromero/papernook?display_name=tag&sort=semver)](https://github.com/affromero/papernook/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/affromero/papernook/ci.yml?branch=main&label=CI)](.github/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/affromero/papernook/codeql.yml?branch=main&label=CodeQL)](.github/workflows/codeql.yml)
 [![gitleaks](https://img.shields.io/github/actions/workflow/status/affromero/papernook/gitleaks.yml?branch=main&label=gitleaks)](.github/workflows/gitleaks.yml)
@@ -46,6 +48,14 @@ Codex/Claude CLI—creates personal capture tools, and shows optional WebDAV
 compatibility when configured. The admin can also add the tldraw production key
 used by visual paper canvases. An explicit provider that is unavailable is
 reported, never replaced.
+
+For a reproducible production install, use a release tag:
+
+```bash
+git clone --branch v0.1.0 --depth 1 https://github.com/affromero/papernook.git
+cd papernook
+./scripts/install.sh
+```
 
 ![Papernook library with topic navigation, search, and paper cards](docs/images/product/library.png)
 
@@ -361,6 +371,11 @@ npm run test:e2e     # Playwright journeys against committed docs screenshots
 npm run screenshots # intentionally refresh docs/images
 pre-commit install --install-hooks   # two-tier local gate
 ```
+
+## License
+
+Papernook is available under the [MIT License](LICENSE). Third-party
+dependencies and assets remain subject to their respective licenses.
 
 <div align="center">
 <sub>Avatars shared with <a href="https://github.com/affromero/Sotto">Sotto</a> · reach by <a href="https://github.com/affromero/sidedoor">sidedoor</a></sub>
