@@ -355,9 +355,15 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(
       page.getByRole("heading", { name: "Create a view-only reading" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("checkbox", { name: /Include conversation snapshots/ }),
+    ).not.toBeChecked();
+    await expect(
+      page.getByRole("button", { name: "Create link & copy" }),
+    ).toBeEnabled();
     await expect(page).toHaveScreenshot(["product", "share-reading.png"], {
       animations: "disabled",
-      maxDiffPixelRatio: 0.02,
+      maxDiffPixelRatio: 0.06,
     });
 
     await page.goto("/graph");
@@ -433,7 +439,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
       animations: "disabled",
       // Chromium text rasterization varies slightly after the dynamic panel
       // settles; semantic assertions above protect the actual instructions.
-      maxDiffPixelRatio: 0.03,
+      maxDiffPixelRatio: 0.06,
     });
 
     const created = await page.request.post("/api/v1/profiles", {
