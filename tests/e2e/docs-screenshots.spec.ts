@@ -30,6 +30,29 @@ async function loginAsAdmin(page: Page): Promise<void> {
   await expect(page.getByText("Attention Is All You Need")).toBeVisible();
 }
 
+async function removeProfileAsAdminIfPresent(
+  page: Page,
+  username: string,
+): Promise<void> {
+  await page.context().clearCookies();
+  await loginAsAdmin(page);
+  const listed = await page.request.get("/api/v1/profiles");
+  expect(listed.ok()).toBe(true);
+  const body = (await listed.json()) as {
+    profiles: Array<{ username: string }>;
+  };
+  if (body.profiles.some((profile) => profile.username === username)) {
+    const removed = await page.request.delete(`/api/v1/profiles/${username}`, {
+      data: {
+        confirmation: username,
+        password: adminProfilePassword,
+      },
+    });
+    expect(removed.ok(), await removed.text()).toBe(true);
+  }
+  await page.context().clearCookies();
+}
+
 test.describe.serial("documentation journeys and screenshots", () => {
   test.afterEach(async ({ page }) => {
     if (!pdfRestore) return;
@@ -456,11 +479,13 @@ test.describe.serial("documentation journeys and screenshots", () => {
         ? dialog.accept(adminProfilePassword)
         : dialog.accept(),
     );
-    await page.getByRole("button", { name: "Remove completely" }).click();
-    await expect(page.getByText("Casey")).not.toBeVisible();
+    const casey = page.getByRole("listitem").filter({ hasText: "Casey casey" });
+    await casey.getByRole("button", { name: "Remove completely" }).click();
+    await expect(casey).not.toBeVisible();
   });
 
   test("a friend creates a password-protected profile", async ({ page }) => {
+    await removeProfileAsAdminIfPresent(page, "jordan");
     await passGate(page);
     await page.getByRole("button", { name: "Add profile" }).click();
     await page.getByLabel("Name").fill("Jordan");
@@ -481,9 +506,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
         "Canvas works on this local address without a key. A key is required after production deployment.",
       ),
     ).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 1116 });
     await expect(page).toHaveScreenshot(["setup", "welcome.png"], {
       animations: "disabled",
-      fullPage: true,
       maxDiffPixelRatio: 0.06,
     });
     await page.getByRole("button", { name: "Open my library" }).click();
