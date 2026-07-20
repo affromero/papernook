@@ -7,7 +7,9 @@ import {
   loadSnapshot,
   type Editor,
   type TLAssetStore,
+  type TLShape,
 } from "tldraw";
+import { reconcileStartupMigration } from "@/lib/canvas/startup";
 import "tldraw/tldraw.css";
 import styles from "./CanvasBoard.module.css";
 
@@ -77,9 +79,12 @@ function saveLocalCamera(editor: Editor, topic: string, slug: string): void {
 
 async function migrateLegacyCanvas(editor: Editor): Promise<boolean> {
   let changed = false;
-  const paperShapes = editor
-    .getCurrentPageShapes()
-    .filter((shape) => /^shape:page-\d+$/.test(shape.id));
+  const paperShapes = editor.store
+    .allRecords()
+    .filter(
+      (record): record is TLShape =>
+        record.typeName === "shape" && /^shape:page-\d+$/.test(record.id),
+    );
   if (paperShapes.length > 0) {
     const pageAssetIds = paperShapes.flatMap((shape) =>
       shape.type === "image" && shape.props.assetId
@@ -87,7 +92,23 @@ async function migrateLegacyCanvas(editor: Editor): Promise<boolean> {
         : [],
     );
     editor.store.remove(paperShapes.map((shape) => shape.id));
-    if (pageAssetIds.length > 0) editor.deleteAssets(pageAssetIds);
+    const referencedAssetIds = new Set(
+      editor.store
+        .allRecords()
+        .flatMap((record) =>
+          record.typeName === "shape" &&
+          "assetId" in record.props &&
+          record.props.assetId
+            ? [record.props.assetId]
+            : [],
+        ),
+    );
+    const unusedPageAssetIds = pageAssetIds.filter(
+      (assetId) => !referencedAssetIds.has(assetId),
+    );
+    if (unusedPageAssetIds.length > 0) {
+      editor.deleteAssets(unusedPageAssetIds);
+    }
     changed = true;
   }
 
@@ -138,6 +159,26 @@ class CanvasConflictError extends Error {
     super("Canvas changed on another device.");
     this.name = "CanvasConflictError";
   }
+}
+
+async function loadSharedCanvas(editor: Editor, url: string): Promise<string> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(canvasError(payload, "The canvas could not be loaded."));
+  }
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "document" in payload &&
+    payload.document
+  ) {
+    loadSnapshot(editor.store, { document: payload.document } as never);
+  }
+  return response.headers.get("etag") ?? '"empty"';
 }
 
 export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
@@ -247,28 +288,17 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
       let cancelled = false;
 
       void (async () => {
-        const response = await fetch(`${base}/canvas`, {
-          cache: "no-store",
-          credentials: "include",
-        });
-        const payload: unknown = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(
-            canvasError(payload, "The canvas could not be loaded."),
-          );
-        }
+        const canvasUrl = `${base}/canvas`;
+        etagRef.current = await loadSharedCanvas(editor, canvasUrl);
         if (cancelled) return;
-        etagRef.current = response.headers.get("etag") ?? '"empty"';
-        if (
-          payload &&
-          typeof payload === "object" &&
-          "document" in payload &&
-          payload.document
-        ) {
-          loadSnapshot(editor.store, { document: payload.document } as never);
-        }
-
-        const migrated = await migrateLegacyCanvas(editor);
+        etagRef.current = await reconcileStartupMigration({
+          etag: etagRef.current,
+          migrate: () => migrateLegacyCanvas(editor),
+          save: (etag) =>
+            saveDocument(getSnapshot(editor.store).document, canvasUrl, etag),
+          reload: () => loadSharedCanvas(editor, canvasUrl),
+          isConflict: (error) => error instanceof CanvasConflictError,
+        });
         if (cancelled) return;
         if (!restoreLocalCamera(editor, topic, slug)) {
           editor.zoomToFit({ animation: { duration: 0 } });
@@ -294,8 +324,6 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
 
         initializedRef.current = true;
         setStatus("Saved");
-        if (migrated) await flushSave(editor);
-        if (cancelled) return;
 
         removeDocumentListener = editor.store.listen(
           () => {

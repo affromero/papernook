@@ -17,6 +17,11 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   title: "papernook",
   description: "Your papers, annotated and understood, on your own server.",
+  icons: {
+    icon: [{ url: "/icon.svg?v=papernook-1", type: "image/svg+xml" }],
+    shortcut: "/icon.svg?v=papernook-1",
+    apple: "/apple-icon.png?v=papernook-1",
+  },
 };
 
 export default function RootLayout({
