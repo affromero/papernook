@@ -13,9 +13,12 @@ import { reconcileStartupMigration } from "@/lib/canvas/startup";
 import "tldraw/tldraw.css";
 import styles from "./CanvasBoard.module.css";
 
-interface CanvasBoardProps {
+export interface CanvasBoardProps {
   topic: string;
   slug: string;
+  licenseKey: string | null;
+  licenseRequired: boolean;
+  licenseError: string | null;
 }
 
 const SAVE_DELAY_MS = 1_200;
@@ -182,11 +185,18 @@ async function loadSharedCanvas(editor: Editor, url: string): Promise<string> {
   return response.headers.get(CANVAS_VERSION_HEADER) ?? '"empty"';
 }
 
-export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
+export function CanvasBoard({
+  topic,
+  slug,
+  licenseKey,
+  licenseRequired,
+  licenseError,
+}: CanvasBoardProps) {
   const base = `/api/v1/papers/${topic}/${slug}`;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveQueue = useRef(Promise.resolve());
   const editorRef = useRef<Editor | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
   const etagRef = useRef('"empty"');
   const initializedRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -197,6 +207,31 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
   const [ready, setReady] = useState(false);
   const [conflicted, setConflicted] = useState(false);
   const [canvasUiHidden, setCanvasUiHidden] = useState(false);
+  const [licenseRejected, setLicenseRejected] = useState(false);
+  const licenseMissing = licenseRequired && !licenseKey;
+  const canvasUnavailable = Boolean(
+    licenseMissing || licenseError || licenseRejected,
+  );
+
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board || licenseMissing || licenseError) return;
+    const detectGate = () => {
+      const rejected = Boolean(
+        board.querySelector('[data-testid="tl-license-expired"]'),
+      );
+      setLicenseRejected(rejected);
+      if (rejected) setStatus("Canvas license rejected.");
+    };
+    detectGate();
+    const observer = new MutationObserver(detectGate);
+    observer.observe(board, { childList: true, subtree: true });
+    const timeout = window.setTimeout(detectGate, 5_500);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timeout);
+    };
+  }, [licenseError, licenseKey, licenseMissing]);
 
   const assetStore = useMemo<TLAssetStore>(
     () => ({
@@ -422,7 +457,7 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
           </span>
         </div>
         <div className={styles.toolbarActions}>
-          {canvasUiHidden && (
+          {canvasUiHidden && !canvasUnavailable && (
             <button
               type="button"
               onClick={() => {
@@ -434,10 +469,12 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
               Show canvas tools
             </button>
           )}
-          <button type="button" onClick={() => void explainSelection()}>
-            Explain selection
-          </button>
-          {conflicted && (
+          {!canvasUnavailable && (
+            <button type="button" onClick={() => void explainSelection()}>
+              Explain selection
+            </button>
+          )}
+          {conflicted && !canvasUnavailable && (
             <button
               type="button"
               onClick={() => {
@@ -454,20 +491,80 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
             </button>
           )}
           <span
-            className={`${styles.status} ${saved ? styles.statusSaved : ""}`}
+            className={`${styles.status} ${
+              saved && !canvasUnavailable ? styles.statusSaved : ""
+            }`}
             role="status"
             aria-label="Canvas save status"
           >
-            {status}
+            {licenseError
+              ? "Configuration error"
+              : licenseMissing
+                ? "License needed"
+                : licenseRejected
+                  ? "License rejected"
+                  : status}
           </span>
         </div>
       </div>
       <div
-        className={`${styles.board} ${ready ? "" : styles.boardLoading}`}
-        aria-busy={!ready}
+        className={`${styles.board} ${
+          ready || licenseMissing || licenseError ? "" : styles.boardLoading
+        }`}
+        aria-busy={!ready && !licenseMissing && !licenseError}
+        ref={boardRef}
       >
-        <Tldraw assets={assetStore} onMount={onMount} />
-        {!ready && <div className={styles.loadingOverlay}>{status}</div>}
+        {licenseError || licenseMissing ? (
+          <LicenseNotice
+            title={
+              licenseError
+                ? "Canvas configuration needs attention"
+                : "Canvas needs a tldraw license"
+            }
+            detail={
+              licenseError ??
+              "Add a hobby, trial, or commercial key before opening the shared canvas."
+            }
+          />
+        ) : (
+          <Tldraw
+            assets={assetStore}
+            licenseKey={licenseKey ?? undefined}
+            onMount={onMount}
+          />
+        )}
+        {!ready && !licenseMissing && !licenseError && (
+          <div className={styles.loadingOverlay}>{status}</div>
+        )}
+        {licenseRejected && (
+          <LicenseNotice
+            title="This tldraw key was rejected"
+            detail="The key may be invalid, expired, or configured for another domain."
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LicenseNotice({ title, detail }: { title: string; detail: string }) {
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
+  return (
+    <div className={styles.licenseNotice} role="alert">
+      <h2 ref={headingRef} tabIndex={-1}>
+        {title}
+      </h2>
+      <p>{detail}</p>
+      <div>
+        <a href="/settings#canvas">Open Canvas settings</a>
+        <a href="https://tldraw.dev/pricing" target="_blank" rel="noreferrer">
+          Get a key <span aria-hidden="true">↗</span>
+        </a>
       </div>
     </div>
   );

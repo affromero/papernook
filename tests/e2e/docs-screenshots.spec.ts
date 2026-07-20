@@ -167,6 +167,26 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.mouse.up();
     await expect(saveStatus).toHaveText("Unsaved changes");
     await expect(saveStatus).toHaveText("Saved");
+    await page.locator(".tl-container").evaluate((container) => {
+      const gate = document.createElement("div");
+      gate.dataset.testid = "tl-license-expired";
+      gate.hidden = true;
+      container.append(gate);
+    });
+    await expect(
+      page.getByText("This tldraw key was rejected", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Explain selection" }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole("alert").filter({
+        hasText: "This tldraw key was rejected",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Open Canvas settings" }),
+    ).toHaveAttribute("href", "/settings#canvas");
     await page.getByRole("link", { name: "Reader", exact: true }).click();
     await expect(page).toHaveURL(readerUrl);
   });
@@ -207,6 +227,14 @@ test.describe.serial("documentation journeys and screenshots", () => {
     });
 
     await page.goto("/settings");
+    const setupWizard = page.getByRole("link", { name: "Review setup" });
+    await expect(setupWizard).toHaveAttribute("href", "/welcome");
+    await setupWizard.click();
+    await expect(
+      page.getByRole("heading", { name: "Welcome, Maya" }),
+    ).toBeVisible();
+    await page.goto("/settings");
+    await expect(page).toHaveURL("/settings");
     const invite = page
       .getByRole("heading", { name: "Invite someone" })
       .locator("..");
@@ -248,6 +276,11 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page.getByText("works now").first()).toBeVisible({
       timeout: 15_000,
     });
+    await expect(
+      page.getByText(
+        "Canvas works on this local address without a key. A key is required after production deployment.",
+      ),
+    ).toBeVisible();
     await expect(page).toHaveScreenshot(["setup", "welcome.png"], {
       animations: "disabled",
       fullPage: true,

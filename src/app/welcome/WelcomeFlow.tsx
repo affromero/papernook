@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { CanvasLicenseCard } from "@/components/canvas/CanvasLicenseCard";
 import { ModelPicker } from "@/components/profiles/ModelPicker";
 import styles from "./welcome.module.css";
 
@@ -184,6 +185,19 @@ export function WelcomeFlow({
               <CopyRow label="Password" value={webdavPass} secret />
             </details>
           )}
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <span className={styles.dotSpacer} aria-hidden="true" />
+            <h2 className={styles.sectionTitle}>Canvas</h2>
+            <span className={styles.sectionState}>visual notes</span>
+          </div>
+          <p className={styles.sectionBody}>
+            Add screenshots, links, videos, diagrams, and freehand notes beside
+            each paper.
+          </p>
+          <CanvasLicenseCard />
         </section>
 
         <button

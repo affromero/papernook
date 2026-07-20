@@ -67,6 +67,12 @@
   flex: none;
 }
 
+.dotSpacer {
+  width: 9px;
+  height: 9px;
+  flex: none;
+}
+
 .dotOk {
   background: #1f8a5b;
   box-shadow: 0 0 0 3px rgba(31, 138, 91, 0.18);

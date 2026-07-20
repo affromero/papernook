@@ -74,6 +74,60 @@
   text-align: center;
 }
 
+.licenseNotice {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.7rem;
+  padding: 2rem;
+  background: var(--background);
+  text-align: center;
+  overflow: auto;
+}
+
+.licenseNotice h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+}
+
+.licenseNotice p {
+  max-width: 520px;
+  margin: 0;
+  color: color-mix(in srgb, currentColor 64%, transparent);
+  line-height: 1.5;
+}
+
+.licenseNotice div {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.licenseNotice a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 9px;
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.toolbar button:focus-visible,
+.licenseNotice a:focus-visible,
+.licenseNotice h2:focus-visible {
+  outline: 2px solid #6576dd;
+  outline-offset: 3px;
+}
+
 @media (max-width: 700px) {
   .hint {
     display: none;

@@ -13,6 +13,7 @@ import { createInviteToken } from "@/lib/auth/gate";
 import { instancePasswordConfigured } from "@/lib/auth/users";
 import { optionalWebdavUrl } from "@/lib/webdav-url";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
+import { CanvasLicenseCard } from "@/components/canvas/CanvasLicenseCard";
 import styles from "./settings.module.css";
 
 export const dynamic = "force-dynamic";
@@ -52,9 +53,14 @@ export default async function SettingsPage() {
               Capture tools, integrations, devices, and account access.
             </p>
           </div>
-          <Link className={styles.dashboardLink} href="/">
-            <span aria-hidden="true">←</span> Back to library
-          </Link>
+          <div className={styles.headerActions}>
+            <Link className={styles.dashboardLink} href="/welcome">
+              Review setup
+            </Link>
+            <Link className={styles.dashboardLink} href="/">
+              <span aria-hidden="true">←</span> Back to library
+            </Link>
+          </div>
         </header>
 
         <div className={styles.layout}>
@@ -62,6 +68,7 @@ export default async function SettingsPage() {
             <p>On this page</p>
             <a href="#capture">Capture</a>
             <a href="#zotero">Zotero</a>
+            <a href="#canvas">Canvas</a>
             {admin && <a href="#ai">AI model</a>}
             <a href="#people">People</a>
             <a href="#devices">Devices</a>
@@ -168,10 +175,26 @@ export default async function SettingsPage() {
               <ZoteroCard />
             </section>
 
+            <section className={styles.section} id="canvas">
+              <div className={styles.sectionHeader}>
+                <span className={styles.sectionNumber}>03</span>
+                <div>
+                  <h2>Canvas</h2>
+                  <p>
+                    Enable visual notes, screenshots, links, and diagrams beside
+                    papers.
+                  </p>
+                </div>
+              </div>
+              <div className={styles.subsection}>
+                <CanvasLicenseCard />
+              </div>
+            </section>
+
             {admin && (
               <section className={styles.section} id="ai">
                 <div className={styles.sectionHeader}>
-                  <span className={styles.sectionNumber}>03</span>
+                  <span className={styles.sectionNumber}>04</span>
                   <div>
                     <h2>AI model</h2>
                     <p>Choose how papernook analyzes and discusses papers.</p>
@@ -184,7 +207,7 @@ export default async function SettingsPage() {
             <section className={styles.section} id="people">
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionNumber}>
-                  {admin ? "04" : "03"}
+                  {admin ? "05" : "04"}
                 </span>
                 <div>
                   <h2>People</h2>
@@ -232,7 +255,7 @@ export default async function SettingsPage() {
             <section className={styles.section} id="devices">
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionNumber}>
-                  {admin ? "05" : "04"}
+                  {admin ? "06" : "05"}
                 </span>
                 <div>
                   <h2>Devices</h2>
@@ -284,7 +307,7 @@ export default async function SettingsPage() {
             <section className={styles.section} id="profile">
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionNumber}>
-                  {admin ? "06" : "05"}
+                  {admin ? "07" : "06"}
                 </span>
                 <div>
                   <h2>My profile</h2>

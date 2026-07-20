@@ -43,7 +43,8 @@ curl -fsSL https://raw.githubusercontent.com/affromero/papernook/main/scripts/in
 Open **http://localhost:3000** and create a profile. The two-minute wizard
 checks the configured agent—or, when none is configured, selects a ready local
 Codex/Claude CLI—creates personal capture tools, and shows optional WebDAV
-compatibility when configured. An explicit provider that is unavailable is
+compatibility when configured. The admin can also add the tldraw production key
+used by visual paper canvases. An explicit provider that is unavailable is
 reported, never replaced.
 
 ![Papernook library with topic navigation, search, and paper cards](docs/images/product/library.png)
@@ -252,6 +253,19 @@ Keychain, which containers cannot read; run `claude setup-token` and set
 </details>
 
 ## Integrations
+
+### Canvas
+
+Each paper has a shared visual canvas for screenshots, links, videos, diagrams,
+and freehand notes. The canvas uses the tldraw SDK, which requires a hobby,
+trial, or commercial license key on production domains. The admin can get and
+save a key from the setup wizard or **Settings → Canvas**; no rebuild or restart
+is required. `TLDRAW_LICENSE_KEY` remains available for environment-managed
+deployments, and a key saved in Settings takes precedence.
+
+License keys are public and validated by tldraw in the browser. If a key is
+missing, invalid, expired, or issued for another domain, Papernook shows an
+actionable setup panel instead of an empty canvas.
 
 ### Zotero
 
