@@ -139,6 +139,12 @@ test.describe.serial("documentation journeys and screenshots", () => {
     expect(JSON.stringify(await canvasState.json())).toContain(
       '"typeName":"shape"',
     );
+    await page.mouse.move(boardBox!.x + 420, boardBox!.y + 240);
+    await page.mouse.down();
+    await page.mouse.move(boardBox!.x + 500, boardBox!.y + 320, { steps: 4 });
+    await page.mouse.up();
+    await expect(saveStatus).toHaveText("Unsaved changes");
+    await expect(saveStatus).toHaveText("Saved");
     await page.getByRole("link", { name: "Reader", exact: true }).click();
     await expect(page).toHaveURL(readerUrl);
   });

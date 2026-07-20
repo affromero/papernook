@@ -20,6 +20,7 @@ interface CanvasBoardProps {
 
 const SAVE_DELAY_MS = 1_200;
 const LOCAL_SESSION_PREFIX = "papernook:canvas-session";
+const CANVAS_VERSION_HEADER = "X-Canvas-Version";
 
 function canvasError(payload: unknown, fallback: string): string {
   if (
@@ -141,7 +142,7 @@ async function saveDocument(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "If-Match": etag,
+      [CANVAS_VERSION_HEADER]: etag,
     },
     credentials: "include",
     body: JSON.stringify({ document }),
@@ -151,7 +152,7 @@ async function saveDocument(
     if (response.status === 409) throw new CanvasConflictError();
     throw new Error(canvasError(payload, "The canvas could not be saved."));
   }
-  return response.headers.get("etag") ?? etag;
+  return response.headers.get(CANVAS_VERSION_HEADER) ?? etag;
 }
 
 class CanvasConflictError extends Error {
@@ -178,7 +179,7 @@ async function loadSharedCanvas(editor: Editor, url: string): Promise<string> {
   ) {
     loadSnapshot(editor.store, { document: payload.document } as never);
   }
-  return response.headers.get("etag") ?? '"empty"';
+  return response.headers.get(CANVAS_VERSION_HEADER) ?? '"empty"';
 }
 
 export function CanvasBoard({ topic, slug }: CanvasBoardProps) {

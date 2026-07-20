@@ -51,13 +51,14 @@ describe("shared canvas persistence", () => {
     );
     expect(await initial.json()).toEqual({ document: null });
     expect(initial.headers.get("etag")).toBe('"empty"');
+    expect(initial.headers.get("x-canvas-version")).toBe('"empty"');
 
     const saved = await route.PUT(
       new NextRequest("http://localhost/canvas", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "If-Match": '"empty"',
+          "X-Canvas-Version": '"empty"',
         },
         body: JSON.stringify({
           document: { store: { "shape:one": { typeName: "shape" } } },
@@ -67,19 +68,25 @@ describe("shared canvas persistence", () => {
     );
     expect(saved.status).toBe(200);
     expect(saved.headers.get("etag")).not.toBe('"empty"');
+    expect(saved.headers.get("x-canvas-version")).toBe(
+      saved.headers.get("etag"),
+    );
 
     const stale = await route.PUT(
       new NextRequest("http://localhost/canvas", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "If-Match": '"empty"',
+          "X-Canvas-Version": '"empty"',
         },
         body: JSON.stringify({ document: { store: {} } }),
       }),
       params,
     );
     expect(stale.status).toBe(409);
+    expect(stale.headers.get("x-canvas-version")).toBe(
+      saved.headers.get("etag"),
+    );
 
     const reloaded = await route.GET(
       new NextRequest("http://localhost/canvas"),
@@ -90,6 +97,44 @@ describe("shared canvas persistence", () => {
       document: { store: { "shape:one": { typeName: "shape" } } },
     });
     expect(JSON.stringify(reloadedPayload)).not.toContain("session");
+    expect(reloaded.headers.get("x-canvas-version")).toBe(
+      saved.headers.get("etag"),
+    );
+  });
+
+  it("prefers the canonical canvas version and retains If-Match compatibility", async () => {
+    const route =
+      await import("@/app/api/v1/papers/[topic]/[slug]/canvas/route");
+    const first = await route.PUT(
+      new NextRequest("http://localhost/canvas", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Canvas-Version": '"empty"',
+          "If-Match": '"empty-gzip"',
+        },
+        body: JSON.stringify({ document: { store: {} } }),
+      }),
+      params,
+    );
+    expect(first.status).toBe(200);
+    const firstVersion = first.headers.get("x-canvas-version");
+    expect(firstVersion).toBeTruthy();
+
+    const compatible = await route.PUT(
+      new NextRequest("http://localhost/canvas", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "If-Match": firstVersion!,
+        },
+        body: JSON.stringify({
+          document: { store: { "shape:two": { typeName: "shape" } } },
+        }),
+      }),
+      params,
+    );
+    expect(compatible.status).toBe(200);
   });
 
   it("stores uploaded canvas images outside canvas.json and serves them", async () => {

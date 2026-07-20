@@ -15,6 +15,7 @@ interface Params {
 const MAX_CANVAS_BYTES = 20 * 1024 * 1024;
 const snapshotSchema = z.object({ document: z.unknown() }).strict();
 const EMPTY_ETAG = '"empty"';
+const CANVAS_VERSION_HEADER = "X-Canvas-Version";
 
 function etagFor(raw: string): string {
   return `"${createHash("sha256").update(raw).digest("base64url")}"`;
@@ -49,7 +50,11 @@ export async function GET(_request: NextRequest, { params }: Params) {
   try {
     const canvas = readCanvas(path.join(paper.companionDir, "canvas.json"));
     return NextResponse.json(canvas.body, {
-      headers: { etag: canvas.etag, "cache-control": "no-store" },
+      headers: {
+        etag: canvas.etag,
+        [CANVAS_VERSION_HEADER]: canvas.etag,
+        "cache-control": "no-store",
+      },
     });
   } catch {
     return NextResponse.json(
@@ -95,13 +100,22 @@ export async function PUT(request: NextRequest, { params }: Params) {
       { status: 500 },
     );
   }
-  if (request.headers.get("if-match") !== current.etag) {
+  const requestedVersion =
+    request.headers.get(CANVAS_VERSION_HEADER) ??
+    request.headers.get("if-match");
+  if (requestedVersion !== current.etag) {
     return NextResponse.json(
       {
         error:
           "This canvas changed on another device. Reload before adding more.",
       },
-      { status: 409, headers: { etag: current.etag } },
+      {
+        status: 409,
+        headers: {
+          etag: current.etag,
+          [CANVAS_VERSION_HEADER]: current.etag,
+        },
+      },
     );
   }
 
@@ -109,8 +123,14 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, serialized);
   fs.renameSync(tmp, file);
+  const savedVersion = etagFor(serialized);
   return NextResponse.json(
     { ok: true },
-    { headers: { etag: etagFor(serialized) } },
+    {
+      headers: {
+        etag: savedVersion,
+        [CANVAS_VERSION_HEADER]: savedVersion,
+      },
+    },
   );
 }
