@@ -54,6 +54,37 @@ describe("profiles on disk", () => {
     expect(u.getProfile("..")).toBeNull();
     expect(u.getProfile("a/../../b")).toBeNull();
   });
+
+  it("stores a salted profile verifier and never exposes it publicly", async () => {
+    const u = await users();
+    const created = u.createProfile("Ana", "jaguar", "a-long-profile-password");
+    expect(created.passwordHash).toMatch(/^scrypt\$/);
+    expect(created.passwordHash).not.toContain("a-long-profile-password");
+    expect(
+      await u.verifyProfilePassword(created, "a-long-profile-password"),
+    ).toBe(true);
+    expect(await u.verifyProfilePassword(created, "wrong-password")).toBe(
+      false,
+    );
+    expect(JSON.stringify(u.toPublicProfile(created))).not.toContain(
+      "passwordHash",
+    );
+  });
+
+  it("rotates the session epoch when the profile password changes", async () => {
+    const u = await users();
+    u.createProfile("Ana", undefined, "original-profile-password");
+    const s = await session();
+    const oldSession = s.createSessionToken("ana");
+    u.setProfilePassword("ana", "replacement-profile-password");
+    expect(s.verifySessionToken(oldSession)).toBeNull();
+    expect(
+      await u.verifyProfilePassword(
+        u.getProfile("ana"),
+        "replacement-profile-password",
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("capture token attribution", () => {

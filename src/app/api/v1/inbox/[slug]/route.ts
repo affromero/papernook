@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import {
   acceptInboxCapture,
   CaptureOwnershipError,
@@ -23,7 +24,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (!profile)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const parsedParams = slugSchema.safeParse((await params).slug);
-  const body = acceptSchema.safeParse(await request.json().catch(() => null));
+  const body = acceptSchema.safeParse(await readBoundedJsonOrNull(request));
   if (!parsedParams.success || !body.success) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }

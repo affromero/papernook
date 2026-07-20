@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { activeProfile } from "@/lib/auth/session";
 import { isValidSlug } from "@/lib/library/slug";
 import { discoverRelated } from "@/lib/capture/discover";
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
   const profile = await activeProfile();
   if (!profile)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  const body = bodySchema.safeParse(await request.json().catch(() => null));
+  const body = bodySchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json({ error: "Invalid focus." }, { status: 400 });
   }

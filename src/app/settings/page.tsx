@@ -13,6 +13,10 @@ import { createInviteToken } from "@/lib/auth/gate";
 import { instancePasswordConfigured } from "@/lib/auth/users";
 import { optionalWebdavUrl } from "@/lib/webdav-url";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
+import { CanvasLicenseCard } from "@/components/canvas/CanvasLicenseCard";
+import { captureBookmarklet } from "@/lib/capture/browser/submit";
+import { ProfilePassword } from "@/components/profiles/ProfilePassword";
+import { isPublicExposure } from "@/lib/data-dir";
 import styles from "./settings.module.css";
 
 export const dynamic = "force-dynamic";
@@ -21,12 +25,13 @@ export default async function SettingsPage() {
   const profile = await activeProfile();
   if (!profile) redirect("/login");
   const admin = isAdmin(profile);
+  const publicExposure = isPublicExposure();
 
   const headerStore = await headers();
   const host = headerStore.get("host") ?? "localhost:3000";
   const proto = headerStore.get("x-forwarded-proto") ?? "http";
   const base = `${proto}://${host}`;
-  const bookmarklet = `javascript:location.href='${base}/add?token=${profile.captureToken}&url='+encodeURIComponent(location.href)`;
+  const bookmarklet = captureBookmarklet(base, profile.captureToken);
   const shortcutUrl = `${base}/add`;
   const shortcutShareUrl =
     process.env.PAPERNOOK_SHORTCUT_URL ?? "/api/v1/shortcut";
@@ -52,9 +57,14 @@ export default async function SettingsPage() {
               Capture tools, integrations, devices, and account access.
             </p>
           </div>
-          <Link className={styles.dashboardLink} href="/">
-            <span aria-hidden="true">←</span> Back to library
-          </Link>
+          <div className={styles.headerActions}>
+            <Link className={styles.dashboardLink} href="/welcome">
+              Run setup wizard
+            </Link>
+            <Link className={styles.dashboardLink} href="/">
+              <span aria-hidden="true">←</span> Back to library
+            </Link>
+          </div>
         </header>
 
         <div className={styles.layout}>
@@ -62,6 +72,7 @@ export default async function SettingsPage() {
             <p>On this page</p>
             <a href="#capture">Capture</a>
             <a href="#zotero">Zotero</a>
+            <a href="#canvas">Canvas</a>
             {admin && <a href="#ai">AI model</a>}
             <a href="#people">People</a>
             <a href="#devices">Devices</a>
@@ -168,10 +179,26 @@ export default async function SettingsPage() {
               <ZoteroCard />
             </section>
 
+            <section className={styles.section} id="canvas">
+              <div className={styles.sectionHeader}>
+                <span className={styles.sectionNumber}>03</span>
+                <div>
+                  <h2>Canvas</h2>
+                  <p>
+                    Enable visual notes, screenshots, links, and diagrams beside
+                    papers.
+                  </p>
+                </div>
+              </div>
+              <div className={styles.subsection}>
+                <CanvasLicenseCard />
+              </div>
+            </section>
+
             {admin && (
               <section className={styles.section} id="ai">
                 <div className={styles.sectionHeader}>
-                  <span className={styles.sectionNumber}>03</span>
+                  <span className={styles.sectionNumber}>04</span>
                   <div>
                     <h2>AI model</h2>
                     <p>Choose how papernook analyzes and discusses papers.</p>
@@ -184,7 +211,7 @@ export default async function SettingsPage() {
             <section className={styles.section} id="people">
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionNumber}>
-                  {admin ? "04" : "03"}
+                  {admin ? "05" : "04"}
                 </span>
                 <div>
                   <h2>People</h2>
@@ -216,15 +243,17 @@ export default async function SettingsPage() {
 
               <div className={styles.subsection}>
                 <h3>Invite someone</h3>
-                {admin && instancePasswordConfigured() && (
+                {admin && !publicExposure && instancePasswordConfigured() && (
                   <InviteQr
                     inviteUrl={`${base}/invite?t=${createInviteToken()}`}
                   />
                 )}
                 <p>
                   {admin
-                    ? "Share the invite link or QR. Their private setup wizard starts when they add a profile."
-                    : "Ask the admin for an invite link or the access password."}
+                    ? publicExposure
+                      ? "Share the server access password separately. Each reader creates a distinct profile password."
+                      : "Share the invite link or QR. Their private setup wizard starts when they add a profile."
+                    : "Ask the admin for access. Never share your profile password."}
                 </p>
               </div>
             </section>
@@ -232,7 +261,7 @@ export default async function SettingsPage() {
             <section className={styles.section} id="devices">
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionNumber}>
-                  {admin ? "05" : "04"}
+                  {admin ? "06" : "05"}
                 </span>
                 <div>
                   <h2>Devices</h2>
@@ -284,12 +313,23 @@ export default async function SettingsPage() {
             <section className={styles.section} id="profile">
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionNumber}>
-                  {admin ? "06" : "05"}
+                  {admin ? "07" : "06"}
                 </span>
                 <div>
                   <h2>My profile</h2>
                   <p>Manage personal data for {profile.displayName}.</p>
                 </div>
+              </div>
+              <div className={styles.subsection}>
+                <h3>Profile password</h3>
+                <p>
+                  Public deployments require this in addition to the server
+                  access password. Changing it signs out your other devices.
+                </p>
+                <ProfilePassword
+                  username={profile.username}
+                  configured={Boolean(profile.passwordHash)}
+                />
               </div>
               <div className={`${styles.subsection} ${styles.dangerZone}`}>
                 <h3>Delete profile</h3>

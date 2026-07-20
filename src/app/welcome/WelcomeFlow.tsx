@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { captureBookmarklet } from "@/lib/capture/browser/submit";
+import { CanvasLicenseCard } from "@/components/canvas/CanvasLicenseCard";
 import { ModelPicker } from "@/components/profiles/ModelPicker";
 import styles from "./welcome.module.css";
 
@@ -73,7 +75,7 @@ export function WelcomeFlow({
 }: WelcomeFlowProps) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const bookmarklet = `javascript:location.href='${baseUrl}/add?token=${captureToken}&url='+encodeURIComponent(location.href)`;
+  const bookmarklet = captureBookmarklet(baseUrl, captureToken);
 
   async function finish(): Promise<void> {
     setBusy(true);
@@ -184,6 +186,18 @@ export function WelcomeFlow({
               <CopyRow label="Password" value={webdavPass} secret />
             </details>
           )}
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Canvas</h2>
+            <span className={styles.sectionState}>visual notes</span>
+          </div>
+          <p className={styles.sectionBody}>
+            Add screenshots, links, videos, diagrams, and freehand notes beside
+            each paper.
+          </p>
+          <CanvasLicenseCard />
         </section>
 
         <button

@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { papersRoot, libraryRoot, inboxRoot } from "../data-dir";
+import {
+  papersRoot,
+  libraryRoot,
+  inboxRoot,
+  ensureDataDirs,
+} from "../data-dir";
 import { assertSlug, isValidSlug } from "./slug";
 
 /**
@@ -238,7 +243,9 @@ function loadPaper(topic: string | null, slug: string): Paper | null {
 export function listTopics(): string[] {
   let entries: fs.Dirent[];
   try {
-    entries = fs.readdirSync(papersRoot(), { withFileTypes: true });
+    entries = fs.readdirSync(papersRoot(), {
+      withFileTypes: true,
+    });
   } catch {
     return [];
   }
@@ -253,7 +260,9 @@ export function listPapers(): Paper[] {
   const papers: Paper[] = [];
   let topics: fs.Dirent[];
   try {
-    topics = fs.readdirSync(libraryRoot(), { withFileTypes: true });
+    topics = fs.readdirSync(libraryRoot(), {
+      withFileTypes: true,
+    });
   } catch {
     return [];
   }
@@ -261,7 +270,9 @@ export function listPapers(): Paper[] {
     if (!topicEntry.isDirectory() || topicEntry.name === "_inbox") continue;
     if (!isValidSlug(topicEntry.name)) continue;
     const topicDir = path.join(libraryRoot(), topicEntry.name);
-    for (const entry of fs.readdirSync(topicDir, { withFileTypes: true })) {
+    for (const entry of fs.readdirSync(topicDir, {
+      withFileTypes: true,
+    })) {
       if (!entry.isDirectory() || !isValidSlug(entry.name)) continue;
       const paper = loadPaper(topicEntry.name, entry.name);
       if (paper) papers.push(paper);
@@ -275,7 +286,9 @@ export function listInbox(): Paper[] {
   const papers: Paper[] = [];
   let entries: fs.Dirent[];
   try {
-    entries = fs.readdirSync(inboxRoot(), { withFileTypes: true });
+    entries = fs.readdirSync(inboxRoot(), {
+      withFileTypes: true,
+    });
   } catch {
     return [];
   }
@@ -356,10 +369,20 @@ export function acceptFromInbox(slug: string, topic: string): Paper {
   }
   const toDir = companionDir(topic, slug);
   const toPdf = pdfPath(topic, slug);
+  if (fs.existsSync(toDir) || fs.existsSync(toPdf)) {
+    throw new Error(`A paper named "${slug}" already exists in "${topic}".`);
+  }
   fs.mkdirSync(path.dirname(toPdf), { recursive: true });
   fs.mkdirSync(path.dirname(toDir), { recursive: true });
-  fs.renameSync(fromPdf, toPdf);
+  // The WebDAV-visible PDF is the commit point. Until this final rename, an
+  // interrupted acceptance cannot expose an unconfirmed capture.
   fs.renameSync(fromDir, toDir);
+  try {
+    fs.renameSync(path.join(toDir, INBOX_PDF), toPdf);
+  } catch (error) {
+    fs.renameSync(toDir, fromDir);
+    throw error;
+  }
   const paper = loadPaper(topic, slug);
   if (!paper) throw new Error(`Accept failed for "${slug}".`);
   return paper;
@@ -367,9 +390,9 @@ export function acceptFromInbox(slug: string, topic: string): Paper {
 
 /**
  * Move a confirmed paper to another topic: atomic renames of the WebDAV
- * artifacts and the companion dir (same filesystem, so each rename is atomic;
- * the PDF moves first, keeping any half-moved state invisible to queries that
- * require both to exist).
+ * artifacts and the companion dir (same filesystem, so each rename is atomic).
+ * The companion moves first and the primary PDF last, making the WebDAV rename
+ * the commit point while recovery completes any interrupted move.
  */
 export function movePaper(
   topic: string,
@@ -384,17 +407,76 @@ export function movePaper(
   if (newTopic === topic) return existing;
   const toPdf = pdfPath(newTopic, slug);
   const toDir = companionDir(newTopic, slug);
+  if (fs.existsSync(toPdf) || fs.existsSync(toDir)) {
+    throw new Error(
+      `A paper named "${slug}" already exists in topic "${newTopic}".`,
+    );
+  }
   fs.mkdirSync(path.dirname(toPdf), { recursive: true });
   fs.mkdirSync(path.dirname(toDir), { recursive: true });
-  fs.renameSync(pdfPath(topic, slug), toPdf);
+  fs.renameSync(companionDir(topic, slug), toDir);
   const exercises = exercisesPdfPath(topic, slug);
   if (fs.existsSync(exercises)) {
     fs.renameSync(exercises, exercisesPdfPath(newTopic, slug));
   }
-  fs.renameSync(companionDir(topic, slug), toDir);
+  fs.renameSync(pdfPath(topic, slug), toPdf);
   const paper = loadPaper(newTopic, slug);
   if (!paper) throw new Error(`Move failed for "${slug}".`);
   return paper;
+}
+
+/**
+ * Recover the only two safe partial states produced by companion-first moves:
+ * an accepted inbox companion still containing paper.pdf, or a confirmed
+ * companion whose PDF remains under its previous topic. The WebDAV PDF is
+ * always moved last, so recovery never publishes metadata-less content.
+ */
+export function recoverInterruptedMoves(): void {
+  ensureDataDirs();
+  for (const topicEntry of fs.readdirSync(libraryRoot(), {
+    withFileTypes: true,
+  })) {
+    if (!topicEntry.isDirectory() || topicEntry.name === "_inbox") continue;
+    if (!isValidSlug(topicEntry.name)) continue;
+    const topic = topicEntry.name;
+    const topicDir = path.join(libraryRoot(), topic);
+    for (const paperEntry of fs.readdirSync(topicDir, {
+      withFileTypes: true,
+    })) {
+      if (!paperEntry.isDirectory() || !isValidSlug(paperEntry.name)) continue;
+      const slug = paperEntry.name;
+      const destination = pdfPath(topic, slug);
+      if (fs.existsSync(destination)) continue;
+
+      const acceptedPdf = path.join(companionDir(topic, slug), INBOX_PDF);
+      if (fs.existsSync(acceptedPdf)) {
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.renameSync(acceptedPdf, destination);
+        continue;
+      }
+
+      const candidates: string[] = [];
+      for (const sourceTopicEntry of fs.readdirSync(papersRoot(), {
+        withFileTypes: true,
+      })) {
+        if (!sourceTopicEntry.isDirectory()) continue;
+        const candidate = path.join(
+          papersRoot(),
+          sourceTopicEntry.name,
+          `${slug}.pdf`,
+        );
+        if (fs.existsSync(candidate)) candidates.push(candidate);
+      }
+      if (candidates.length !== 1) continue;
+      const source = candidates[0];
+      const sourceExercises = source.replace(/\.pdf$/, ".exercises.pdf");
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      if (fs.existsSync(sourceExercises)) {
+        fs.renameSync(sourceExercises, exercisesPdfPath(topic, slug));
+      }
+      fs.renameSync(source, destination);
+    }
+  }
 }
 
 /** Clear the sync-review flag once the user keeps or re-files the paper. */

@@ -8,6 +8,7 @@ import { getPaper } from "@/lib/library/papers";
 import { readChat, appendMessage } from "@/lib/library/chats";
 import { buildChatSystem, buildChatPrompt } from "@/lib/library/chat-context";
 import { getProvider } from "@/lib/agent/registry";
+import { readBoundedJson, RequestBodyError } from "@/lib/bounded-request";
 
 export const dynamic = "force-dynamic";
 
@@ -26,32 +27,80 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json({ chat });
 }
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_MESSAGE_BODY_BYTES = 15 * 1024 * 1024;
+const MAX_DATA_URL_CHARS = Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 64;
+
 const messageSchema = z.object({
   content: z.string().min(1).max(20_000),
   /** Base64 data-URL images pasted into the input (screenshots, crops). */
-  images: z.array(z.string().startsWith("data:image/")).max(4).optional(),
+  images: z
+    .array(z.string().startsWith("data:image/").max(MAX_DATA_URL_CHARS))
+    .max(4)
+    .optional(),
 });
+
+function hasExpectedSignature(type: string, value: Buffer): boolean {
+  if (type === "png")
+    return value.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex"));
+  if (type === "jpeg")
+    return value[0] === 0xff && value[1] === 0xd8 && value[2] === 0xff;
+  if (type === "gif")
+    return ["GIF87a", "GIF89a"].includes(
+      value.subarray(0, 6).toString("ascii"),
+    );
+  if (type === "webp")
+    return (
+      value.subarray(0, 4).toString("ascii") === "RIFF" &&
+      value.subarray(8, 12).toString("ascii") === "WEBP"
+    );
+  return false;
+}
 
 /** Persist pasted data-URL images into crops/ and return absolute paths. */
 function persistImages(
   companion: string,
   dataUrls: string[],
 ): { absolute: string[]; relative: string[] } {
-  const cropsDir = path.join(companion, "crops");
-  fs.mkdirSync(cropsDir, { recursive: true });
-  const absolute: string[] = [];
-  const relative: string[] = [];
+  const decoded: { type: string; bytes: Buffer }[] = [];
+  let totalBytes = 0;
   for (const dataUrl of dataUrls) {
     const match = dataUrl.match(
-      /^data:image\/(png|jpeg|webp|gif);base64,(.+)$/,
+      /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/]+={0,2})$/,
     );
-    if (!match) continue;
-    const ext = match[1] === "jpeg" ? "jpg" : match[1];
-    const name = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${ext}`;
-    const filePath = path.join(cropsDir, name);
-    fs.writeFileSync(filePath, Buffer.from(match[2], "base64"));
-    absolute.push(filePath);
-    relative.push(`crops/${name}`);
+    if (!match || match[2].length % 4 !== 0) {
+      throw new RequestBodyError("Invalid image attachment.", 400);
+    }
+    const bytes = Buffer.from(match[2], "base64");
+    totalBytes += bytes.length;
+    if (
+      bytes.length === 0 ||
+      bytes.length > MAX_IMAGE_BYTES ||
+      totalBytes > MAX_TOTAL_IMAGE_BYTES ||
+      !hasExpectedSignature(match[1], bytes)
+    ) {
+      throw new RequestBodyError("Invalid image attachment.", 400);
+    }
+    decoded.push({ type: match[1], bytes });
+  }
+
+  const cropsDir = path.join(companion, "crops");
+  fs.mkdirSync(cropsDir, { recursive: true, mode: 0o700 });
+  const absolute: string[] = [];
+  const relative: string[] = [];
+  try {
+    for (const image of decoded) {
+      const ext = image.type === "jpeg" ? "jpg" : image.type;
+      const name = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${ext}`;
+      const filePath = path.join(cropsDir, name);
+      fs.writeFileSync(filePath, image.bytes, { mode: 0o600 });
+      absolute.push(filePath);
+      relative.push(`crops/${name}`);
+    }
+  } catch (error) {
+    for (const file of absolute) fs.rmSync(file, { force: true });
+    throw error;
   }
   return { absolute, relative };
 }
@@ -70,12 +119,35 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!paper || !chat) {
     return NextResponse.json({ error: "Unknown chat." }, { status: 404 });
   }
-  const body = messageSchema.safeParse(await request.json().catch(() => null));
+  let raw: unknown;
+  try {
+    raw = await readBoundedJson(request, MAX_MESSAGE_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
+    }
+    throw error;
+  }
+  const body = messageSchema.safeParse(raw);
   if (!body.success) {
     return NextResponse.json({ error: "Invalid message." }, { status: 400 });
   }
 
-  const images = persistImages(paper.companionDir, body.data.images ?? []);
+  let images: ReturnType<typeof persistImages>;
+  try {
+    images = persistImages(paper.companionDir, body.data.images ?? []);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
+    }
+    throw error;
+  }
   appendMessage(topic, slug, profile.username, chatId, {
     role: "user",
     content: body.data.content,

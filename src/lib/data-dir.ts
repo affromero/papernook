@@ -15,7 +15,11 @@ import crypto from "node:crypto";
  */
 
 export function dataRoot(): string {
-  return process.env.PAPERNOOK_DATA_DIR ?? path.join(process.cwd(), "data");
+  if (process.env.NODE_ENV === "production") return "/data";
+  const configured = process.env.PAPERNOOK_DATA_DIR;
+  return configured
+    ? path.resolve(configured)
+    : path.join(process.cwd(), "data");
 }
 
 export function papersRoot(): string {
@@ -48,6 +52,11 @@ export function ensureDataDirs(): void {
 export function sessionSecret(): string {
   const fromEnv = process.env.SESSION_SECRET;
   if (fromEnv && fromEnv.length >= 32) return fromEnv;
+  if (isPublicExposure()) {
+    throw new Error(
+      "PUBLIC_EXPOSURE requires a stable SESSION_SECRET of at least 32 characters.",
+    );
+  }
   const file = path.join(dataRoot(), "session-secret");
   try {
     const existing = fs.readFileSync(file, "utf8").trim();

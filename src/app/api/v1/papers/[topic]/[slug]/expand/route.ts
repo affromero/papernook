@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { activeProfile } from "@/lib/auth/session";
 import { expandPdf, ExpandError } from "@/lib/library/expand";
 
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!profile)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const { topic, slug } = await params;
-  const body = schema.safeParse(await request.json().catch(() => null));
+  const body = schema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json({ error: "Invalid mode." }, { status: 400 });
   }

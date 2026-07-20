@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { ANIMAL_AVATARS } from "@/lib/auth/avatars";
 import {
@@ -17,6 +17,8 @@ import {
   recordSuccess,
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
+import { clientIp, rejectCrossSiteMutation } from "@/lib/auth/request-security";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 export async function GET(): Promise<NextResponse> {
   // Behind the gate on a public instance, do not leak profile names.
@@ -44,10 +46,13 @@ const createSchema = z.object({
     .optional(),
   /** Required in public mode without a session (self-registration gate). */
   password: z.string().max(200).optional(),
+  profilePassword: z.string().max(200).optional(),
 });
 
-export async function POST(request: Request): Promise<NextResponse> {
-  const body = createSchema.safeParse(await request.json().catch(() => null));
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const crossSite = rejectCrossSiteMutation(request);
+  if (crossSite) return crossSite;
+  const body = createSchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json({ error: "Invalid profile." }, { status: 400 });
   }
@@ -60,7 +65,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     !(await activeProfile()) &&
     !(await gatePassed())
   ) {
-    const ipKey = `ip:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local"}`;
+    const ipKey = `ip:${clientIp(request)}`;
     const wait = retryAfterMs(ipKey);
     if (wait > 0) {
       return NextResponse.json(
@@ -87,8 +92,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
     recordSuccess(ipKey);
   }
+  if ((await requestIsPublic()) && !body.data.profilePassword) {
+    return NextResponse.json(
+      { error: "A profile password is required on public deployments." },
+      { status: 400 },
+    );
+  }
   try {
-    const profile = createProfile(body.data.displayName, body.data.avatarSlug);
+    const profile = createProfile(
+      body.data.displayName,
+      body.data.avatarSlug,
+      body.data.profilePassword,
+    );
     return NextResponse.json(
       { profile: toPublicProfile(profile) },
       { status: 201 },

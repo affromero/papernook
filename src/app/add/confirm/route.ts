@@ -22,7 +22,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const html = (body: string, status: number) =>
     new NextResponse(body, {
       status,
-      headers: { "content-type": "text/html; charset=utf-8" },
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "referrer-policy": "no-referrer",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow",
+      },
     });
 
   const profile = profileForCaptureToken(token);

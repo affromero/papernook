@@ -25,6 +25,7 @@ import {
   type AgentProvider,
   type ProviderId,
 } from "./types";
+import { isPublicExposure } from "../data-dir";
 /**
  * Provider registry. The active provider is chosen at install/wizard time via
  * AI_PROVIDER (never hardcoded; Sotto's install.sh pattern):
@@ -59,7 +60,16 @@ export function configuredProviderId(): ProviderId {
 }
 
 export function getProvider(id?: ProviderId): AgentProvider {
-  return PROVIDERS[id ?? configuredProviderId()];
+  const selected = id ?? configuredProviderId();
+  if (
+    isPublicExposure() &&
+    (selected === "claude-code" || selected === "codex")
+  ) {
+    throw new Error(
+      "CLI agent providers are disabled for public exposure because model tools can read host files. Use anthropic, openai, ollama, llamacpp, or vllm.",
+    );
+  }
+  return PROVIDERS[selected];
 }
 
 /**
@@ -133,6 +143,9 @@ export type ProviderReadiness =
 export async function providerStatus(
   id: ProviderId,
 ): Promise<ProviderReadiness> {
+  if (isPublicExposure() && (id === "claude-code" || id === "codex")) {
+    return "unreachable";
+  }
   if (isLocalProvider(id)) {
     if (!(await localProviderResponds(id))) return "unreachable";
     return configuredModel(id) ? "ready" : "no_model";

@@ -22,6 +22,7 @@ export const dynamic = "force-dynamic";
 export default async function WelcomePage() {
   const profile = await activeProfile();
   if (!profile) redirect("/login");
+  const admin = isAdmin(profile);
 
   const headerStore = await headers();
   const host = headerStore.get("host") ?? "localhost:3000";
@@ -38,7 +39,7 @@ export default async function WelcomePage() {
   } catch {
     // Auto-select only when no provider has been configured. An explicitly
     // selected provider that is unavailable remains visible as unavailable.
-    const detected = await detectLocalCliProvider();
+    const detected = admin ? await detectLocalCliProvider() : null;
     if (detected) {
       setAgentProvider(detected);
       agentProvider = detected;
@@ -63,7 +64,7 @@ export default async function WelcomePage() {
       agentAvailable={agentAvailable}
       webdavUser={process.env.WEBDAV_USER ?? null}
       webdavPass={process.env.WEBDAV_PASS ?? null}
-      admin={isAdmin(profile)}
+      admin={admin}
     />
   );
 }

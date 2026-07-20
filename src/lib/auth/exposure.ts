@@ -1,13 +1,8 @@
-import { headers } from "next/headers";
 import { isPublicExposure } from "../data-dir";
 
 /**
- * Request-aware exposure: the same instance can be reached through the
- * public domain (password gate applies) and through private paths such as
- * localhost, a tunnel, or a tailnet address (no gate). Trust is decided by
- * the Host the request arrived on. Spoofing is not a concern once the app
- * ports bind to loopback: reaching the app at all then means either coming
- * through Caddy (Host is the public domain) or being on the box/tailnet.
+ * Public exposure is instance-wide and fails closed. Host headers are
+ * attacker-controlled and must never be able to select a passwordless mode.
  */
 
 /** Pure core, unit-testable. */
@@ -24,12 +19,7 @@ export function hostIsPublic(
 
 /** Does THIS request require the public hardening (gate + password)? */
 export async function requestIsPublic(): Promise<boolean> {
-  if (!isPublicExposure()) return false;
-  const store = await headers();
-  return hostIsPublic(
-    store.get("host"),
-    process.env.PAPERNOOK_PUBLIC_HOST || undefined,
-  );
+  return isPublicExposure();
 }
 
 /** Every public request requires the gate; missing password config fails shut. */

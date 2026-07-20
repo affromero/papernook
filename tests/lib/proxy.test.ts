@@ -1,11 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("request proxy", () => {
   it("allows the token-authenticated capture route without a session", () => {
     const response = proxy(new NextRequest("http://papernook.test/add"));
     expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("uses a per-request nonce instead of allowing inline scripts", () => {
+    const first = proxy(new NextRequest("http://papernook.test/login"));
+    const second = proxy(new NextRequest("http://papernook.test/login"));
+    const firstCsp = first.headers.get("content-security-policy");
+    const secondCsp = second.headers.get("content-security-policy");
+    expect(firstCsp).toMatch(
+      /script-src 'self' 'nonce-[^']+' 'strict-dynamic'/,
+    );
+    expect(firstCsp).not.toContain("script-src 'self' 'unsafe-inline'");
+    expect(secondCsp).not.toBe(firstCsp);
   });
 
   it("returns a JSON 401 for unauthenticated API requests", async () => {
@@ -24,5 +40,20 @@ describe("request proxy", () => {
     expect(response.headers.get("location")).toBe(
       "http://papernook.test/login",
     );
+  });
+
+  it("gates every hostname and public share when public exposure is enabled", () => {
+    vi.stubEnv("PUBLIC_EXPOSURE", "true");
+    vi.stubEnv("PAPERNOOK_PUBLIC_HOST", "papers.example.com");
+    const rawPort = proxy(
+      new NextRequest("http://127.0.0.1:3000/settings", {
+        headers: { host: "localhost" },
+      }),
+    );
+    const share = proxy(
+      new NextRequest("https://papers.example.com/share/nlp/paper/token"),
+    );
+    expect(rawPort.status).toBe(307);
+    expect(share.status).toBe(307);
   });
 });

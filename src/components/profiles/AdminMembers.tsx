@@ -23,12 +23,16 @@ export function AdminMembers({ members }: { members: Member[] }) {
     ) {
       return;
     }
+    const password = window.prompt(
+      "Enter your profile password to authorize this deletion.",
+    );
+    if (password === null) return;
     setError(null);
     const res = await fetch(`/api/v1/profiles/${username}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ confirmation: username }),
+      body: JSON.stringify({ confirmation: username, password }),
     });
     if (res.ok) {
       setGone((g) => [...g, username]);

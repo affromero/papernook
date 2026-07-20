@@ -1,9 +1,28 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 const root = path.join(process.cwd(), ".playwright-data");
 fs.rmSync(root, { recursive: true, force: true });
+
+function profilePasswordHash(password) {
+  const salt = Buffer.from("papernook-e2e-salt");
+  const derived = crypto.scryptSync(password, salt, 32, {
+    N: 16_384,
+    r: 8,
+    p: 1,
+    maxmem: 64 * 1024 * 1024,
+  });
+  return [
+    "scrypt",
+    16_384,
+    8,
+    1,
+    salt.toString("base64url"),
+    derived.toString("base64url"),
+  ].join("$");
+}
 
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -105,7 +124,7 @@ const profile = {
   avatarSlug: "hummingbird",
   role: "admin",
   captureToken: "a".repeat(48),
-  passwordHash: null,
+  passwordHash: profilePasswordHash("maya-profile-password"),
   wizardDone: true,
   createdAt: "2026-07-19T09:00:00.000Z",
 };

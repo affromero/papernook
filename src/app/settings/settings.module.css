@@ -30,6 +30,13 @@
   line-height: 1;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
 .eyebrow {
   margin: 0;
   color: var(--settings-accent);
@@ -434,6 +441,11 @@
 
   .dashboardLink {
     margin-top: 1.5rem;
+  }
+
+  .headerActions {
+    align-items: flex-start;
+    flex-direction: column-reverse;
   }
 
   .setupItem {

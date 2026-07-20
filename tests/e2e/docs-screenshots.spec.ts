@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const password = "admin-created-password";
+const adminProfilePassword = "maya-profile-password";
+const friendProfilePassword = "jordan-profile-password";
 
 async function passGate(page: Page): Promise<void> {
   await page.goto("/login");
@@ -14,6 +16,8 @@ async function passGate(page: Page): Promise<void> {
 async function loginAsAdmin(page: Page): Promise<void> {
   await passGate(page);
   await page.getByRole("button", { name: "Switch to Maya" }).click();
+  await page.getByLabel("Profile password").fill(adminProfilePassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL("/");
   await expect(page.getByText("Attention Is All You Need")).toBeVisible();
 }
@@ -62,6 +66,8 @@ test.describe.serial("documentation journeys and screenshots", () => {
     });
 
     await page.getByRole("button", { name: "Switch to Maya" }).click();
+    await page.getByLabel("Profile password").fill(adminProfilePassword);
+    await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/");
     await expect(page).toHaveScreenshot(["product", "library.png"], {
       animations: "disabled",
@@ -223,28 +229,36 @@ test.describe.serial("documentation journeys and screenshots", () => {
     });
 
     const created = await page.request.post("/api/v1/profiles", {
-      data: { displayName: "Casey", avatarSlug: "frog" },
+      data: {
+        displayName: "Casey",
+        avatarSlug: "frog",
+        profilePassword: "casey-profile-password",
+      },
     });
     expect(created.ok()).toBe(true);
     await page.reload();
-    page.once("dialog", (dialog) => dialog.accept());
+    page.on("dialog", (dialog) =>
+      dialog.type() === "prompt"
+        ? dialog.accept(adminProfilePassword)
+        : dialog.accept(),
+    );
     await page.getByRole("button", { name: "Remove completely" }).click();
     await expect(page.getByText("Casey")).not.toBeVisible();
   });
 
-  test("a friend creates a profile without creating a password", async ({
-    page,
-  }) => {
+  test("a friend creates a password-protected profile", async ({ page }) => {
     await passGate(page);
     await page.getByRole("button", { name: "Add profile" }).click();
     await page.getByLabel("Name").fill("Jordan");
+    await page
+      .getByLabel("Profile password", { exact: true })
+      .fill(friendProfilePassword);
     await page.getByRole("radio", { name: "Toucan" }).click();
     await page.getByRole("button", { name: "Create" }).click();
 
     await expect(
       page.getByRole("heading", { name: "Welcome, Jordan" }),
     ).toBeVisible();
-    await expect(page.getByText(/Set a password/i)).not.toBeVisible();
     await expect(page.getByText("works now").first()).toBeVisible({
       timeout: 15_000,
     });
@@ -258,6 +272,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
       .getByRole("button", { name: "Delete my profile and data" })
       .click();
     await page.getByLabel(/Type jordan to confirm/).fill("jordan");
+    await page
+      .getByLabel("Profile password", { exact: true })
+      .fill(friendProfilePassword);
     await page.getByRole("button", { name: "Delete permanently" }).click();
     await expect(page).toHaveURL("/login");
     await expect(

@@ -5,6 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
+import { readBoundedText, RequestBodyError } from "@/lib/bounded-request";
 
 export const dynamic = "force-dynamic";
 
@@ -73,9 +74,14 @@ export async function PUT(request: NextRequest, { params }: Params) {
   if (!paper)
     return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
 
-  const raw = await request.text();
-  if (Buffer.byteLength(raw) > MAX_CANVAS_BYTES) {
-    return NextResponse.json({ error: "Canvas too large." }, { status: 413 });
+  let raw: string;
+  try {
+    raw = await readBoundedText(request, MAX_CANVAS_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return NextResponse.json({ error: "Canvas too large." }, { status: 413 });
+    }
+    throw error;
   }
   const body = snapshotSchema.safeParse(
     (() => {

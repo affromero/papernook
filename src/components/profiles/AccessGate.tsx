@@ -52,7 +52,7 @@ export function AccessGate({ configured = true }: { configured?: boolean }) {
         </h1>
         <p className={styles.gateHint}>
           {configured
-            ? "This is a private paper library. The admin created the access password; ask them for it, or use an invite link or QR from their Settings."
+            ? "This is a private paper library. Ask the admin for the server access password. Your profile password is requested separately."
             : "The admin must set PAPERNOOK_PASSWORD in .env and restart Papernook before anyone can use this public address."}
         </p>
         {configured && (

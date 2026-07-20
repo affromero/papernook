@@ -319,10 +319,11 @@ unconfirmed captures stay private. Connect through
 [Tailscale](https://tailscale.com) or a hardened custom domain. Settings
 generates the correct device QR code for the address in use.
 
-For a custom domain, the admin owns one `PAPERNOOK_PASSWORD`. Friends pass that
-single gate or use a signed invite, then create a profile without setting a
-password. For Tailscale-only access, machine/tailnet membership is the outer
-boundary. See [Invite a friend](docs/user-guide.md#invite-a-friend).
+For a custom domain, the admin owns `PAPERNOOK_PASSWORD` and every reader owns
+a separate profile password. Public mode gates every hostname and does not
+allow signed invites to bypass the password. For Tailscale-only access,
+machine/tailnet membership is the outer boundary. See
+[Invite a friend](docs/user-guide.md#invite-a-friend).
 
 ## Documentation
 

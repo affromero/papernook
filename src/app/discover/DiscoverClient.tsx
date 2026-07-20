@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import styles from "./discover.module.css";
+import { submitCapture } from "@/lib/capture/browser/submit";
 
 /**
  * Ask the agent for papers worth adding, grounded in the current library.
@@ -55,9 +56,7 @@ export function DiscoverClient({ captureToken, topics }: DiscoverClientProps) {
   }
 
   function addToLibrary(url: string): void {
-    window.location.assign(
-      `/add?token=${encodeURIComponent(captureToken)}&url=${encodeURIComponent(url)}`,
-    );
+    submitCapture("/add", captureToken, url);
   }
 
   return (

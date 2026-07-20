@@ -6,9 +6,15 @@
 
 papernook.example.com {
 	encode gzip
+	request_body {
+		max_size 55MB
+	}
+	header {
+		-Server
+	}
 
-	# Papernook throttles the instance gate per IP and profile login per
-	# IP/account. Add a Caddy rate-limit plugin or fail2ban for edge controls.
+	# Papernook enforces global request limits plus per-IP and per-account auth
+	# backoff. For high traffic, add edge rate limiting or fail2ban too.
 	reverse_proxy localhost:3000
 }
 

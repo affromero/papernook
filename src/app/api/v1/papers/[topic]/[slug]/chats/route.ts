@@ -3,6 +3,7 @@ import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
 import { listChats, createChat } from "@/lib/library/chats";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!getPaper(topic, slug)) {
     return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
   }
-  const body = createSchema.safeParse(await request.json().catch(() => null));
+  const body = createSchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json({ error: "Invalid title." }, { status: 400 });
   }

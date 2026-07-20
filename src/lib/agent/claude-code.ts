@@ -3,7 +3,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { configuredModel } from "./config";
 import { buildAgentInvocation, getClaudeSshHost } from "./invocation";
-import { stageImagesOverSsh, imagePromptPreamble } from "./attachments";
 import {
   DEFAULT_TIMEOUT_MS,
   type AgentProvider,
@@ -15,8 +14,8 @@ import {
  * claude-code-client.ts and decoupled from its registry/pricing stack.
  * Keyless: uses whatever auth the CLI has, locally or over SSH
  * (CLAUDE_CODE_SSH_HOST). Prompt is piped via stdin to avoid ARG_MAX.
- * Images are referenced by path with the Read tool allowed; new to
- * papernook; Sotto's client was text-only.
+ * Built-in tools, project settings, MCP servers, and persistence are disabled
+ * so paper content cannot turn the CLI into a filesystem-reading agent.
  */
 
 /**
@@ -89,20 +88,29 @@ async function buildArgs(
   turn: AgentTurn,
   streaming: boolean,
 ): Promise<{ args: string[]; prompt: string }> {
-  const args = ["-p"];
+  const args = [
+    "-p",
+    "--safe-mode",
+    "--disable-slash-commands",
+    "--no-session-persistence",
+    "--strict-mcp-config",
+    "--mcp-config",
+    '{"mcpServers":{}}',
+    "--tools",
+    "",
+  ];
   const model = configuredModel("claude-code");
   if (model) args.push("--model", model);
   args.push("--output-format", streaming ? "stream-json" : "text");
   if (streaming) args.push("--verbose");
   if (turn.system) args.push("--system-prompt", turn.system);
 
-  let prompt = turn.prompt;
+  const prompt = turn.prompt;
   const images = turn.images ?? [];
   if (images.length > 0) {
-    const sshHost = getClaudeSshHost();
-    const paths = sshHost ? await stageImagesOverSsh(images, sshHost) : images;
-    args.push("--allowedTools", "Read");
-    prompt = imagePromptPreamble(paths) + prompt;
+    throw new Error(
+      "claude-code image attachments are disabled because they require filesystem tools. Use an API provider for image chats.",
+    );
   }
   return { args, prompt };
 }
