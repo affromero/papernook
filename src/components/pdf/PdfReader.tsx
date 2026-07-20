@@ -8,6 +8,7 @@ import {
   PenLine,
   Save,
   Type as TypeIcon,
+  X,
 } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type {
@@ -27,10 +28,17 @@ import {
 import "pdfjs-dist/web/pdf_viewer.css";
 import styles from "./PdfReader.module.css";
 
+export interface PdfReaderEditState {
+  dirty: boolean;
+  saving: boolean;
+}
+
 interface PdfReaderProps {
   src: string;
   title: string;
   editable?: boolean;
+  onClose?(): void;
+  onEditStateChange?(state: PdfReaderEditState): void;
 }
 
 interface Preview {
@@ -67,7 +75,13 @@ function errorMessage(payload: unknown, fallback: string): string {
   return fallback;
 }
 
-export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
+export function PdfReader({
+  src,
+  title,
+  editable = false,
+  onClose,
+  onEditStateChange,
+}: PdfReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -84,6 +98,7 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
   > | null>(null);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
+  const onEditStateChangeRef = useRef(onEditStateChange);
   const previewRef = useRef<Preview | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
@@ -99,6 +114,10 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
   const [remoteUpdate, setRemoteUpdate] = useState(false);
   const [pencilMode, setPencilMode] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    onEditStateChangeRef.current = onEditStateChange;
+  }, [onEditStateChange]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -296,6 +315,10 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
               savingRef.current = next.saving;
               setDirty(next.dirty);
               setSaving(next.saving);
+              onEditStateChangeRef.current?.({
+                dirty: next.dirty,
+                saving: next.saving,
+              });
               if (next.saving) {
                 setSaveStatus("Saving annotations…");
               } else if (next.error instanceof PdfSaveConflictError) {
@@ -357,6 +380,7 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
       autosaveRef.current = null;
       dirtyRef.current = false;
       savingRef.current = false;
+      onEditStateChangeRef.current?.({ dirty: false, saving: false });
       pendingPenRef.current = false;
       pinchDistanceRef.current = null;
       setEditorReady(false);
@@ -373,6 +397,55 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
     };
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [editable]);
+
+  useEffect(() => {
+    if (!editable) return;
+    const saveBeforeClientNavigation = (event: MouseEvent) => {
+      if (
+        !dirtyRef.current ||
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      const target = event.target;
+      const anchor =
+        target instanceof Element
+          ? target.closest<HTMLAnchorElement>("a")
+          : null;
+      if (
+        !anchor?.href ||
+        anchor.target === "_blank" ||
+        anchor.hasAttribute("download")
+      ) {
+        return;
+      }
+      const destination = new URL(anchor.href, window.location.href);
+      if (
+        destination.origin !== window.location.origin ||
+        destination.href === window.location.href
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void (async () => {
+        const autosave = autosaveRef.current;
+        await autosave?.flush();
+        const state = autosave?.state();
+        if (state && !state.dirty && !state.saving && !state.error) {
+          window.location.assign(destination.href);
+        }
+      })();
+    };
+    document.addEventListener("click", saveBeforeClientNavigation, true);
+    return () =>
+      document.removeEventListener("click", saveBeforeClientNavigation, true);
   }, [editable]);
 
   useEffect(() => {
@@ -510,6 +583,13 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
 
   async function saveAnnotations(): Promise<void> {
     await autosaveRef.current?.flush();
+  }
+
+  async function closeReader(): Promise<void> {
+    if (dirtyRef.current) {
+      await autosaveRef.current?.flush();
+    }
+    if (!dirtyRef.current && !savingRef.current) onClose?.();
   }
 
   function captureReferenceAnchor(event: PointerEvent<HTMLDivElement>): void {
@@ -704,6 +784,19 @@ export function PdfReader({ src, title, editable = false }: PdfReaderProps) {
           >
             ↗
           </a>
+          {onClose && (
+            <button
+              type="button"
+              onClick={() => void closeReader()}
+              disabled={saving || remoteUpdate}
+              aria-label={
+                dirty ? "Save annotations and close" : "Close annotator"
+              }
+              title={dirty ? "Save annotations and close" : "Close annotator"}
+            >
+              <X aria-hidden="true" />
+            </button>
+          )}
         </div>
       </div>
       {editable && saveStatus && !remoteUpdate && (

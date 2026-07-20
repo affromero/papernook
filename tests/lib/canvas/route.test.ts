@@ -151,7 +151,17 @@ describe("shared canvas persistence", () => {
     expect(uploaded.status).toBe(200);
     const payload = (await uploaded.json()) as { src: string };
     const filename = payload.src.split("/").at(-1);
-    expect(filename).toMatch(/\.png$/);
+    expect(filename).toMatch(/^[0-9a-f]{64}\.png$/);
+
+    const duplicate = await assets.POST(
+      new NextRequest("http://localhost/assets", {
+        method: "POST",
+        headers: { "Content-Type": "image/png" },
+        body: Buffer.from("png bytes"),
+      }),
+      params,
+    );
+    expect((await duplicate.json()) as { src: string }).toEqual(payload);
 
     const assetRoute =
       await import("@/app/api/v1/papers/[topic]/[slug]/canvas/assets/[asset]/route");
@@ -171,6 +181,29 @@ describe("shared canvas persistence", () => {
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe(
       "png bytes",
     );
+
+    const deleted = await assetRoute.DELETE(
+      new NextRequest(`http://localhost${payload.src}`, { method: "DELETE" }),
+      {
+        params: Promise.resolve({
+          topic: "ml",
+          slug: "paper",
+          asset: filename!,
+        }),
+      },
+    );
+    expect(deleted.status).toBe(204);
+    const missing = await assetRoute.GET(
+      new NextRequest(`http://localhost${payload.src}`),
+      {
+        params: Promise.resolve({
+          topic: "ml",
+          slug: "paper",
+          asset: filename!,
+        }),
+      },
+    );
+    expect(missing.status).toBe(404);
   });
 
   it("rejects oversized canvas assets before reading their body", async () => {

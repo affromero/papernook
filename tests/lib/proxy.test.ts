@@ -1,12 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { proxy } from "@/proxy";
+import { proxy, publicRequestLimit } from "@/proxy";
 
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
 describe("request proxy", () => {
+  it("keeps the production request limit unless a positive integer overrides it", () => {
+    expect(publicRequestLimit()).toBe(120);
+
+    vi.stubEnv("PAPERNOOK_PUBLIC_REQUEST_LIMIT", "1000");
+    expect(publicRequestLimit()).toBe(1000);
+
+    vi.stubEnv("PAPERNOOK_PUBLIC_REQUEST_LIMIT", "unlimited");
+    expect(publicRequestLimit()).toBe(120);
+  });
+
   it("allows the token-authenticated capture route without a session", () => {
     const response = proxy(new NextRequest("http://papernook.test/add"));
     expect(response.headers.get("x-middleware-next")).toBe("1");

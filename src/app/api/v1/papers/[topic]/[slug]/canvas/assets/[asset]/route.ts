@@ -13,7 +13,7 @@ interface Params {
 
 const assetName = z
   .string()
-  .regex(/^[0-9a-f-]{36}\.(gif|jpe?g|mov|mp4|png|webm|webp)$/);
+  .regex(/^(?:[0-9a-f]{64}|[0-9a-f-]{36})\.(gif|jpe?g|mov|mp4|png|webm|webp)$/);
 
 export async function GET(_request: NextRequest, { params }: Params) {
   const profile = await activeProfile();
@@ -49,5 +49,26 @@ export async function GET(_request: NextRequest, { params }: Params) {
     });
   } catch {
     return NextResponse.json({ error: "Unknown asset." }, { status: 404 });
+  }
+}
+
+export async function DELETE(_request: NextRequest, { params }: Params) {
+  const profile = await activeProfile();
+  if (!profile)
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const { topic, slug, asset } = await params;
+  const parsedAsset = assetName.safeParse(asset);
+  const paper = getPaper(topic, slug);
+  if (!paper || !parsedAsset.success)
+    return NextResponse.json({ error: "Unknown asset." }, { status: 404 });
+  const file = path.join(paper.companionDir, "canvas-assets", parsedAsset.data);
+  try {
+    fs.unlinkSync(file);
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return new NextResponse(null, { status: 204 });
+    }
+    throw error;
   }
 }

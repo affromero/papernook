@@ -18,6 +18,15 @@ const PUBLIC_PATHS = new Set([
   "/api/v1/health",
 ]);
 
+const DEFAULT_PUBLIC_REQUEST_LIMIT = 120;
+
+export function publicRequestLimit(): number {
+  const configured = Number(process.env.PAPERNOOK_PUBLIC_REQUEST_LIMIT);
+  return Number.isSafeInteger(configured) && configured > 0
+    ? configured
+    : DEFAULT_PUBLIC_REQUEST_LIMIT;
+}
+
 function contentSecurityPolicy(nonce: string): string {
   return [
     "default-src 'self'",
@@ -75,7 +84,7 @@ export function proxy(request: NextRequest): NextResponse {
   if (publicRequest) {
     const wait = consumeRequestLimit(
       `request:${clientIp(request)}`,
-      120,
+      publicRequestLimit(),
       60_000,
     );
     if (wait > 0) {

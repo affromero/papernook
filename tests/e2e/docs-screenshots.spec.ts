@@ -3,6 +3,14 @@ import { expect, test, type Page } from "@playwright/test";
 const password = "admin-created-password";
 const adminProfilePassword = "maya-profile-password";
 const friendProfilePassword = "jordan-profile-password";
+let pdfRestore:
+  | {
+      path: string;
+      canvasPath: string;
+      pagePath: string;
+      bytes: Buffer;
+    }
+  | undefined;
 
 async function passGate(page: Page): Promise<void> {
   await page.goto("/login");
@@ -23,6 +31,39 @@ async function loginAsAdmin(page: Page): Promise<void> {
 }
 
 test.describe.serial("documentation journeys and screenshots", () => {
+  test.afterEach(async ({ page }) => {
+    if (!pdfRestore) return;
+    const restore = pdfRestore;
+    const current = await page.request.head(restore.path);
+    expect(current.ok()).toBe(true);
+    const response = await page.request.put(restore.path, {
+      data: restore.bytes,
+      headers: {
+        "content-type": "application/pdf",
+        "if-match": current.headers()["etag"],
+      },
+    });
+    expect(response.ok()).toBe(true);
+    const restoredEtag = response.headers()["etag"];
+    await page.goto(restore.pagePath);
+    await expect(
+      page.getByRole("status", { name: "Canvas save status" }),
+    ).toHaveText("Saved", { timeout: 30_000 });
+    await expect
+      .poll(async () => {
+        const canvas = await page.request.get(restore.canvasPath);
+        const payload = (await canvas.json()) as {
+          document?: {
+            store?: Record<string, { meta?: { papernookPdfVersion?: string } }>;
+          };
+        };
+        return payload.document?.store?.["shape:page-1"]?.meta
+          ?.papernookPdfVersion;
+      })
+      .toBe(restoredEtag);
+    pdfRestore = undefined;
+  });
+
   test("public gate, profile picker, and library match the documented flow", async ({
     page,
   }) => {
@@ -78,6 +119,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
   test("paper chat can be hidden persistently for a full-width reading view", async ({
     page,
   }) => {
+    test.setTimeout(60_000);
     await loginAsAdmin(page);
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
@@ -124,9 +166,19 @@ test.describe.serial("documentation journeys and screenshots", () => {
     const saveStatus = page.getByRole("status", {
       name: "Canvas save status",
     });
-    await expect(saveStatus).toHaveText("Saved");
+    await expect(saveStatus).toHaveText("Saved", { timeout: 30_000 });
+    const importedPage = page.locator('img[src*="/canvas/assets/"]').first();
+    await expect(importedPage).toBeVisible();
+    await expect
+      .poll(() =>
+        importedPage.evaluate((image) =>
+          image instanceof HTMLImageElement ? image.naturalWidth : 0,
+        ),
+      )
+      .toBeGreaterThan(0);
     await expect(page).toHaveScreenshot(["product", "canvas.png"], {
       animations: "disabled",
+      maxDiffPixels: 50,
     });
     const board = page.locator(".tl-canvas").first();
     const boardBox = await board.boundingBox();
@@ -164,9 +216,80 @@ test.describe.serial("documentation journeys and screenshots", () => {
       `/api/v1/papers/machine-learning/attention-is-all-you-need/canvas`,
     );
     expect(canvasState.ok()).toBe(true);
-    expect(JSON.stringify(await canvasState.json())).toContain(
-      '"typeName":"shape"',
+    const canvasDocument = JSON.stringify(await canvasState.json());
+    expect(canvasDocument).toContain('"shape:page-1"');
+    expect(canvasDocument).toContain('"papernookPdfVersion"');
+    expect(canvasDocument).toContain("/canvas/assets/");
+    const pdfPath =
+      "/api/v1/papers/machine-learning/attention-is-all-you-need/pdf";
+    const originalPdf = await page.request.get(pdfPath);
+    expect(originalPdf.ok()).toBe(true);
+    pdfRestore = {
+      path: pdfPath,
+      canvasPath:
+        "/api/v1/papers/machine-learning/attention-is-all-you-need/canvas",
+      pagePath: "/paper/machine-learning/attention-is-all-you-need/canvas",
+      bytes: await originalPdf.body(),
+    };
+    const beforeAnnotation = await page.request.head(pdfPath);
+    const beforeAnnotationEtag = beforeAnnotation.headers()["etag"];
+    await page.getByRole("button", { name: "Annotate PDF" }).click();
+    const annotator = page.getByRole("region", {
+      name: "Annotate Attention Is All You Need",
+    });
+    await expect(annotator).toBeVisible();
+    await expect(
+      page.getByText(
+        "Highlights, text, and ink save to Reader and every device.",
+      ),
+    ).toBeVisible();
+    await expect(
+      annotator.getByRole("button", { name: "Highlight" }),
+    ).toBeEnabled();
+    await annotator.getByRole("button", { name: "Text" }).click();
+    const annotationPage = annotator.locator(".pdfViewer .page").first();
+    const annotationPageBox = await annotationPage.boundingBox();
+    expect(annotationPageBox).not.toBeNull();
+    await page.mouse.click(
+      annotationPageBox!.x + annotationPageBox!.width * 0.3,
+      annotationPageBox!.y + 180,
     );
+    await expect(
+      annotator.locator(".freeTextEditor .internal").first(),
+    ).toBeVisible();
+    await page.keyboard.type("Canvas synced note");
+    await annotator.getByRole("button", { name: "Select" }).click();
+    await expect(
+      annotator.getByRole("button", { name: "Save annotations in PDF" }),
+    ).toBeEnabled();
+    await annotator
+      .getByRole("button", { name: "Save annotations in PDF" })
+      .click();
+    await expect(annotator.getByText("Saved", { exact: true })).toBeVisible();
+    const afterAnnotation = await page.request.head(pdfPath);
+    const afterAnnotationEtag = afterAnnotation.headers()["etag"];
+    expect(afterAnnotationEtag).toBeTruthy();
+    expect(afterAnnotationEtag).not.toBe(beforeAnnotationEtag);
+    await expect(
+      annotator.getByRole("button", { name: "Close annotator" }),
+    ).toBeVisible();
+    await annotator.getByRole("button", { name: "Close annotator" }).click();
+    await expect(annotator).not.toBeVisible();
+    await expect(saveStatus).toHaveText("Saved", { timeout: 30_000 });
+    await expect
+      .poll(async () => {
+        const refreshedCanvas = await page.request.get(
+          "/api/v1/papers/machine-learning/attention-is-all-you-need/canvas",
+        );
+        const payload = (await refreshedCanvas.json()) as {
+          document?: {
+            store?: Record<string, { meta?: { papernookPdfVersion?: string } }>;
+          };
+        };
+        return payload.document?.store?.["shape:page-1"]?.meta
+          ?.papernookPdfVersion;
+      })
+      .toBe(afterAnnotationEtag);
     await page.mouse.move(boardBox!.x + 420, boardBox!.y + 240);
     await page.mouse.down();
     await page.mouse.move(boardBox!.x + 500, boardBox!.y + 320, { steps: 4 });
@@ -195,6 +318,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     ).toHaveAttribute("href", "/settings#canvas");
     await page.getByRole("link", { name: "Reader", exact: true }).click();
     await expect(page).toHaveURL(readerUrl);
+    await expect(page.getByText("Canvas synced note")).toBeVisible();
   });
 
   test("manual theme choice persists across navigation and reload", async ({

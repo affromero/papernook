@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
@@ -69,13 +69,15 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
 
-  const filename = `${randomUUID()}.${extension}`;
+  const filename = `${createHash("sha256").update(bytes).digest("hex")}.${extension}`;
   const directory = path.join(paper.companionDir, "canvas-assets");
   fs.mkdirSync(directory, { recursive: true });
   const file = path.join(directory, filename);
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, bytes);
-  fs.renameSync(tmp, file);
+  if (!fs.existsSync(file)) {
+    const tmp = `${file}.${process.pid}.${randomUUID()}.tmp`;
+    fs.writeFileSync(tmp, bytes);
+    fs.renameSync(tmp, file);
+  }
   return NextResponse.json({
     src: `/api/v1/papers/${topic}/${slug}/canvas/assets/${filename}`,
   });

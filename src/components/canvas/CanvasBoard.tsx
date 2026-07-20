@@ -7,15 +7,17 @@ import {
   loadSnapshot,
   type Editor,
   type TLAssetStore,
-  type TLShape,
 } from "tldraw";
 import { reconcileStartupMigration } from "@/lib/canvas/startup";
+import { PdfReader, type PdfReaderEditState } from "@/components/pdf/PdfReader";
+import { focusFirstPdfPage, syncPdfPages } from "./pdf-pages";
 import "tldraw/tldraw.css";
 import styles from "./CanvasBoard.module.css";
 
 export interface CanvasBoardProps {
   topic: string;
   slug: string;
+  title: string;
   licenseKey: string | null;
   licenseRequired: boolean;
   licenseError: string | null;
@@ -81,59 +83,111 @@ function saveLocalCamera(editor: Editor, topic: string, slug: string): void {
   }
 }
 
-async function migrateLegacyCanvas(editor: Editor): Promise<boolean> {
-  let changed = false;
-  const paperShapes = editor.store
-    .allRecords()
-    .filter(
-      (record): record is TLShape =>
-        record.typeName === "shape" && /^shape:page-\d+$/.test(record.id),
+async function uploadCanvasAsset(
+  base: string,
+  file: File,
+  abortSignal?: AbortSignal,
+): Promise<{ src: string }> {
+  const response = await fetch(`${base}/canvas/assets`, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      "X-Canvas-Filename": encodeURIComponent(file.name),
+    },
+    credentials: "include",
+    body: file,
+    signal: abortSignal,
+  });
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(
+      canvasError(payload, "The canvas asset could not be uploaded."),
     );
-  if (paperShapes.length > 0) {
-    const pageAssetIds = paperShapes.flatMap((shape) =>
-      shape.type === "image" && shape.props.assetId
-        ? [shape.props.assetId]
-        : [],
-    );
-    editor.store.remove(paperShapes.map((shape) => shape.id));
-    const referencedAssetIds = new Set(
-      editor.store
-        .allRecords()
-        .flatMap((record) =>
-          record.typeName === "shape" &&
-          "assetId" in record.props &&
-          record.props.assetId
-            ? [record.props.assetId]
-            : [],
-        ),
-    );
-    const unusedPageAssetIds = pageAssetIds.filter(
-      (assetId) => !referencedAssetIds.has(assetId),
-    );
-    if (unusedPageAssetIds.length > 0) {
-      editor.deleteAssets(unusedPageAssetIds);
-    }
-    changed = true;
   }
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !("src" in payload) ||
+    typeof payload.src !== "string"
+  ) {
+    throw new Error("The canvas asset response was invalid.");
+  }
+  return { src: payload.src };
+}
 
-  for (const asset of editor.getAssets()) {
-    const source = asset.props.src;
-    if (!source?.startsWith("data:")) continue;
-    const blob = await fetch(source).then((response) => response.blob());
-    const filename =
-      "name" in asset.props && asset.props.name
-        ? asset.props.name
-        : `canvas-asset.${blob.type.split("/")[1] ?? "bin"}`;
-    const uploaded = await editor.uploadAsset(
-      asset,
-      new File([blob], filename, { type: blob.type }),
-    );
-    editor.updateAssets([
-      { id: asset.id, type: asset.type, props: { src: uploaded.src } },
-    ]);
-    changed = true;
-  }
-  return changed;
+async function uploadDataAssets(
+  editor: Editor,
+  base: string,
+): Promise<boolean> {
+  const pending = editor
+    .getAssets()
+    .filter((asset) => asset.props.src?.startsWith("data:"))
+    .map(async (asset) => {
+      const source = asset.props.src;
+      if (!source) throw new Error("A canvas image had no data URL.");
+      const separator = source.indexOf(",");
+      if (separator < 0) {
+        throw new Error("A canvas image had an invalid data URL.");
+      }
+      const metadata = source.slice(5, separator);
+      const encoded = source.slice(separator + 1);
+      const mimeType = metadata.split(";")[0] || "application/octet-stream";
+      const decoded = metadata.includes(";base64")
+        ? window.atob(encoded)
+        : decodeURIComponent(encoded);
+      const bytes = Uint8Array.from(decoded, (character) =>
+        character.charCodeAt(0),
+      );
+      const blob = new Blob([bytes], { type: mimeType });
+      const filename =
+        "name" in asset.props && asset.props.name
+          ? asset.props.name
+          : `canvas-asset.${blob.type.split("/")[1] ?? "bin"}`;
+      const uploaded = await uploadCanvasAsset(
+        base,
+        new File([blob], filename, { type: blob.type }),
+      );
+      return {
+        id: asset.id,
+        type: asset.type,
+        props: { src: uploaded.src },
+      };
+    });
+  if (pending.length === 0) return false;
+  editor.updateAssets(await Promise.all(pending));
+  return true;
+}
+
+async function deleteUnusedCanvasAssets(
+  editor: Editor,
+  base: string,
+  candidates: string[],
+): Promise<void> {
+  const activeSources = new Set(
+    editor
+      .getAssets()
+      .flatMap((asset) => (asset.props.src ? [asset.props.src] : [])),
+  );
+  const unused = [
+    ...new Set(
+      candidates.filter(
+        (source) =>
+          source.startsWith(`${base}/canvas/assets/`) &&
+          !activeSources.has(source),
+      ),
+    ),
+  ];
+  await Promise.all(
+    unused.map(async (source) => {
+      const response = await fetch(source, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("An old PDF canvas image could not be removed.");
+      }
+    }),
+  );
 }
 
 async function saveDocument(
@@ -188,6 +242,7 @@ async function loadSharedCanvas(editor: Editor, url: string): Promise<string> {
 export function CanvasBoard({
   topic,
   slug,
+  title,
   licenseKey,
   licenseRequired,
   licenseError,
@@ -201,12 +256,18 @@ export function CanvasBoard({
   const initializedRef = useRef(false);
   const dirtyRef = useRef(false);
   const conflictRef = useRef(false);
+  const refreshPromiseRef = useRef<Promise<void> | null>(null);
   const changeVersionRef = useRef(0);
   const [status, setStatus] = useState("Opening shared canvas…");
   const [saved, setSaved] = useState(true);
   const [ready, setReady] = useState(false);
   const [conflicted, setConflicted] = useState(false);
   const [canvasUiHidden, setCanvasUiHidden] = useState(false);
+  const [annotatingPdf, setAnnotatingPdf] = useState(false);
+  const [pdfEditState, setPdfEditState] = useState<PdfReaderEditState>({
+    dirty: false,
+    saving: false,
+  });
   const [licenseRejected, setLicenseRejected] = useState(false);
   const licenseMissing = licenseRequired && !licenseKey;
   const canvasUnavailable = Boolean(
@@ -236,31 +297,7 @@ export function CanvasBoard({
   const assetStore = useMemo<TLAssetStore>(
     () => ({
       async upload(_asset, file, abortSignal) {
-        const response = await fetch(`${base}/canvas/assets`, {
-          method: "POST",
-          headers: {
-            "Content-Type": file.type || "application/octet-stream",
-            "X-Canvas-Filename": encodeURIComponent(file.name),
-          },
-          credentials: "include",
-          body: file,
-          signal: abortSignal,
-        });
-        const payload: unknown = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(
-            canvasError(payload, "The canvas asset could not be uploaded."),
-          );
-        }
-        if (
-          !payload ||
-          typeof payload !== "object" ||
-          !("src" in payload) ||
-          typeof payload.src !== "string"
-        ) {
-          throw new Error("The canvas asset response was invalid.");
-        }
-        return { src: payload.src };
+        return uploadCanvasAsset(base, file, abortSignal);
       },
       resolve(asset) {
         return asset.props.src;
@@ -305,6 +342,50 @@ export function CanvasBoard({
     [base],
   );
 
+  const refreshPdfPages = useCallback(
+    async (force = false) => {
+      const editor = editorRef.current;
+      if (!editor || conflictRef.current) return;
+      if (refreshPromiseRef.current) {
+        await refreshPromiseRef.current;
+        return;
+      }
+      const refresh = async () => {
+        if (dirtyRef.current) await flushSave(editor, true);
+        setStatus("Refreshing PDF in canvas…");
+        const result = await syncPdfPages(
+          editor,
+          `${base}/pdf`,
+          async (blob, filename) =>
+            (
+              await uploadCanvasAsset(
+                base,
+                new File([blob], filename, { type: blob.type }),
+              )
+            ).src,
+          force,
+        );
+        if (!result.changed) {
+          setStatus("Saved");
+          setSaved(true);
+          return;
+        }
+        await uploadDataAssets(editor, base);
+        setSaved(false);
+        await flushSave(editor);
+        await deleteUnusedCanvasAssets(editor, base, result.obsoleteSources);
+        if (result.imported) {
+          focusFirstPdfPage(editor);
+        }
+      };
+      refreshPromiseRef.current = refresh().finally(() => {
+        refreshPromiseRef.current = null;
+      });
+      await refreshPromiseRef.current;
+    },
+    [base, flushSave],
+  );
+
   useEffect(() => {
     const warnAboutUnsavedChanges = (event: BeforeUnloadEvent) => {
       if (!dirtyRef.current) return;
@@ -326,21 +407,44 @@ export function CanvasBoard({
 
       void (async () => {
         const canvasUrl = `${base}/canvas`;
+        let importedPdf = false;
+        let obsoletePdfSources: string[] = [];
         etagRef.current = await loadSharedCanvas(editor, canvasUrl);
         if (cancelled) return;
+        setStatus("Importing PDF into canvas…");
         etagRef.current = await reconcileStartupMigration({
           etag: etagRef.current,
-          migrate: () => migrateLegacyCanvas(editor),
+          migrate: async () => {
+            setStatus("Rendering PDF pages…");
+            const result = await syncPdfPages(
+              editor,
+              `${base}/pdf`,
+              async (blob, filename) =>
+                (
+                  await uploadCanvasAsset(
+                    base,
+                    new File([blob], filename, { type: blob.type }),
+                  )
+                ).src,
+            );
+            importedPdf = result.imported;
+            obsoletePdfSources = result.obsoleteSources;
+            setStatus("Storing PDF pages…");
+            const uploadedAssets = await uploadDataAssets(editor, base);
+            setStatus("Saving shared canvas…");
+            return result.changed || uploadedAssets;
+          },
           save: (etag) =>
             saveDocument(getSnapshot(editor.store).document, canvasUrl, etag),
           reload: () => loadSharedCanvas(editor, canvasUrl),
           isConflict: (error) => error instanceof CanvasConflictError,
         });
         if (cancelled) return;
+        await deleteUnusedCanvasAssets(editor, base, obsoletePdfSources);
         editor.updateInstanceState({ isFocusMode: false });
         setCanvasUiHidden(false);
-        if (!restoreLocalCamera(editor, topic, slug)) {
-          editor.zoomToFit({ animation: { duration: 0 } });
+        if (importedPdf || !restoreLocalCamera(editor, topic, slug)) {
+          focusFirstPdfPage(editor);
         }
 
         editor.user.updateUserPreferences({
@@ -422,6 +526,38 @@ export function CanvasBoard({
     [base, flushSave, slug, topic],
   );
 
+  useEffect(() => {
+    if (!ready || annotatingPdf || canvasUnavailable) return;
+    const checkPdf = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshPdfPages().catch((error: unknown) => {
+        setStatus(
+          error instanceof Error
+            ? error.message
+            : "The PDF could not be refreshed.",
+        );
+      });
+    };
+    const interval = window.setInterval(checkPdf, 30_000);
+    document.addEventListener("visibilitychange", checkPdf);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", checkPdf);
+    };
+  }, [annotatingPdf, canvasUnavailable, ready, refreshPdfPages]);
+
+  const closePdfAnnotator = useCallback(() => {
+    setAnnotatingPdf(false);
+    setPdfEditState({ dirty: false, saving: false });
+    void refreshPdfPages().catch((error: unknown) => {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "The annotated PDF could not be refreshed.",
+      );
+    });
+  }, [refreshPdfPages]);
+
   async function explainSelection(): Promise<void> {
     const editor = editorRef.current;
     if (!editor) return;
@@ -467,6 +603,11 @@ export function CanvasBoard({
               }}
             >
               Show canvas tools
+            </button>
+          )}
+          {!canvasUnavailable && (
+            <button type="button" onClick={() => setAnnotatingPdf(true)}>
+              Annotate PDF
             </button>
           )}
           {!canvasUnavailable && (
@@ -541,6 +682,37 @@ export function CanvasBoard({
             title="This tldraw key was rejected"
             detail="The key may be invalid, expired, or configured for another domain."
           />
+        )}
+        {annotatingPdf && !canvasUnavailable && (
+          <section
+            className={styles.pdfAnnotator}
+            aria-label={`Annotate ${title}`}
+          >
+            <div className={styles.pdfAnnotatorHeader}>
+              <div>
+                <strong>Annotate PDF</strong>
+                <span>
+                  Highlights, text, and ink save to Reader and every device.
+                </span>
+              </div>
+              <span role="status">
+                {pdfEditState.saving
+                  ? "Saving…"
+                  : pdfEditState.dirty
+                    ? "Unsaved changes"
+                    : "Synced PDF"}
+              </span>
+            </div>
+            <div className={styles.pdfAnnotatorReader}>
+              <PdfReader
+                src={`${base}/pdf`}
+                title={title}
+                editable
+                onClose={closePdfAnnotator}
+                onEditStateChange={setPdfEditState}
+              />
+            </div>
+          </section>
         )}
       </div>
     </div>
