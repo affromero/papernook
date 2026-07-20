@@ -26,6 +26,7 @@ services:
       - "${APP_HOST:-0.0.0.0}:${APP_PORT:-3000}:3000"
     env_file: .env
     environment:
+      HOSTNAME: 0.0.0.0
       PAPERNOOK_VERSION: ${PAPERNOOK_VERSION:-dev}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       LLAMACPP_BASE_URL: ${LLAMACPP_BASE_URL:-http://host.docker.internal:8080}
