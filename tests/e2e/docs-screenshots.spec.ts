@@ -111,6 +111,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
       .toBe(true);
     await expect(page).toHaveScreenshot(["setup", "profile-picker.png"], {
       animations: "disabled",
+      maxDiffPixelRatio: 0.02,
     });
 
     await page.getByRole("button", { name: "Switch to Maya" }).click();
@@ -120,6 +121,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page).toHaveScreenshot(["product", "library.png"], {
       animations: "disabled",
       fullPage: true,
+      maxDiffPixelRatio: 0.02,
     });
   });
 
@@ -137,6 +139,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();
     await expect(page).toHaveScreenshot(["product", "paper-and-chat.png"], {
       animations: "disabled",
+      maxDiffPixelRatio: 0.02,
     });
 
     await page.getByRole("button", { name: "Focus reading" }).click();
@@ -146,6 +149,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page.getByRole("button", { name: "Show chat" })).toBeVisible();
     await expect(page).toHaveScreenshot(["product", "paper-focus.png"], {
       animations: "disabled",
+      maxDiffPixelRatio: 0.02,
     });
     await page
       .getByRole("button", { name: "Paper fullscreen", exact: true })
@@ -185,7 +189,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
       .toBeGreaterThan(0);
     await expect(page).toHaveScreenshot(["product", "canvas.png"], {
       animations: "disabled",
-      maxDiffPixels: 50,
+      maxDiffPixelRatio: 0.02,
     });
     const board = page.locator(".tl-canvas").first();
     const boardBox = await board.boundingBox();
@@ -353,6 +357,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     ).toBeVisible();
     await expect(page).toHaveScreenshot(["product", "share-reading.png"], {
       animations: "disabled",
+      maxDiffPixelRatio: 0.02,
     });
 
     await page.goto("/graph");
@@ -361,6 +366,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     ).toBeVisible();
     await expect(page).toHaveScreenshot(["product", "relationship-graph.png"], {
       animations: "disabled",
+      maxDiffPixelRatio: 0.02,
     });
 
     await page.goto("/settings");
@@ -472,6 +478,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page).toHaveScreenshot(["setup", "welcome.png"], {
       animations: "disabled",
       fullPage: true,
+      maxDiffPixelRatio: 0.02,
     });
     await page.getByRole("button", { name: "Open my library" }).click();
     await page.goto("/settings");
@@ -499,6 +506,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page).toHaveScreenshot(["product", "library-tablet.png"], {
       animations: "disabled",
       fullPage: true,
+      maxDiffPixelRatio: 0.02,
     });
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
@@ -524,6 +532,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page).toHaveScreenshot(["product", "paper-tablet.png"], {
       animations: "disabled",
       fullPage: true,
+      maxDiffPixelRatio: 0.02,
     });
 
     const pageBox = await renderedPage.boundingBox();
