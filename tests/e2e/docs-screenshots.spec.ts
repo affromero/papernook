@@ -69,9 +69,16 @@ test.describe.serial("documentation journeys and screenshots", () => {
   }) => {
     await page.goto("/login");
     await expect(page.getByText("Maya")).not.toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Enter the access password" }),
+    ).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Password" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enter" })).toBeDisabled();
     await expect(page).toHaveScreenshot(["setup", "access-gate.png"], {
       animations: "disabled",
-      maxDiffPixels: 50,
+      // Protect the documented layout while allowing Linux/macOS font
+      // rasterization differences. Assertions above verify the gate itself.
+      maxDiffPixelRatio: 0.02,
     });
 
     await page
