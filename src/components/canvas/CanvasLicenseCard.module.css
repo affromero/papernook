@@ -66,6 +66,49 @@
   gap: 0.65rem;
 }
 
+.testRow {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 44px;
+}
+
+.test {
+  min-height: 40px;
+  padding: 0 0.85rem;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.test:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.testHint,
+.testValid,
+.testRejected {
+  font-size: 0.8rem;
+}
+
+.testHint {
+  color: color-mix(in srgb, currentColor 58%, transparent);
+}
+
+.testValid {
+  color: #43976f;
+}
+
+.testRejected {
+  color: #c34d46;
+}
+
 .field {
   min-width: 0;
   flex: 1;
@@ -127,6 +170,7 @@
 .link:focus-visible,
 .field input:focus-visible,
 .save:focus-visible,
+.test:focus-visible,
 .remove:focus-visible {
   outline: 2px solid #6576dd;
   outline-offset: 3px;
@@ -135,6 +179,11 @@
 @media (max-width: 520px) {
   .controls {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .testRow {
+    align-items: flex-start;
     flex-direction: column;
   }
 

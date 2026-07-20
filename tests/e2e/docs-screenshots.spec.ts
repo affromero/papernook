@@ -227,6 +227,39 @@ test.describe.serial("documentation journeys and screenshots", () => {
     });
 
     await page.goto("/settings");
+    await page.route("**/api/v1/settings/canvas", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          configured: true,
+          source: "file",
+          admin: true,
+          requiredForThisOrigin: true,
+          licenseKey: "test-key",
+        }),
+      });
+    });
+    await page.reload();
+    await page.getByRole("button", { name: "Test configured key" }).click();
+    const licenseProbe = page.locator(".tl-container").last();
+    await licenseProbe.waitFor({ state: "attached" });
+    await licenseProbe.evaluate((container) => {
+      const gate = document.createElement("div");
+      gate.dataset.testid = "tl-license-expired";
+      gate.hidden = true;
+      container.append(gate);
+    });
+    await expect(
+      page.getByText("Rejected. Replace the key or check its allowed domain.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.unroute("**/api/v1/settings/canvas");
+    await page.reload();
     const setupWizard = page.getByRole("link", { name: "Review setup" });
     await expect(setupWizard).toHaveAttribute("href", "/welcome");
     await setupWizard.click();

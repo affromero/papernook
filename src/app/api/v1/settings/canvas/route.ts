@@ -38,6 +38,7 @@ function response(
         source: config.source,
         admin,
         requiredForThisOrigin,
+        ...(admin ? { licenseKey: config.licenseKey } : {}),
       },
       { headers: { "Cache-Control": "no-store" } },
     );

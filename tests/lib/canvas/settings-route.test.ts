@@ -78,6 +78,7 @@ describe("canvas settings route", () => {
       source: "file",
       admin: true,
       requiredForThisOrigin: false,
+      licenseKey: "tldraw-stored-key",
     });
 
     const removed = await route.PUT(putRequest(null));
@@ -86,6 +87,7 @@ describe("canvas settings route", () => {
       source: "environment",
       admin: true,
       requiredForThisOrigin: false,
+      licenseKey: "tldraw-environment-key",
     });
   });
 

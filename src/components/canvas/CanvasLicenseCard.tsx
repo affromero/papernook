@@ -1,21 +1,34 @@
 "use client";
 
+import dynamicImport from "next/dynamic";
 import { useEffect, useState } from "react";
 import styles from "./CanvasLicenseCard.module.css";
+
+const CanvasLicenseProbe = dynamicImport(
+  () =>
+    import("./CanvasLicenseProbe").then((module) => ({
+      default: module.CanvasLicenseProbe,
+    })),
+  { ssr: false },
+);
 
 interface LicenseState {
   configured: boolean;
   source: "file" | "environment" | null;
   admin: boolean;
   requiredForThisOrigin: boolean;
+  licenseKey?: string | null;
   error?: string;
 }
+
+type TestState = "idle" | "testing" | "valid" | "rejected";
 
 export function CanvasLicenseCard() {
   const [state, setState] = useState<LicenseState | null>(null);
   const [licenseKey, setLicenseKey] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [testState, setTestState] = useState<TestState>("idle");
 
   useEffect(() => {
     void fetch("/api/v1/settings/canvas", {
@@ -52,6 +65,7 @@ export function CanvasLicenseCard() {
       }
       setState(data);
       setLicenseKey("");
+      setTestState("idle");
       setStatus(
         nextLicenseKey === null
           ? data.source === "environment"
@@ -143,6 +157,36 @@ export function CanvasLicenseCard() {
       >
         Get a tldraw key <span aria-hidden="true">↗</span>
       </a>
+      {state.configured && state.requiredForThisOrigin && state.licenseKey && (
+        <div className={styles.testRow}>
+          <button
+            type="button"
+            className={styles.test}
+            onClick={() => setTestState("testing")}
+            disabled={busy || testState === "testing"}
+          >
+            {testState === "testing" ? "Testing key…" : "Test configured key"}
+          </button>
+          <span
+            className={
+              testState === "valid"
+                ? styles.testValid
+                : testState === "rejected"
+                  ? styles.testRejected
+                  : styles.testHint
+            }
+            role="status"
+          >
+            {testState === "testing"
+              ? "Checking signature, domain, and expiry…"
+              : testState === "valid"
+                ? "Valid for this domain."
+                : testState === "rejected"
+                  ? "Rejected. Replace the key or check its allowed domain."
+                  : "Runs tldraw validation in this browser."}
+          </span>
+        </div>
+      )}
       <div className={styles.controls}>
         <label className={styles.field}>
           <span>License key</span>
@@ -190,6 +234,12 @@ export function CanvasLicenseCard() {
         <p className={styles.status} role="status">
           {status}
         </p>
+      )}
+      {testState === "testing" && state.licenseKey && (
+        <CanvasLicenseProbe
+          licenseKey={state.licenseKey}
+          onResult={(valid) => setTestState(valid ? "valid" : "rejected")}
+        />
       )}
     </div>
   );
