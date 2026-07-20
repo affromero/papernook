@@ -62,6 +62,17 @@ reported, never replaced.
 
 ## Why Papernook
 
+A paper you actually work through ends up in three places at once: the tablet
+holding the ink, the reader holding the highlights, and a chat tab holding
+everything you asked about it. The annotations live in someone else's database,
+the chat history belongs to whichever model you used that month, and none of it
+survives leaving the product.
+
+Papernook keeps those three in one place you own. Ink goes into the PDF itself,
+so any reader on any device still opens it. Metadata, summaries, and
+conversations are plain files on your disk. The AI is a setting, not a
+dependency.
+
 | Your workflow                  | Papernook's approach                                                                              |
 | ------------------------------ | ------------------------------------------------------------------------------------------------- |
 | **Files stay portable**        | PDFs hold their own annotations; metadata, summaries, and chats use plain files.                  |
