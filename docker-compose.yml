@@ -19,6 +19,9 @@ services:
   app:
     build: .
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${APP_HOST:-0.0.0.0}:${APP_PORT:-3000}:3000"
     env_file: .env
@@ -27,27 +30,55 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       LLAMACPP_BASE_URL: ${LLAMACPP_BASE_URL:-http://host.docker.internal:8080}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-http://host.docker.internal:8000}
+      PAPERNOOK_SSH_KEY_PATH: /home/node/.ssh/id_papernook
+      PAPERNOOK_SSH_KNOWN_HOSTS_PATH: /home/node/.ssh/known_hosts
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/data
-      # SSH agent mode: mount keys read-only (BatchMode, no prompts).
-      - ${SSH_DIR:-~/.ssh}:/root/.ssh:ro
+      # SSH mode mounts one explicit key and known_hosts file, never ~/.ssh.
+      - ${SSH_KEY_FILE:-/dev/null}:/run/host-auth/ssh-key:ro
+      - ${SSH_KNOWN_HOSTS_FILE:-/dev/null}:/run/host-auth/known-hosts:ro
       # Only the selected CLI's credential file is mounted. The installer sets
       # one path; /dev/null keeps the other provider unavailable.
       - ${CODEX_AUTH_FILE:-/dev/null}:/run/host-auth/codex-auth.json:ro
       - ${CLAUDE_AUTH_FILE:-/dev/null}:/run/host-auth/claude-credentials.json:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   webdav:
-    image: rclone/rclone:latest
+    image: rclone/rclone:1.74.4@sha256:c61954aaa32328a5486715dd063a81c7879f5195ad3505cd362deddd509dc4a1
     restart: unless-stopped
-    command: >
-      serve webdav /data/papers
-      --addr :8080
-      --user ${WEBDAV_USER}
-      --pass ${WEBDAV_PASS}
-      --vfs-cache-mode writes
+    command:
+      [
+        "serve",
+        "webdav",
+        "/data/papers",
+        "--addr",
+        ":8080",
+        "--user",
+        "${WEBDAV_USER:?WEBDAV_USER is required}",
+        "--pass",
+        "${WEBDAV_PASS:?WEBDAV_PASS is required}",
+        "--vfs-cache-mode",
+        "writes",
+      ]
     ports:
       - "${WEBDAV_HOST:-0.0.0.0}:${WEBDAV_PORT:-8080}:8080"
     volumes:
       - ./data/papers:/data/papers
+    healthcheck:
+      test: ["CMD", "rclone", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

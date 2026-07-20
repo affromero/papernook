@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { activeProfile } from "@/lib/auth/session";
 import {
   importCatalogItem,
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!profile) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
-  const body = importSchema.safeParse(await request.json().catch(() => null));
+  const body = importSchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json(
       { error: "Invalid Zotero item." },

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { activeProfile } from "@/lib/auth/session";
 import {
   recordFailure,
@@ -165,7 +166,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       { status: 429 },
     );
   }
-  const body = schema.safeParse(await request.json().catch(() => null));
+  const body = schema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json({ error: "Invalid API key." }, { status: 400 });
   }
@@ -259,7 +260,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       { status: 409 },
     );
   }
-  const body = updateSchema.safeParse(await request.json().catch(() => null));
+  const body = updateSchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json(
       { error: "Invalid Zotero sync source." },

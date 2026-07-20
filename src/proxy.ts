@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
+import { crossSiteMutation } from "@/lib/auth/request-security";
+import { clientIp } from "@/lib/auth/request-security";
+import { consumeRequestLimit } from "@/lib/auth/rate-limit";
 
 /**
  * Gate everything behind a profile session except: the login/picker page, the
@@ -7,17 +10,48 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
  * own per-profile capture token and is validated in the route).
  */
 
-const PUBLIC_PATHS = [
+const PUBLIC_PATHS = new Set([
   "/login",
-  "/add",
   "/api/v1/session",
   "/api/v1/gate",
-  "/invite",
-  "/share",
   "/api/v1/profiles",
   "/api/v1/health",
-  "/api/v1/shares",
-];
+]);
+
+function contentSecurityPolicy(nonce: string): string {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "connect-src 'self' ws: wss:",
+    "font-src 'self' data:",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob:",
+    "object-src 'none'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${
+      process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""
+    }`,
+    "style-src 'self' 'unsafe-inline'",
+    "worker-src 'self' blob:",
+  ].join("; ");
+}
+
+function secureResponse(response: NextResponse, csp: string): NextResponse {
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
+}
+
+function continueRequest(request: NextRequest, csp: string): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
+  if (nonce) requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
+  return secureResponse(
+    NextResponse.next({ request: { headers: requestHeaders } }),
+    csp,
+  );
+}
 
 export const config = {
   matcher: [
@@ -26,27 +60,75 @@ export const config = {
 };
 
 export function proxy(request: NextRequest): NextResponse {
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = contentSecurityPolicy(nonce);
   const { pathname } = request.nextUrl;
-  if (
-    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
-  ) {
-    const response = NextResponse.next();
-    if (pathname === "/share" || pathname.startsWith("/share/")) {
-      response.headers.set("Cache-Control", "private, no-store");
-      response.headers.set("Referrer-Policy", "no-referrer");
-      response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  const publicRequest = process.env.PUBLIC_EXPOSURE === "true";
+  const privateSharePath =
+    !publicRequest &&
+    (pathname === "/share" ||
+      pathname.startsWith("/share/") ||
+      pathname === "/api/v1/shares" ||
+      pathname.startsWith("/api/v1/shares/") ||
+      pathname === "/invite" ||
+      pathname.startsWith("/invite/"));
+  if (publicRequest) {
+    const wait = consumeRequestLimit(
+      `request:${clientIp(request)}`,
+      120,
+      60_000,
+    );
+    if (wait > 0) {
+      return secureResponse(
+        NextResponse.json(
+          { error: "Too many requests." },
+          {
+            status: 429,
+            headers: { "Retry-After": String(Math.ceil(wait / 1000)) },
+          },
+        ),
+        csp,
+      );
     }
+  }
+  if (
+    !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
+    pathname !== "/add" &&
+    pathname !== "/add/confirm" &&
+    crossSiteMutation(request)
+  ) {
+    return secureResponse(
+      NextResponse.json(
+        { error: "Cross-site request rejected." },
+        { status: 403 },
+      ),
+      csp,
+    );
+  }
+  if (
+    PUBLIC_PATHS.has(pathname) ||
+    pathname === "/add" ||
+    pathname === "/add/confirm" ||
+    privateSharePath
+  ) {
+    const response = continueRequest(request, csp);
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
     return response;
   }
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (token && verifySessionToken(token)) {
-    return NextResponse.next();
+    return continueRequest(request, csp);
   }
   if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    return secureResponse(
+      NextResponse.json({ error: "Not signed in." }, { status: 401 }),
+      csp,
+    );
   }
   const login = request.nextUrl.clone();
   login.pathname = "/login";
   login.search = "";
-  return NextResponse.redirect(login);
+  return secureResponse(NextResponse.redirect(login), csp);
 }

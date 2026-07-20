@@ -18,6 +18,9 @@ import {
 function buildBase(): string[] {
   const args = [
     "exec",
+    "--ephemeral",
+    "--ignore-user-config",
+    "--ignore-rules",
     "-c",
     "mcp_servers={}",
     "-s",
@@ -31,21 +34,23 @@ function buildBase(): string[] {
 
 async function prepare(
   turn: AgentTurn,
-): Promise<{ args: string[]; prompt: string }> {
+): Promise<{ args: string[]; prompt: string; cleanup?: () => Promise<void> }> {
   const args = buildBase();
+  let cleanup: (() => Promise<void>) | undefined;
   let prompt = turn.system ? `${turn.system}\n\n${turn.prompt}` : turn.prompt;
   const images = turn.images ?? [];
   if (images.length > 0) {
     const sshHost = getCodexSshHost();
     if (sshHost) {
-      const remote = await stageImagesOverSsh(images, sshHost);
-      prompt = imagePromptPreamble(remote) + prompt;
+      const staged = await stageImagesOverSsh(images, sshHost);
+      cleanup = staged.cleanup;
+      prompt = imagePromptPreamble(staged.paths) + prompt;
     } else {
       for (const image of images) args.push("-i", image);
     }
   }
   args.push("-"); // read the prompt from stdin
-  return { args, prompt };
+  return { args, prompt, cleanup };
 }
 
 function runCodex(
@@ -111,13 +116,17 @@ function runCodex(
 }
 
 export async function executeCodex(turn: AgentTurn): Promise<string> {
-  const { args, prompt } = await prepare(turn);
-  return runCodex(args, prompt, turn.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const { args, prompt, cleanup } = await prepare(turn);
+  try {
+    return await runCodex(args, prompt, turn.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  } finally {
+    await cleanup?.();
+  }
 }
 
 export async function* streamCodex(turn: AgentTurn): AsyncGenerator<string> {
   // codex exec writes progressively to stdout; forward chunks as they arrive.
-  const { args, prompt } = await prepare(turn);
+  const { args, prompt, cleanup } = await prepare(turn);
   const chunks: string[] = [];
   let notify: (() => void) | null = null;
   let done = false;
@@ -140,18 +149,22 @@ export async function* streamCodex(turn: AgentTurn): AsyncGenerator<string> {
       notify?.();
     });
 
-  while (!done || chunks.length > 0) {
-    if (chunks.length === 0) {
-      await new Promise<void>((resolve) => {
-        notify = resolve;
-      });
-      notify = null;
-      continue;
+  try {
+    while (!done || chunks.length > 0) {
+      if (chunks.length === 0) {
+        await new Promise<void>((resolve) => {
+          notify = resolve;
+        });
+        notify = null;
+        continue;
+      }
+      yield chunks.shift() as string;
     }
-    yield chunks.shift() as string;
+    await finished;
+    if (failure) throw failure;
+  } finally {
+    await cleanup?.();
   }
-  await finished;
-  if (failure) throw failure;
 }
 
 export const codexProvider: AgentProvider = {

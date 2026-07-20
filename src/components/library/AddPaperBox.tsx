@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import styles from "./AddPaperBox.module.css";
+import { submitCapture } from "@/lib/capture/browser/submit";
 
 /**
  * Zero-setup capture: paste any paper URL and go. Navigates to the same
@@ -21,7 +22,7 @@ export function AddPaperBox({ captureToken }: AddPaperBoxProps) {
     const trimmed = url.trim();
     if (!trimmed || busy) return;
     setBusy(true);
-    window.location.href = `/add?token=${encodeURIComponent(captureToken)}&url=${encodeURIComponent(trimmed)}`;
+    submitCapture("/add", captureToken, trimmed);
   }
 
   return (

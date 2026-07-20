@@ -17,7 +17,10 @@ copy_auth_file() {
   fi
 }
 
-copy_auth_file /run/host-auth/codex-auth.json /root/.codex/auth.json "Codex"
-copy_auth_file /run/host-auth/claude-credentials.json /root/.claude/.credentials.json "Claude Code"
+copy_auth_file /run/host-auth/codex-auth.json /home/node/.codex/auth.json "Codex"
+copy_auth_file /run/host-auth/claude-credentials.json /home/node/.claude/.credentials.json "Claude Code"
+copy_auth_file /run/host-auth/ssh-key /home/node/.ssh/id_papernook "SSH key"
+copy_auth_file /run/host-auth/known-hosts /home/node/.ssh/known_hosts "SSH known_hosts"
 
-exec "$@"
+chown -R node:node /data /home/node/.codex /home/node/.claude /home/node/.ssh
+exec gosu node "$@"

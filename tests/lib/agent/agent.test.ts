@@ -23,9 +23,10 @@ describe("invocation building", () => {
     const { buildAgentInvocation } = await import("@/lib/agent/invocation");
     const inv = buildAgentInvocation("claude", ["-p", "hello world"], "vps");
     expect(inv.command).toBe("ssh");
-    expect(inv.args.slice(0, 3)).toEqual(["-o", "BatchMode=yes", "-T"]);
-    expect(inv.args[3]).toBe("vps");
-    expect(inv.args[4]).toBe("'claude' '-p' 'hello world'");
+    expect(inv.args).toContain("BatchMode=yes");
+    expect(inv.args).toContain("StrictHostKeyChecking=yes");
+    expect(inv.args.at(-2)).toBe("vps");
+    expect(inv.args.at(-1)).toBe("'claude' '-p' 'hello world'");
   });
 
   it("shellQuote survives embedded single quotes", async () => {
@@ -38,7 +39,15 @@ describe("invocation building", () => {
     const inv = buildScpInvocation(["/a/x.png", "/b/y.png"], "vps", "/tmp/d");
     expect(inv).toEqual({
       command: "scp",
-      args: ["-o", "BatchMode=yes", "/a/x.png", "/b/y.png", "vps:/tmp/d/"],
+      args: [
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=yes",
+        "/a/x.png",
+        "/b/y.png",
+        "vps:/tmp/d/",
+      ],
     });
   });
 });
@@ -74,14 +83,18 @@ describe("attachment routing", () => {
       },
     }));
     const { stageImagesOverSsh } = await import("@/lib/agent/attachments");
-    const remote = await stageImagesOverSsh(["/local/crop.png"], "vps");
+    const staged = await stageImagesOverSsh(["/local/crop.png"], "vps");
 
     expect(calls).toHaveLength(2);
     expect(calls[0].command).toBe("ssh"); // mkdir runs remotely
     expect(calls[0].args.join(" ")).toContain("mkdir");
     expect(calls[1].command).toBe("scp");
-    expect(remote).toHaveLength(1);
-    expect(remote[0]).toMatch(/^\/tmp\/papernook-attach-[0-9a-f]+\/crop\.png$/);
+    expect(staged.paths).toHaveLength(1);
+    expect(staged.paths[0]).toMatch(
+      /^\/tmp\/papernook-attach-[0-9a-f]+\/crop\.png$/,
+    );
+    await staged.cleanup();
+    expect(calls[2].args.join(" ")).toContain("rm");
     vi.doUnmock("node:child_process");
   });
 });
@@ -91,6 +104,13 @@ describe("provider registry", () => {
     vi.stubEnv("AI_PROVIDER", "claude-code");
     const { getProvider } = await import("@/lib/agent/registry");
     expect(getProvider().id).toBe("claude-code");
+  });
+
+  it("refuses tool-capable CLI providers on public deployments", async () => {
+    vi.stubEnv("AI_PROVIDER", "codex");
+    vi.stubEnv("PUBLIC_EXPOSURE", "true");
+    const { getProvider } = await import("@/lib/agent/registry");
+    expect(() => getProvider()).toThrow(/disabled for public exposure/);
   });
 
   it("throws a setup-pointing error when AI_PROVIDER is unset or invalid", async () => {
@@ -286,26 +306,25 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     expect(calls[0].command).toBe("claude");
     expect(calls[0].args).toContain("--system-prompt");
     expect(calls[0].args).toContain("be brief");
+    expect(calls[0].args).toContain("--safe-mode");
+    expect(calls[0].args).toContain("--tools");
+    expect(calls[0].args[calls[0].args.indexOf("--tools") + 1]).toBe("");
     expect(calls[0].stdin.join("")).toBe("explain section 3");
     vi.doUnmock("node:child_process");
   });
 
-  it("with images: allows the Read tool and prepends the path preamble", async () => {
+  it("rejects images instead of granting filesystem tools", async () => {
     const calls: SpawnCall[] = [];
     mockSpawn(calls);
     const { executeClaudeCode } = await import("@/lib/agent/claude-code");
-    await executeClaudeCode({
-      system: "",
-      prompt: "explain this figure",
-      images: ["/data/library/nlp/attention/crops/1.png"],
-    });
-    const call = calls[0];
-    const allowedIdx = call.args.indexOf("--allowedTools");
-    expect(allowedIdx).toBeGreaterThan(-1);
-    expect(call.args[allowedIdx + 1]).toBe("Read");
-    const prompt = call.stdin.join("");
-    expect(prompt).toContain("/data/library/nlp/attention/crops/1.png");
-    expect(prompt).toContain("explain this figure");
+    await expect(
+      executeClaudeCode({
+        system: "",
+        prompt: "explain this figure",
+        images: ["/data/library/nlp/attention/crops/1.png"],
+      }),
+    ).rejects.toThrow(/filesystem tools/);
+    expect(calls).toHaveLength(0);
     vi.doUnmock("node:child_process");
   });
 

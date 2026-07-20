@@ -445,6 +445,11 @@
     flex-direction: column-reverse;
   }
 
+  .headerActions {
+    align-items: flex-start;
+    flex-direction: column-reverse;
+  }
+
   .setupItem {
     display: flex;
     align-items: stretch;

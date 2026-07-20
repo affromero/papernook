@@ -103,8 +103,8 @@ describe("canvas settings route", () => {
   });
 
   it("reports whether the current origin requires a key", async () => {
-    vi.stubEnv("NODE_ENV", "production");
     const route = await routeAs("admin");
+    vi.stubEnv("NODE_ENV", "production");
     const response = await route.GET(
       getRequest("http://localhost/api/v1/settings/canvas", {
         host: "papernook.example",

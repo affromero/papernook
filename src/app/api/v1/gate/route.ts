@@ -11,6 +11,12 @@ import {
   recordSuccess,
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
+import {
+  authenticationFailureDelay,
+  clientIp,
+  rejectCrossSiteMutation,
+} from "@/lib/auth/request-security";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 /**
  * Verify the instance access password and set the gate cookie. This is the
@@ -22,13 +28,9 @@ export const dynamic = "force-dynamic";
 
 const schema = z.object({ password: z.string().min(1).max(200) });
 
-function clientIp(request: NextRequest): string {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local"
-  );
-}
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const crossSite = rejectCrossSiteMutation(request);
+  if (crossSite) return crossSite;
   const ipKey = `gate:${clientIp(request)}`;
   const wait = retryAfterMs(ipKey);
   if (wait > 0) {
@@ -40,9 +42,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     );
   }
-  const body = schema.safeParse(await request.json().catch(() => null));
+  const body = schema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success || !verifyInstancePassword(body.data.password)) {
     recordFailure(ipKey);
+    await authenticationFailureDelay();
     return NextResponse.json({ error: "Wrong password." }, { status: 401 });
   }
   recordSuccess(ipKey);

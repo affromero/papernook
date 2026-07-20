@@ -46,3 +46,4 @@ next-env.d.ts
 
 # papernook runtime data (papers, profiles, index) lives outside git
 /data/
+/backups/

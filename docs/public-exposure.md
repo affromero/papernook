@@ -2,9 +2,9 @@
 
 [← Documentation home](README.md)
 
-Papernook is private-first: Tailscale or LAN access keeps the profile picker
-open for a trusted household. A custom domain is a supported opt-in, but it
-must sit behind HTTPS and the instance access gate.
+Papernook is private-first. A custom domain is a supported opt-in, but it must
+sit behind HTTPS and two authentication boundaries: the instance access gate
+and a per-profile password.
 
 ## Recommended configuration
 
@@ -34,10 +34,9 @@ Then:
 6. Open the HTTPS domain in a private browser window. The access-password
    screen must appear before any profile names.
 
-`PAPERNOOK_PUBLIC_HOST` matters when the same server is also used through
-Tailscale. Requests for that public hostname are hardened; localhost,
-Tailscale IPs, and Tailscale hostnames keep the private household flow. Without
-it, every hostname is treated as public.
+`PUBLIC_EXPOSURE=true` hardens every hostname. Papernook does not trust the
+request Host header to select a passwordless mode. Run a separate private-only
+instance if a household deployment must remain passwordless.
 
 ## Keep private Tailscale access
 
@@ -64,15 +63,16 @@ if your installed client reports different syntax.
 
 ## What visitors see
 
-The server admin creates the one instance password by setting
-`PAPERNOOK_PASSWORD`. A new public visitor sees that access prompt before any
-profile names. Readers never create, reset, or manage a separate profile
-password.
+The server admin creates the outer instance password by setting
+`PAPERNOOK_PASSWORD`. A new public visitor sees that prompt before any profile
+names. After passing it, each reader must enter their own profile password.
+New profiles require at least 12 characters. Signed invite links do not bypass
+the public gate.
 
-The admin can instead open **Settings → Invite a friend** and send the signed
-link or QR code. It bypasses the access prompt, expires after seven days, and
-opens the picker. The friend selects **Add profile**, chooses a name and avatar,
-and goes straight to their welcome screen.
+Before enabling public exposure on an existing private installation, sign in
+through the private deployment and create a password under **Settings → My
+profile** for every profile. A legacy profile without a password deliberately
+cannot sign in on the public deployment.
 
 If `PAPERNOOK_PASSWORD` is omitted, public mode fails closed with an admin
 setup message. Set it in `.env` (or inject it through your secret manager) and
@@ -80,12 +80,13 @@ restart before sharing the public address.
 
 ## What the flag changes
 
-- Public requests require the instance access gate. A signed invite proves the
-  same boundary without putting the password in a message.
+- Public requests on every hostname require the instance access gate, and
+  profile sessions require a separate scrypt-verified profile password.
 - Failed instance-gate authentication is throttled per IP. Direct API login is
   throttled per IP and selected account. Password comparisons are
   constant-time.
-- Sessions remain HMAC-signed HttpOnly cookies for up to 90 days and rotate at
+- Public sessions remain HMAC-signed Secure, HttpOnly cookies for up to seven
+  days and rotate at
   login. They are bound to the current on-disk profile epoch, so deletion
   immediately revokes that profile on every device. A stable `SESSION_SECRET`
   preserves sessions across container rebuilds.
@@ -100,8 +101,9 @@ restart before sharing the public address.
 - **Protect WebDAV separately.** Use a strong, unique `WEBDAV_PASS`. Either
   set `PAPERNOOK_WEBDAV_URL` to that HTTPS endpoint, and proxy it separately
   from the app; or keep WebDAV Tailscale-only.
-- **Treat capture tokens as secrets.** They ride in bookmarklet URLs by
-  design, are unique per profile, and can be rotated in Settings.
+- **Treat capture tokens as secrets.** Bookmarklets POST them in request bodies
+  so they do not enter history, proxy logs, or referrers. They remain bearer
+  credentials and can be rotated in Settings.
 - **Add edge controls when needed.** A Caddy rate-limit plugin or fail2ban can
   protect the authentication endpoints before requests reach the app.
 
@@ -110,6 +112,6 @@ restart before sharing the public address.
 - [ ] `https://papernook.example.com` shows the access gate in a fresh browser.
 - [ ] `http://<server>:3000` is not reachable from the public internet.
 - [ ] WebDAV accepts its own credentials and exposes only paper PDFs.
-- [ ] The admin invite link uses the public hostname.
-- [ ] `SESSION_SECRET`, `PAPERNOOK_PASSWORD`, and `WEBDAV_PASS` are backed up
-      in `.env` or a secret manager, never committed to Git.
+- [ ] Every profile can sign in only with its own profile password.
+- [ ] `SESSION_SECRET`, `PAPERNOOK_PASSWORD`, profile passwords, and
+      `WEBDAV_PASS` are backed up in a secret manager, never committed to Git.

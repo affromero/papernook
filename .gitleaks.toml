@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Deterministic Playwright-only session key"
+paths = ['''^playwright\.config\.ts$''']
+regexTarget = "match"
+regexes = ['''SESSION_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef''']

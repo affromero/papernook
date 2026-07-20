@@ -50,6 +50,10 @@ export function CanvasLicenseCard() {
   }, []);
 
   async function save(nextLicenseKey: string | null): Promise<void> {
+    const password = window.prompt(
+      "Enter your profile password to authorize this system change.",
+    );
+    if (password === null) return;
     setBusy(true);
     setStatus(null);
     try {
@@ -57,7 +61,7 @@ export function CanvasLicenseCard() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ licenseKey: nextLicenseKey }),
+        body: JSON.stringify({ licenseKey: nextLicenseKey, password }),
       });
       const data = (await response.json()) as LicenseState;
       if (!response.ok) {

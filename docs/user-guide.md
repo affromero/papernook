@@ -74,7 +74,8 @@ The result is the same in both cases:
 
 - **Shared:** papers, folders, tags, annotations, and exercises.
 - **Private to each profile:** chats, capture token, and Zotero connection.
-- **One admin-owned public password:** friends never set a profile password.
+- **Two boundaries on public deployments:** an admin-owned server password
+  plus a distinct profile password for each reader.
 
 ### Option A: custom domain
 
@@ -84,21 +85,16 @@ Before inviting anyone, the owner should finish
 
 1. Open Papernook through its public URL, such as
    `https://papernook.example.com`.
-2. Go to **Settings → Invite a friend**.
-3. Send the invite link or let your friend scan the QR code. Generate it from
-   the public URL so the link contains the hostname they can reach.
-4. Your friend opens the link, selects **Add profile**, chooses a name and
-   animal, and follows the welcome screen.
+2. Send the public URL and share the server access password through a separate,
+   secure channel.
+3. Your friend enters the server password, selects **Add profile**, chooses a
+   name and animal, and creates a unique profile password.
+4. They follow the welcome screen.
 
 ![Domain invite card with a QR code and numbered next steps](images/setup/invite-domain.png)
 
-The signed invite is valid for seven days and lets that browser reach the
-profile picker without typing the shared access password. It does not create a
-profile or grant admin rights. Rotating `SESSION_SECRET` invalidates unused
-invite links.
-
-**Alternative:** send the public URL and the shared access password. Your
-friend enters it once, then follows **Add profile**.
+Signed invite links are intentionally disabled in public mode: no link bypasses
+the server access password.
 
 > **Expected result:** the new profile opens its own welcome flow with a
 > personal capture token and reader setup. No existing chat is visible.
@@ -144,17 +140,16 @@ them; see Tailscale's
 and [machine-sharing steps](https://tailscale.com/docs/features/sharing).
 
 > **Using a domain and Tailscale together?** Set
-> `PAPERNOOK_PUBLIC_HOST=papernook.example.com`. The public hostname gets the
-> password gate; the Tailscale Serve hostname keeps the private profile-picker
-> flow.
+> `PUBLIC_EXPOSURE=true` gates both the public hostname and the Tailscale Serve
+> hostname. Host headers never select a passwordless mode.
 
 ### If a friend cannot connect
 
 1. Confirm they can open the app URL before setting up WebDAV.
 2. For Tailscale, confirm the shared machine appears online in their Machines
    list and try its Tailscale IP.
-3. For a domain, open a fresh invite from the public hostname; old links
-   expire after seven days.
+3. For a domain, verify they have the current server access password and their
+   own profile password.
 4. For Tailscale, run `tailscale serve status` and open the listed HTTPS URL.
    For a domain, confirm HTTPS reaches Caddy.
 5. Test WebDAV separately with the URL for the same route and verify the

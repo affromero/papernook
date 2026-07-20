@@ -16,17 +16,17 @@ library.
 | WebDAV: `https://dav-papernook.example.com`                                                                             | WebDAV: `http://papernook-server:8080`                                                                               |
 | [Harden a public domain →](public-exposure.md)                                                                          | [Invite over Tailscale →](user-guide.md#option-b-tailscale)                                                          |
 
-On a public domain, the admin sets one instance password. A friend either
-opens a seven-day signed invite or enters that shared password once before the
-profile picker; they never create a profile password.
+On a public domain, the admin sets an instance password and each reader creates
+a separate profile password. Both are required: the outer password hides the
+server and profile list, while the profile password protects that reader's
+chats, tokens, and integrations.
 
 ![Public access gate shown before profile names](images/setup/access-gate.png)
 
 Tailscale Serve supplies the HTTPS address the app needs for secure sessions.
-Using both routes is supported: `PAPERNOOK_PUBLIC_HOST` gives the custom domain
-its password gate while the `.ts.net` address keeps the private household
-flow. The [Tailscale invite guide](user-guide.md#option-b-tailscale) includes
-the commands.
+When `PUBLIC_EXPOSURE=true`, every hostname is gated. This fail-closed behavior
+prevents a spoofed Host header or accidentally exposed raw port from selecting
+a passwordless route.
 
 ## Start here
 
@@ -38,6 +38,9 @@ the commands.
    the [iPad guide](ipad-annotation.md).
 4. **Bring in another reader:** follow the
    [domain or Tailscale invite flow](user-guide.md#invite-a-friend).
+
+For backup, restore, upgrades, rollback, and deployment checks, see
+[Operations](operations.md).
 
 ![Papernook library with topics, search, tags, and paper cards](images/product/library.png)
 
@@ -135,8 +138,8 @@ is optional compatibility for external PDF apps.
 
 The images in this guide are browser snapshots of seeded, synthetic data—never
 a private library. The Playwright journey verifies the public gate, profile
-creation without a password, local CLI detection, reading focus mode, sharing,
-graph, setup cards, and tablet layouts.
+password-protected profile creation, local CLI detection, reading focus mode,
+sharing, graph, setup cards, and tablet layouts.
 
 ```bash
 npx playwright install chromium  # once per development machine

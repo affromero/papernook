@@ -4,6 +4,7 @@
 # never hardcoded in the app.
 
 set -euo pipefail
+umask 077
 
 # Self-bootstrap: when run via `curl … | bash` there is no repo around the
 # script, so clone it and re-exec from the clone.
@@ -19,6 +20,17 @@ fi
 
 # Loaded only after the self-bootstrap above has entered the cloned repo.
 source ./scripts/install-env.sh
+
+for dependency in docker openssl; do
+  command -v "$dependency" >/dev/null 2>&1 || {
+    echo "install ${dependency} before running setup" >&2
+    exit 1
+  }
+done
+docker compose version >/dev/null 2>&1 || {
+  echo "install the Docker Compose plugin before running setup" >&2
+  exit 1
+}
 
 # Non-interactive: pull everything from an existing Infisical project.
 #   INFISICAL_TOKEN=... INFISICAL_PROJECT_ID=... ./scripts/install.sh --from-infisical
@@ -71,48 +83,59 @@ case "$CHOICE" in
     read -r -p "Claude model [opus/sonnet/haiku, empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=claude-code'
     [ -f "${HOME}/.claude/.credentials.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_AUTH_FILE=${HOME}/.claude/.credentials.json"
-    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$M"
+    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$(dotenv_quote "$M")"
     ;;
   2)
     read -r -p "Codex model [empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=codex'
     [ -f "${HOME}/.codex/auth.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_AUTH_FILE=${HOME}/.codex/auth.json"
-    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_MODEL=$M"
+    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_MODEL=$(dotenv_quote "$M")"
     ;;
   3)
     read -r -p "SSH host (user@host): " SSH_HOST < /dev/tty
+    read -r -p "SSH private key path: " SSH_KEY_FILE < /dev/tty
+    read -r -p "SSH known_hosts path [${HOME}/.ssh/known_hosts]: " SSH_KNOWN_HOSTS_FILE < /dev/tty
+    SSH_KNOWN_HOSTS_FILE=${SSH_KNOWN_HOSTS_FILE:-${HOME}/.ssh/known_hosts}
+    [ -f "$SSH_KEY_FILE" ] || { echo "The SSH private key file does not exist." >&2; exit 1; }
+    [ -f "$SSH_KNOWN_HOSTS_FILE" ] || { echo "The SSH known_hosts file does not exist." >&2; exit 1; }
     read -r -p "Claude model [empty = CLI default]: " M < /dev/tty
-    AI_BLOCK=$'AI_PROVIDER=claude-code\n'"CLAUDE_CODE_SSH_HOST=${SSH_HOST}"
-    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$M"
+    AI_BLOCK=$'AI_PROVIDER=claude-code\n'"CLAUDE_CODE_SSH_HOST=$(dotenv_quote "$SSH_HOST")"
+    AI_BLOCK="$AI_BLOCK"$'\n'"SSH_KEY_FILE=$(dotenv_quote "$SSH_KEY_FILE")"
+    AI_BLOCK="$AI_BLOCK"$'\n'"SSH_KNOWN_HOSTS_FILE=$(dotenv_quote "$SSH_KNOWN_HOSTS_FILE")"
+    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$(dotenv_quote "$M")"
     ;;
   4)
-    read -r -p "Anthropic API key: " AI_KEY < /dev/tty
-    AI_BLOCK=$'AI_PROVIDER=anthropic\n'"ANTHROPIC_API_KEY=${AI_KEY}"
+    read -r -s -p "Anthropic API key: " AI_KEY < /dev/tty
+    echo
+    [ -n "$AI_KEY" ] || { echo "An API key is required." >&2; exit 1; }
+    AI_BLOCK=$'AI_PROVIDER=anthropic\n'"ANTHROPIC_API_KEY=$(dotenv_quote "$AI_KEY")"
     ;;
   5)
-    read -r -p "OpenAI API key: " AI_KEY < /dev/tty
-    AI_BLOCK=$'AI_PROVIDER=openai\n'"OPENAI_API_KEY=${AI_KEY}"
+    read -r -s -p "OpenAI API key: " AI_KEY < /dev/tty
+    echo
+    [ -n "$AI_KEY" ] || { echo "An API key is required." >&2; exit 1; }
+    AI_BLOCK=$'AI_PROVIDER=openai\n'"OPENAI_API_KEY=$(dotenv_quote "$AI_KEY")"
     ;;
   6)
     read -r -p "Ollama model (for example qwen3:4b): " M < /dev/tty
     [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
     read -r -p "Ollama URL [http://host.docker.internal:11434]: " ENDPOINT < /dev/tty
     ENDPOINT=${ENDPOINT:-http://host.docker.internal:11434}
-    AI_BLOCK=$'AI_PROVIDER=ollama\n'"OLLAMA_HOST=${ENDPOINT}"$'\n'"OLLAMA_MODEL=${M}"
+    AI_BLOCK=$'AI_PROVIDER=ollama\n'"OLLAMA_HOST=$(dotenv_quote "$ENDPOINT")"$'\n'"OLLAMA_MODEL=$(dotenv_quote "$M")"
     ;;
   7)
     read -r -p "llama.cpp model id: " M < /dev/tty
     [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
     read -r -p "llama.cpp URL [http://host.docker.internal:8080]: " ENDPOINT < /dev/tty
     ENDPOINT=${ENDPOINT:-http://host.docker.internal:8080}
-    AI_BLOCK=$'AI_PROVIDER=llamacpp\n'"LLAMACPP_BASE_URL=${ENDPOINT}"$'\n'"LLAMACPP_MODEL=${M}"
+    AI_BLOCK=$'AI_PROVIDER=llamacpp\n'"LLAMACPP_BASE_URL=$(dotenv_quote "$ENDPOINT")"$'\n'"LLAMACPP_MODEL=$(dotenv_quote "$M")"
     ;;
   8)
     read -r -p "vLLM model id: " M < /dev/tty
     [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
     read -r -p "vLLM URL [http://host.docker.internal:8000]: " ENDPOINT < /dev/tty
     ENDPOINT=${ENDPOINT:-http://host.docker.internal:8000}
-    AI_BLOCK=$'AI_PROVIDER=vllm\n'"VLLM_BASE_URL=${ENDPOINT}"$'\n'"VLLM_MODEL=${M}"
+    AI_BLOCK=$'AI_PROVIDER=vllm\n'"VLLM_BASE_URL=$(dotenv_quote "$ENDPOINT")"$'\n'"VLLM_MODEL=$(dotenv_quote "$M")"
     ;;
   *)
     echo "Unknown choice." >&2
@@ -122,7 +145,12 @@ esac
 
 read -r -p "WebDAV username for PDF Expert [papers]: " WEBDAV_USER < /dev/tty
 WEBDAV_USER=${WEBDAV_USER:-papers}
-read -r -p "WebDAV password: " WEBDAV_PASS < /dev/tty
+read -r -s -p "WebDAV password (16+ characters): " WEBDAV_PASS < /dev/tty
+echo
+if [ "${#WEBDAV_PASS}" -lt 16 ] || [ "${#WEBDAV_PASS}" -gt 200 ]; then
+  echo "The WebDAV password must be 16–200 characters." >&2
+  exit 1
+fi
 read -r -p "Expose publicly through a custom domain? [y/N]: " PUBLIC < /dev/tty
 
 PUBLIC_BLOCK=""
@@ -142,6 +170,10 @@ case "$PUBLIC" in
     read -r -s -p "Shared Papernook access password (12–200 characters): " PAPERNOOK_PASSWORD < /dev/tty
     echo
     validate_papernook_password "$PAPERNOOK_PASSWORD" || exit 1
+    if [ "$CHOICE" = "1" ] || [ "$CHOICE" = "2" ] || [ "$CHOICE" = "3" ]; then
+      echo "Public deployments cannot use CLI agent providers. Choose an API or tool-free local model provider." >&2
+      exit 1
+    fi
     PUBLIC_BLOCK=$'PUBLIC_EXPOSURE=true\n'
     PUBLIC_BLOCK+="PAPERNOOK_PUBLIC_HOST=${PUBLIC_HOST}"$'\n'
     PUBLIC_BLOCK+="PAPERNOOK_WEBDAV_URL=$(dotenv_quote "$PUBLIC_WEBDAV_URL")"$'\n'
@@ -152,8 +184,8 @@ esac
 
 {
   echo "$AI_BLOCK"
-  echo "WEBDAV_USER=${WEBDAV_USER}"
-  echo "WEBDAV_PASS=${WEBDAV_PASS}"
+  echo "WEBDAV_USER=$(dotenv_quote "$WEBDAV_USER")"
+  echo "WEBDAV_PASS=$(dotenv_quote "$WEBDAV_PASS")"
   echo "SESSION_SECRET=$(openssl rand -hex 32)"
   [ -z "$PUBLIC_BLOCK" ] || echo "$PUBLIC_BLOCK"
 } > .env

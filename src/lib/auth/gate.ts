@@ -8,12 +8,12 @@ import { requestNeedsGate } from "./exposure";
  * The access gate stands in front of the whole profile picker on a public
  * instance that uses the shared instance password. Nobody sees a profile
  * name or an Add button until they prove the password; passing the gate sets
- * a short-lived signed cookie that unlocks the picker (picking a profile then
- * logs in without re-asking, and creating one is allowed).
+ * a short-lived signed cookie that unlocks the picker. A separate profile
+ * password is still required before a profile session is issued.
  */
 
 export const GATE_COOKIE = "papernook_gate";
-const GATE_TTL_MS = 1000 * 60 * 30; // 30 minutes
+const GATE_TTL_MS = 1000 * 60 * 15;
 
 function sign(payload: string): string {
   return crypto
@@ -67,9 +67,7 @@ export function verifyGateToken(token: string, now = Date.now()): boolean {
 export async function gateRequired(): Promise<boolean> {
   if (!(await requestNeedsGate())) return false;
   const store = await cookies();
-  // A logged-in profile already proved the password once: switching
-  // profiles never re-asks. Only fresh visitors (or after logout) see
-  // the gate.
+  // A logged-in profile already passed both authentication boundaries.
   const session = store.get(SESSION_COOKIE)?.value;
   if (session && verifySessionToken(session)) return false;
   const token = store.get(GATE_COOKIE)?.value;
@@ -87,14 +85,14 @@ export async function gatePassed(): Promise<boolean> {
 
 export function gateCookieOptions(): {
   httpOnly: boolean;
-  sameSite: "lax";
+  sameSite: "strict";
   secure: boolean;
   path: string;
   maxAge: number;
 } {
   return {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: GATE_TTL_MS / 1000,

@@ -7,8 +7,14 @@ import {
 } from "@/lib/auth/session";
 import { GATE_COOKIE, gateCookieOptions } from "@/lib/auth/gate";
 import { forgetAccountRateLimit } from "@/lib/auth/rate-limit";
-import { deleteProfile, isAdmin, ProfileError } from "@/lib/auth/users";
+import {
+  deleteProfile,
+  isAdmin,
+  ProfileError,
+  verifyProfilePassword,
+} from "@/lib/auth/users";
 import { beginProfileErasure } from "@/lib/auth/profile-activity";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 /** Complete self-erasure or admin-managed member erasure. */
 
@@ -30,12 +36,24 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     );
   }
   const body = z
-    .object({ confirmation: z.string() })
-    .safeParse(await request.json().catch(() => null));
+    .object({
+      confirmation: z.string(),
+      password: z.string().max(200).optional(),
+    })
+    .safeParse(await readBoundedJsonOrNull(request));
   if (!body.success || body.data.confirmation !== username) {
     return NextResponse.json(
       { error: `Type ${username} to confirm complete deletion.` },
       { status: 400 },
+    );
+  }
+  if (
+    me.passwordHash &&
+    !(await verifyProfilePassword(me, body.data.password ?? ""))
+  ) {
+    return NextResponse.json(
+      { error: "Your profile password is required." },
+      { status: 401 },
     );
   }
   try {

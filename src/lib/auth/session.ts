@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { sessionSecret } from "../data-dir";
+import { isPublicExposure } from "../data-dir";
 import { getProfile, type Profile } from "./users";
 
 /**
@@ -9,7 +10,12 @@ import { getProfile, type Profile } from "./users";
  */
 
 export const SESSION_COOKIE = "papernook_session";
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 90; // 90 days
+const PRIVATE_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 90;
+const PUBLIC_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+
+function sessionTtlMs(): number {
+  return isPublicExposure() ? PUBLIC_SESSION_TTL_MS : PRIVATE_SESSION_TTL_MS;
+}
 
 function sign(payload: string): string {
   return crypto
@@ -32,7 +38,7 @@ function sessionEpoch(profile: Profile): string {
 export function createSessionToken(username: string, now = Date.now()): string {
   const profile = getProfile(username);
   if (!profile) throw new Error(`Cannot create a session for ${username}.`);
-  const expiry = now + SESSION_TTL_MS;
+  const expiry = now + sessionTtlMs();
   const payload = `${username}.${expiry}.${sessionEpoch(profile)}`;
   return `${payload}.${sign(payload)}`;
 }
@@ -73,16 +79,16 @@ export async function activeProfile(): Promise<Profile | null> {
 
 export function sessionCookieOptions(): {
   httpOnly: boolean;
-  sameSite: "lax";
+  sameSite: "strict";
   secure: boolean;
   path: string;
   maxAge: number;
 } {
   return {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_TTL_MS / 1000,
+    maxAge: sessionTtlMs() / 1000,
   };
 }

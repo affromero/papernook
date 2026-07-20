@@ -99,6 +99,10 @@ export function ModelPicker() {
     model?: string | null;
     baseUrl?: string | null;
   }): Promise<void> {
+    const password = window.prompt(
+      "Enter your profile password to authorize this system change.",
+    );
+    if (password === null) return;
     const version = requestVersion.current + 1;
     requestVersion.current = version;
     setBusy(true);
@@ -107,7 +111,7 @@ export function ModelPicker() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, password }),
     });
     const data = (await res.json()) as AgentState & { error?: string };
     setBusy(false);

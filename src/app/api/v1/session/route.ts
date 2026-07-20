@@ -5,6 +5,7 @@ import {
   toPublicProfile,
   instancePasswordConfigured,
   verifyInstancePassword,
+  verifyProfilePassword,
 } from "@/lib/auth/users";
 import {
   createSessionToken,
@@ -19,18 +20,20 @@ import {
   recordSuccess,
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
+import {
+  authenticationFailureDelay,
+  clientIp,
+  rejectCrossSiteMutation,
+} from "@/lib/auth/request-security";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 const loginSchema = z.object({
   username: z.string().min(2).max(31),
-  /** Optional direct-API alternative to first passing the shared gate. */
+  /** Per-profile credential. Required on public deployments. */
   password: z.string().max(200).optional(),
+  /** Direct API clients may prove the outer gate without a gate cookie. */
+  accessPassword: z.string().max(200).optional(),
 });
-
-function clientIp(request: NextRequest): string {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local"
-  );
-}
 
 export async function GET(): Promise<NextResponse> {
   const profile = await activeProfile();
@@ -40,11 +43,13 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const body = loginSchema.safeParse(await request.json().catch(() => null));
+  const crossSite = rejectCrossSiteMutation(request);
+  if (crossSite) return crossSite;
+  const body = loginSchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json({ error: "Invalid login." }, { status: 400 });
   }
-  const { username, password } = body.data;
+  const { username, password, accessPassword } = body.data;
 
   if (await requestIsPublic()) {
     if (!instancePasswordConfigured()) {
@@ -69,16 +74,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // A valid gate cookie already proved the admin-created password. Direct
-    // API clients may supply that same instance password with the login.
+    // The instance gate and profile credential are separate boundaries.
     if (!(await gatePassed())) {
-      if (!password || !verifyInstancePassword(password)) {
+      if (!accessPassword || !verifyInstancePassword(accessPassword)) {
         recordFailure(ipKey);
         recordFailure(accountKey);
-        return NextResponse.json({ error: "Wrong password." }, { status: 401 });
+        await authenticationFailureDelay();
+        return NextResponse.json({ error: "Invalid login." }, { status: 401 });
       }
     }
-    recordSuccess(ipKey);
+    const candidate = getProfile(username);
+    const passwordValid = await verifyProfilePassword(
+      candidate,
+      password ?? "",
+    );
+    if (!candidate || !passwordValid) {
+      recordFailure(ipKey);
+      recordFailure(accountKey);
+      await authenticationFailureDelay();
+      return NextResponse.json({ error: "Invalid login." }, { status: 401 });
+    }
     recordSuccess(accountKey);
   }
 

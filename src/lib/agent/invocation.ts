@@ -4,7 +4,14 @@
  * argv is single-quoted and wrapped in `ssh -o BatchMode=yes -T <host> ...`.
  */
 
-const SSH_OPTS = ["-o", "BatchMode=yes", "-T"];
+function sshOptions(): string[] {
+  const options = ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes"];
+  const key = process.env.PAPERNOOK_SSH_KEY_PATH;
+  const knownHosts = process.env.PAPERNOOK_SSH_KNOWN_HOSTS_PATH;
+  if (key) options.push("-i", key);
+  if (knownHosts) options.push("-o", `UserKnownHostsFile=${knownHosts}`);
+  return options;
+}
 
 /** Single-quote a value for safe interpolation into a remote shell command. */
 export function shellQuote(value: string): string {
@@ -19,7 +26,7 @@ export function buildAgentInvocation(
 ): { command: string; args: string[] } {
   if (!sshHost) return { command: cli, args };
   const remote = [cli, ...args].map(shellQuote).join(" ");
-  return { command: "ssh", args: [...SSH_OPTS, sshHost, remote] };
+  return { command: "ssh", args: [...sshOptions(), "-T", sshHost, remote] };
 }
 
 /** scp local files to a remote directory (BatchMode, no prompts). */
@@ -30,7 +37,7 @@ export function buildScpInvocation(
 ): { command: string; args: string[] } {
   return {
     command: "scp",
-    args: ["-o", "BatchMode=yes", ...localPaths, `${sshHost}:${remoteDir}/`],
+    args: [...sshOptions(), ...localPaths, `${sshHost}:${remoteDir}/`],
   };
 }
 

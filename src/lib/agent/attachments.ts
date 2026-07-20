@@ -75,14 +75,34 @@ function run(
 export async function stageImagesOverSsh(
   localPaths: string[],
   sshHost: string,
-): Promise<string[]> {
+): Promise<{ paths: string[]; cleanup: () => Promise<void> }> {
   const remoteDir = `/tmp/papernook-attach-${crypto.randomBytes(6).toString("hex")}`;
-  const mkdir = buildAgentInvocation("mkdir", ["-p", remoteDir], sshHost);
+  const mkdir = buildAgentInvocation(
+    "mkdir",
+    ["-m", "700", "-p", remoteDir],
+    sshHost,
+  );
+  const cleanup = async (): Promise<void> => {
+    const remove = buildAgentInvocation(
+      "rm",
+      ["-rf", "--", remoteDir],
+      sshHost,
+    );
+    await run(remove.command, remove.args);
+  };
   // buildAgentInvocation quotes for the remote shell; mkdir itself is the CLI.
   await run(mkdir.command, mkdir.args);
-  const scp = buildScpInvocation(localPaths, sshHost, remoteDir);
-  await run(scp.command, scp.args);
-  return localPaths.map((p) => `${remoteDir}/${path.basename(p)}`);
+  try {
+    const scp = buildScpInvocation(localPaths, sshHost, remoteDir);
+    await run(scp.command, scp.args);
+    return {
+      paths: localPaths.map((p) => `${remoteDir}/${path.basename(p)}`),
+      cleanup,
+    };
+  } catch (error) {
+    await cleanup().catch(() => undefined);
+    throw error;
+  }
 }
 
 /** A prompt preamble telling a CLI agent where its image attachments live. */

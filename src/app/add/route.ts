@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { profileForCaptureToken } from "@/lib/auth/users";
-import { recordFailure, retryAfterMs } from "@/lib/auth/rate-limit";
+import {
+  consumeRequestLimit,
+  recordFailure,
+  retryAfterMs,
+} from "@/lib/auth/rate-limit";
 import { capture } from "@/lib/capture";
 import { CaptureError } from "@/lib/capture/download";
 import { confirmationPage, errorPage } from "./pages";
@@ -8,54 +12,49 @@ import { confirmationPage, errorPage } from "./pages";
 /**
  * The one-tap capture endpoint. Authenticated by the per-profile capture
  * token (works logged-out: the Shortcut and bookmarklet land here from any
- * browser). GET and POST behave identically so both clients stay trivial.
+ * browser). Credentials are accepted only in POST bodies so they never enter
+ * browser history, proxy logs, analytics URLs, or referrer headers.
  */
 
 export const dynamic = "force-dynamic";
 
 async function handle(request: NextRequest): Promise<NextResponse> {
-  const params = request.nextUrl.searchParams;
-  let url = params.get("url") ?? "";
-  let token = params.get("token") ?? "";
-  if (request.method === "POST") {
-    const form = await request.formData().catch(() => null);
-    url = (form?.get("url") as string | null) ?? url;
-    token = (form?.get("token") as string | null) ?? token;
+  const declaredLength = Number(request.headers.get("content-length") ?? "0");
+  if (declaredLength > 32 * 1024) {
+    return html(errorPage("Request body too large."), 413);
   }
+  const form = await request.formData().catch(() => null);
+  const url = (form?.get("url") as string | null) ?? "";
+  const token = (form?.get("token") as string | null) ?? "";
 
   const ipKey = `ip:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local"}`;
   if (retryAfterMs(ipKey) > 0) {
-    return new NextResponse(errorPage("Too many attempts. Try again later."), {
-      status: 429,
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    return html(errorPage("Too many attempts. Try again later."), 429);
   }
   const profile = profileForCaptureToken(token);
   if (!profile) {
     recordFailure(ipKey);
-    return new NextResponse(
+    return html(
       errorPage(
         "Invalid capture token. Re-copy your bookmarklet or Shortcut from Settings.",
       ),
-      {
-        status: 401,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      },
+      401,
     );
   }
+  const quotaWait = Math.max(
+    consumeRequestLimit(`capture-ip:${ipKey}`, 30, 60 * 60_000),
+    consumeRequestLimit(`capture-profile:${profile.username}`, 20, 60 * 60_000),
+  );
+  if (quotaWait > 0) {
+    return html(errorPage("Capture limit reached. Try again later."), 429);
+  }
   if (!url) {
-    return new NextResponse(errorPage("No URL provided."), {
-      status: 400,
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    return html(errorPage("No URL provided."), 400);
   }
 
   try {
     const result = await capture(url, profile.username);
-    return new NextResponse(confirmationPage(result, token), {
-      status: 200,
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    return html(confirmationPage(result, token), 200);
   } catch (err) {
     if (!(err instanceof CaptureError)) {
       console.error("papernook capture failed:", err);
@@ -64,15 +63,21 @@ async function handle(request: NextRequest): Promise<NextResponse> {
       err instanceof CaptureError
         ? err.message
         : `Capture failed: ${err instanceof Error ? err.message : "unknown error"}`;
-    return new NextResponse(errorPage(message), {
-      status: err instanceof CaptureError ? 422 : 500,
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    return html(errorPage(message), err instanceof CaptureError ? 422 : 500);
   }
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  return handle(request);
+function html(body: string, status: number): NextResponse {
+  return new NextResponse(body, {
+    status,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "x-robots-tag": "noindex, nofollow",
+    },
+  });
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

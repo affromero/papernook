@@ -88,6 +88,21 @@ describe("slugify", () => {
   });
 });
 
+describe("index scanner filtering", () => {
+  it("rebuilds only for files that affect searchable paper state", async () => {
+    const { affectsIndex } = await import("@/lib/library/scanner");
+    expect(affectsIndex("/data/library/nlp/paper/meta.json")).toBe(true);
+    expect(affectsIndex("/data/library/nlp/paper/summary.md")).toBe(true);
+    expect(affectsIndex("/data/library/nlp/paper/text.txt")).toBe(true);
+    expect(affectsIndex("/data/papers/nlp/paper.pdf")).toBe(true);
+    expect(affectsIndex("/data/papers/nlp/paper.exercises.pdf")).toBe(false);
+    expect(affectsIndex("/data/library/nlp/paper/canvas.json")).toBe(false);
+    expect(affectsIndex("/data/library/nlp/paper/chats/ana/a.jsonl")).toBe(
+      false,
+    );
+  });
+});
+
 describe("paper CRUD on disk", () => {
   it("lists confirmed papers and inbox separately", async () => {
     await placePaper("nlp", "attention", "Attention Is All You Need");
@@ -105,6 +120,32 @@ describe("paper CRUD on disk", () => {
       fs.existsSync(path.join(lib.companionDir("nlp", "fresh"), "meta.json")),
     ).toBe(true);
     expect(lib.listInbox()).toHaveLength(0);
+  });
+
+  it("recovers an acceptance interrupted before the WebDAV commit", async () => {
+    const lib = await placePaper(null, "fresh", "Fresh Capture");
+    const destination = lib.companionDir("nlp", "fresh");
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.renameSync(lib.companionDir(null, "fresh"), destination);
+
+    expect(fs.existsSync(lib.pdfPath("nlp", "fresh"))).toBe(false);
+    lib.recoverInterruptedMoves();
+
+    expect(fs.existsSync(lib.pdfPath("nlp", "fresh"))).toBe(true);
+    expect(lib.getPaper("nlp", "fresh")?.meta.title).toBe("Fresh Capture");
+  });
+
+  it("recovers a topic move interrupted before its PDF rename", async () => {
+    const lib = await placePaper("old-topic", "paper", "Paper");
+    const destination = lib.companionDir("new-topic", "paper");
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.renameSync(lib.companionDir("old-topic", "paper"), destination);
+
+    lib.recoverInterruptedMoves();
+
+    expect(fs.existsSync(lib.pdfPath("old-topic", "paper"))).toBe(false);
+    expect(fs.existsSync(lib.pdfPath("new-topic", "paper"))).toBe(true);
+    expect(lib.getPaper("new-topic", "paper")?.meta.title).toBe("Paper");
   });
 
   it("only lets the capturing profile accept an inbox paper", async () => {

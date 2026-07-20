@@ -22,5 +22,5 @@ export default async function LoginPage() {
     return <AccessGate />;
   }
   const profiles = listProfiles().map(toPublicProfile);
-  return <ProfilePicker profiles={profiles} />;
+  return <ProfilePicker profiles={profiles} publicMode={publicMode} />;
 }

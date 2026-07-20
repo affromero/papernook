@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
 import {
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const paper = getPaper(topic, slug);
   if (!paper)
     return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
-  const body = saveSchema.safeParse(await request.json().catch(() => null));
+  const body = saveSchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json({ error: "Invalid exercise." }, { status: 400 });
   }
