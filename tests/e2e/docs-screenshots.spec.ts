@@ -125,6 +125,28 @@ test.describe.serial("documentation journeys and screenshots", () => {
     const board = page.locator(".tl-canvas").first();
     const boardBox = await board.boundingBox();
     expect(boardBox).not.toBeNull();
+    await expect
+      .poll(() =>
+        page
+          .locator("[data-chat-visible]")
+          .evaluate(
+            (workspace) => workspace.scrollWidth <= workspace.clientWidth,
+          ),
+      )
+      .toBe(true);
+    await page.mouse.click(
+      boardBox!.x + boardBox!.width / 2,
+      boardBox!.y + boardBox!.height / 2,
+    );
+    await page.keyboard.press("Control+.");
+    await expect(
+      page.getByRole("button", { name: "Show canvas tools" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Show canvas tools" }).click();
+    await expect(
+      page.getByRole("button", { name: "Show canvas tools" }),
+    ).not.toBeVisible();
+    await expect(page.locator(".tlui-toolbar").first()).toBeVisible();
     await page.keyboard.press("d");
     await page.mouse.move(boardBox!.x + 260, boardBox!.y + 220);
     await page.mouse.down();

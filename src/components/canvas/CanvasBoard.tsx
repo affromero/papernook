@@ -196,6 +196,7 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
   const [saved, setSaved] = useState(true);
   const [ready, setReady] = useState(false);
   const [conflicted, setConflicted] = useState(false);
+  const [canvasUiHidden, setCanvasUiHidden] = useState(false);
 
   const assetStore = useMemo<TLAssetStore>(
     () => ({
@@ -301,6 +302,8 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
           isConflict: (error) => error instanceof CanvasConflictError,
         });
         if (cancelled) return;
+        editor.updateInstanceState({ isFocusMode: false });
+        setCanvasUiHidden(false);
         if (!restoreLocalCamera(editor, topic, slug)) {
           editor.zoomToFit({ animation: { duration: 0 } });
         }
@@ -352,7 +355,10 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
           { scope: "document", source: "user" },
         );
         removeSessionListener = editor.store.listen(
-          () => saveLocalCamera(editor, topic, slug),
+          () => {
+            saveLocalCamera(editor, topic, slug);
+            setCanvasUiHidden(editor.getInstanceState().isFocusMode);
+          },
           { scope: "session" },
         );
         setReady(true);
@@ -416,6 +422,18 @@ export function CanvasBoard({ topic, slug }: CanvasBoardProps) {
           </span>
         </div>
         <div className={styles.toolbarActions}>
+          {canvasUiHidden && (
+            <button
+              type="button"
+              onClick={() => {
+                editorRef.current?.updateInstanceState({
+                  isFocusMode: false,
+                });
+              }}
+            >
+              Show canvas tools
+            </button>
+          )}
           <button type="button" onClick={() => void explainSelection()}>
             Explain selection
           </button>
