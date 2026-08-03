@@ -60,7 +60,7 @@
     "react-dom": "^19.2.7",
     "thesidedoor": "^0.1.0",
     "tldraw": "^5.2.4",
-    "undici": "^8.7.0",
+    "undici": "^8.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
