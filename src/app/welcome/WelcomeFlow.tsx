@@ -114,7 +114,7 @@ export function WelcomeFlow({
             />
             <h2 className={styles.sectionTitle}>Chat</h2>
             <span className={styles.sectionState}>
-              {agentAvailable ? "works now" : "not connected"}
+              {agentAvailable ? "works now" : "optional"}
             </span>
           </div>
           {agentAvailable ? (
@@ -125,8 +125,9 @@ export function WelcomeFlow({
           ) : (
             !admin && (
               <p className={styles.sectionBody}>
-                Your admin is connecting the AI. Everything else works
-                meanwhile.
+                papernook works fully without AI — capture, read, and annotate
+                now. Per-paper chat lights up when your admin connects a
+                provider.
               </p>
             )
           )}

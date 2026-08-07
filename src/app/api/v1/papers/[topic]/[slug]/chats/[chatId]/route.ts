@@ -7,7 +7,7 @@ import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
 import { readChat, appendMessage } from "@/lib/library/chats";
 import { buildChatSystem, buildChatPrompt } from "@/lib/library/chat-context";
-import { getProvider } from "@/lib/agent/registry";
+import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { readBoundedJson, RequestBodyError } from "@/lib/bounded-request";
 
 export const dynamic = "force-dynamic";
@@ -118,6 +118,12 @@ export async function POST(request: NextRequest, { params }: Params) {
   const chat = paper ? readChat(topic, slug, profile.username, chatId) : null;
   if (!paper || !chat) {
     return NextResponse.json({ error: "Unknown chat." }, { status: 404 });
+  }
+  if (!hasConfiguredProvider()) {
+    return NextResponse.json(
+      { error: "No AI provider configured. Connect one in Settings." },
+      { status: 409 },
+    );
   }
   let raw: unknown;
   try {

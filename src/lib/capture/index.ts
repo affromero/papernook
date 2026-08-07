@@ -17,6 +17,7 @@ import {
   type PaperSource,
 } from "../library/papers";
 import { createChat, appendMessage } from "../library/chats";
+import { hasConfiguredProvider } from "../agent/registry";
 import { rebuildIndex } from "../library/index-db";
 import { downloadPdf } from "./download";
 import { extractPdfText, analyzePaper, type Analysis } from "./analyze";
@@ -142,7 +143,7 @@ async function capturePdfLocked(
   try {
     const text = await extractPdfText(inboxPdf);
     assertActive(activity);
-    const analysis = await analyzePaper(opts.sourceUrl, text);
+    const analysis = await analyzePaper(opts.sourceUrl, text, opts.arxivId);
     assertActive(activity);
 
     // Rename to a title-based slug now that the title is known.
@@ -172,19 +173,22 @@ async function capturePdfLocked(
     if (text) writeText(null, finalSlug, text);
 
     // Seed the capturing profile's first chat with the starter questions.
-    const chat = createChat(
-      null,
-      finalSlug,
-      opts.username,
-      "Starter questions",
-    );
-    appendMessage(null, finalSlug, opts.username, chat.id, {
-      role: "assistant",
-      content:
-        "Some questions to start studying this paper:\n\n" +
-        analysis.starterQuestions.map((q) => `- ${q}`).join("\n"),
-      at: new Date().toISOString(),
-    });
+    // No-provider mode skips the seed: chats are an AI-only surface there.
+    if (hasConfiguredProvider()) {
+      const chat = createChat(
+        null,
+        finalSlug,
+        opts.username,
+        "Starter questions",
+      );
+      appendMessage(null, finalSlug, opts.username, chat.id, {
+        role: "assistant",
+        content:
+          "Some questions to start studying this paper:\n\n" +
+          analysis.starterQuestions.map((q) => `- ${q}`).join("\n"),
+        at: new Date().toISOString(),
+      });
+    }
 
     proposedTopic = slugify(analysis.topic) || "unsorted";
     if (opts.autoFile) {

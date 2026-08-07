@@ -71,11 +71,12 @@ echo "  5) openai   : OpenAI API key"
 echo "  6) ollama   : Ollama on this machine (keyless)"
 echo "  7) llamacpp : llama.cpp server on this machine (keyless)"
 echo "  8) vllm     : vLLM server on this machine (keyless)"
+echo "  9) none     : no AI for now — capture, read, and annotate still work"
 if [ -n "$DETECTED_CHOICE" ]; then
   read -r -p "Choice [${DETECTED_CHOICE}, Enter to accept]: " CHOICE < /dev/tty
   CHOICE=${CHOICE:-$DETECTED_CHOICE}
 else
-  read -r -p "Choice [1-8]: " CHOICE < /dev/tty
+  read -r -p "Choice [1-9]: " CHOICE < /dev/tty
 fi
 
 case "$CHOICE" in
@@ -136,6 +137,9 @@ case "$CHOICE" in
     read -r -p "vLLM URL [http://host.docker.internal:8000]: " ENDPOINT < /dev/tty
     ENDPOINT=${ENDPOINT:-http://host.docker.internal:8000}
     AI_BLOCK=$'AI_PROVIDER=vllm\n'"VLLM_BASE_URL=$(dotenv_quote "$ENDPOINT")"$'\n'"VLLM_MODEL=$(dotenv_quote "$M")"
+    ;;
+  9)
+    AI_BLOCK='# AI_PROVIDER unset: no-AI mode. Connect one later in Settings.'
     ;;
   *)
     echo "Unknown choice." >&2

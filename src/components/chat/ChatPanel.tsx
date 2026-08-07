@@ -18,9 +18,11 @@ interface ChatMessage {
 interface ChatPanelProps {
   topic: string;
   slug: string;
+  /** Server-computed hasConfiguredProvider(); false renders a setup hint. */
+  aiAvailable: boolean;
 }
 
-export function ChatPanel({ topic, slug }: ChatPanelProps) {
+export function ChatPanel({ topic, slug, aiAvailable }: ChatPanelProps) {
   const base = `/api/v1/papers/${topic}/${slug}`;
   const [chats, setChats] = useState<ChatHeader[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -160,6 +162,17 @@ export function ChatPanel({ topic, slug }: ChatPanelProps) {
       credentials: "include",
       body: JSON.stringify({ markdown }),
     });
+  }
+
+  if (!aiAvailable) {
+    return (
+      <section className={styles.root} aria-label="Paper chat">
+        <p className={styles.empty}>
+          Chat needs an AI provider. Connect one in Settings — everything else
+          works without it.
+        </p>
+      </section>
+    );
   }
 
   return (
