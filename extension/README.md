@@ -31,5 +31,15 @@ The same folder loads unmodified in Chrome via `chrome://extensions` →
 
 ## Distribute
 
-Signing and App Store / notarized distribution require an Apple Developer
-membership ($99/year). Until then, unsigned local installs work per-machine.
+`scripts/build-safari.sh` regenerates the wrapper, fills the app-icon set
+(App Review rejects empty icon slots), and archives a signed Release build:
+
+```bash
+./scripts/build-safari.sh
+xcodebuild -exportArchive -archivePath build/papernook.xcarchive \
+  -exportOptionsPlist scripts/export-appstore.plist -exportPath build/
+```
+
+Upload from Xcode Organizer or with the exported package. Store listing copy
+lives in `store/listings.md`, App Review notes in `store/REVIEWERS.md`, and
+the extension privacy policy in `PRIVACY.md`.
