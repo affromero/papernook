@@ -112,6 +112,7 @@ silently.
 flowchart LR
     subgraph capture["Capture"]
       add["/add route<br/>src/app/add"]
+      capi["/api/v1/capture<br/>session-authed"]
       pipe["capture pipeline<br/>src/lib/capture<br/>normalize · download · analyze"]
       zotero["zotero.ts<br/>metadata-only refresh · personal/group"]
       zcatalog["zotero-catalog.json<br/>profile-private · compact · atomic"]
@@ -142,16 +143,21 @@ flowchart LR
       libview["LibraryView"]
       chatpanel["ChatPanel"]
       pdfreader["PdfReader<br/>pdf.js annotations + reference previews"]
+      viewer["/viewer + ViewerShell<br/>external PDFs via /api/v1/viewer/pdf proxy"]
       wizard["WelcomeFlow"]
       shareview["ShareButton + /share<br/>view-only reading"]
       citeui["CitationActions + export routes"]
     end
 
+    safari["Safari extension<br/>extension/<br/>PDF navigations → /viewer"]
     dav["rclone WebDAV sidecar<br/>docker-compose.yml<br/>serves data/papers ONLY"]
     ipad["iPad browser<br/>Pencil ink + chat"]
     sidedoor["thesidedoor<br/>PWA + QR reach"]
 
     add --> pipe --> papers
+    safari --> viewer
+    viewer --> pdfreader
+    viewer --> capi --> pipe
     zotero --> zcatalog
     zcatalog -->|"explicit one-paper import"| pipe
     pipe --> registry

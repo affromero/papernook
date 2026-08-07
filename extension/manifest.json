@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "papernook",
+  "version": "0.1.0",
+  "description": "Open PDFs in your papernook reader: hover reference previews and one-tap capture into your library.",
+  "permissions": [
+    "declarativeNetRequestWithHostAccess",
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open in papernook"
+  },
+  "options_ui": {
+    "page": "options.html"
+  }
+}

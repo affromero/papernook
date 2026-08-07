@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Plain WebExtension JS (chrome/browser globals, no Next rules).
+    "extension/**",
   ]),
 ]);
 
