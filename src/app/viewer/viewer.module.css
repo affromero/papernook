@@ -1,0 +1,57 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 1rem 1.25rem;
+  box-sizing: border-box;
+  gap: 0.8rem;
+}
+
+.notice {
+  margin: auto;
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.barTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.addBtn {
+  flex-shrink: 0;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid currentcolor;
+  border-radius: 0.5rem;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.addBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #b3261e;
+}
+
+@media (max-width: 900px) {
+  .root {
+    height: auto;
+    padding: 0.75rem;
+  }
+}

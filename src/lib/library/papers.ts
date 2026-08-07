@@ -93,6 +93,8 @@ export interface PaperMeta {
   addedAt: string;
   /** Username of the profile whose capture token added it. */
   addedBy: string;
+  /** Filing proposal from capture analysis; preselects the inbox confirm. */
+  proposedTopic?: string;
   /** Set when an integration sync imported this paper. */
   source?: PaperSource;
   /** Auto-filed by a sync and awaiting user review. */

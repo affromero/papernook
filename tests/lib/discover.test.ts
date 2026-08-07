@@ -57,6 +57,7 @@ describe("related-work discovery (mocked agent)", () => {
     await seedPaper();
     let seenPrompt = "";
     vi.doMock("@/lib/agent/registry", () => ({
+      hasConfiguredProvider: () => true,
       getProvider: () => ({
         id: "claude-code",
         execute: async ({ prompt }: { prompt: string }) => {
@@ -86,6 +87,7 @@ describe("related-work discovery (mocked agent)", () => {
 
   it("rejects suggestions with malformed URLs", async () => {
     vi.doMock("@/lib/agent/registry", () => ({
+      hasConfiguredProvider: () => true,
       getProvider: () => ({
         id: "claude-code",
         execute: async () =>

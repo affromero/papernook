@@ -108,6 +108,7 @@ function mockAgent() {
     }),
   );
   vi.doMock("@/lib/agent/registry", () => ({
+    hasConfiguredProvider: () => true,
     getProvider: () => ({
       id: "test",
       execute,

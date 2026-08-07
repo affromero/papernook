@@ -18,9 +18,11 @@ interface ChatMessage {
 interface ChatPanelProps {
   topic: string;
   slug: string;
+  /** Server-computed hasConfiguredProvider(); false renders a setup hint. */
+  aiAvailable: boolean;
 }
 
-export function ChatPanel({ topic, slug }: ChatPanelProps) {
+export function ChatPanel({ topic, slug, aiAvailable }: ChatPanelProps) {
   const base = `/api/v1/papers/${topic}/${slug}`;
   const [chats, setChats] = useState<ChatHeader[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -181,6 +183,7 @@ export function ChatPanel({ topic, slug }: ChatPanelProps) {
         <button
           type="button"
           className={styles.newBtn}
+          disabled={!aiAvailable}
           onClick={() => void newChat()}
         >
           + New
@@ -251,31 +254,38 @@ export function ChatPanel({ topic, slug }: ChatPanelProps) {
         </div>
       )}
 
-      <div className={styles.inputRow}>
-        <textarea
-          className={styles.input}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onPaste={onPaste}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-          placeholder="Ask about the paper… (paste screenshots here)"
-          rows={2}
-          disabled={busy}
-        />
-        <button
-          type="button"
-          className={styles.sendBtn}
-          onClick={() => void send()}
-          disabled={busy || input.trim().length === 0}
-        >
-          Send
-        </button>
-      </div>
+      {aiAvailable ? (
+        <div className={styles.inputRow}>
+          <textarea
+            className={styles.input}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onPaste={onPaste}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            placeholder="Ask about the paper… (paste screenshots here)"
+            rows={2}
+            disabled={busy}
+          />
+          <button
+            type="button"
+            className={styles.sendBtn}
+            onClick={() => void send()}
+            disabled={busy || input.trim().length === 0}
+          >
+            Send
+          </button>
+        </div>
+      ) : (
+        <p className={styles.empty}>
+          Chat needs an AI provider. Connect one in Settings — everything else
+          works without it.
+        </p>
+      )}
     </section>
   );
 }

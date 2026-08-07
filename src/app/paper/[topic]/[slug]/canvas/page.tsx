@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
+import { hasConfiguredProvider } from "@/lib/agent/registry";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
 import { PaperHeader } from "@/components/paper/PaperHeader";
@@ -57,7 +58,11 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
         chat={
           <div className={styles.chat}>
             {paper.summary && <p className={styles.summary}>{paper.summary}</p>}
-            <ChatPanel topic={topic} slug={slug} />
+            <ChatPanel
+              topic={topic}
+              slug={slug}
+              aiAvailable={hasConfiguredProvider()}
+            />
           </div>
         }
       />

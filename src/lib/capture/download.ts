@@ -10,7 +10,7 @@ import { readBoundedResponse, ResponseTooLargeError } from "./bounded-response";
  * cooldown so bursts of captures never hammer one origin.
  */
 
-const USER_AGENT =
+export const USER_AGENT =
   "papernook/0.1 (self-hosted paper library; +https://github.com/afromero)";
 const HOST_COOLDOWN_MS = 3_000;
 export { MAX_PDF_BYTES };

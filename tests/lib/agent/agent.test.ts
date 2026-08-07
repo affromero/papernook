@@ -121,6 +121,27 @@ describe("provider registry", () => {
     expect(() => configuredProviderId()).toThrow(/AI_PROVIDER/);
   });
 
+  it("hasConfiguredProvider reports the no-AI mode without throwing", async () => {
+    vi.stubEnv("AI_PROVIDER", "");
+    const { hasConfiguredProvider } = await import("@/lib/agent/registry");
+    expect(hasConfiguredProvider()).toBe(false);
+    vi.stubEnv("AI_PROVIDER", "gemini");
+    expect(hasConfiguredProvider()).toBe(false);
+    vi.stubEnv("AI_PROVIDER", "anthropic");
+    expect(hasConfiguredProvider()).toBe(true);
+  });
+
+  it("hasConfiguredProvider stays true for a misconfigured CLI provider under public exposure", async () => {
+    // The misconfiguration must surface loudly via getProvider(), never
+    // silently degrade the app into no-AI mode.
+    vi.stubEnv("AI_PROVIDER", "codex");
+    vi.stubEnv("PUBLIC_EXPOSURE", "true");
+    const { hasConfiguredProvider, getProvider } =
+      await import("@/lib/agent/registry");
+    expect(hasConfiguredProvider()).toBe(true);
+    expect(() => getProvider()).toThrow(/disabled for public exposure/);
+  });
+
   it("API providers report availability from env keys without spawning", async () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "");
     vi.stubEnv("OPENAI_API_KEY", "sk-test");

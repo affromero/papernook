@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
+import path from "node:path";
 import { z } from "zod";
-import { getProvider } from "../agent/registry";
+import { getProvider, hasConfiguredProvider } from "../agent/registry";
 import { listTopics, listPapers } from "../library/papers";
+import { USER_AGENT } from "./download";
 
 /**
  * Post-download analysis: pdftotext extraction, then one agent call that
@@ -102,7 +104,11 @@ export function parseAnalysis(raw: string): Analysis {
 export async function analyzePaper(
   sourceUrl: string,
   text: string,
+  arxivId?: string | null,
 ): Promise<Analysis> {
+  if (!hasConfiguredProvider()) {
+    return fallbackAnalysis(sourceUrl, text, arxivId ?? null);
+  }
   const { system, prompt } = analysisPrompt(sourceUrl, text);
   const raw = await getProvider().execute({
     system,
@@ -110,4 +116,153 @@ export async function analyzePaper(
     responseFormat: "json_object",
   });
   return parseAnalysis(raw);
+}
+
+/**
+ * No-AI filing: deterministic metadata from arXiv or Crossref (the same
+ * lookups reference managers use), then a text heuristic. Only reached in
+ * the explicitly chosen no-provider mode — never a fallback for a failing
+ * provider. Every tier satisfies analysisSchema's non-empty minimums.
+ */
+
+const LOOKUP_TIMEOUT_MS = 10_000;
+const NO_AI_SUMMARY =
+  "Captured without an AI provider: metadata came from a bibliographic " +
+  "lookup. Connect a provider in Settings for summaries and chat.";
+const NO_AI_QUESTIONS = [
+  "What problem does this paper solve, and how?",
+  "What are the key results and their limitations?",
+];
+
+interface LookupMetadata {
+  title: string;
+  authors: string[];
+  year: number | null;
+  venue: string | null;
+  summary: string | null;
+}
+
+async function fallbackAnalysis(
+  sourceUrl: string,
+  text: string,
+  arxivId: string | null,
+): Promise<Analysis> {
+  const looked =
+    (arxivId ? await arxivMetadata(arxivId) : null) ??
+    (await crossrefMetadata(text));
+  return analysisSchema.parse({
+    title: looked?.title || heuristicTitle(text) || titleFromUrl(sourceUrl),
+    authors: looked?.authors ?? [],
+    year: looked?.year ?? null,
+    venue: looked?.venue ?? null,
+    bibtex: null,
+    topic: "unsorted",
+    tags: [],
+    summary: looked?.summary || NO_AI_SUMMARY,
+    related: [],
+    starterQuestions: NO_AI_QUESTIONS,
+  });
+}
+
+async function arxivMetadata(arxivId: string): Promise<LookupMetadata | null> {
+  const xml = await fetchText(
+    `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(arxivId)}`,
+  );
+  const entry = xml?.match(/<entry>([\s\S]*?)<\/entry>/)?.[1];
+  if (!entry) return null;
+  const title = decodeXml(tagText(entry, "title"));
+  if (!title) return null;
+  return {
+    title,
+    authors: [...entry.matchAll(/<name>([\s\S]*?)<\/name>/g)]
+      .map((m) => decodeXml(m[1]))
+      .filter(Boolean),
+    year: yearOf(tagText(entry, "published")),
+    venue: "arXiv",
+    summary: decodeXml(tagText(entry, "summary")) || null,
+  };
+}
+
+async function crossrefMetadata(text: string): Promise<LookupMetadata | null> {
+  const doi = text.slice(0, 5_000).match(/\b10\.\d{4,9}\/[^\s"<>]+/)?.[0];
+  if (!doi) return null;
+  const raw = await fetchText(
+    `https://api.crossref.org/works/${encodeURIComponent(doi.replace(/[).,;]+$/, ""))}`,
+  );
+  if (!raw) return null;
+  const workSchema = z.object({
+    message: z.object({
+      title: z.array(z.string()).default([]),
+      author: z
+        .array(z.object({ given: z.string().optional(), family: z.string() }))
+        .default([]),
+      issued: z
+        .object({ "date-parts": z.array(z.array(z.number())) })
+        .optional(),
+      "container-title": z.array(z.string()).default([]),
+    }),
+  });
+  const parsed = workSchema.safeParse(JSON.parse(raw));
+  if (!parsed.success || !parsed.data.message.title[0]) return null;
+  const work = parsed.data.message;
+  return {
+    title: work.title[0],
+    authors: work.author.map((a) =>
+      [a.given, a.family].filter(Boolean).join(" "),
+    ),
+    year: work.issued?.["date-parts"][0]?.[0] ?? null,
+    venue: work["container-title"][0] ?? null,
+    summary: null,
+  };
+}
+
+async function fetchText(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      headers: { "user-agent": USER_AGENT },
+      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+    });
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+function tagText(xml: string, tag: string): string {
+  return xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))?.[1] ?? "";
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function yearOf(dateText: string): number | null {
+  const year = Number(dateText.slice(0, 4));
+  return Number.isInteger(year) && year > 1800 ? year : null;
+}
+
+function heuristicTitle(text: string): string {
+  return (
+    text
+      .split("\n")
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .find((line) => line.length >= 8 && line.length <= 300) ?? ""
+  );
+}
+
+function titleFromUrl(sourceUrl: string): string {
+  try {
+    const base = path.basename(new URL(sourceUrl).pathname);
+    return decodeURIComponent(base).replace(/\.pdf$/i, "") || sourceUrl;
+  } catch {
+    return sourceUrl;
+  }
 }

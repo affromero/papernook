@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>papernook extension</title>
+    <style>
+      body {
+        font-family: -apple-system, system-ui, sans-serif;
+        max-width: 26rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      label {
+        display: block;
+        margin-top: 1rem;
+        font-weight: 600;
+      }
+      input[type="url"] {
+        width: 100%;
+        padding: 0.45rem 0.6rem;
+        margin-top: 0.3rem;
+        box-sizing: border-box;
+      }
+      .toggle {
+        font-weight: 400;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      button {
+        margin-top: 1.25rem;
+        padding: 0.45rem 1.1rem;
+      }
+      #status {
+        margin-left: 0.6rem;
+        color: #2e7d32;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>papernook</h1>
+    <label for="base-url">
+      Server URL
+      <input
+        id="base-url"
+        type="url"
+        placeholder="https://papernook.example.com"
+      />
+    </label>
+    <label class="toggle">
+      <input id="auto-intercept" type="checkbox" checked />
+      Open PDFs in papernook automatically
+    </label>
+    <p>
+      With automatic interception off, use the toolbar button to open the
+      current tab in the papernook reader.
+    </p>
+    <button id="save" type="button">Save</button><span id="status"></span>
+    <script src="options.js"></script>
+  </body>
+</html>

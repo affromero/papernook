@@ -417,6 +417,7 @@ describe("capture orchestration (mocked download + agent)", () => {
     fs.mkdirSync(path.dirname(existingPdf), { recursive: true });
     fs.writeFileSync(existingPdf, "%PDF-1.4");
     vi.doMock("@/lib/agent/registry", () => ({
+      hasConfiguredProvider: () => true,
       getProvider: () => ({
         id: "test",
         execute: async () => {
@@ -449,6 +450,7 @@ describe("capture orchestration (mocked download + agent)", () => {
       }),
     }));
     vi.doMock("@/lib/agent/registry", () => ({
+      hasConfiguredProvider: () => true,
       getProvider: () => ({
         id: "claude-code",
         execute: async () =>
@@ -502,6 +504,7 @@ describe("capture orchestration (mocked download + agent)", () => {
 
   it("capturePdf autoFile skips the inbox and stamps source + needsReview", async () => {
     vi.doMock("@/lib/agent/registry", () => ({
+      hasConfiguredProvider: () => true,
       getProvider: () => ({
         id: "claude-code",
         execute: async () =>
@@ -562,6 +565,7 @@ describe("capture orchestration (mocked download + agent)", () => {
       releaseAnalysis = resolve;
     });
     vi.doMock("@/lib/agent/registry", () => ({
+      hasConfiguredProvider: () => true,
       getProvider: () => ({
         id: "codex",
         execute: async () => {
@@ -609,6 +613,7 @@ describe("capture orchestration (mocked download + agent)", () => {
 
   it("serializes concurrent captures so title-derived slugs stay distinct", async () => {
     vi.doMock("@/lib/agent/registry", () => ({
+      hasConfiguredProvider: () => true,
       getProvider: () => ({
         id: "test",
         execute: async () =>
@@ -654,6 +659,7 @@ describe("capture orchestration (mocked download + agent)", () => {
 
   it("removes inbox artifacts when AI analysis fails", async () => {
     vi.doMock("@/lib/agent/registry", () => ({
+      hasConfiguredProvider: () => true,
       getProvider: () => ({
         id: "test",
         execute: async () => {
@@ -724,5 +730,96 @@ describe("capture confirmation authorization", () => {
     );
     expect(ownerResponse.status).toBe(200);
     expect(papers.getPaper("nlp", "private-capture")).not.toBeNull();
+  });
+});
+
+describe("capture without an AI provider (no-AI mode)", () => {
+  const noProviderRegistry = () => ({
+    hasConfiguredProvider: () => false,
+    getProvider: () => {
+      throw new Error("getProvider must not run in no-AI mode");
+    },
+  });
+
+  it("files with arXiv metadata under unsorted and seeds no chat", async () => {
+    vi.doMock("@/lib/agent/registry", noProviderRegistry);
+    const atom =
+      "<feed><entry><title>Attention Is All You Need</title>" +
+      "<author><name>Ashish Vaswani</name></author>" +
+      "<author><name>Noam Shazeer</name></author>" +
+      "<published>2017-06-12T00:00:00Z</published>" +
+      "<summary>Sequence transduction with attention.</summary></entry></feed>";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(atom, { status: 200 })),
+    );
+
+    const { capturePdf } = await import("@/lib/capture");
+    const result = await capturePdf(Buffer.from("%PDF-1.4"), {
+      sourceUrl: "https://arxiv.org/pdf/1706.03762",
+      username: "andres",
+      arxivId: "1706.03762",
+    });
+
+    expect(result.slug).toBe("attention-is-all-you-need");
+    expect(result.proposedTopic).toBe("unsorted");
+    expect(result.analysis.authors).toEqual(["Ashish Vaswani", "Noam Shazeer"]);
+    expect(result.analysis.year).toBe(2017);
+    expect(result.analysis.venue).toBe("arXiv");
+    expect(result.analysis.summary).toContain("attention");
+
+    const chats = await import("@/lib/library/chats");
+    expect(chats.listChats(null, result.slug, "andres")).toHaveLength(0);
+    vi.doUnmock("@/lib/agent/registry");
+  });
+
+  it("still captures when every lookup fails, titling from the URL", async () => {
+    vi.doMock("@/lib/agent/registry", noProviderRegistry);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
+
+    const { capturePdf } = await import("@/lib/capture");
+    const result = await capturePdf(Buffer.from("%PDF-1.4"), {
+      sourceUrl: "https://example.com/papers/deep-thoughts.pdf",
+      username: "andres",
+    });
+
+    expect(result.analysis.title).toBe("deep-thoughts");
+    expect(result.proposedTopic).toBe("unsorted");
+    const papers = await import("@/lib/library/papers");
+    expect(papers.listInbox()).toHaveLength(1);
+    vi.doUnmock("@/lib/agent/registry");
+  });
+
+  it("resolves Crossref metadata from a DOI found in the text", async () => {
+    vi.doMock("@/lib/agent/registry", noProviderRegistry);
+    const work = {
+      message: {
+        title: ["Deep Learning"],
+        author: [{ given: "Yann", family: "LeCun" }],
+        issued: { "date-parts": [[2015]] },
+        "container-title": ["Nature"],
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(work), { status: 200 })),
+    );
+
+    const { analyzePaper } = await import("@/lib/capture/analyze");
+    const analysis = await analyzePaper(
+      "https://example.com/x.pdf",
+      "see DOI: 10.1038/nature14539 for details",
+    );
+    expect(analysis.title).toBe("Deep Learning");
+    expect(analysis.authors).toEqual(["Yann LeCun"]);
+    expect(analysis.year).toBe(2015);
+    expect(analysis.venue).toBe("Nature");
+    expect(analysis.topic).toBe("unsorted");
+    vi.doUnmock("@/lib/agent/registry");
   });
 });

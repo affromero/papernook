@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
+import { hasConfiguredProvider } from "@/lib/agent/registry";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
 import { PdfReader } from "@/components/pdf/PdfReader";
@@ -37,7 +38,11 @@ export default async function PaperPage({ params }: PaperPageProps) {
         chat={
           <div className={styles.chat}>
             {paper.summary && <p className={styles.summary}>{paper.summary}</p>}
-            <ChatPanel topic={topic} slug={slug} />
+            <ChatPanel
+              topic={topic}
+              slug={slug}
+              aiAvailable={hasConfiguredProvider()}
+            />
           </div>
         }
       />

@@ -36,6 +36,8 @@ export interface PdfReaderEditState {
 interface PdfReaderProps {
   src: string;
   title: string;
+  /** Where "open original" points when src is a proxy URL (viewer mode). */
+  originalHref?: string;
   editable?: boolean;
   onClose?(): void;
   onEditStateChange?(state: PdfReaderEditState): void;
@@ -78,6 +80,7 @@ function errorMessage(payload: unknown, fallback: string): string {
 export function PdfReader({
   src,
   title,
+  originalHref,
   editable = false,
   onClose,
   onEditStateChange,
@@ -777,7 +780,7 @@ export function PdfReader({
           </button>
           <a
             className={styles.originalLink}
-            href={src}
+            href={originalHref ?? src}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Open original PDF in a new tab"
