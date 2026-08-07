@@ -11,16 +11,18 @@ TEAM_ID=2HVQQ4W769
 VERSION="$(node -p "require('./extension/manifest.json').version")"
 BUILD="$(git rev-list --count HEAD)"
 
+# Wrapper goes OUTSIDE extension/ so Safari's "Add Temporary Extension"
+# (which loads extension/ directly) never scans generated Xcode files.
 xcrun safari-web-extension-converter extension/ \
   --macos-only --bundle-identifier co.afromero.papernook \
-  --project-location ./extension/xcode --no-open --force
+  --project-location ./build/safari --no-open --force
 
 # The converter leaves the app-icon slots empty, which App Store review
 # rejects. Fill them from src/app/icon.svg (regenerated wrapper, so every run).
-ICONSET="$(find extension/xcode -type d -name AppIcon.appiconset | head -1)"
+ICONSET="$(find build/safari -type d -name AppIcon.appiconset | head -1)"
 node scripts/appicon.mjs "$ICONSET"
 
-xcodebuild -project extension/xcode/papernook/papernook.xcodeproj \
+xcodebuild -project build/safari/papernook/papernook.xcodeproj \
   -scheme papernook -configuration Release \
   -archivePath build/papernook.xcarchive \
   DEVELOPMENT_TEAM="$TEAM_ID" \

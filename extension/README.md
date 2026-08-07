@@ -14,17 +14,14 @@ rules, turn "open automatically" off — button-only mode needs no DNR.
 
 ## Develop (no Apple developer account needed)
 
-```bash
-xcrun safari-web-extension-converter extension/ --macos-only \
-  --project-location extension/xcode
-open extension/xcode/papernook/papernook.xcodeproj   # build & run once
-```
+Safari Settings → Developer → check "Allow unsigned extensions" → press
+"Add Temporary Extension…" and pick this `extension/` folder. Enable
+papernook under Settings → Extensions, grant site access, and set your
+server URL in its preferences.
 
-Then in Safari: Settings → Developer → Allow unsigned extensions, enable
-"papernook" under Settings → Extensions, open the extension's settings and
-set your server URL. The `extension/xcode/` wrapper is generated and
-gitignored — rerun the converter after changing these files, or use
-"Reload extension" in Safari's Develop menu.
+Temporary extensions unload when Safari quits, and their file snapshot goes
+stale when git rewrites files underneath — if resources stop resolving,
+uninstall and re-add the folder rather than pressing Reload.
 
 The same folder loads unmodified in Chrome via `chrome://extensions` →
 "Load unpacked" (the papernook server is the same either way).
