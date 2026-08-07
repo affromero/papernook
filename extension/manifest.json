@@ -3,6 +3,13 @@
   "name": "papernook",
   "version": "0.1.0",
   "description": "Open PDFs in your papernook reader: hover reference previews and one-tap capture into your library.",
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png",
+    "256": "icons/icon-256.png",
+    "512": "icons/icon-512.png"
+  },
   "permissions": [
     "declarativeNetRequestWithHostAccess",
     "storage",
@@ -13,7 +20,11 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Open in papernook"
+    "default_title": "Open in papernook",
+    "default_icon": {
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png"
+    }
   },
   "options_ui": {
     "page": "options.html"
