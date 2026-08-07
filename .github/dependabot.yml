@@ -4,10 +4,16 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 1
     cooldown:
       default-days: 7
     groups:
       npm-all:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      npm-security:
+        applies-to: security-updates
         patterns:
           - "*"
     ignore:
@@ -23,7 +29,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 1
     groups:
       actions-all:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      actions-security:
+        applies-to: security-updates
         patterns:
           - "*"
