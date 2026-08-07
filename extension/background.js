@@ -1,6 +1,12 @@
 /*
- * papernook Safari/Chrome extension: redirect PDF navigations to the
- * papernook /viewer page, and offer a toolbar button for everything else.
+ * papernook Safari/Chrome extension: redirect PDF navigations on known
+ * research hosts to the papernook /viewer page, and offer a toolbar button
+ * for every other site.
+ *
+ * Host access is an explicit allowlist (never <all_urls>): DEFAULT_HOSTS
+ * below, plus user-added hosts granted one at a time from the options page
+ * via optional_host_permissions. The toolbar button needs no standing
+ * permission anywhere — activeTab grants access on the click.
  *
  * The DNR rules only match query-free URLs on purpose: regexSubstitution
  * pastes the matched text verbatim (no URL-encoding primitive exists), so a
@@ -11,6 +17,20 @@
 
 const api = typeof browser !== "undefined" ? browser : chrome;
 
+// Mirrored as prose in options.html — keep the two in sync.
+const DEFAULT_HOSTS = [
+  "arxiv.org",
+  "openreview.net",
+  "biorxiv.org",
+  "medrxiv.org",
+  "aclanthology.org",
+  "proceedings.neurips.cc",
+  "proceedings.mlr.press",
+  "openaccess.thecvf.com",
+];
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 function viewerUrl(baseUrl, targetUrl) {
   return (
     baseUrl.replace(/\/+$/, "") + "/viewer?src=" + encodeURIComponent(targetUrl)
@@ -18,41 +38,49 @@ function viewerUrl(baseUrl, targetUrl) {
 }
 
 async function rebuildRules() {
-  const { baseUrl = "", autoIntercept = true } = await api.storage.sync.get({
+  const {
+    baseUrl = "",
+    autoIntercept = true,
+    extraHosts = [],
+  } = await api.storage.sync.get({
     baseUrl: "",
     autoIntercept: true,
+    extraHosts: [],
   });
   const existing = await api.declarativeNetRequest.getDynamicRules();
   const removeRuleIds = existing.map((rule) => rule.id);
 
   let addRules = [];
-  let host = null;
+  let papernookHost = null;
   try {
-    host = new URL(baseUrl).hostname;
+    papernookHost = new URL(baseUrl).hostname;
   } catch {
-    host = null;
+    papernookHost = null;
   }
-  if (host && autoIntercept) {
+  if (papernookHost && autoIntercept) {
     const substitution = baseUrl.replace(/\/+$/, "") + "/viewer?src=\\0";
-    const rule = (id, regexFilter) => ({
-      id,
+    // Never intercept papernook itself: /viewer?src=….pdf and the WebDAV
+    // tree would otherwise redirect-loop.
+    const hosts = [...new Set([...DEFAULT_HOSTS, ...extraHosts])].filter(
+      (host) => host !== papernookHost,
+    );
+    addRules = hosts.map((host, index) => ({
+      id: index + 1,
       priority: 1,
       action: {
         type: "redirect",
         redirect: { regexSubstitution: substitution },
       },
       condition: {
-        regexFilter,
+        // arXiv serves PDFs under /pdf/ with no .pdf suffix; everywhere else
+        // match query-free .pdf URLs on the host or its subdomains.
+        regexFilter:
+          host === "arxiv.org"
+            ? "^https?://(www\\.)?arxiv\\.org/pdf/[^?#]*$"
+            : `^https?://([^/]+\\.)?${escapeRegex(host)}/[^?#]*\\.pdf$`,
         resourceTypes: ["main_frame"],
-        // Never intercept papernook itself: /viewer?src=….pdf and the
-        // WebDAV tree would otherwise redirect-loop.
-        excludedRequestDomains: [host],
       },
-    });
-    addRules = [
-      rule(1, "^https?://arxiv\\.org/pdf/[^?#]*$"),
-      rule(2, "^https?://[^?#]*\\.pdf$"),
-    ];
+    }));
   }
   await api.declarativeNetRequest.updateDynamicRules({
     removeRuleIds,

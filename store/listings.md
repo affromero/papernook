@@ -1,0 +1,60 @@
+# papernook Safari extension, store listing copy
+
+Ready-to-paste text for the Mac App Store (Safari). Keep the wording truthful:
+the extension collects no data and talks only to the server the user
+configures plus the PDF pages they visit.
+
+---
+
+## Shared facts
+
+- **Name:** papernook
+- **Category:** Education
+- **Price:** Free
+- **License:** repository license
+- **Data collection:** None. No analytics, no telemetry, no accounts on any
+  third-party server. The extension only redirects PDF navigations to the
+  papernook server the user configures (their own self-hosted instance) and
+  stores that server URL in extension storage.
+- **Permissions and why each is needed:**
+  - Host access is an explicit research-site allowlist (arxiv.org,
+    openreview.net, biorxiv.org, medrxiv.org, aclanthology.org,
+    proceedings.neurips.cc, proceedings.mlr.press, openaccess.thecvf.com) —
+    the automatic PDF redirect only acts there. Users can extend it one site
+    at a time (`optional_host_permissions`, granted explicitly per site).
+  - `declarativeNetRequestWithHostAccess` — the automatic "PDF → papernook
+    /viewer" redirect is a declarativeNetRequest rule, no page content is read.
+  - `storage` — persists the user's papernook server URL, the auto-intercept
+    toggle, and user-added sites.
+  - `activeTab` — the toolbar button reads the current tab's URL on click to
+    open it in the papernook reader; no standing access to other sites.
+- **Support / homepage URL:** https://github.com/affromero/papernook
+
+## Mac App Store
+
+**Subtitle (30 chars max):** Read PDFs in your papernook
+
+**Promotional text:**
+Send any paper you're reading straight into your self-hosted papernook
+library — hover citations to preview references, annotate on iPad, chat with
+your own AI.
+
+**Description:**
+papernook for Safari opens the PDFs you browse in your papernook reader.
+
+- Automatic: arXiv and direct PDF links redirect into your reader, with hover
+  previews for reference citations.
+- One tap: the toolbar button sends any page to papernook.
+- Capture: add the paper to your self-hosted library and keep reading with
+  annotations, canvases, and per-paper AI chats.
+
+Requires a papernook server (self-hosted, open source — see the homepage).
+The extension sends nothing anywhere except the server you configure.
+
+**Keywords:** papers,pdf,arxiv,research,reader,library,annotate,citations
+
+**Screenshots to take (1280×800 or 2560×1600):**
+
+1. An arXiv PDF open in /viewer with a reference-preview popover visible.
+2. The "Add to library" confirmation (inbox) page.
+3. The extension options page with the server URL field.
