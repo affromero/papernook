@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PdfReader } from "@/components/pdf/PdfReader";
 import styles from "./viewer.module.css";
@@ -15,6 +15,13 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Prefer the PDF's embedded Title over the URL-derived filename — tabs and
+  // the header then read as the actual paper name.
+  const [displayTitle, setDisplayTitle] = useState(title);
+
+  useEffect(() => {
+    document.title = `${displayTitle} · papernook`;
+  }, [displayTitle]);
 
   async function addToLibrary(): Promise<void> {
     setBusy(true);
@@ -56,7 +63,9 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
   return (
     <>
       <header className={styles.bar}>
-        <span className={styles.barTitle}>{title}</span>
+        <span className={styles.barTitle} title={displayTitle}>
+          {displayTitle}
+        </span>
         <button
           type="button"
           className={styles.addBtn}
@@ -73,8 +82,9 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
       )}
       <PdfReader
         src={`/api/v1/viewer/pdf?src=${encodeURIComponent(src)}`}
-        title={title}
+        title={displayTitle}
         originalHref={src}
+        onDocumentTitle={setDisplayTitle}
       />
     </>
   );
