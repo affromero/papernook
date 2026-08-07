@@ -18,8 +18,6 @@ export interface Preview {
 interface ReferencePreviewProps {
   document: PDFDocumentProxy;
   preview: Preview;
-  /** Same-origin PDF URL with a #page anchor for "open in new tab". */
-  pageHref: string;
   onClose(): void;
 }
 
@@ -94,13 +92,37 @@ async function pageTextChunks(
 export function ReferencePreview({
   document,
   preview,
-  pageHref,
   onClose,
 }: ReferencePreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mappingRef = useRef<CropMapping | null>(null);
   const [status, setStatus] = useState("Loading reference…");
   const { destination } = preview;
+
+  function openSearch(reference: string | null): void {
+    if (!reference) return;
+    window.open(
+      `https://www.google.com/search?q=${encodeURIComponent(reference)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
+
+  // The citation's GoTo destination points at the entry's marker, so the
+  // header button searches exactly the referenced entry's full text.
+  async function searchTargetReference(): Promise<void> {
+    const mapping = mappingRef.current;
+    if (!mapping || destination.left === null || destination.top === null)
+      return;
+    const chunks = await pageTextChunks(document, destination.pageNumber);
+    openSearch(
+      referenceTextAtPoint(
+        chunks,
+        { x: destination.left + 15, y: destination.top - 6 },
+        mapping.pageWidth,
+      ),
+    );
+  }
 
   // Map the click back through the crop into PDF coordinates, find the
   // bibliography entry under it, and web-search that citation.
@@ -119,16 +141,8 @@ export function ReferencePreview({
       mapping.sourceY;
     const [pdfX, pdfY] = mapping.viewport.convertToPdfPoint(cropX, cropY);
     const chunks = await pageTextChunks(document, destination.pageNumber);
-    const reference = referenceTextAtPoint(
-      chunks,
-      { x: pdfX, y: pdfY },
-      mapping.pageWidth,
-    );
-    if (!reference) return;
-    window.open(
-      `https://www.google.com/search?q=${encodeURIComponent(reference)}`,
-      "_blank",
-      "noopener,noreferrer",
+    openSearch(
+      referenceTextAtPoint(chunks, { x: pdfX, y: pdfY }, mapping.pageWidth),
     );
   }
 
@@ -249,16 +263,15 @@ export function ReferencePreview({
         <span className={styles.previewEyebrow}>
           Reference · page {destination.pageNumber}
         </span>
-        <a
+        <button
           className={styles.previewOpen}
-          href={pageHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Open page ${destination.pageNumber} in a new tab`}
-          title="Open in new tab"
+          type="button"
+          onClick={() => void searchTargetReference()}
+          aria-label="Search this reference on the web"
+          title="Search this reference on the web"
         >
-          ↗
-        </a>
+          🔍
+        </button>
         <button
           className={styles.close}
           type="button"

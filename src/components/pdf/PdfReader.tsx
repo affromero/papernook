@@ -903,7 +903,6 @@ export function PdfReader({
           <ReferencePreview
             document={pdfDocument}
             preview={preview}
-            pageHref={`${src}#page=${preview.destination.pageNumber}`}
             onClose={closePreview}
           />
         )}
