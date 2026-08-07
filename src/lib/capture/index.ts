@@ -152,6 +152,7 @@ async function capturePdfLocked(
       opts.overrides?.title ?? analysis.title,
     );
 
+    proposedTopic = slugify(analysis.topic) || "unsorted";
     const meta: PaperMeta = {
       title: analysis.title,
       authors: analysis.authors,
@@ -161,6 +162,7 @@ async function capturePdfLocked(
       bibtex: analysis.bibtex,
       tags: mergeTags(analysis.tags, opts.sourceTags ?? []),
       related: analysis.related,
+      proposedTopic,
       ...opts.overrides,
       sourceUrl: opts.sourceUrl,
       addedAt: new Date().toISOString(),
@@ -190,7 +192,6 @@ async function capturePdfLocked(
       });
     }
 
-    proposedTopic = slugify(analysis.topic) || "unsorted";
     if (opts.autoFile) {
       // Same inbox→library path the confirm page uses: the PDF only reaches
       // data/papers/ (and thus WebDAV) via the accept function's atomic rename.

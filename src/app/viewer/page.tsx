@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
-import { PdfReader } from "@/components/pdf/PdfReader";
+import { ViewerShell } from "./ViewerShell";
 import styles from "./viewer.module.css";
 
 export const dynamic = "force-dynamic";
@@ -46,11 +46,7 @@ export default async function ViewerPage({ searchParams }: ViewerPageProps) {
   const name = url.pathname.split("/").at(-1) || url.hostname;
   return (
     <main className={styles.root}>
-      <PdfReader
-        src={`/api/v1/viewer/pdf?src=${encodeURIComponent(url.href)}`}
-        title={decodeURIComponent(name)}
-        originalHref={url.href}
-      />
+      <ViewerShell src={url.href} title={decodeURIComponent(name)} />
     </main>
   );
 }

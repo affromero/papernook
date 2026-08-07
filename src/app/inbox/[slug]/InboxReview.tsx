@@ -7,6 +7,8 @@ import styles from "./inbox.module.css";
 interface InboxReviewProps {
   slug: string;
   topics: string[];
+  /** Capture analysis' filing proposal; preselected when present. */
+  proposedTopic: string | null;
 }
 
 function errorMessage(payload: unknown, fallback: string): string {
@@ -18,9 +20,9 @@ function errorMessage(payload: unknown, fallback: string): string {
     : fallback;
 }
 
-export function InboxReview({ slug, topics }: InboxReviewProps) {
+export function InboxReview({ slug, topics, proposedTopic }: InboxReviewProps) {
   const router = useRouter();
-  const [topic, setTopic] = useState(topics[0] ?? "unsorted");
+  const [topic, setTopic] = useState(proposedTopic ?? topics[0] ?? "unsorted");
   const [busy, setBusy] = useState<"accept" | "discard" | null>(null);
   const [error, setError] = useState<string | null>(null);
 

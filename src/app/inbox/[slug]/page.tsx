@@ -30,7 +30,11 @@ export default async function InboxPage({ params }: InboxPageProps) {
         {paper.meta.year ? ` · ${paper.meta.year}` : ""}
       </p>
       {paper.summary && <p className={styles.summary}>{paper.summary}</p>}
-      <InboxReview slug={slug} topics={listTopics()} />
+      <InboxReview
+        slug={slug}
+        topics={listTopics()}
+        proposedTopic={paper.meta.proposedTopic ?? null}
+      />
     </main>
   );
 }
