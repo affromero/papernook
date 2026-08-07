@@ -53,9 +53,17 @@
       Open PDFs in papernook automatically
     </label>
     <p>
-      With automatic interception off, use the toolbar button to open the
-      current tab in the papernook reader.
+      Automatic opening only acts on research sites: arXiv, OpenReview,
+      bioRxiv, medRxiv, ACL Anthology, NeurIPS, PMLR, and CVF. Everywhere
+      else — and with automatic opening off — use the toolbar button, which
+      needs no site access until you click it.
     </p>
+    <label for="extra-host">
+      Also open PDFs automatically on
+      <input id="extra-host" type="text" placeholder="journals.example.org" />
+    </label>
+    <button id="add-host" type="button">Add site</button>
+    <ul id="extra-hosts"></ul>
     <button id="save" type="button">Save</button><span id="status"></span>
     <script src="options.js"></script>
   </body>

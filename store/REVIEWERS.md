@@ -21,7 +21,10 @@ Review-notes text to paste:
 > papernook reader; hover a bracketed citation like [4] to see the reference
 > preview; press "+ Add to library" and confirm to file the paper.
 
-Permissions justification (mirrors store/listings.md): `<all_urls>` because
-any site can host a PDF; DNR rewrites PDF navigations to the user's own
-server; `storage` holds the server URL; `activeTab` lets the toolbar button
-read the current tab's URL. No page content is read or transmitted.
+Permissions justification (mirrors store/listings.md): host access is a
+fixed allowlist of research sites (arXiv, OpenReview, bioRxiv, medRxiv, ACL
+Anthology, NeurIPS, PMLR, CVF) where DNR rewrites PDF navigations to the
+user's own server; users may grant additional sites individually via
+optional host permissions; `storage` holds the server URL and site list;
+`activeTab` lets the toolbar button read the current tab's URL on click.
+No page content is read or transmitted.

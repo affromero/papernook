@@ -17,14 +17,17 @@ configures plus the PDF pages they visit.
   papernook server the user configures (their own self-hosted instance) and
   stores that server URL in extension storage.
 - **Permissions and why each is needed:**
-  - `<all_urls>` host access — any website can host a PDF; the redirect rules
-    and toolbar button must be able to act on the page the user is reading.
+  - Host access is an explicit research-site allowlist (arxiv.org,
+    openreview.net, biorxiv.org, medrxiv.org, aclanthology.org,
+    proceedings.neurips.cc, proceedings.mlr.press, openaccess.thecvf.com) —
+    the automatic PDF redirect only acts there. Users can extend it one site
+    at a time (`optional_host_permissions`, granted explicitly per site).
   - `declarativeNetRequestWithHostAccess` — the automatic "PDF → papernook
     /viewer" redirect is a declarativeNetRequest rule, no page content is read.
-  - `storage` — persists the user's papernook server URL and the
-    auto-intercept toggle.
-  - `activeTab` — the toolbar button reads the current tab's URL to open it in
-    the papernook reader.
+  - `storage` — persists the user's papernook server URL, the auto-intercept
+    toggle, and user-added sites.
+  - `activeTab` — the toolbar button reads the current tab's URL on click to
+    open it in the papernook reader; no standing access to other sites.
 - **Support / homepage URL:** https://github.com/affromero/papernook
 
 ## Mac App Store

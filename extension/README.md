@@ -4,7 +4,11 @@ Redirects PDF navigations to your papernook `/viewer` page (hover reference
 previews + one-tap "Add to library") and adds a toolbar button that opens the
 current tab in the reader.
 
-Interception uses declarativeNetRequest redirect rules and only matches
+Interception uses declarativeNetRequest redirect rules on an explicit
+research-host allowlist (see `DEFAULT_HOSTS` in `background.js`) — never
+`<all_urls>`; users can grant additional sites one at a time from the
+options page (`optional_host_permissions`), and the toolbar button covers
+every other site via `activeTab` with no standing access. Rules only match
 query-free PDF URLs (arXiv `/pdf/…`, anything ending in `.pdf`): DNR cannot
 URL-encode the matched text, so URLs with query strings (e.g.
 `openreview.net/pdf?id=…`) go through the toolbar button instead, which
