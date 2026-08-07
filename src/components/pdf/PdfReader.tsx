@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 import { resolvePdfDestination } from "@/lib/pdf/destinations";
+import { resolvePdfDocumentTitle } from "@/lib/pdf/title";
 import {
   createPdfAutosave,
   type PdfAutosaveCoordinator,
@@ -270,16 +271,9 @@ export function PdfReader({
         setPdfDocument(document);
         setPageCount(document.numPages);
         if (onDocumentTitleRef.current) {
-          void document
-            .getMetadata()
-            .then(({ info }) => {
-              const embedded =
-                info && typeof info === "object" && "Title" in info
-                  ? info.Title
-                  : null;
-              if (typeof embedded === "string" && embedded.trim()) {
-                onDocumentTitleRef.current?.(embedded.trim());
-              }
+          void resolvePdfDocumentTitle(document)
+            .then((resolved) => {
+              if (resolved) onDocumentTitleRef.current?.(resolved);
             })
             .catch(() => undefined);
         }

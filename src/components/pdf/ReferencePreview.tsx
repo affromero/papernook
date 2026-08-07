@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import type { PDFDocumentProxy, PageViewport, RenderTask } from "pdfjs-dist";
 import type { ResolvedPdfDestination } from "@/lib/pdf/destinations";
+import {
+  referenceTextAtPoint,
+  type PdfTextChunk,
+} from "@/lib/pdf/reference-text";
 import styles from "./PdfReader.module.css";
 
 export interface Preview {
@@ -35,6 +39,57 @@ const pageCanvasCache = new WeakMap<
   PDFDocumentProxy,
   Map<string, HTMLCanvasElement>
 >();
+const pageTextCache = new WeakMap<
+  PDFDocumentProxy,
+  Map<number, PdfTextChunk[]>
+>();
+
+interface CropMapping {
+  viewport: PageViewport;
+  sourceX: number;
+  sourceY: number;
+  pageWidth: number;
+}
+
+function isRawTextItem(
+  item: unknown,
+): item is { str: string; transform: number[] } {
+  return (
+    typeof item === "object" &&
+    item !== null &&
+    "str" in item &&
+    typeof (item as { str: unknown }).str === "string" &&
+    "transform" in item &&
+    Array.isArray((item as { transform: unknown }).transform)
+  );
+}
+
+async function pageTextChunks(
+  document: PDFDocumentProxy,
+  pageNumber: number,
+): Promise<PdfTextChunk[]> {
+  let cache = pageTextCache.get(document);
+  if (!cache) {
+    cache = new Map();
+    pageTextCache.set(document, cache);
+  }
+  const cached = cache.get(pageNumber);
+  if (cached) return cached;
+  const page = await document.getPage(pageNumber);
+  const content = await page.getTextContent();
+  const chunks: PdfTextChunk[] = [];
+  for (const item of content.items as unknown[]) {
+    if (isRawTextItem(item)) {
+      chunks.push({
+        str: item.str,
+        x: item.transform[4],
+        y: item.transform[5],
+      });
+    }
+  }
+  cache.set(pageNumber, chunks);
+  return chunks;
+}
 
 export function ReferencePreview({
   document,
@@ -43,8 +98,39 @@ export function ReferencePreview({
   onClose,
 }: ReferencePreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mappingRef = useRef<CropMapping | null>(null);
   const [status, setStatus] = useState("Loading reference…");
   const { destination } = preview;
+
+  // Map the click back through the crop into PDF coordinates, find the
+  // bibliography entry under it, and web-search that citation.
+  async function searchClickedReference(
+    event: MouseEvent<HTMLCanvasElement>,
+  ): Promise<void> {
+    const canvas = canvasRef.current;
+    const mapping = mappingRef.current;
+    if (!canvas || !mapping) return;
+    const rect = canvas.getBoundingClientRect();
+    const cropX =
+      ((event.clientX - rect.left) / rect.width) * canvas.width +
+      mapping.sourceX;
+    const cropY =
+      ((event.clientY - rect.top) / rect.height) * canvas.height +
+      mapping.sourceY;
+    const [pdfX, pdfY] = mapping.viewport.convertToPdfPoint(cropX, cropY);
+    const chunks = await pageTextChunks(document, destination.pageNumber);
+    const reference = referenceTextAtPoint(
+      chunks,
+      { x: pdfX, y: pdfY },
+      mapping.pageWidth,
+    );
+    if (!reference) return;
+    window.open(
+      `https://www.google.com/search?q=${encodeURIComponent(reference)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
 
   useEffect(() => {
     let disposed = false;
@@ -125,6 +211,12 @@ export function ReferencePreview({
           cropWidth,
           cropHeight,
         );
+        mappingRef.current = {
+          viewport,
+          sourceX,
+          sourceY,
+          pageWidth: base.width,
+        };
         setStatus("");
       } catch (error) {
         if (
@@ -177,7 +269,11 @@ export function ReferencePreview({
         </button>
       </div>
       <div className={styles.previewPage}>
-        <canvas ref={canvasRef} />
+        <canvas
+          ref={canvasRef}
+          onClick={(event) => void searchClickedReference(event)}
+          title="Click a reference to search it on the web"
+        />
         {status && <p className={styles.previewStatus}>{status}</p>}
       </div>
     </aside>

@@ -320,6 +320,7 @@
   height: 100%;
   object-fit: fill;
   background: #fff;
+  cursor: pointer;
 }
 
 .previewStatus {
