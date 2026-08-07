@@ -16,6 +16,14 @@ interface ViewerPageProps {
   searchParams: Promise<{ src?: string }>;
 }
 
+export async function generateMetadata({ searchParams }: ViewerPageProps) {
+  const { src } = await searchParams;
+  const url = parseHttpUrl(src);
+  if (!url) return { title: "Viewer · papernook" };
+  const name = url.pathname.split("/").at(-1) || url.hostname;
+  return { title: `${decodeURIComponent(name)} · papernook` };
+}
+
 function parseHttpUrl(raw: string | undefined): URL | null {
   if (!raw) return null;
   try {

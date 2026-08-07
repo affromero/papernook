@@ -35,6 +35,8 @@ interface PdfReaderProps {
   editable?: boolean;
   onClose?(): void;
   onEditStateChange?(state: PdfReaderEditState): void;
+  /** Fired with the PDF's embedded Title metadata when it has one. */
+  onDocumentTitle?(title: string): void;
 }
 
 type EditMode = "select" | "highlight" | "text" | "draw";
@@ -72,6 +74,7 @@ export function PdfReader({
   editable = false,
   onClose,
   onEditStateChange,
+  onDocumentTitle,
 }: PdfReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -90,6 +93,7 @@ export function PdfReader({
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
   const onEditStateChangeRef = useRef(onEditStateChange);
+  const onDocumentTitleRef = useRef(onDocumentTitle);
   const previewRef = useRef<Preview | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const hoverLinkRef = useRef<HTMLAnchorElement | null>(null);
@@ -111,6 +115,10 @@ export function PdfReader({
   useEffect(() => {
     onEditStateChangeRef.current = onEditStateChange;
   }, [onEditStateChange]);
+
+  useEffect(() => {
+    onDocumentTitleRef.current = onDocumentTitle;
+  }, [onDocumentTitle]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -261,6 +269,20 @@ export function PdfReader({
         documentRef.current = document;
         setPdfDocument(document);
         setPageCount(document.numPages);
+        if (onDocumentTitleRef.current) {
+          void document
+            .getMetadata()
+            .then(({ info }) => {
+              const embedded =
+                info && typeof info === "object" && "Title" in info
+                  ? info.Title
+                  : null;
+              if (typeof embedded === "string" && embedded.trim()) {
+                onDocumentTitleRef.current?.(embedded.trim());
+              }
+            })
+            .catch(() => undefined);
+        }
         if (editable) {
           const storage =
             document.annotationStorage as unknown as MutableAnnotationStorage;
@@ -605,7 +627,9 @@ export function PdfReader({
     if (event.pointerType !== "mouse") return;
     const target = event.target;
     const link = target instanceof Element ? target.closest("a") : null;
-    if (!link?.classList.contains("internalLink")) return;
+    // pdf.js marks GoTo annotations with data-internal-link on the section
+    // wrapping the anchor; external links never carry it.
+    if (!link || !link.closest("[data-internal-link]")) return;
     if (link === hoverLinkRef.current) return;
     cancelHoverPreview();
     hoverLinkRef.current = link as HTMLAnchorElement;
@@ -688,8 +712,23 @@ export function PdfReader({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") closePreview();
     };
+    // Clicking anywhere outside the popover dismisses it; clicking another
+    // citation closes here first, then its own handler opens the new one.
+    const closeOnOutsidePointer = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest("[data-reference-preview]")
+      )
+        return;
+      closePreview();
+    };
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    window.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("pointerdown", closeOnOutsidePointer);
+    };
   }, [preview]);
 
   useEffect(() => {
