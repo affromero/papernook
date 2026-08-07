@@ -99,36 +99,46 @@ export function ReferencePreview({
   const [status, setStatus] = useState("Loading reference…");
   const { destination } = preview;
 
-  function openSearch(reference: string | null): void {
-    if (!reference) return;
-    window.open(
-      `https://www.google.com/search?q=${encodeURIComponent(reference)}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+  // Safari kills window.open issued after an await (outside the click's
+  // gesture), so open the tab synchronously and point it at the search once
+  // the reference text resolves.
+  function searchViaPopup(resolve: () => Promise<string | null>): void {
+    const popup = window.open("about:blank", "_blank");
+    void resolve()
+      .then((reference) => {
+        if (!reference) {
+          popup?.close();
+          return;
+        }
+        const url = `https://www.google.com/search?q=${encodeURIComponent(reference)}`;
+        if (popup) popup.location.href = url;
+        else window.open(url, "_blank", "noopener,noreferrer");
+      })
+      .catch((error: unknown) => {
+        popup?.close();
+        console.error("papernook: reference search failed", error);
+      });
   }
 
   // The citation's GoTo destination points at the entry's marker, so the
   // header button searches exactly the referenced entry's full text.
-  async function searchTargetReference(): Promise<void> {
+  function searchTargetReference(): void {
     const mapping = mappingRef.current;
-    if (!mapping || destination.left === null || destination.top === null)
-      return;
-    const chunks = await pageTextChunks(document, destination.pageNumber);
-    openSearch(
-      referenceTextAtPoint(
+    const { left, top } = destination;
+    if (!mapping || left === null || top === null) return;
+    searchViaPopup(async () => {
+      const chunks = await pageTextChunks(document, destination.pageNumber);
+      return referenceTextAtPoint(
         chunks,
-        { x: destination.left + 15, y: destination.top - 6 },
+        { x: left + 15, y: top - 6 },
         mapping.pageWidth,
-      ),
-    );
+      );
+    });
   }
 
   // Map the click back through the crop into PDF coordinates, find the
   // bibliography entry under it, and web-search that citation.
-  async function searchClickedReference(
-    event: MouseEvent<HTMLCanvasElement>,
-  ): Promise<void> {
+  function searchClickedReference(event: MouseEvent<HTMLCanvasElement>): void {
     const canvas = canvasRef.current;
     const mapping = mappingRef.current;
     if (!canvas || !mapping) return;
@@ -140,10 +150,14 @@ export function ReferencePreview({
       ((event.clientY - rect.top) / rect.height) * canvas.height +
       mapping.sourceY;
     const [pdfX, pdfY] = mapping.viewport.convertToPdfPoint(cropX, cropY);
-    const chunks = await pageTextChunks(document, destination.pageNumber);
-    openSearch(
-      referenceTextAtPoint(chunks, { x: pdfX, y: pdfY }, mapping.pageWidth),
-    );
+    searchViaPopup(async () => {
+      const chunks = await pageTextChunks(document, destination.pageNumber);
+      return referenceTextAtPoint(
+        chunks,
+        { x: pdfX, y: pdfY },
+        mapping.pageWidth,
+      );
+    });
   }
 
   useEffect(() => {
@@ -266,7 +280,7 @@ export function ReferencePreview({
         <button
           className={styles.previewOpen}
           type="button"
-          onClick={() => void searchTargetReference()}
+          onClick={searchTargetReference}
           aria-label="Search this reference on the web"
           title="Search this reference on the web"
         >
@@ -284,7 +298,7 @@ export function ReferencePreview({
       <div className={styles.previewPage}>
         <canvas
           ref={canvasRef}
-          onClick={(event) => void searchClickedReference(event)}
+          onClick={searchClickedReference}
           title="Click a reference to search it on the web"
         />
         {status && <p className={styles.previewStatus}>{status}</p>}

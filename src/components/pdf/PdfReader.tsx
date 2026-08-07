@@ -121,6 +121,23 @@ export function PdfReader({
     onDocumentTitleRef.current = onDocumentTitle;
   }, [onDocumentTitle]);
 
+  // Separate from the load effect so any resolution failure is isolated and
+  // loud instead of vanishing inside the loader's error handling.
+  useEffect(() => {
+    if (!pdfDocument || !onDocumentTitleRef.current) return;
+    let cancelled = false;
+    resolvePdfDocumentTitle(pdfDocument)
+      .then((resolved) => {
+        if (!cancelled && resolved) onDocumentTitleRef.current?.(resolved);
+      })
+      .catch((error: unknown) => {
+        console.error("papernook: document title resolution failed", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfDocument]);
+
   useEffect(() => {
     const container = containerRef.current;
     const viewerElement = viewerRef.current;
@@ -248,7 +265,10 @@ export function PdfReader({
         eventBus.on("annotationeditoruimanager", onAnnotationEditorReady);
 
         const response = await fetch(src, {
-          cache: "no-store",
+          // Editable PDFs must always see the latest saved version (etag
+          // flow); the read-only viewer lets the browser cache the bytes so
+          // reopening an external paper is not a full re-download.
+          cache: editable ? "no-store" : "default",
           credentials: "same-origin",
           signal: abortController.signal,
         });
@@ -270,13 +290,6 @@ export function PdfReader({
         documentRef.current = document;
         setPdfDocument(document);
         setPageCount(document.numPages);
-        if (onDocumentTitleRef.current) {
-          void resolvePdfDocumentTitle(document)
-            .then((resolved) => {
-              if (resolved) onDocumentTitleRef.current?.(resolved);
-            })
-            .catch(() => undefined);
-        }
         if (editable) {
           const storage =
             document.annotationStorage as unknown as MutableAnnotationStorage;

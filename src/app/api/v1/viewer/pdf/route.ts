@@ -47,7 +47,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       headers: {
         "content-type": "application/pdf",
         "content-disposition": "inline",
-        "cache-control": "no-store",
+        // Let the browser keep external PDFs for the session: every viewer
+        // load otherwise re-runs a full polite server-side download.
+        "cache-control": "private, max-age=3600",
       },
     });
   } catch (error) {

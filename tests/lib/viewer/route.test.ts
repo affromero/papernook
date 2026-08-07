@@ -74,7 +74,7 @@ describe("viewer PDF proxy", () => {
     const response = await route.GET(get("https://example.com/paper.pdf"));
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("cache-control")).toBe("private, max-age=3600");
     expect(Buffer.from(await response.arrayBuffer()).toString()).toContain(
       "%PDF-1.4",
     );
