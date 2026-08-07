@@ -60,21 +60,18 @@ export function configuredProviderId(): ProviderId {
 }
 
 /**
- * True when a usable provider is selected. Running with no provider is a
- * supported mode: capture files papers with deterministic metadata and the
- * chat/discover surfaces disable with a clear message instead of erroring.
- * Mirrors getProvider(): a CLI provider under public exposure counts as
- * unconfigured because every getProvider() call would throw.
+ * True when a provider is selected. Running with no provider is a supported
+ * mode: capture files papers with deterministic metadata and the chat and
+ * discover surfaces disable with a clear message instead of erroring. A
+ * selected-but-unusable provider (e.g. a CLI provider under public exposure)
+ * still counts as configured on purpose — that misconfiguration must fail
+ * loudly through getProvider(), never silently degrade into no-AI mode.
  */
 export function hasConfiguredProvider(): boolean {
   const override = configuredProviderOverride();
   const id =
     override && override in PROVIDERS ? override : process.env.AI_PROVIDER;
-  if (!id || !(id in PROVIDERS)) return false;
-  if (isPublicExposure() && (id === "claude-code" || id === "codex")) {
-    return false;
-  }
-  return true;
+  return Boolean(id && id in PROVIDERS);
 }
 
 export function getProvider(id?: ProviderId): AgentProvider {

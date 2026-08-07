@@ -131,11 +131,15 @@ describe("provider registry", () => {
     expect(hasConfiguredProvider()).toBe(true);
   });
 
-  it("hasConfiguredProvider is false for CLI providers under public exposure", async () => {
+  it("hasConfiguredProvider stays true for a misconfigured CLI provider under public exposure", async () => {
+    // The misconfiguration must surface loudly via getProvider(), never
+    // silently degrade the app into no-AI mode.
     vi.stubEnv("AI_PROVIDER", "codex");
     vi.stubEnv("PUBLIC_EXPOSURE", "true");
-    const { hasConfiguredProvider } = await import("@/lib/agent/registry");
-    expect(hasConfiguredProvider()).toBe(false);
+    const { hasConfiguredProvider, getProvider } =
+      await import("@/lib/agent/registry");
+    expect(hasConfiguredProvider()).toBe(true);
+    expect(() => getProvider()).toThrow(/disabled for public exposure/);
   });
 
   it("API providers report availability from env keys without spawning", async () => {
