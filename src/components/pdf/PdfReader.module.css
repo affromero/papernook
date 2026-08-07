@@ -234,7 +234,7 @@
 .preview {
   position: absolute;
   z-index: 20;
-  width: min(440px, calc(100% - 2rem));
+  width: min(560px, calc(100% - 2rem));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -271,12 +271,27 @@
 }
 
 .previewEyebrow {
+  margin-right: auto;
   color: #315f4c;
   font-family: var(--font-geist-mono), monospace;
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.previewOpen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(31, 40, 34, 0.25);
+  border-radius: 50%;
+  color: inherit;
+  text-decoration: none;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .close {
@@ -293,7 +308,7 @@
 
 .previewPage {
   position: relative;
-  height: 190px;
+  height: 210px;
   overflow: hidden;
   background: #ded9cd;
   border-top: 1px solid rgba(31, 40, 34, 0.14);

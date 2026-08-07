@@ -11,22 +11,16 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
-import type {
-  PDFDocumentLoadingTask,
-  PDFDocumentProxy,
-  RenderTask,
-} from "pdfjs-dist";
+import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
-import {
-  resolvePdfDestination,
-  type ResolvedPdfDestination,
-} from "@/lib/pdf/destinations";
+import { resolvePdfDestination } from "@/lib/pdf/destinations";
 import {
   createPdfAutosave,
   type PdfAutosaveCoordinator,
 } from "@/lib/pdf/autosave";
 import "pdfjs-dist/web/pdf_viewer.css";
 import styles from "./PdfReader.module.css";
+import { ReferencePreview, type Preview } from "./ReferencePreview";
 
 export interface PdfReaderEditState {
   dirty: boolean;
@@ -41,12 +35,6 @@ interface PdfReaderProps {
   editable?: boolean;
   onClose?(): void;
   onEditStateChange?(state: PdfReaderEditState): void;
-}
-
-interface Preview {
-  destination: ResolvedPdfDestination;
-  horizontal: "left" | "right";
-  vertical: "top" | "bottom";
 }
 
 type EditMode = "select" | "highlight" | "text" | "draw";
@@ -103,6 +91,8 @@ export function PdfReader({
   const savingRef = useRef(false);
   const onEditStateChangeRef = useRef(onEditStateChange);
   const previewRef = useRef<Preview | null>(null);
+  const hoverTimerRef = useRef<number | null>(null);
+  const hoverLinkRef = useRef<HTMLAnchorElement | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -607,6 +597,49 @@ export function PdfReader({
     };
   }
 
+  // Hovering an internal GoTo link opens the reference preview after a short
+  // dwell — clicking still works (and is the only path on touch/pen). The
+  // synthetic click() is safe: goToDestination is intercepted above, and
+  // external links (no .internalLink class) never hover-trigger.
+  function scheduleHoverPreview(event: PointerEvent<HTMLDivElement>): void {
+    if (event.pointerType !== "mouse") return;
+    const target = event.target;
+    const link = target instanceof Element ? target.closest("a") : null;
+    if (!link?.classList.contains("internalLink")) return;
+    if (link === hoverLinkRef.current) return;
+    cancelHoverPreview();
+    hoverLinkRef.current = link as HTMLAnchorElement;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const anchor: Pick<Preview, "horizontal" | "vertical"> = {
+      horizontal:
+        event.clientX - bounds.left < bounds.width / 2 ? "left" : "right",
+      vertical:
+        event.clientY - bounds.top < bounds.height / 2 ? "top" : "bottom",
+    };
+    hoverTimerRef.current = window.setTimeout(() => {
+      referenceAnchorRef.current = anchor;
+      hoverLinkRef.current?.click();
+    }, 180);
+  }
+
+  function cancelHoverPreview(event?: PointerEvent<HTMLDivElement>): void {
+    if (event) {
+      const next = event.relatedTarget;
+      if (
+        next instanceof Element &&
+        hoverLinkRef.current &&
+        hoverLinkRef.current.contains(next)
+      ) {
+        return;
+      }
+    }
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    hoverLinkRef.current = null;
+  }
+
   function enablePencilDrawing(event: PointerEvent<HTMLDivElement>): void {
     captureReferenceAnchor(event);
     if (pencilMode && event.pointerType === "touch") {
@@ -822,6 +855,8 @@ export function PdfReader({
         ref={stageRef}
         className={`${styles.stage} ${pencilMode ? styles.pencilMode : ""}`}
         onPointerDownCapture={enablePencilDrawing}
+        onPointerOver={scheduleHoverPreview}
+        onPointerOut={cancelHoverPreview}
       >
         <div className={styles.container} ref={containerRef}>
           <div className="pdfViewer" ref={viewerRef} />
@@ -835,6 +870,7 @@ export function PdfReader({
           <ReferencePreview
             document={pdfDocument}
             preview={preview}
+            pageHref={`${src}#page=${preview.destination.pageNumber}`}
             onClose={closePreview}
           />
         )}
@@ -871,126 +907,5 @@ function EditorButton({
       {children}
       <span>{label}</span>
     </button>
-  );
-}
-
-interface ReferencePreviewProps {
-  document: PDFDocumentProxy;
-  preview: Preview;
-  onClose(): void;
-}
-
-function ReferencePreview({
-  document,
-  preview,
-  onClose,
-}: ReferencePreviewProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [status, setStatus] = useState("Loading reference…");
-  const { destination } = preview;
-
-  useEffect(() => {
-    let disposed = false;
-    let renderTask: RenderTask | null = null;
-
-    void (async () => {
-      try {
-        const page = await document.getPage(destination.pageNumber);
-        if (disposed) return;
-        const canvas = canvasRef.current;
-        const context = canvas?.getContext("2d");
-        if (!canvas || !context) return;
-
-        const pixelRatio = window.devicePixelRatio || 1;
-        const scale = 1.45;
-        const viewport = page.getViewport({ scale: scale * pixelRatio });
-        const source = window.document.createElement("canvas");
-        source.width = Math.ceil(viewport.width);
-        source.height = Math.ceil(viewport.height);
-        const sourceContext = source.getContext("2d");
-        if (!sourceContext) return;
-        renderTask = page.render({
-          canvas: source,
-          canvasContext: sourceContext,
-          viewport,
-        });
-        await renderTask.promise;
-        if (disposed) return;
-
-        const cropWidth = Math.min(source.width, Math.round(440 * pixelRatio));
-        const cropHeight = Math.min(
-          source.height,
-          Math.round(190 * pixelRatio),
-        );
-        const point =
-          destination.left !== null && destination.top !== null
-            ? viewport.convertToViewportPoint(destination.left, destination.top)
-            : [source.width / 2, Math.min(source.height / 2, cropHeight / 2)];
-        const sourceX = Math.max(
-          0,
-          Math.min(source.width - cropWidth, point[0] - cropWidth / 2),
-        );
-        const sourceY = Math.max(
-          0,
-          Math.min(source.height - cropHeight, point[1] - cropHeight / 3),
-        );
-        canvas.width = cropWidth;
-        canvas.height = cropHeight;
-        context.drawImage(
-          source,
-          sourceX,
-          sourceY,
-          cropWidth,
-          cropHeight,
-          0,
-          0,
-          cropWidth,
-          cropHeight,
-        );
-        setStatus("");
-      } catch (error) {
-        if (
-          !disposed &&
-          (!(error instanceof Error) ||
-            error.name !== "RenderingCancelledException")
-        ) {
-          setStatus("This reference preview could not be rendered.");
-        }
-      }
-    })();
-
-    return () => {
-      disposed = true;
-      renderTask?.cancel();
-    };
-  }, [destination, document]);
-
-  return (
-    <aside
-      className={`${styles.preview} ${
-        preview.horizontal === "left" ? styles.previewLeft : styles.previewRight
-      } ${
-        preview.vertical === "top" ? styles.previewTop : styles.previewBottom
-      }`}
-      aria-label={`Reference preview, page ${destination.pageNumber}`}
-    >
-      <div className={styles.previewHeader}>
-        <span className={styles.previewEyebrow}>
-          Reference · page {destination.pageNumber}
-        </span>
-        <button
-          className={styles.close}
-          type="button"
-          onClick={onClose}
-          aria-label="Close reference preview"
-        >
-          ×
-        </button>
-      </div>
-      <div className={styles.previewPage}>
-        <canvas ref={canvasRef} />
-        {status && <p className={styles.previewStatus}>{status}</p>}
-      </div>
-    </aside>
   );
 }
