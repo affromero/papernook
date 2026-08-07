@@ -30,6 +30,14 @@ xcodebuild -project build/safari/papernook/papernook.xcodeproj \
   INFOPLIST_KEY_LSApplicationCategoryType=public.app-category.education \
   -allowProvisioningUpdates archive
 
+# The archive step registers its intermediate .app with LaunchServices, which
+# shows up as a duplicate blank "papernook" in Safari's extension list.
+# Unregister it — the archive itself is untouched.
+find ~/Library/Developer/Xcode/DerivedData -path "*papernook*ArchiveIntermediates*" \
+  -name "*.appex" -maxdepth 12 2>/dev/null | while read -r appex; do
+  pluginkit -r "$appex" 2>/dev/null || true
+done
+
 echo "built version $VERSION (build $BUILD)"
 
 echo "archive at build/papernook.xcarchive — open in Xcode Organizer to upload,"
