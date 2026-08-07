@@ -1,0 +1,21 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 1rem 1.25rem;
+  box-sizing: border-box;
+  gap: 0.8rem;
+}
+
+.notice {
+  margin: auto;
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+@media (max-width: 900px) {
+  .root {
+    height: auto;
+    padding: 0.75rem;
+  }
+}
