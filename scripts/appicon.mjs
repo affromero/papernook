@@ -62,4 +62,6 @@ await writeFile(
   JSON.stringify({ images, info: { version: 1, author: "xcode" } }, null, 2) +
     "\n",
 );
-console.log(`app icon: wrote ${pixels.length} PNGs + Contents.json to ${iconset}`);
+console.log(
+  `app icon: wrote ${pixels.length} PNGs + Contents.json to ${iconset}`,
+);
