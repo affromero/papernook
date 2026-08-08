@@ -78,6 +78,25 @@ describe("session-authed capture route", () => {
     });
   });
 
+  it("surfaces non-capture errors (misconfigured provider) as 502 with the reason", async () => {
+    mocks({
+      signedIn: true,
+      capture: async () => {
+        throw new Error(
+          "CLI agent providers are disabled for public exposure because model tools can read host files.",
+        );
+      },
+    });
+    const route = await import("@/app/api/v1/capture/route");
+    const response = await route.POST(
+      post({ url: "https://arxiv.org/abs/1706.03762" }),
+    );
+    expect(response.status).toBe(502);
+    expect(((await response.json()) as { error: string }).error).toMatch(
+      /public exposure/,
+    );
+  });
+
   it("maps capture failures (duplicates, dead URLs) to 422", async () => {
     mocks({
       signedIn: true,

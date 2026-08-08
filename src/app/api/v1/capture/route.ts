@@ -51,6 +51,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (error instanceof CaptureError) {
       return NextResponse.json({ error: error.message }, { status: 422 });
     }
-    throw error;
+    // Configuration failures (e.g. a CLI provider under public exposure)
+    // must reach the user as the actual reason, not a blank 500.
+    const message =
+      error instanceof Error ? error.message : "Capture failed on the server.";
+    return NextResponse.json(
+      { error: `Capture failed: ${message}` },
+      { status: 502 },
+    );
   }
 }
