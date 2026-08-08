@@ -75,15 +75,16 @@ export function hasConfiguredProvider(): boolean {
 }
 
 /**
- * CLI providers are refused on public deployments by default: a prompt-
- * injected agent's tools can read files reachable from the app process.
- * Admins who accept that risk (e.g. CLIs sandboxed inside the container)
- * opt in explicitly with PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true.
+ * claude-code runs with every tool disabled (--tools "" in claude-code.ts),
+ * so it is safe anywhere. codex's tightest sandbox is read-only — a
+ * prompt-injected turn could still read /data (other profiles' chats) and
+ * the mounted credential files — so on public deployments it needs the
+ * explicit PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true opt-in.
  */
 function cliBlockedOnPublicExposure(id: ProviderId): boolean {
   return (
     isPublicExposure() &&
-    (id === "claude-code" || id === "codex") &&
+    id === "codex" &&
     process.env.PAPERNOOK_ALLOW_CLI_ON_PUBLIC !== "true"
   );
 }
@@ -92,10 +93,10 @@ export function getProvider(id?: ProviderId): AgentProvider {
   const selected = id ?? configuredProviderId();
   if (cliBlockedOnPublicExposure(selected)) {
     throw new Error(
-      "CLI agent providers are disabled for public exposure because model " +
-        "tools can read host files. Use anthropic, openai, ollama, llamacpp, " +
-        "or vllm — or set PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true to accept the " +
-        "risk on this deployment.",
+      "codex is disabled for public exposure: its read-only sandbox can " +
+        "still read library data and mounted credentials. Use claude-code " +
+        "or an API provider — or set PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true " +
+        "to accept the risk on this deployment.",
     );
   }
   return PROVIDERS[selected];

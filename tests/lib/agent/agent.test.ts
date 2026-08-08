@@ -106,19 +106,28 @@ describe("provider registry", () => {
     expect(getProvider().id).toBe("claude-code");
   });
 
-  it("refuses tool-capable CLI providers on public deployments", async () => {
+  it("refuses file-reading codex on public deployments by default", async () => {
     vi.stubEnv("AI_PROVIDER", "codex");
     vi.stubEnv("PUBLIC_EXPOSURE", "true");
     const { getProvider } = await import("@/lib/agent/registry");
     expect(() => getProvider()).toThrow(/disabled for public exposure/);
   });
 
-  it("allows CLI providers publicly with the explicit opt-in flag", async () => {
+  it("allows codex publicly with the explicit opt-in flag", async () => {
     vi.stubEnv("AI_PROVIDER", "codex");
     vi.stubEnv("PUBLIC_EXPOSURE", "true");
     vi.stubEnv("PAPERNOOK_ALLOW_CLI_ON_PUBLIC", "true");
     const { getProvider } = await import("@/lib/agent/registry");
     expect(getProvider().id).toBe("codex");
+  });
+
+  it("allows toolless claude-code publicly without any flag", async () => {
+    // claude-code runs with --tools "" (no tools at all), so the codex
+    // file-read exfiltration risk does not apply to it.
+    vi.stubEnv("AI_PROVIDER", "claude-code");
+    vi.stubEnv("PUBLIC_EXPOSURE", "true");
+    const { getProvider } = await import("@/lib/agent/registry");
+    expect(getProvider().id).toBe("claude-code");
   });
 
   it("throws a setup-pointing error when AI_PROVIDER is unset or invalid", async () => {
