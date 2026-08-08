@@ -7,6 +7,7 @@ import {
   referenceTextAtPoint,
   type PdfTextChunk,
 } from "@/lib/pdf/reference-text";
+import { pdfTextItems } from "@/lib/pdf/text-items";
 import styles from "./PdfReader.module.css";
 
 export interface Preview {
@@ -74,9 +75,9 @@ async function pageTextChunks(
   const cached = cache.get(pageNumber);
   if (cached) return cached;
   const page = await document.getPage(pageNumber);
-  const content = await page.getTextContent();
+  const items = await pdfTextItems(page);
   const chunks: PdfTextChunk[] = [];
-  for (const item of content.items as unknown[]) {
+  for (const item of items) {
     if (isRawTextItem(item)) {
       chunks.push({
         str: item.str,

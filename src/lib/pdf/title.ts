@@ -4,6 +4,8 @@
  * text run near the top of page 1 is the title.
  */
 
+import { pdfTextItems, type TextStreamPage } from "./text-items";
+
 export interface TitleChunk {
   str: string;
   x: number;
@@ -11,9 +13,8 @@ export interface TitleChunk {
   size: number;
 }
 
-interface PdfTitlePage {
+interface PdfTitlePage extends TextStreamPage {
   view: number[];
-  getTextContent(): Promise<{ items: unknown[] }>;
 }
 
 export interface PdfTitleDocument {
@@ -96,15 +97,16 @@ export async function resolvePdfDocumentTitle(
   }
   try {
     const page = await document.getPage(1);
-    const content = await page.getTextContent();
-    const chunks = content.items.filter(isTextItem).map((item) => ({
+    const items = await pdfTextItems(page);
+    const chunks = items.filter(isTextItem).map((item) => ({
       str: item.str,
       x: item.transform[4],
       y: item.transform[5],
       size: Math.hypot(item.transform[2], item.transform[3]),
     }));
     return titleFromFirstPageText(chunks, page.view[3] - page.view[1]);
-  } catch {
+  } catch (error) {
+    console.error("papernook: page-1 title heuristic failed", error);
     return null;
   }
 }

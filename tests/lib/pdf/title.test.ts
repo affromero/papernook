@@ -54,9 +54,28 @@ describe("titleFromFirstPageText", () => {
 });
 
 describe("resolvePdfDocumentTitle", () => {
+  // Fakes the streamTextContent reader (getTextContent is avoided on
+  // purpose: its for-await needs ReadableStream async iteration, absent
+  // before Safari 26.4), split into two chunks to exercise accumulation.
   const page = (items: unknown[]) => ({
     view: [0, 0, 612, PAGE_HEIGHT],
-    getTextContent: async () => ({ items }),
+    streamTextContent: () => {
+      const half = Math.ceil(items.length / 2);
+      const batches = [items.slice(0, half), items.slice(half)].filter(
+        (batch) => batch.length > 0,
+      );
+      return {
+        getReader: () => ({
+          read: async () => {
+            const batch = batches.shift();
+            return batch
+              ? { done: false, value: { items: batch } }
+              : { done: true };
+          },
+          releaseLock: () => undefined,
+        }),
+      };
+    },
   });
   const textItem = (str: string, size: number, x: number, y: number) => ({
     str,
