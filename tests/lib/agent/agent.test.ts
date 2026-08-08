@@ -113,6 +113,14 @@ describe("provider registry", () => {
     expect(() => getProvider()).toThrow(/disabled for public exposure/);
   });
 
+  it("allows CLI providers publicly with the explicit opt-in flag", async () => {
+    vi.stubEnv("AI_PROVIDER", "codex");
+    vi.stubEnv("PUBLIC_EXPOSURE", "true");
+    vi.stubEnv("PAPERNOOK_ALLOW_CLI_ON_PUBLIC", "true");
+    const { getProvider } = await import("@/lib/agent/registry");
+    expect(getProvider().id).toBe("codex");
+  });
+
   it("throws a setup-pointing error when AI_PROVIDER is unset or invalid", async () => {
     vi.stubEnv("AI_PROVIDER", "");
     const { configuredProviderId } = await import("@/lib/agent/registry");

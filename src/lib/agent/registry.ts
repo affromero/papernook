@@ -74,14 +74,28 @@ export function hasConfiguredProvider(): boolean {
   return Boolean(id && id in PROVIDERS);
 }
 
+/**
+ * CLI providers are refused on public deployments by default: a prompt-
+ * injected agent's tools can read files reachable from the app process.
+ * Admins who accept that risk (e.g. CLIs sandboxed inside the container)
+ * opt in explicitly with PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true.
+ */
+function cliBlockedOnPublicExposure(id: ProviderId): boolean {
+  return (
+    isPublicExposure() &&
+    (id === "claude-code" || id === "codex") &&
+    process.env.PAPERNOOK_ALLOW_CLI_ON_PUBLIC !== "true"
+  );
+}
+
 export function getProvider(id?: ProviderId): AgentProvider {
   const selected = id ?? configuredProviderId();
-  if (
-    isPublicExposure() &&
-    (selected === "claude-code" || selected === "codex")
-  ) {
+  if (cliBlockedOnPublicExposure(selected)) {
     throw new Error(
-      "CLI agent providers are disabled for public exposure because model tools can read host files. Use anthropic, openai, ollama, llamacpp, or vllm.",
+      "CLI agent providers are disabled for public exposure because model " +
+        "tools can read host files. Use anthropic, openai, ollama, llamacpp, " +
+        "or vllm — or set PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true to accept the " +
+        "risk on this deployment.",
     );
   }
   return PROVIDERS[selected];
@@ -158,7 +172,7 @@ export type ProviderReadiness =
 export async function providerStatus(
   id: ProviderId,
 ): Promise<ProviderReadiness> {
-  if (isPublicExposure() && (id === "claude-code" || id === "codex")) {
+  if (cliBlockedOnPublicExposure(id)) {
     return "unreachable";
   }
   if (isLocalProvider(id)) {
