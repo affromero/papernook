@@ -327,6 +327,21 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     vi.doUnmock("node:child_process");
   });
 
+  it("grants only the web tools when the turn allows web access", async () => {
+    const calls: SpawnCall[] = [];
+    mockSpawn(calls);
+    const { executeClaudeCode } = await import("@/lib/agent/claude-code");
+    await executeClaudeCode({
+      system: "",
+      prompt: "what follow-up work exists?",
+      allowWeb: true,
+    });
+    expect(calls[0].args[calls[0].args.indexOf("--tools") + 1]).toBe(
+      "WebSearch,WebFetch",
+    );
+    vi.doUnmock("node:child_process");
+  });
+
   it("rejects images instead of granting filesystem tools", async () => {
     const calls: SpawnCall[] = [];
     mockSpawn(calls);
@@ -450,9 +465,12 @@ describe("provider override", () => {
     const { configuredProviderId } = await import("@/lib/agent/registry");
     expect(configuredProviderId()).toBe("claude-code");
     cfg.setAgentModel("opus");
+    cfg.updateAgentConfig({ webAccess: true });
+    expect(cfg.webAccessEnabled()).toBe(true);
     cfg.setAgentProvider("codex");
     expect(configuredProviderId()).toBe("codex");
     expect(cfg.configuredModel("codex")).toBeUndefined(); // model cleared
+    expect(cfg.webAccessEnabled()).toBe(false); // capability opt-in cleared
     cfg.setAgentProvider(null);
     expect(configuredProviderId()).toBe("claude-code"); // env again
     fs.rmSync(tmp, { recursive: true, force: true });

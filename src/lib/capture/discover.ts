@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getProvider } from "../agent/registry";
+import { webAccessEnabled } from "../agent/config";
 import { listTopics, listPapers, readSummary } from "../library/papers";
 import { extractJson } from "./analyze";
 
@@ -75,10 +76,14 @@ export async function discoverRelated(
   focus: DiscoverFocus = {},
 ): Promise<Discovery> {
   const { system, prompt } = discoveryPrompt(focus);
-  const raw = await getProvider().execute({
+  const provider = getProvider();
+  const raw = await provider.execute({
     system,
     prompt,
     responseFormat: "json_object",
+    // Web-capable providers can verify real URLs instead of guessing them.
+    // capabilities optional-chained so registry mocks without it stay valid.
+    allowWeb: webAccessEnabled() && Boolean(provider.capabilities?.web),
   });
   return discoverySchema.parse(extractJson(raw));
 }

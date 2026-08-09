@@ -15,6 +15,8 @@ interface AgentConfig {
   provider?: ProviderId;
   model?: string;
   baseUrl?: string;
+  /** Admin opt-in: turns may use the provider's web search. */
+  webAccess?: boolean;
 }
 
 const FILE = () => path.join(dataRoot(), "agent-config.json");
@@ -47,6 +49,7 @@ export function updateAgentConfig(update: {
   provider?: ProviderId | null;
   model?: string | null;
   baseUrl?: string | null;
+  webAccess?: boolean | null;
 }): void {
   const config = readAgentConfig();
   if (update.provider !== undefined) {
@@ -54,6 +57,8 @@ export function updateAgentConfig(update: {
     else delete config.provider;
     delete config.model;
     delete config.baseUrl;
+    // Capability opt-ins don't carry across providers.
+    delete config.webAccess;
   }
   if (update.model !== undefined) {
     if (update.model) config.model = update.model;
@@ -63,7 +68,16 @@ export function updateAgentConfig(update: {
     if (update.baseUrl) config.baseUrl = update.baseUrl;
     else delete config.baseUrl;
   }
+  if (update.webAccess !== undefined) {
+    if (update.webAccess) config.webAccess = true;
+    else delete config.webAccess;
+  }
   writeConfig(config);
+}
+
+/** Admin opt-in to web-capable turns; stored in the config file only. */
+export function webAccessEnabled(): boolean {
+  return readAgentConfig().webAccess === true;
 }
 
 export function setAgentProvider(provider: ProviderId | null): void {

@@ -8,6 +8,7 @@ import { getPaper } from "@/lib/library/papers";
 import { readChat, appendMessage } from "@/lib/library/chats";
 import { buildChatSystem, buildChatPrompt } from "@/lib/library/chat-context";
 import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
+import { webAccessEnabled } from "@/lib/agent/config";
 import { readBoundedJson, RequestBodyError } from "@/lib/bounded-request";
 
 export const dynamic = "force-dynamic";
@@ -164,6 +165,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   const system = await buildChatSystem(paper, profile.username);
   const prompt = buildChatPrompt(chat.messages, body.data.content);
   const provider = getProvider();
+  // capabilities is optional-chained so registry mocks without it stay valid.
+  const allowWeb = webAccessEnabled() && Boolean(provider.capabilities?.web);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -174,6 +177,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           system,
           prompt,
           images: images.absolute.length ? images.absolute : undefined,
+          allowWeb,
         })) {
           full += chunk;
           controller.enqueue(encoder.encode(chunk));

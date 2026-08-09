@@ -35,11 +35,25 @@ export interface AgentTurn {
   images?: string[];
   /** Ask compatible APIs to constrain the response to a JSON object. */
   responseFormat?: "json_object";
+  /**
+   * Let this turn use the provider's web search (admin-opted in Settings).
+   * Providers whose capabilities.web is false ignore it.
+   */
+  allowWeb?: boolean;
   timeoutMs?: number;
+}
+
+/** What a provider can do beyond text-in/text-out. */
+export interface AgentCapabilities {
+  /** Can run web searches inside a turn when allowWeb is set. */
+  web: boolean;
+  /** Accepts image attachments. */
+  vision: boolean;
 }
 
 export interface AgentProvider {
   id: ProviderId;
+  capabilities: AgentCapabilities;
   /** Run one turn and return the full text response. */
   execute(turn: AgentTurn): Promise<string>;
   /** Run one turn, yielding text chunks as they arrive. */
