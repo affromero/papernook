@@ -90,7 +90,7 @@ describe("capture error page", () => {
     expect(html).toContain('class="error-details"');
     expect(html).toContain("white-space: pre-wrap");
     expect(html).toContain(
-      "line one\n&lt;script&gt;alert('&amp;')&lt;/script&gt;",
+      "line one\n&lt;script&gt;alert(&#39;&amp;&#39;)&lt;/script&gt;",
     );
     expect(html).not.toContain("<script>");
   });

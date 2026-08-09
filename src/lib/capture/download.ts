@@ -21,7 +21,7 @@ const lastFetchByHost = new Map<string, number>();
 
 function isPrivateIpv4(address: string): boolean {
   const octets = address.split(".").map(Number);
-  const [first, second] = octets;
+  const [first, second, third] = octets;
   return (
     first === 0 ||
     first === 10 ||
@@ -30,14 +30,17 @@ function isPrivateIpv4(address: string): boolean {
     (first === 100 && second >= 64 && second <= 127) ||
     (first === 169 && second === 254) ||
     (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 &&
-      (second === 0 || second === 168 || second === 2 || second === 51)) ||
-    (first === 198 && (second === 18 || second === 19)) ||
-    (first === 203 && second === 0)
+    (first === 192 && second === 0 && third === 0) || // IETF protocol assignments
+    (first === 192 && second === 0 && third === 2) || // TEST-NET-1
+    (first === 192 && second === 88 && third === 99) || // 6to4 relay anycast
+    (first === 192 && second === 168) ||
+    (first === 198 && (second === 18 || second === 19)) || // benchmarking
+    (first === 198 && second === 51 && third === 100) || // TEST-NET-2
+    (first === 203 && second === 0 && third === 113) // TEST-NET-3
   );
 }
 
-function isPrivateAddress(address: string): boolean {
+export function isPrivateAddress(address: string): boolean {
   const normalized = address.replace(/^\[|\]$/g, "").toLowerCase();
   const version = isIP(normalized);
   if (version === 4) return isPrivateIpv4(normalized);
@@ -60,7 +63,10 @@ function isPrivateAddress(address: string): boolean {
     normalized.startsWith("fc") ||
     normalized.startsWith("fd") ||
     /^fe[89ab]/.test(normalized) ||
-    normalized.startsWith("ff")
+    normalized.startsWith("ff") ||
+    /^2002:/.test(normalized) || // 6to4 (embeds an IPv4 that may be private)
+    /^2001:0:/.test(normalized) || // Teredo 2001::/32
+    /^64:ff9b:/.test(normalized) // NAT64 well-known prefix
   );
 }
 
@@ -83,6 +89,12 @@ async function resolvePublicUrl(
   }
   if (url.username || url.password) {
     throw new CaptureError("Capture URLs cannot include credentials.");
+  }
+  // Only the default web ports. A nonstandard port turns the authenticated
+  // proxy into a port scanner: open vs. closed ports return distinguishable
+  // errors. (url.port is "" for the scheme default.)
+  if (url.port && url.port !== "80" && url.port !== "443") {
+    throw new CaptureError("Capture URLs must use the default HTTP(S) port.");
   }
 
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
@@ -184,16 +196,43 @@ async function readBody(
   }
 }
 
-function looksLikePdf(response: Response, bytes: Buffer): boolean {
-  const contentType = response.headers.get("content-type") ?? "";
-  return (
-    contentType.includes("application/pdf") ||
-    bytes.subarray(0, 5).toString("latin1") === "%PDF-"
-  );
+// Require the actual %PDF- magic bytes: a hostile origin can claim any
+// Content-Type, and these bytes are re-served same-origin as application/pdf.
+export function looksLikePdf(bytes: Buffer): boolean {
+  return bytes.subarray(0, 5).toString("latin1") === "%PDF-";
+}
+
+// Cap concurrent server-side downloads: each buffers up to MAX_PDF_BYTES in
+// heap, so a burst of parallel /viewer/pdf loads could otherwise exhaust it.
+// ponytail: fixed global cap; make it a fair per-profile queue if it ever
+// becomes a throughput bottleneck for legitimate use.
+const MAX_INFLIGHT_DOWNLOADS = 3;
+let inflightDownloads = 0;
+const downloadWaiters: Array<() => void> = [];
+
+async function acquireDownloadSlot(): Promise<void> {
+  if (inflightDownloads >= MAX_INFLIGHT_DOWNLOADS) {
+    await new Promise<void>((resolve) => downloadWaiters.push(resolve));
+  }
+  inflightDownloads += 1;
+}
+
+function releaseDownloadSlot(): void {
+  inflightDownloads -= 1;
+  downloadWaiters.shift()?.();
 }
 
 /** Resolve any shared URL to actual PDF bytes (content validated). */
 export async function downloadPdf(input: string): Promise<DownloadedPdf> {
+  await acquireDownloadSlot();
+  try {
+    return await downloadPdfInner(input);
+  } finally {
+    releaseDownloadSlot();
+  }
+}
+
+async function downloadPdfInner(input: string): Promise<DownloadedPdf> {
   let target;
   try {
     target = normalizeUrl(input);
@@ -217,7 +256,7 @@ export async function downloadPdf(input: string): Promise<DownloadedPdf> {
     const contentType = page.headers.get("content-type") ?? "";
     if (contentType.includes("application/pdf")) {
       const bytes = await readBody(page, MAX_PDF_BYTES, close);
-      if (!looksLikePdf(page, bytes)) {
+      if (!looksLikePdf(bytes)) {
         throw new CaptureError(`The fetched file is not a PDF (${pageUrl}).`);
       }
       return { bytes, finalUrl: pageUrl, arxivId: target.arxivId };
@@ -240,7 +279,7 @@ export async function downloadPdf(input: string): Promise<DownloadedPdf> {
     );
   }
   const bytes = await readBody(response, MAX_PDF_BYTES, close);
-  if (!looksLikePdf(response, bytes)) {
+  if (!looksLikePdf(bytes)) {
     throw new CaptureError(`The fetched file is not a PDF (${finalUrl}).`);
   }
   return { bytes, finalUrl, arxivId: target.arxivId };

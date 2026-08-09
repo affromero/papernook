@@ -5,8 +5,10 @@ import {
   recordFailure,
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
+import { clientIp } from "@/lib/auth/request-security";
 import { capture } from "@/lib/capture";
 import { CaptureError } from "@/lib/capture/download";
+import { readBoundedForm, RequestBodyError } from "@/lib/bounded-request";
 import { confirmationPage, errorPage } from "./pages";
 
 /**
@@ -19,15 +21,19 @@ import { confirmationPage, errorPage } from "./pages";
 export const dynamic = "force-dynamic";
 
 async function handle(request: NextRequest): Promise<NextResponse> {
-  const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (declaredLength > 32 * 1024) {
-    return html(errorPage("Request body too large."), 413);
+  let form: URLSearchParams;
+  try {
+    form = await readBoundedForm(request, 32 * 1024);
+  } catch (err) {
+    return html(
+      errorPage("Request body too large."),
+      err instanceof RequestBodyError ? err.status : 400,
+    );
   }
-  const form = await request.formData().catch(() => null);
-  const url = (form?.get("url") as string | null) ?? "";
-  const token = (form?.get("token") as string | null) ?? "";
+  const url = form.get("url") ?? "";
+  const token = form.get("token") ?? "";
 
-  const ipKey = `ip:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local"}`;
+  const ipKey = `ip:${clientIp(request)}`;
   if (retryAfterMs(ipKey) > 0) {
     return html(errorPage("Too many attempts. Try again later."), 429);
   }

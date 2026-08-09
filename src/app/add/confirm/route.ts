@@ -6,6 +6,9 @@ import {
 } from "@/lib/library/papers";
 import { slugify, isValidSlug } from "@/lib/library/slug";
 import { rebuildIndex } from "@/lib/library/index-db";
+import { clientIp } from "@/lib/auth/request-security";
+import { recordFailure, retryAfterMs } from "@/lib/auth/rate-limit";
+import { readBoundedForm, RequestBodyError } from "@/lib/bounded-request";
 import { acceptedPage, errorPage } from "../pages";
 
 /** Accept an inbox capture into the chosen topic folder. */
@@ -13,12 +16,6 @@ import { acceptedPage, errorPage } from "../pages";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const form = await request.formData().catch(() => null);
-  const token = (form?.get("token") as string | null) ?? "";
-  const slug = (form?.get("slug") as string | null) ?? "";
-  const chosen = (form?.get("topic") as string | null) ?? "";
-  const newTopic = (form?.get("newtopic") as string | null) ?? "";
-
   const html = (body: string, status: number) =>
     new NextResponse(body, {
       status,
@@ -31,8 +28,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
 
+  let form: URLSearchParams;
+  try {
+    form = await readBoundedForm(request, 32 * 1024);
+  } catch (err) {
+    return html(
+      errorPage("Request body too large."),
+      err instanceof RequestBodyError ? err.status : 400,
+    );
+  }
+  const token = form.get("token") ?? "";
+  const slug = form.get("slug") ?? "";
+  const chosen = form.get("topic") ?? "";
+  const newTopic = form.get("newtopic") ?? "";
+
+  // Same unauthenticated-token surface as /add: throttle guesses per client.
+  const ipKey = `confirm-ip:${clientIp(request)}`;
+  if (retryAfterMs(ipKey) > 0) {
+    return html(errorPage("Too many attempts. Try again later."), 429);
+  }
   const profile = profileForCaptureToken(token);
   if (!profile) {
+    recordFailure(ipKey);
     return html(errorPage("Invalid capture token."), 401);
   }
   const topic = slugify(newTopic.trim() || chosen.trim());

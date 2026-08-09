@@ -43,6 +43,34 @@ export async function readBoundedText(
   return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
+/**
+ * Bound the body first, then parse it as a form (url-encoded or multipart).
+ * Reading through readBoundedText caps memory and closes the chunked-transfer
+ * bypass of a Content-Length-only check; reconstructing the Request lets the
+ * platform decode whichever encoding the client actually sent.
+ */
+export async function readBoundedForm(
+  request: Request,
+  maxBytes: number,
+): Promise<URLSearchParams> {
+  const raw = await readBoundedText(request, maxBytes);
+  const contentType = request.headers.get("content-type") ?? "";
+  const parsed = await new Request("http://form.local", {
+    method: "POST",
+    headers: contentType ? { "content-type": contentType } : undefined,
+    body: raw,
+  })
+    .formData()
+    .catch(() => {
+      throw new RequestBodyError("Invalid form body.", 400);
+    });
+  const form = new URLSearchParams();
+  for (const [key, value] of parsed) {
+    if (typeof value === "string") form.append(key, value);
+  }
+  return form;
+}
+
 export async function readBoundedJson(
   request: Request,
   maxBytes = 64 * 1024,

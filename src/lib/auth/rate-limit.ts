@@ -15,17 +15,33 @@ const BASE_LOCK_MS = 2_000;
 const MAX_LOCK_MS = 15 * 60_000;
 const FREE_ATTEMPTS = 3;
 
+const MAX_TRACKED = 10_000;
+
 const buckets = new Map<string, Bucket>();
 const windows = new Map<string, { startedAt: number; count: number }>();
 
+// Hard memory cap: even if every tracked key is still fresh (a flood of
+// distinct keys), drop the oldest-inserted entries so the map can never grow
+// without bound. Map iteration is insertion-ordered, so the first keys are the
+// oldest — good enough for a DoS backstop, and legitimate keys re-add cheaply.
+function evictOldest(map: Map<string, unknown>): void {
+  const excess = map.size - MAX_TRACKED + 1_000;
+  let removed = 0;
+  for (const key of map.keys()) {
+    map.delete(key);
+    if (++removed >= excess) break;
+  }
+}
+
 function bucket(key: string): Bucket {
-  if (buckets.size > 10_000) {
+  if (buckets.size > MAX_TRACKED) {
     const now = Date.now();
     for (const [candidate, value] of buckets) {
       if (value.lockedUntil < now && value.lastSeen < now - MAX_LOCK_MS) {
         buckets.delete(candidate);
       }
     }
+    if (buckets.size > MAX_TRACKED) evictOldest(buckets);
   }
   let b = buckets.get(key);
   if (!b) {
@@ -41,10 +57,11 @@ export function consumeRequestLimit(
   windowMs: number,
   now = Date.now(),
 ): number {
-  if (windows.size > 10_000) {
+  if (windows.size > MAX_TRACKED) {
     for (const [candidate, value] of windows) {
       if (value.startedAt + windowMs <= now) windows.delete(candidate);
     }
+    if (windows.size > MAX_TRACKED) evictOldest(windows);
   }
   const current = windows.get(key);
   if (!current || current.startedAt + windowMs <= now) {

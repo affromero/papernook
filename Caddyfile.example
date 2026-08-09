@@ -15,7 +15,16 @@ papernook.example.com {
 
 	# Papernook enforces global request limits plus per-IP and per-account auth
 	# backoff. For high traffic, add edge rate limiting or fail2ban too.
-	reverse_proxy localhost:3000
+	#
+	# The per-IP lockouts key on the LAST X-Forwarded-For entry (see
+	# TRUSTED_PROXY_HOPS). Only trust that header from Caddy itself: strip any
+	# client-supplied forwarding headers so the lockout cannot be bypassed by
+	# spoofing them, then let reverse_proxy append the real client IP.
+	request_header -X-Forwarded-For
+	request_header -X-Real-IP
+	reverse_proxy localhost:3000 {
+		header_up X-Real-IP {remote_host}
+	}
 }
 
 # WebDAV for PDF Expert: its own subdomain, its own basic-auth (rclone).

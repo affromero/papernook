@@ -16,13 +16,15 @@ import { isPublicExposure } from "@/lib/data-dir";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  // Behind Caddy the request URL carries the internal container host;
-  // rebuild the redirect from the forwarded headers.
-  const proto = request.headers.get("x-forwarded-proto") ?? "http";
-  const host = request.headers.get("host") ?? request.nextUrl.host;
-  const login = `${proto}://${host}/login`;
+  // Redirect to a path-only Location: the browser resolves it against the
+  // public request URL, so we never trust a (spoofable) Host header to build
+  // an absolute URL — which would otherwise be an open redirect on a
+  // directly-exposed (non-Caddy) deployment.
   const token = request.nextUrl.searchParams.get("t") ?? "";
-  const response = NextResponse.redirect(login, 302);
+  const response = new NextResponse(null, {
+    status: 302,
+    headers: { location: "/login" },
+  });
   if (!isPublicExposure() && verifyInviteToken(token)) {
     response.cookies.set(GATE_COOKIE, createGateToken(), gateCookieOptions());
   }

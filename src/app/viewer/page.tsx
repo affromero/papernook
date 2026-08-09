@@ -22,8 +22,17 @@ export async function generateMetadata({ searchParams }: ViewerPageProps) {
   const { src } = await searchParams;
   const url = parseHttpUrl(src);
   if (!url) return { title: "Viewer · papernook" };
+  return { title: `${fileName(url)} · papernook` };
+}
+
+/** Last path segment, decoded; a malformed %-escape falls back to the raw. */
+function fileName(url: URL): string {
   const name = url.pathname.split("/").at(-1) || url.hostname;
-  return { title: `${decodeURIComponent(name)} · papernook` };
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
 }
 
 function parseHttpUrl(raw: string | undefined): URL | null {
@@ -65,10 +74,9 @@ export default async function ViewerPage({ searchParams }: ViewerPageProps) {
   if (existing?.topic) redirect(`/paper/${existing.topic}/${existing.slug}`);
   if (existing) redirect(`/inbox/${existing.slug}`);
 
-  const name = url.pathname.split("/").at(-1) || url.hostname;
   return (
     <main className={styles.root}>
-      <ViewerShell src={url.href} title={decodeURIComponent(name)} />
+      <ViewerShell src={url.href} title={fileName(url)} />
     </main>
   );
 }
