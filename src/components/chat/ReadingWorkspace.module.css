@@ -51,10 +51,15 @@
   display: none;
 }
 
-.toggle {
+.toggleRow {
   grid-column: 1 / -1;
   grid-row: 1;
   justify-self: end;
+  display: inline-flex;
+  gap: 0.45rem;
+}
+
+.toggle {
   min-height: 36px;
   display: inline-flex;
   align-items: center;

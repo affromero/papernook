@@ -20,11 +20,11 @@ const ANTHROPIC_DEFAULT_MODEL = "claude-opus-4-8";
 const OPENAI_DEFAULT_MODEL = "gpt-5.5";
 
 function anthropicModel(): string {
-  return configuredModel("anthropic") || ANTHROPIC_DEFAULT_MODEL;
+  return configuredModel() || ANTHROPIC_DEFAULT_MODEL;
 }
 
 function openaiModel(): string {
-  return configuredModel("openai") || OPENAI_DEFAULT_MODEL;
+  return configuredModel() || OPENAI_DEFAULT_MODEL;
 }
 
 let anthropicClient: Anthropic | null = null;
@@ -72,6 +72,19 @@ function anthropicContent(turn: AgentTurn): Anthropic.MessageParam["content"] {
   return blocks;
 }
 
+/**
+ * Server-side web search when the turn allows it. max_uses is kept low so a
+ * turn rarely hits stop_reason "pause_turn" (long multi-search turns), which
+ * we deliberately do not continuation-loop — an accepted limitation: a
+ * paused turn ends with whatever text arrived.
+ */
+function anthropicTools(
+  turn: AgentTurn,
+): Anthropic.Messages.ToolUnion[] | undefined {
+  if (!turn.allowWeb) return undefined;
+  return [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }];
+}
+
 async function executeAnthropic(turn: AgentTurn): Promise<string> {
   const stream = anthropic().messages.stream(
     {
@@ -79,6 +92,7 @@ async function executeAnthropic(turn: AgentTurn): Promise<string> {
       max_tokens: 16000,
       thinking: { type: "adaptive" },
       system: turn.system || undefined,
+      tools: anthropicTools(turn),
       messages: [{ role: "user", content: anthropicContent(turn) }],
     },
     { timeout: turn.timeoutMs ?? DEFAULT_TIMEOUT_MS },
@@ -97,6 +111,7 @@ async function* streamAnthropic(turn: AgentTurn): AsyncGenerator<string> {
       max_tokens: 16000,
       thinking: { type: "adaptive" },
       system: turn.system || undefined,
+      tools: anthropicTools(turn),
       messages: [{ role: "user", content: anthropicContent(turn) }],
     },
     { timeout: turn.timeoutMs ?? DEFAULT_TIMEOUT_MS },
@@ -137,8 +152,7 @@ function openaiMessages(
 }
 
 function compatibleModel(provider: "openai" | LocalProviderId): string {
-  const model =
-    provider === "openai" ? openaiModel() : configuredModel(provider);
+  const model = provider === "openai" ? openaiModel() : configuredModel();
   if (!model) {
     throw new Error(
       `${provider}: select a model in Settings before using this provider`,
@@ -187,12 +201,17 @@ async function* streamCompatible(
 
 export const anthropicProvider: AgentProvider = {
   id: "anthropic",
+  capabilities: { web: true, vision: true },
   execute: executeAnthropic,
   stream: streamAnthropic,
 };
 
 export const openaiProvider: AgentProvider = {
   id: "openai",
+  // web stays off for now: chat.completions' web_search_options is gated to
+  // specific search-preview models, and papernook lets the admin pick any
+  // model. Revisit alongside a Responses-API migration.
+  capabilities: { web: false, vision: true },
   execute: (turn) => executeCompatible("openai", turn),
   stream: (turn) => streamCompatible("openai", turn),
 };
@@ -200,6 +219,7 @@ export const openaiProvider: AgentProvider = {
 function localProvider(id: LocalProviderId): AgentProvider {
   return {
     id,
+    capabilities: { web: false, vision: true },
     execute: (turn) => executeCompatible(id, turn),
     stream: (turn) => streamCompatible(id, turn),
   };

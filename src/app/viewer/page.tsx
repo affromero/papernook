@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
+import { findPaperBySource } from "@/lib/library/papers";
+import { normalizeUrl } from "@/lib/capture/normalize";
 import { ViewerShell } from "./ViewerShell";
 import styles from "./viewer.module.css";
 
@@ -50,6 +52,18 @@ export default async function ViewerPage({ searchParams }: ViewerPageProps) {
       </main>
     );
   }
+
+  // Already captured? Land on the library copy (annotations, chats) — or the
+  // pending inbox confirmation — instead of the plain viewer.
+  let arxivId: string | null = null;
+  try {
+    arxivId = normalizeUrl(url.href).arxivId;
+  } catch {
+    arxivId = null;
+  }
+  const existing = findPaperBySource(url.href, arxivId, profile.username);
+  if (existing?.topic) redirect(`/paper/${existing.topic}/${existing.slug}`);
+  if (existing) redirect(`/inbox/${existing.slug}`);
 
   const name = url.pathname.split("/").at(-1) || url.hostname;
   return (

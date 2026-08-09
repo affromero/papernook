@@ -63,6 +63,6 @@ describe("agent model settings route", () => {
 
     expect(response.ok).toBe(true);
     const { configuredModel } = await import("@/lib/agent/config");
-    expect(configuredModel("codex")).toBe("gpt-5.5");
+    expect(configuredModel()).toBe("gpt-5.5");
   });
 });

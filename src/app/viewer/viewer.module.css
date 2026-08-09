@@ -29,18 +29,39 @@
 }
 
 .addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   flex-shrink: 0;
-  padding: 0.4rem 0.9rem;
-  border: 1px solid currentcolor;
+  padding: 0.45rem 1rem;
+  border: 1px solid #315f4c;
   border-radius: 0.5rem;
-  background: none;
+  color: #10251c;
+  background: #8ee3a1;
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .addBtn:disabled {
-  opacity: 0.5;
   cursor: default;
+  color: #10251c;
+  background: #b8e9c4;
+}
+
+.spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid rgba(16, 37, 28, 0.3);
+  border-top-color: #10251c;
+  border-radius: 50%;
+  animation: viewer-spin 0.7s linear infinite;
+}
+
+@keyframes viewer-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .error {

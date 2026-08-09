@@ -72,7 +72,8 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
           disabled={busy}
           onClick={() => void addToLibrary()}
         >
-          {busy ? "Capturing…" : "+ Add to library"}
+          {busy && <span className={styles.spinner} aria-hidden="true" />}
+          {busy ? "Capturing…" : "+ Add to papernook"}
         </button>
       </header>
       {error && (
@@ -85,6 +86,7 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
         title={displayTitle}
         originalHref={src}
         onDocumentTitle={setDisplayTitle}
+        libraryLookup
       />
     </>
   );

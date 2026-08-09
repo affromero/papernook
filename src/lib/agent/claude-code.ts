@@ -10,12 +10,13 @@ import {
 } from "./types";
 
 /**
- * Claude Code CLI provider (`claude -p`), ported from Sotto's
- * claude-code-client.ts and decoupled from its registry/pricing stack.
+ * Claude Code CLI provider (`claude -p`).
  * Keyless: uses whatever auth the CLI has, locally or over SSH
  * (CLAUDE_CODE_SSH_HOST). Prompt is piped via stdin to avoid ARG_MAX.
- * Built-in tools, project settings, MCP servers, and persistence are disabled
- * so paper content cannot turn the CLI into a filesystem-reading agent.
+ * Project settings, MCP servers, and persistence are disabled, and tools
+ * default to none so paper content cannot turn the CLI into a
+ * filesystem-reading agent; when the admin opts a turn into web access the
+ * only tools granted are WebSearch and WebFetch — never the filesystem.
  */
 
 /**
@@ -97,9 +98,9 @@ async function buildArgs(
     "--mcp-config",
     '{"mcpServers":{}}',
     "--tools",
-    "",
+    turn.allowWeb ? "WebSearch,WebFetch" : "",
   ];
-  const model = configuredModel("claude-code");
+  const model = configuredModel();
   if (model) args.push("--model", model);
   args.push("--output-format", streaming ? "stream-json" : "text");
   if (streaming) args.push("--verbose");
@@ -278,6 +279,7 @@ export async function* streamClaudeCode(
 
 export const claudeCodeProvider: AgentProvider = {
   id: "claude-code",
+  capabilities: { web: true, vision: false },
   execute: executeClaudeCode,
   stream: streamClaudeCode,
 };

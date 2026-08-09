@@ -25,10 +25,9 @@ import {
   type AgentProvider,
   type ProviderId,
 } from "./types";
-import { isPublicExposure } from "../data-dir";
 /**
  * Provider registry. The active provider is chosen at install/wizard time via
- * AI_PROVIDER (never hardcoded; Sotto's install.sh pattern):
+ * AI_PROVIDER (never hardcoded; chosen by install.sh or the wizard):
  *   anthropic | openai      API key in env
  *   claude-code | codex     local CLI (keyless), or over SSH via
  *                           CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST
@@ -74,30 +73,8 @@ export function hasConfiguredProvider(): boolean {
   return Boolean(id && id in PROVIDERS);
 }
 
-/**
- * CLI providers are refused on public deployments by default: a prompt-
- * injected agent's tools can read files reachable from the app process.
- * Admins who accept that risk (e.g. CLIs sandboxed inside the container)
- * opt in explicitly with PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true.
- */
-function cliBlockedOnPublicExposure(id: ProviderId): boolean {
-  return (
-    isPublicExposure() &&
-    (id === "claude-code" || id === "codex") &&
-    process.env.PAPERNOOK_ALLOW_CLI_ON_PUBLIC !== "true"
-  );
-}
-
 export function getProvider(id?: ProviderId): AgentProvider {
   const selected = id ?? configuredProviderId();
-  if (cliBlockedOnPublicExposure(selected)) {
-    throw new Error(
-      "CLI agent providers are disabled for public exposure because model " +
-        "tools can read host files. Use anthropic, openai, ollama, llamacpp, " +
-        "or vllm — or set PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true to accept the " +
-        "risk on this deployment.",
-    );
-  }
   return PROVIDERS[selected];
 }
 
@@ -172,12 +149,9 @@ export type ProviderReadiness =
 export async function providerStatus(
   id: ProviderId,
 ): Promise<ProviderReadiness> {
-  if (cliBlockedOnPublicExposure(id)) {
-    return "unreachable";
-  }
   if (isLocalProvider(id)) {
     if (!(await localProviderResponds(id))) return "unreachable";
-    return configuredModel(id) ? "ready" : "no_model";
+    return configuredModel() ? "ready" : "no_model";
   }
   switch (id) {
     case "anthropic":

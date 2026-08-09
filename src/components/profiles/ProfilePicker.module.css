@@ -1,5 +1,5 @@
 /* "Who's learning?" — a full-screen immersive gate (always dark, Netflix-style),
-   independent of the active theme. Ports SottoDesign3/sotto.css to app tokens. */
+   independent of the active theme. */
 
 .root {
   --picker-accent: var(--color-primary, #b88a52);

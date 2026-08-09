@@ -106,19 +106,15 @@ describe("provider registry", () => {
     expect(getProvider().id).toBe("claude-code");
   });
 
-  it("refuses tool-capable CLI providers on public deployments", async () => {
-    vi.stubEnv("AI_PROVIDER", "codex");
+  it("allows CLI providers on public deployments — the admin's password-confirmed Settings choice is the consent", async () => {
     vi.stubEnv("PUBLIC_EXPOSURE", "true");
-    const { getProvider } = await import("@/lib/agent/registry");
-    expect(() => getProvider()).toThrow(/disabled for public exposure/);
-  });
-
-  it("allows CLI providers publicly with the explicit opt-in flag", async () => {
     vi.stubEnv("AI_PROVIDER", "codex");
-    vi.stubEnv("PUBLIC_EXPOSURE", "true");
-    vi.stubEnv("PAPERNOOK_ALLOW_CLI_ON_PUBLIC", "true");
-    const { getProvider } = await import("@/lib/agent/registry");
-    expect(getProvider().id).toBe("codex");
+    let registry = await import("@/lib/agent/registry");
+    expect(registry.getProvider().id).toBe("codex");
+    vi.resetModules();
+    vi.stubEnv("AI_PROVIDER", "claude-code");
+    registry = await import("@/lib/agent/registry");
+    expect(registry.getProvider().id).toBe("claude-code");
   });
 
   it("throws a setup-pointing error when AI_PROVIDER is unset or invalid", async () => {
@@ -137,17 +133,6 @@ describe("provider registry", () => {
     expect(hasConfiguredProvider()).toBe(false);
     vi.stubEnv("AI_PROVIDER", "anthropic");
     expect(hasConfiguredProvider()).toBe(true);
-  });
-
-  it("hasConfiguredProvider stays true for a misconfigured CLI provider under public exposure", async () => {
-    // The misconfiguration must surface loudly via getProvider(), never
-    // silently degrade the app into no-AI mode.
-    vi.stubEnv("AI_PROVIDER", "codex");
-    vi.stubEnv("PUBLIC_EXPOSURE", "true");
-    const { hasConfiguredProvider, getProvider } =
-      await import("@/lib/agent/registry");
-    expect(hasConfiguredProvider()).toBe(true);
-    expect(() => getProvider()).toThrow(/disabled for public exposure/);
   });
 
   it("API providers report availability from env keys without spawning", async () => {
@@ -232,10 +217,16 @@ describe("provider registry", () => {
   });
 
   it("probes local and custom OpenAI endpoints instead of requiring keys", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-probe-"));
+    vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
     vi.stubEnv("OLLAMA_HOST", "http://models.test:11434/v1/");
-    vi.stubEnv("OLLAMA_MODEL", "qwen3:4b");
     vi.stubEnv("OPENAI_BASE_URL", "http://gateway.test/v1");
     vi.stubEnv("OPENAI_API_KEY", "");
+    const cfg = await import("@/lib/agent/config");
+    cfg.setAgentModel("qwen3:4b");
     const urls: string[] = [];
     vi.stubGlobal(
       "fetch",
@@ -342,6 +333,21 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     vi.doUnmock("node:child_process");
   });
 
+  it("grants only the web tools when the turn allows web access", async () => {
+    const calls: SpawnCall[] = [];
+    mockSpawn(calls);
+    const { executeClaudeCode } = await import("@/lib/agent/claude-code");
+    await executeClaudeCode({
+      system: "",
+      prompt: "what follow-up work exists?",
+      allowWeb: true,
+    });
+    expect(calls[0].args[calls[0].args.indexOf("--tools") + 1]).toBe(
+      "WebSearch,WebFetch",
+    );
+    vi.doUnmock("node:child_process");
+  });
+
   it("rejects images instead of granting filesystem tools", async () => {
     const calls: SpawnCall[] = [];
     mockSpawn(calls);
@@ -386,21 +392,20 @@ describe("claude-code argv (mocked spawn boundary)", () => {
 });
 
 describe("model configuration", () => {
-  it("file beats env beats default, and clearing falls back", async () => {
+  it("the config file is the only model source; clearing falls back to the provider default", async () => {
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-model-"));
     vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
+    // Per-provider *_MODEL env vars are intentionally gone.
     vi.stubEnv("CLAUDE_CODE_MODEL", "sonnet");
     const cfg = await import("@/lib/agent/config");
-    expect(cfg.configuredModel("claude-code")).toBe("sonnet"); // env
+    expect(cfg.configuredModel()).toBeUndefined(); // env is ignored
     cfg.setAgentModel("opus");
-    expect(cfg.configuredModel("claude-code")).toBe("opus"); // file wins
+    expect(cfg.configuredModel()).toBe("opus"); // file wins
     cfg.setAgentModel(null);
-    expect(cfg.configuredModel("claude-code")).toBe("sonnet"); // env again
-    vi.stubEnv("CLAUDE_CODE_MODEL", "");
-    expect(cfg.configuredModel("claude-code")).toBeUndefined(); // default
+    expect(cfg.configuredModel()).toBeUndefined(); // provider default
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
@@ -445,7 +450,7 @@ describe("model configuration", () => {
     });
     expect(cfg.configuredBaseUrl("ollama")).toBe("http://stored.test:11434");
     cfg.setAgentProvider("vllm");
-    expect(cfg.configuredModel("vllm")).toBeUndefined();
+    expect(cfg.configuredModel()).toBeUndefined();
     expect(cfg.storedBaseUrl("vllm")).toBeUndefined();
     vi.stubEnv("VLLM_BASE_URL", "");
     expect(cfg.configuredBaseUrl("vllm")).toBe("http://localhost:8000");
@@ -465,9 +470,12 @@ describe("provider override", () => {
     const { configuredProviderId } = await import("@/lib/agent/registry");
     expect(configuredProviderId()).toBe("claude-code");
     cfg.setAgentModel("opus");
+    cfg.updateAgentConfig({ webAccess: true });
+    expect(cfg.webAccessEnabled()).toBe(true);
     cfg.setAgentProvider("codex");
     expect(configuredProviderId()).toBe("codex");
-    expect(cfg.configuredModel("codex")).toBeUndefined(); // model cleared
+    expect(cfg.configuredModel()).toBeUndefined(); // model cleared
+    expect(cfg.webAccessEnabled()).toBe(false); // capability opt-in cleared
     cfg.setAgentProvider(null);
     expect(configuredProviderId()).toBe("claude-code"); // env again
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -488,8 +496,14 @@ describe("OpenAI-compatible local providers", () => {
   it("uses the selected local model, endpoint, JSON mode, and no API key", async () => {
     const clients: { apiKey?: string; baseURL?: string }[] = [];
     const requests: unknown[] = [];
-    vi.stubEnv("VLLM_MODEL", "Qwen/Qwen3-8B");
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-vllm-"));
+    vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
     vi.stubEnv("VLLM_BASE_URL", "http://gpu.test:8000");
+    const cfgModule = await import("@/lib/agent/config");
+    cfgModule.setAgentModel("Qwen/Qwen3-8B");
     vi.doMock("openai", () => ({
       default: class {
         chat = {

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
+import { isPublicExposure } from "@/lib/data-dir";
 import { isAdmin, verifyProfilePassword } from "@/lib/auth/users";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import {
@@ -9,11 +10,13 @@ import {
   modelSuggestions,
   storedBaseUrl,
   updateAgentConfig,
+  webAccessEnabled,
 } from "@/lib/agent/config";
 import { listOfferedModels, resetModelCache } from "@/lib/agent/models";
 import {
   configuredProviderId,
   allProviderStatuses,
+  getProvider,
   resetProviderStatusCache,
 } from "@/lib/agent/registry";
 import {
@@ -57,7 +60,7 @@ async function snapshot(admin: boolean, probe: boolean) {
   return {
     provider,
     statuses,
-    model: provider ? (configuredModel(provider) ?? null) : null,
+    model: provider ? (configuredModel() ?? null) : null,
     baseUrl: admin && provider ? (storedBaseUrl(provider) ?? null) : null,
     baseUrlPlaceholder:
       admin && provider ? (configuredBaseUrl(provider) ?? null) : null,
@@ -69,6 +72,9 @@ async function snapshot(admin: boolean, probe: boolean) {
     liveList: offered.live,
     available: probe && provider ? statuses[provider] === "ready" : undefined,
     admin,
+    publicExposure: isPublicExposure(),
+    webAccess: webAccessEnabled(),
+    webCapable: provider ? getProvider(provider).capabilities.web : false,
   };
 }
 
@@ -101,6 +107,7 @@ const schema = z.object({
   provider: z.enum(PROVIDER_IDS).optional(),
   model: z.string().max(200).nullable().optional(),
   baseUrl: baseUrlSchema.nullable().optional(),
+  webAccess: z.boolean().optional(),
   password: z.string().max(200).optional(),
 });
 
@@ -135,6 +142,15 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       { status: 400 },
     );
   }
+  if (
+    body.data.webAccess === true &&
+    !getProvider(targetProvider).capabilities.web
+  ) {
+    return NextResponse.json(
+      { error: "This provider has no web search." },
+      { status: 400 },
+    );
+  }
   updateAgentConfig({
     provider: body.data.provider,
     model:
@@ -145,6 +161,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       body.data.baseUrl === undefined
         ? undefined
         : body.data.baseUrl?.trim() || null,
+    webAccess: body.data.webAccess,
   });
   resetProviderStatusCache();
   resetModelCache();

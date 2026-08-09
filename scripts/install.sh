@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # papernook installer: interactive .env setup + docker compose up.
-# Mirrors Sotto's install.sh pattern; the AI provider is chosen HERE,
+# The AI provider is chosen HERE,
 # never hardcoded in the app.
 
 set -euo pipefail
@@ -84,13 +84,13 @@ case "$CHOICE" in
     read -r -p "Claude model [opus/sonnet/haiku, empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=claude-code'
     [ -f "${HOME}/.claude/.credentials.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_AUTH_FILE=${HOME}/.claude/.credentials.json"
-    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$(dotenv_quote "$M")"
+
     ;;
   2)
     read -r -p "Codex model [empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=codex'
     [ -f "${HOME}/.codex/auth.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_AUTH_FILE=${HOME}/.codex/auth.json"
-    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_MODEL=$(dotenv_quote "$M")"
+
     ;;
   3)
     read -r -p "SSH host (user@host): " SSH_HOST < /dev/tty
@@ -103,7 +103,7 @@ case "$CHOICE" in
     AI_BLOCK=$'AI_PROVIDER=claude-code\n'"CLAUDE_CODE_SSH_HOST=$(dotenv_quote "$SSH_HOST")"
     AI_BLOCK="$AI_BLOCK"$'\n'"SSH_KEY_FILE=$(dotenv_quote "$SSH_KEY_FILE")"
     AI_BLOCK="$AI_BLOCK"$'\n'"SSH_KNOWN_HOSTS_FILE=$(dotenv_quote "$SSH_KNOWN_HOSTS_FILE")"
-    [ -n "$M" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_CODE_MODEL=$(dotenv_quote "$M")"
+
     ;;
   4)
     read -r -s -p "Anthropic API key: " AI_KEY < /dev/tty
@@ -122,21 +122,21 @@ case "$CHOICE" in
     [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
     read -r -p "Ollama URL [http://host.docker.internal:11434]: " ENDPOINT < /dev/tty
     ENDPOINT=${ENDPOINT:-http://host.docker.internal:11434}
-    AI_BLOCK=$'AI_PROVIDER=ollama\n'"OLLAMA_HOST=$(dotenv_quote "$ENDPOINT")"$'\n'"OLLAMA_MODEL=$(dotenv_quote "$M")"
+    AI_BLOCK=$'AI_PROVIDER=ollama\n'"OLLAMA_HOST=$(dotenv_quote "$ENDPOINT")"
     ;;
   7)
     read -r -p "llama.cpp model id: " M < /dev/tty
     [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
     read -r -p "llama.cpp URL [http://host.docker.internal:8080]: " ENDPOINT < /dev/tty
     ENDPOINT=${ENDPOINT:-http://host.docker.internal:8080}
-    AI_BLOCK=$'AI_PROVIDER=llamacpp\n'"LLAMACPP_BASE_URL=$(dotenv_quote "$ENDPOINT")"$'\n'"LLAMACPP_MODEL=$(dotenv_quote "$M")"
+    AI_BLOCK=$'AI_PROVIDER=llamacpp\n'"LLAMACPP_BASE_URL=$(dotenv_quote "$ENDPOINT")"
     ;;
   8)
     read -r -p "vLLM model id: " M < /dev/tty
     [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
     read -r -p "vLLM URL [http://host.docker.internal:8000]: " ENDPOINT < /dev/tty
     ENDPOINT=${ENDPOINT:-http://host.docker.internal:8000}
-    AI_BLOCK=$'AI_PROVIDER=vllm\n'"VLLM_BASE_URL=$(dotenv_quote "$ENDPOINT")"$'\n'"VLLM_MODEL=$(dotenv_quote "$M")"
+    AI_BLOCK=$'AI_PROVIDER=vllm\n'"VLLM_BASE_URL=$(dotenv_quote "$ENDPOINT")"
     ;;
   9)
     AI_BLOCK='# AI_PROVIDER unset: no-AI mode. Connect one later in Settings.'
@@ -193,6 +193,13 @@ esac
   echo "SESSION_SECRET=$(openssl rand -hex 32)"
   [ -z "$PUBLIC_BLOCK" ] || echo "$PUBLIC_BLOCK"
 } > .env
+
+# Seed the runtime AI config (Settings edits the same file). Model lives
+# here, not in env — data/ is the compose-mounted /data volume.
+if [ -n "${M:-}" ] && ! printf '%s' "$AI_BLOCK" | grep -q '^#'; then
+  mkdir -p data
+  printf '{\n  "model": %s\n}\n' "$(printf '%s' "$M" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" > data/agent-config.json
+fi
 
 echo
 echo "Wrote .env. Starting the stack…"

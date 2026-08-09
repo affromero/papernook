@@ -136,6 +136,7 @@ flowchart LR
       exercises["exercises.ts<br/>md → exercises.pdf"]
       shares["shares.ts<br/>revocable reading snapshots"]
       citations["citations/<br/>CSL · RIS · BibTeX · APA · Harvard · Vancouver"]
+      libctx["context/<br/>related papers + reference→library matching"]
     end
 
     subgraph ui["App (src/app + src/components)"]
@@ -172,6 +173,8 @@ flowchart LR
     shareview --> shares
     citeui --> citations --> papers
     citations --> index
+    chatpanel --> libctx --> index
+    pdfreader --> libctx
     expand --> pdffile --> papers
     pdfreader -->|"ETag + If-Match"| pdffile
     ipad --> pdfreader
@@ -248,9 +251,9 @@ run that CLI over SSH, provide an API key, or connect a local model server.
 | Codex over SSH         | `AI_PROVIDER=codex` + `CODEX_SSH_HOST=you@host`             | ✓       |
 | Anthropic API          | `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`               | ✗       |
 | OpenAI API             | `AI_PROVIDER=openai` + `OPENAI_API_KEY`                     | ✗       |
-| Ollama                 | `AI_PROVIDER=ollama` + `OLLAMA_MODEL=qwen3:4b`              | ✓       |
-| llama.cpp server       | `AI_PROVIDER=llamacpp` + `LLAMACPP_MODEL=<model-id>`        | ✓       |
-| vLLM server            | `AI_PROVIDER=vllm` + `VLLM_MODEL=<model-id>`                | ✓       |
+| Ollama                 | `AI_PROVIDER=ollama` + model in Settings                    | ✓       |
+| llama.cpp server       | `AI_PROVIDER=llamacpp` + model in Settings                  | ✓       |
+| vLLM server            | `AI_PROVIDER=vllm` + model in Settings                      | ✓       |
 
 Settings detects local endpoints and installed models. Docker reaches local
 servers through `host.docker.internal`; Papernook does not publish model ports.

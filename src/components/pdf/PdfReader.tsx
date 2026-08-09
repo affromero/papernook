@@ -38,6 +38,8 @@ interface PdfReaderProps {
   onEditStateChange?(state: PdfReaderEditState): void;
   /** Fired with the PDF's embedded Title metadata when it has one. */
   onDocumentTitle?(title: string): void;
+  /** Let reference previews query the library (signed-in surfaces only). */
+  libraryLookup?: boolean;
 }
 
 type EditMode = "select" | "highlight" | "text" | "draw";
@@ -76,6 +78,7 @@ export function PdfReader({
   onClose,
   onEditStateChange,
   onDocumentTitle,
+  libraryLookup = false,
 }: PdfReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -916,6 +919,7 @@ export function PdfReader({
           <ReferencePreview
             document={pdfDocument}
             preview={preview}
+            libraryLookup={libraryLookup}
             onClose={closePreview}
           />
         )}

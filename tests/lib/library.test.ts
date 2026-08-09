@@ -273,6 +273,31 @@ describe("index rebuild from disk", () => {
     expect(() => lib.searchIndex('att* AND "quo)tes" NEAR(')).not.toThrow();
   });
 
+  it("searchChunks finds the passage for a question and survives FTS syntax", async () => {
+    const lib = await placePaper("nlp", "attention", "Attention");
+    lib.writeText(
+      "nlp",
+      "attention",
+      `Introduction paragraph about sequence transduction.\n\n` +
+        `The ablation on zebrafish imaging shows optical clearing helps.\n\n` +
+        `Unrelated closing remarks about future work.`,
+    );
+    lib.rebuildIndex();
+    const { searchChunks, chunkText } = await import("@/lib/library/index-db");
+    const hits = searchChunks("attention", "zebrafish optical clearing?");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].body).toContain("zebrafish imaging");
+    expect(() =>
+      searchChunks("attention", 'zeb* AND "quo)tes" NEAR('),
+    ).not.toThrow();
+    // Offsets point back into the original text.
+    const chunks = chunkText("aa\n\nbb\n\ncc");
+    expect(chunks.map((c) => c.body)).toEqual(["aa\n\nbb\n\ncc"]);
+    const long = chunkText(`${"x".repeat(1500)}\n\n${"y".repeat(100)}`);
+    expect(long.length).toBeGreaterThan(1);
+    expect(long[1].start).toBeGreaterThan(0);
+  });
+
   it("shows inbox papers only when the inbox filter is selected", async () => {
     await placePaper("nlp", "confirmed", "Confirmed");
     const lib = await placePaper(null, "pending", "Pending");

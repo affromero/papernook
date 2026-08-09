@@ -39,6 +39,9 @@ interface AgentState {
   liveList: boolean;
   admin: boolean;
   available?: boolean;
+  publicExposure: boolean;
+  webAccess: boolean;
+  webCapable: boolean;
 }
 
 export function ModelPicker() {
@@ -98,6 +101,7 @@ export function ModelPicker() {
     provider?: string;
     model?: string | null;
     baseUrl?: string | null;
+    webAccess?: boolean;
   }): Promise<void> {
     const password = window.prompt(
       "Enter your profile password to authorize this system change.",
@@ -170,6 +174,34 @@ export function ModelPicker() {
           </button>
         ))}
       </div>
+      {state.publicExposure && state.provider === "codex" && (
+        <p className={styles.hint} role="note">
+          Heads up: codex runs with a read-only sandbox that can still read
+          library data if a malicious paper prompt-injects a turn. On a public
+          instance with several profiles, only keep it selected if you trust
+          every account holder.
+        </p>
+      )}
+      {state.webCapable && (
+        <>
+          <p className={styles.line}>Web access</p>
+          <div className={styles.controls}>
+            <button
+              type="button"
+              className={state.webAccess ? styles.chipActive : styles.chip}
+              disabled={busy}
+              aria-pressed={state.webAccess}
+              onClick={() => void save({ webAccess: !state.webAccess })}
+            >
+              {state.webAccess ? "On" : "Off"} — chats may search the web
+            </button>
+          </div>
+          <p className={styles.hint}>
+            With web access on, a malicious paper could steer a web request.
+            Answers gain live lookups; nothing on this server becomes readable.
+          </p>
+        </>
+      )}
       {state.endpointConfigurable && (
         <>
           <p className={styles.line}>

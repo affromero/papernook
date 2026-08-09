@@ -51,6 +51,37 @@ describe("chat context", () => {
     expect(system.length).toBeLessThan(60_000);
   });
 
+  it("retrieves passages past the head window for the current question", async () => {
+    const paper = await placePaper();
+    const papers = await import("@/lib/library/papers");
+    const filler = "Standard prose about attention mechanisms. ".repeat(40);
+    const buried =
+      "The zebrafish ablation study shows optical clearing improves recall.";
+    papers.writeText(
+      paper.topic,
+      paper.slug,
+      `${filler.repeat(30)}\n\n${buried}\n\n${filler.repeat(10)}`,
+    );
+    const { rebuildIndex } = await import("@/lib/library/index-db");
+    rebuildIndex();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+    const refreshed = papers.getPaper(paper.topic, paper.slug);
+    if (!refreshed) throw new Error("paper vanished");
+
+    const withQuery = await buildChatSystem(
+      refreshed,
+      undefined,
+      "what does the zebrafish ablation show?",
+    );
+    expect(withQuery).toContain("Relevant excerpts");
+    expect(withQuery).toContain("zebrafish ablation study");
+    expect(withQuery.length).toBeLessThan(60_000);
+
+    const withoutQuery = await buildChatSystem(refreshed);
+    expect(withoutQuery).not.toContain("zebrafish ablation study");
+    expect(withoutQuery).toContain("[...text truncated...]");
+  });
+
   it("flattens history into a resumable prompt", async () => {
     const { buildChatPrompt } = await import("@/lib/library/chat-context");
     const prompt = buildChatPrompt(
