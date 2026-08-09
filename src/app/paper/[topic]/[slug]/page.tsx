@@ -24,10 +24,11 @@ export default async function PaperPage({ params }: PaperPageProps) {
   const meta = paper.meta;
   return (
     <main className={styles.root}>
-      <PaperHeader topic={topic} slug={slug} meta={meta} view="reader" />
-
       <ReadingWorkspace
         mainLabel="Paper PDF"
+        header={
+          <PaperHeader topic={topic} slug={slug} meta={meta} view="reader" />
+        }
         main={
           <PdfReader
             src={`/api/v1/papers/${topic}/${slug}/pdf`}

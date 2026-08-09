@@ -169,6 +169,10 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(
       page.getByText("Why attention replaced recurrence"),
     ).not.toBeVisible();
+    // Focus reading hides the page header too — text only.
+    await expect(
+      page.getByRole("link", { name: "Canvas", exact: true }),
+    ).not.toBeVisible();
     await expect(page.getByRole("button", { name: "Show chat" })).toBeVisible();
     await expect(page).toHaveScreenshot(["product", "paper-focus.png"], {
       animations: "disabled",
@@ -188,6 +192,13 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(
       page.getByRole("button", { name: "Paper fullscreen", exact: true }),
     ).toHaveAttribute("aria-pressed", "false");
+
+    // Header and chat come back independently.
+    await page.getByRole("button", { name: "Show chat" }).click();
+    await page.getByRole("button", { name: "Show header" }).click();
+    await expect(
+      page.getByRole("link", { name: "Canvas", exact: true }),
+    ).toBeVisible();
 
     await page.goto(`${readerUrl}/canvas`);
     await expect(page).toHaveURL(`${readerUrl}/canvas`);

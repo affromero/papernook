@@ -42,9 +42,16 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
 
   return (
     <main className={styles.root}>
-      <PaperHeader topic={topic} slug={slug} meta={paper.meta} view="canvas" />
       <ReadingWorkspace
         mainLabel="Canvas"
+        header={
+          <PaperHeader
+            topic={topic}
+            slug={slug}
+            meta={paper.meta}
+            view="canvas"
+          />
+        }
         main={
           <CanvasClient
             topic={topic}
