@@ -19,7 +19,18 @@ export interface Preview {
 interface ReferencePreviewProps {
   document: PDFDocumentProxy;
   preview: Preview;
+  /**
+   * Look the cited entry up in the library (session-authed API) — only
+   * passed by signed-in surfaces, never the public share page.
+   */
+  libraryLookup?: boolean;
   onClose(): void;
+}
+
+interface LibraryMatch {
+  topic: string;
+  slug: string;
+  title: string;
 }
 
 /** Preview canvas CSS box; the crop is rendered to exactly this aspect. */
@@ -93,12 +104,22 @@ async function pageTextChunks(
 export function ReferencePreview({
   document,
   preview,
+  libraryLookup = false,
   onClose,
 }: ReferencePreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mappingRef = useRef<CropMapping | null>(null);
   const [status, setStatus] = useState("Loading reference…");
+  // Keyed by destination so a stale lookup never renders for a new target —
+  // no reset-in-effect needed.
+  const [libraryMatch, setLibraryMatch] = useState<{
+    key: string;
+    match: LibraryMatch | null;
+  } | null>(null);
   const { destination } = preview;
+  const destinationKey = `${destination.pageNumber}:${destination.left}:${destination.top}`;
+  const currentMatch =
+    libraryMatch?.key === destinationKey ? libraryMatch.match : null;
 
   // Safari kills window.open issued after an await (outside the click's
   // gesture), so open the tab synchronously and point it at the search once
@@ -247,6 +268,38 @@ export function ReferencePreview({
           pageWidth: base.width,
         };
         setStatus("");
+
+        // Eagerly resolve the cited entry against the library so the header
+        // can offer "In your library" (signed-in surfaces only).
+        const { left, top } = destination;
+        if (libraryLookup && left !== null && top !== null) {
+          void (async () => {
+            const chunks = await pageTextChunks(
+              document,
+              destination.pageNumber,
+            );
+            const reference = referenceTextAtPoint(
+              chunks,
+              { x: left + 15, y: top - 6 },
+              base.width,
+            );
+            if (!reference || disposed) return;
+            const response = await fetch(
+              `/api/v1/citations/match?q=${encodeURIComponent(reference)}`,
+              { credentials: "same-origin" },
+            );
+            if (!response.ok || disposed) return;
+            const data = (await response.json()) as {
+              match: LibraryMatch | null;
+            };
+            if (!disposed) {
+              setLibraryMatch({
+                key: `${destination.pageNumber}:${left}:${top}`,
+                match: data.match,
+              });
+            }
+          })().catch(() => undefined);
+        }
       } catch (error) {
         if (
           !disposed &&
@@ -262,7 +315,7 @@ export function ReferencePreview({
       disposed = true;
       renderTask?.cancel();
     };
-  }, [destination, document]);
+  }, [destination, document, libraryLookup]);
 
   return (
     <aside
@@ -278,6 +331,15 @@ export function ReferencePreview({
         <span className={styles.previewEyebrow}>
           Reference · page {destination.pageNumber}
         </span>
+        {currentMatch && (
+          <a
+            className={styles.previewLibrary}
+            href={`/paper/${currentMatch.topic}/${currentMatch.slug}`}
+            title={currentMatch.title}
+          >
+            In your library
+          </a>
+        )}
         <button
           className={styles.previewOpen}
           type="button"

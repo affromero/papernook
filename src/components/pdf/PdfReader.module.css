@@ -280,6 +280,18 @@
   text-transform: uppercase;
 }
 
+.previewLibrary {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #315f4c;
+  border-radius: 999px;
+  color: #315f4c;
+  background: rgba(49, 95, 76, 0.08);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .previewOpen {
   display: flex;
   align-items: center;

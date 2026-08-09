@@ -85,6 +85,7 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
         title={displayTitle}
         originalHref={src}
         onDocumentTitle={setDisplayTitle}
+        libraryLookup
       />
     </>
   );

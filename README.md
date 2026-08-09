@@ -136,6 +136,7 @@ flowchart LR
       exercises["exercises.ts<br/>md → exercises.pdf"]
       shares["shares.ts<br/>revocable reading snapshots"]
       citations["citations/<br/>CSL · RIS · BibTeX · APA · Harvard · Vancouver"]
+      libctx["context/<br/>related papers + reference→library matching"]
     end
 
     subgraph ui["App (src/app + src/components)"]
@@ -172,6 +173,8 @@ flowchart LR
     shareview --> shares
     citeui --> citations --> papers
     citations --> index
+    chatpanel --> libctx --> index
+    pdfreader --> libctx
     expand --> pdffile --> papers
     pdfreader -->|"ETag + If-Match"| pdffile
     ipad --> pdfreader

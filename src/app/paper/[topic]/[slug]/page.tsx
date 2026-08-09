@@ -33,6 +33,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
             src={`/api/v1/papers/${topic}/${slug}/pdf`}
             title={meta.title}
             editable
+            libraryLookup
           />
         }
         chat={
