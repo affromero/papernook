@@ -65,7 +65,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/cytoscape": "^3.31.0",
     "@types/node": "^26.1.2",
     "@types/react": "^19",
