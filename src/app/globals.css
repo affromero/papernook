@@ -42,6 +42,12 @@ body {
   margin: 0;
 }
 
+/* ponytail: drop once thesidedoor >0.1.0 ships its own ol indent — the
+   global padding reset clips the install-step list markers otherwise. */
+.sd-install-os ol {
+  padding-left: 1.25rem;
+}
+
 a {
   color: inherit;
   text-decoration: none;
