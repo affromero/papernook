@@ -71,6 +71,12 @@ cd papernook
 | **4. Practice**   | Turn an answer into a Pencil-ready exercise PDF, add margins, or append blank pages without shifting existing ink.       |
 | **5. Share**      | Send a revocable annotated reading. Conversation snapshots are explicit, immutable, and off by default.                  |
 
+Capture, end to end — the browser extension redirects an arXiv PDF into the
+reader, citations preview on hover, and two clicks file the paper into the
+library:
+
+![Browser extension capturing an arXiv PDF: redirect into the reader, hover reference preview, and filing into the library](docs/images/product/extension-demo.gif)
+
 ## Why Papernook
 
 A paper you actually work through ends up in three places at once: the tablet

@@ -5,7 +5,7 @@
 //   1280x800       build/screenshots/<name>.png
 //   2560x1600 @2x  build/screenshots/<name>@2x.png
 //
-//   node scripts/store-screenshots.mjs
+//   node scripts/store/screenshots.mjs
 //
 // The viewer shot proxies a real arXiv PDF (one polite fetch per run); the
 // library shots are the hermetic seed data. Captures are viewport-only, so no
@@ -15,7 +15,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = new URL("../..", import.meta.url).pathname;
 const OUT = join(ROOT, "build", "screenshots");
 const BASE = "http://127.0.0.1:3107";
 // Hyperref'd arXiv PDF (BERT) NOT captured in the seed library — a seeded
