@@ -11,7 +11,12 @@ configures plus the PDF pages they visit.
 - **Name:** papernook
 - **Category:** Education
 - **Price:** Free
-- **License:** repository license
+- **Copyright:** © 2026 Andrés Romero
+- **License:** MIT (see repository LICENSE)
+- **Privacy policy URL:** https://github.com/affromero/papernook/blob/main/PRIVACY.md
+- **App Privacy questionnaire:** answer "Data Not Collected" — see the data
+  collection facts below.
+- **Age rating:** 4+ (no objectionable content).
 - **Data collection:** None. No analytics, no telemetry, no accounts on any
   third-party server. The extension only redirects PDF navigations to the
   papernook server the user configures (their own self-hosted instance) and

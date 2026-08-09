@@ -90,5 +90,16 @@ document.getElementById("save").addEventListener("click", () => {
   }
   api.storage.sync
     .set({ baseUrl, autoIntercept: autoInput.checked })
-    .then(() => flash("Saved.", true));
+    .then(() => api.runtime.sendMessage("rebuild-rules"))
+    .then((result) => {
+      if (result && result.ok === false) {
+        flash(
+          "Saved, but Safari refused the redirect rules — turn off automatic opening and use the toolbar button.",
+          false,
+        );
+        return;
+      }
+      flash("Saved.", true);
+    })
+    .catch(() => flash("Saved.", true));
 });

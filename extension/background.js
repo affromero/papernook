@@ -88,11 +88,32 @@ async function rebuildRules() {
   });
 }
 
+// Serialize rebuilds: onChanged and the options page's explicit message can
+// otherwise race two remove+add cycles into a duplicate-rule-id error.
+let rebuildQueue = Promise.resolve();
+function queueRebuild() {
+  const run = rebuildQueue.catch(() => {}).then(rebuildRules);
+  rebuildQueue = run;
+  return run;
+}
+
 api.runtime.onInstalled.addListener(() => {
-  rebuildRules().catch(console.error);
+  queueRebuild().catch(console.error);
 });
 api.storage.onChanged.addListener(() => {
-  rebuildRules().catch(console.error);
+  queueRebuild().catch(console.error);
+});
+
+// The options page asks for a rebuild after Save so it can surface a rules
+// failure (e.g. a Safari DNR build rejecting regexSubstitution) instead of
+// flashing "Saved." while redirects silently never install.
+api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message !== "rebuild-rules") return undefined;
+  queueRebuild().then(
+    () => sendResponse({ ok: true }),
+    (error) => sendResponse({ ok: false, error: String(error) }),
+  );
+  return true;
 });
 
 api.action.onClicked.addListener((tab) => {
@@ -102,7 +123,21 @@ api.action.onClicked.addListener((tab) => {
       await api.runtime.openOptionsPage();
       return;
     }
-    if (!tab || !tab.url || !/^https?:/.test(tab.url)) return;
+    if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
+      // The button is the documented fallback path — never fail invisibly.
+      if (tab && tab.id !== undefined) {
+        await api.action.setBadgeText({ text: "!", tabId: tab.id });
+        await api.action.setTitle({
+          tabId: tab.id,
+          title:
+            "papernook can't read this page's address — reload the tab and try again",
+        });
+      }
+      return;
+    }
+    if (tab.id !== undefined) {
+      await api.action.setBadgeText({ text: "", tabId: tab.id });
+    }
     await api.tabs.create({ url: viewerUrl(baseUrl, tab.url) });
   })().catch(console.error);
 });

@@ -15,6 +15,7 @@
   "author": "Andres Romero <me@afromero.co>",
   "scripts": {
     "build": "next build && node scripts/prepare-runtime.mjs && node scripts/assert-standalone-safe.mjs",
+    "build:safari": "./scripts/build-safari.sh",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
     "dev": "next dev",
     "format:check": "prettier --check .",
