@@ -1,6 +1,5 @@
 /**
- * Preset profile avatars: cute animals from the Colombian tropics, shared with
- * Sotto. Each has an illustration at /avatars/{slug}.png shipped in
+ * Preset profile avatars: cute animals from the Colombian tropics. Each has an illustration at /avatars/{slug}.png shipped in
  * public/avatars. The profile picker, header menu, and settings grid all draw
  * from these via resolveProfileAvatar(). The emoji + hue remain an offline
  * fallback tile.

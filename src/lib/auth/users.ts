@@ -36,7 +36,7 @@ export interface Profile {
   username: string;
   displayName: string;
   avatarSlug: string;
-  /** First profile created on the instance is the admin (Sotto's owner). */
+  /** First profile created on the instance is the admin. */
   role?: "admin" | "member";
   /** Attributes /add captures (and their starter chats) to this profile. */
   captureToken: string;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # papernook installer: interactive .env setup + docker compose up.
-# Mirrors Sotto's install.sh pattern; the AI provider is chosen HERE,
+# The AI provider is chosen HERE,
 # never hardcoded in the app.
 
 set -euo pipefail

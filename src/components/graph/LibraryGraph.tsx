@@ -7,10 +7,9 @@ import fcose from "cytoscape-fcose";
 import styles from "./LibraryGraph.module.css";
 
 /**
- * The library as a force-directed graph (Cytoscape + fcose, the same stack
- * as Sotto's memory graph). Papers, authors, topics, and tags are nodes;
+ * The library as a force-directed graph (Cytoscape + fcose). Papers, authors, topics, and tags are nodes;
  * clicking a paper opens it. Cytoscape renders to canvas and is styled via
- * its JS stylesheet API (accepted CSS-Modules deviation, as in Sotto).
+ * its JS stylesheet API (accepted CSS-Modules deviation).
  */
 
 cytoscape.use(fcose);

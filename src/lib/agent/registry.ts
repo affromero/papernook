@@ -27,7 +27,7 @@ import {
 } from "./types";
 /**
  * Provider registry. The active provider is chosen at install/wizard time via
- * AI_PROVIDER (never hardcoded; Sotto's install.sh pattern):
+ * AI_PROVIDER (never hardcoded; chosen by install.sh or the wizard):
  *   anthropic | openai      API key in env
  *   claude-code | codex     local CLI (keyless), or over SSH via
  *                           CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST

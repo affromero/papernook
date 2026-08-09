@@ -9,10 +9,9 @@ import {
 } from "./types";
 
 /**
- * Codex CLI provider (`codex exec`), ported from Sotto's codex-client.ts and
- * decoupled from its registry. Keyless: uses the CLI's own auth, locally or
- * over SSH (CODEX_SSH_HOST). Prompt via stdin; images via `-i` locally, or
- * scp + path preamble over SSH (codex -i needs local files).
+ * Codex CLI provider (`codex exec`). Keyless: uses the CLI's own auth,
+ * locally or over SSH (CODEX_SSH_HOST). Prompt via stdin; images via `-i`
+ * locally, or scp + path preamble over SSH (codex -i needs local files).
  */
 
 function buildBase(): string[] {

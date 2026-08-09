@@ -1,6 +1,6 @@
 /**
- * Direct-or-SSH command construction for CLI-backed providers, ported from
- * Sotto's agent-invocation.ts. When an SSH host is configured the whole
+ * Direct-or-SSH command construction for CLI-backed providers.
+ * When an SSH host is configured the whole
  * argv is single-quoted and wrapped in `ssh -o BatchMode=yes -T <host> ...`.
  */
 

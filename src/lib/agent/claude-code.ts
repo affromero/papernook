@@ -10,8 +10,7 @@ import {
 } from "./types";
 
 /**
- * Claude Code CLI provider (`claude -p`), ported from Sotto's
- * claude-code-client.ts and decoupled from its registry/pricing stack.
+ * Claude Code CLI provider (`claude -p`).
  * Keyless: uses whatever auth the CLI has, locally or over SSH
  * (CLAUDE_CODE_SSH_HOST). Prompt is piped via stdin to avoid ARG_MAX.
  * Built-in tools, project settings, MCP servers, and persistence are disabled
