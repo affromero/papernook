@@ -72,6 +72,7 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
           disabled={busy}
           onClick={() => void addToLibrary()}
         >
+          {busy && <span className={styles.spinner} aria-hidden="true" />}
           {busy ? "Capturing…" : "+ Add to papernook"}
         </button>
       </header>
