@@ -1,22 +1,56 @@
 import { getPaper, readText, type Paper } from "./papers";
+import { searchChunks } from "./index-db";
 import { annotationsForPaper } from "../capture/zotero-service";
 
 /**
  * System context injected into every per-paper chat turn: summary + metadata
- * always, extracted text windowed so huge papers never blow the context.
+ * always. Papers that fit inside MAX_TEXT_CHARS are injected whole; longer
+ * papers get the head window plus passages retrieved for the current
+ * question, so the tail of a long paper stays reachable.
  */
 
 const MAX_TEXT_CHARS = 50_000;
+const HEAD_WINDOW_CHARS = 12_000;
+
+function textWindow(
+  paper: Paper,
+  text: string,
+  focusQuery: string | undefined,
+): string {
+  if (text.length <= MAX_TEXT_CHARS) return text;
+  const head = text.slice(0, HEAD_WINDOW_CHARS);
+  const retrieved = focusQuery
+    ? searchChunks(paper.slug, focusQuery)
+        // The head window already covers early passages.
+        .filter((chunk) => chunk.start >= HEAD_WINDOW_CHARS)
+        .sort((a, b) => a.start - b.start)
+    : [];
+  let assembled = `${head}\n[...text truncated...]`;
+  if (retrieved.length > 0) {
+    const excerpts: string[] = [];
+    let budget = MAX_TEXT_CHARS - assembled.length - 200;
+    for (const chunk of retrieved) {
+      if (chunk.body.length > budget) break;
+      excerpts.push(chunk.body);
+      budget -= chunk.body.length;
+    }
+    if (excerpts.length > 0) {
+      assembled +=
+        `\n\nRelevant excerpts (retrieved for this question):\n` +
+        excerpts.join("\n[…]\n");
+    }
+  }
+  return assembled;
+}
+
 export async function buildChatSystem(
   paper: Paper,
   username?: string,
+  focusQuery?: string,
 ): Promise<string> {
   const meta = paper.meta;
   const text = readText(paper.topic, paper.slug) ?? "";
-  const window =
-    text.length > MAX_TEXT_CHARS
-      ? `${text.slice(0, MAX_TEXT_CHARS)}\n[...text truncated...]`
-      : text;
+  const window = textWindow(paper, text, focusQuery);
   const annotations = username
     ? await annotationsForPaper(username, paper)
     : [];

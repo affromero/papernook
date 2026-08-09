@@ -162,7 +162,11 @@ export async function POST(request: NextRequest, { params }: Params) {
     at: new Date().toISOString(),
   });
 
-  const system = await buildChatSystem(paper, profile.username);
+  const system = await buildChatSystem(
+    paper,
+    profile.username,
+    body.data.content,
+  );
   const prompt = buildChatPrompt(chat.messages, body.data.content);
   const provider = getProvider();
   // capabilities is optional-chained so registry mocks without it stay valid.
