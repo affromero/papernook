@@ -8,7 +8,8 @@ configures plus the PDF pages they visit.
 
 ## Shared facts
 
-- **Name:** papernook
+- **Name:** Papernook for Safari ("Papernook" alone is taken on the App
+  Store; the binary and extension still display as "papernook")
 - **Category:** Education
 - **Price:** Free
 - **Copyright:** © 2026 Andrés Romero
