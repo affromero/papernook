@@ -39,6 +39,7 @@ interface AgentState {
   liveList: boolean;
   admin: boolean;
   available?: boolean;
+  publicExposure: boolean;
 }
 
 export function ModelPicker() {
@@ -170,6 +171,14 @@ export function ModelPicker() {
           </button>
         ))}
       </div>
+      {state.publicExposure && state.provider === "codex" && (
+        <p className={styles.hint} role="note">
+          Heads up: codex runs with a read-only sandbox that can still read
+          library data if a malicious paper prompt-injects a turn. On a public
+          instance with several profiles, only keep it selected if you trust
+          every account holder.
+        </p>
+      )}
       {state.endpointConfigurable && (
         <>
           <p className={styles.line}>

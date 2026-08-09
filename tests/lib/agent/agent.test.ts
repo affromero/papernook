@@ -106,28 +106,15 @@ describe("provider registry", () => {
     expect(getProvider().id).toBe("claude-code");
   });
 
-  it("refuses file-reading codex on public deployments by default", async () => {
-    vi.stubEnv("AI_PROVIDER", "codex");
+  it("allows CLI providers on public deployments — the admin's password-confirmed Settings choice is the consent", async () => {
     vi.stubEnv("PUBLIC_EXPOSURE", "true");
-    const { getProvider } = await import("@/lib/agent/registry");
-    expect(() => getProvider()).toThrow(/disabled for public exposure/);
-  });
-
-  it("allows codex publicly with the explicit opt-in flag", async () => {
     vi.stubEnv("AI_PROVIDER", "codex");
-    vi.stubEnv("PUBLIC_EXPOSURE", "true");
-    vi.stubEnv("PAPERNOOK_ALLOW_CLI_ON_PUBLIC", "true");
-    const { getProvider } = await import("@/lib/agent/registry");
-    expect(getProvider().id).toBe("codex");
-  });
-
-  it("allows toolless claude-code publicly without any flag", async () => {
-    // claude-code runs with --tools "" (no tools at all), so the codex
-    // file-read exfiltration risk does not apply to it.
+    let registry = await import("@/lib/agent/registry");
+    expect(registry.getProvider().id).toBe("codex");
+    vi.resetModules();
     vi.stubEnv("AI_PROVIDER", "claude-code");
-    vi.stubEnv("PUBLIC_EXPOSURE", "true");
-    const { getProvider } = await import("@/lib/agent/registry");
-    expect(getProvider().id).toBe("claude-code");
+    registry = await import("@/lib/agent/registry");
+    expect(registry.getProvider().id).toBe("claude-code");
   });
 
   it("throws a setup-pointing error when AI_PROVIDER is unset or invalid", async () => {
@@ -146,17 +133,6 @@ describe("provider registry", () => {
     expect(hasConfiguredProvider()).toBe(false);
     vi.stubEnv("AI_PROVIDER", "anthropic");
     expect(hasConfiguredProvider()).toBe(true);
-  });
-
-  it("hasConfiguredProvider stays true for a misconfigured CLI provider under public exposure", async () => {
-    // The misconfiguration must surface loudly via getProvider(), never
-    // silently degrade the app into no-AI mode.
-    vi.stubEnv("AI_PROVIDER", "codex");
-    vi.stubEnv("PUBLIC_EXPOSURE", "true");
-    const { hasConfiguredProvider, getProvider } =
-      await import("@/lib/agent/registry");
-    expect(hasConfiguredProvider()).toBe(true);
-    expect(() => getProvider()).toThrow(/disabled for public exposure/);
   });
 
   it("API providers report availability from env keys without spawning", async () => {

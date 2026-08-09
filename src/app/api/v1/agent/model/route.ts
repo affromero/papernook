@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
+import { isPublicExposure } from "@/lib/data-dir";
 import { isAdmin, verifyProfilePassword } from "@/lib/auth/users";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import {
@@ -69,6 +70,7 @@ async function snapshot(admin: boolean, probe: boolean) {
     liveList: offered.live,
     available: probe && provider ? statuses[provider] === "ready" : undefined,
     admin,
+    publicExposure: isPublicExposure(),
   };
 }
 

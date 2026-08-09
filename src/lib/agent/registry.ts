@@ -25,7 +25,6 @@ import {
   type AgentProvider,
   type ProviderId,
 } from "./types";
-import { isPublicExposure } from "../data-dir";
 /**
  * Provider registry. The active provider is chosen at install/wizard time via
  * AI_PROVIDER (never hardcoded; Sotto's install.sh pattern):
@@ -74,31 +73,8 @@ export function hasConfiguredProvider(): boolean {
   return Boolean(id && id in PROVIDERS);
 }
 
-/**
- * claude-code runs with every tool disabled (--tools "" in claude-code.ts),
- * so it is safe anywhere. codex's tightest sandbox is read-only — a
- * prompt-injected turn could still read /data (other profiles' chats) and
- * the mounted credential files — so on public deployments it needs the
- * explicit PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true opt-in.
- */
-function cliBlockedOnPublicExposure(id: ProviderId): boolean {
-  return (
-    isPublicExposure() &&
-    id === "codex" &&
-    process.env.PAPERNOOK_ALLOW_CLI_ON_PUBLIC !== "true"
-  );
-}
-
 export function getProvider(id?: ProviderId): AgentProvider {
   const selected = id ?? configuredProviderId();
-  if (cliBlockedOnPublicExposure(selected)) {
-    throw new Error(
-      "codex is disabled for public exposure: its read-only sandbox can " +
-        "still read library data and mounted credentials. Use claude-code " +
-        "or an API provider — or set PAPERNOOK_ALLOW_CLI_ON_PUBLIC=true " +
-        "to accept the risk on this deployment.",
-    );
-  }
   return PROVIDERS[selected];
 }
 
@@ -173,9 +149,6 @@ export type ProviderReadiness =
 export async function providerStatus(
   id: ProviderId,
 ): Promise<ProviderReadiness> {
-  if (cliBlockedOnPublicExposure(id)) {
-    return "unreachable";
-  }
   if (isLocalProvider(id)) {
     if (!(await localProviderResponds(id))) return "unreachable";
     return configuredModel(id) ? "ready" : "no_model";
