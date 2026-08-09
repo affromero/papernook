@@ -6,7 +6,7 @@ import { submitCapture } from "@/lib/capture/browser/submit";
 
 /**
  * Ask the agent for papers worth adding, grounded in the current library.
- * "Add to library" hands the suggested URL to the normal /add capture
+ * "Add to papernook" hands the suggested URL to the normal /add capture
  * pipeline (same as AddPaperBox), which downloads, analyzes, and files it —
  * and surfaces the error if the agent suggested a dead link.
  */
@@ -116,7 +116,7 @@ export function DiscoverClient({ captureToken, topics }: DiscoverClientProps) {
                   className={styles.addButton}
                   onClick={() => addToLibrary(s.url)}
                 >
-                  Add to library
+                  Add to papernook
                 </button>
               </div>
             </li>

@@ -9,7 +9,7 @@ import { CaptureError } from "@/lib/capture/download";
 export const dynamic = "force-dynamic";
 
 /**
- * Session-authed capture for the in-app /viewer "Add to library" button.
+ * Session-authed capture for the in-app /viewer "Add to papernook" button.
  * Same orchestration as the token-authed /add endpoint; the capture()
  * re-download keeps dedupe and inbox handling in one place (it also waits
  * out downloadPdf's per-host cooldown left by the viewer proxy fetch —

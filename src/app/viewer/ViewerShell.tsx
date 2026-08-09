@@ -72,7 +72,7 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
           disabled={busy}
           onClick={() => void addToLibrary()}
         >
-          {busy ? "Capturing…" : "+ Add to library"}
+          {busy ? "Capturing…" : "+ Add to papernook"}
         </button>
       </header>
       {error && (

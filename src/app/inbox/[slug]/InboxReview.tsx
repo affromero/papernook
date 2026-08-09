@@ -91,7 +91,7 @@ export function InboxReview({ slug, topics, proposedTopic }: InboxReviewProps) {
           disabled={busy !== null || topic.trim().length === 0}
           onClick={() => void accept()}
         >
-          {busy === "accept" ? "Filing…" : "Add to library"}
+          {busy === "accept" ? "Filing…" : "Add to papernook"}
         </button>
         <button
           type="button"
