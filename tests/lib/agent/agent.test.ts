@@ -217,10 +217,16 @@ describe("provider registry", () => {
   });
 
   it("probes local and custom OpenAI endpoints instead of requiring keys", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-probe-"));
+    vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
     vi.stubEnv("OLLAMA_HOST", "http://models.test:11434/v1/");
-    vi.stubEnv("OLLAMA_MODEL", "qwen3:4b");
     vi.stubEnv("OPENAI_BASE_URL", "http://gateway.test/v1");
     vi.stubEnv("OPENAI_API_KEY", "");
+    const cfg = await import("@/lib/agent/config");
+    cfg.setAgentModel("qwen3:4b");
     const urls: string[] = [];
     vi.stubGlobal(
       "fetch",
@@ -386,21 +392,20 @@ describe("claude-code argv (mocked spawn boundary)", () => {
 });
 
 describe("model configuration", () => {
-  it("file beats env beats default, and clearing falls back", async () => {
+  it("the config file is the only model source; clearing falls back to the provider default", async () => {
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-model-"));
     vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
+    // Per-provider *_MODEL env vars are intentionally gone.
     vi.stubEnv("CLAUDE_CODE_MODEL", "sonnet");
     const cfg = await import("@/lib/agent/config");
-    expect(cfg.configuredModel("claude-code")).toBe("sonnet"); // env
+    expect(cfg.configuredModel()).toBeUndefined(); // env is ignored
     cfg.setAgentModel("opus");
-    expect(cfg.configuredModel("claude-code")).toBe("opus"); // file wins
+    expect(cfg.configuredModel()).toBe("opus"); // file wins
     cfg.setAgentModel(null);
-    expect(cfg.configuredModel("claude-code")).toBe("sonnet"); // env again
-    vi.stubEnv("CLAUDE_CODE_MODEL", "");
-    expect(cfg.configuredModel("claude-code")).toBeUndefined(); // default
+    expect(cfg.configuredModel()).toBeUndefined(); // provider default
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
@@ -445,7 +450,7 @@ describe("model configuration", () => {
     });
     expect(cfg.configuredBaseUrl("ollama")).toBe("http://stored.test:11434");
     cfg.setAgentProvider("vllm");
-    expect(cfg.configuredModel("vllm")).toBeUndefined();
+    expect(cfg.configuredModel()).toBeUndefined();
     expect(cfg.storedBaseUrl("vllm")).toBeUndefined();
     vi.stubEnv("VLLM_BASE_URL", "");
     expect(cfg.configuredBaseUrl("vllm")).toBe("http://localhost:8000");
@@ -469,7 +474,7 @@ describe("provider override", () => {
     expect(cfg.webAccessEnabled()).toBe(true);
     cfg.setAgentProvider("codex");
     expect(configuredProviderId()).toBe("codex");
-    expect(cfg.configuredModel("codex")).toBeUndefined(); // model cleared
+    expect(cfg.configuredModel()).toBeUndefined(); // model cleared
     expect(cfg.webAccessEnabled()).toBe(false); // capability opt-in cleared
     cfg.setAgentProvider(null);
     expect(configuredProviderId()).toBe("claude-code"); // env again
@@ -491,8 +496,14 @@ describe("OpenAI-compatible local providers", () => {
   it("uses the selected local model, endpoint, JSON mode, and no API key", async () => {
     const clients: { apiKey?: string; baseURL?: string }[] = [];
     const requests: unknown[] = [];
-    vi.stubEnv("VLLM_MODEL", "Qwen/Qwen3-8B");
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-vllm-"));
+    vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
     vi.stubEnv("VLLM_BASE_URL", "http://gpu.test:8000");
+    const cfgModule = await import("@/lib/agent/config");
+    cfgModule.setAgentModel("Qwen/Qwen3-8B");
     vi.doMock("openai", () => ({
       default: class {
         chat = {

@@ -60,7 +60,7 @@ async function snapshot(admin: boolean, probe: boolean) {
   return {
     provider,
     statuses,
-    model: provider ? (configuredModel(provider) ?? null) : null,
+    model: provider ? (configuredModel() ?? null) : null,
     baseUrl: admin && provider ? (storedBaseUrl(provider) ?? null) : null,
     baseUrlPlaceholder:
       admin && provider ? (configuredBaseUrl(provider) ?? null) : null,

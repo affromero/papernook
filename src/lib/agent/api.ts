@@ -20,11 +20,11 @@ const ANTHROPIC_DEFAULT_MODEL = "claude-opus-4-8";
 const OPENAI_DEFAULT_MODEL = "gpt-5.5";
 
 function anthropicModel(): string {
-  return configuredModel("anthropic") || ANTHROPIC_DEFAULT_MODEL;
+  return configuredModel() || ANTHROPIC_DEFAULT_MODEL;
 }
 
 function openaiModel(): string {
-  return configuredModel("openai") || OPENAI_DEFAULT_MODEL;
+  return configuredModel() || OPENAI_DEFAULT_MODEL;
 }
 
 let anthropicClient: Anthropic | null = null;
@@ -152,8 +152,7 @@ function openaiMessages(
 }
 
 function compatibleModel(provider: "openai" | LocalProviderId): string {
-  const model =
-    provider === "openai" ? openaiModel() : configuredModel(provider);
+  const model = provider === "openai" ? openaiModel() : configuredModel();
   if (!model) {
     throw new Error(
       `${provider}: select a model in Settings before using this provider`,

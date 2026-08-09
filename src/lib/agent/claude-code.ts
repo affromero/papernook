@@ -100,7 +100,7 @@ async function buildArgs(
     "--tools",
     turn.allowWeb ? "WebSearch,WebFetch" : "",
   ];
-  const model = configuredModel("claude-code");
+  const model = configuredModel();
   if (model) args.push("--model", model);
   args.push("--output-format", streaming ? "stream-json" : "text");
   if (streaming) args.push("--verbose");

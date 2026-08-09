@@ -5,9 +5,8 @@ import type { ProviderId } from "./types";
 
 /**
  * Runtime agent configuration the admin edits from Settings, stored at
- * data/agent-config.json (filesystem truth). The model resolution order for
- * every provider is: this file → the provider's env var → the CLI/API
- * default. Suggestions are a convenience list, not a restriction; any model
+ * data/agent-config.json (filesystem truth) — the single source for model
+ * and capability choices; install.sh seeds it and Settings edits it. Suggestions are a convenience list, not a restriction; any model
  * string the provider accepts is valid.
  */
 
@@ -89,20 +88,13 @@ export function configuredProviderOverride(): ProviderId | undefined {
   return readAgentConfig().provider;
 }
 
-/** The model to use for a provider, or undefined for its own default. */
-export function configuredModel(provider: ProviderId): string | undefined {
-  const fromFile = readAgentConfig().model;
-  if (fromFile) return fromFile;
-  const envVar: Record<ProviderId, string> = {
-    "claude-code": "CLAUDE_CODE_MODEL",
-    codex: "CODEX_MODEL",
-    anthropic: "ANTHROPIC_MODEL",
-    openai: "OPENAI_MODEL",
-    ollama: "OLLAMA_MODEL",
-    llamacpp: "LLAMACPP_MODEL",
-    vllm: "VLLM_MODEL",
-  };
-  return process.env[envVar[provider]] || undefined;
+/**
+ * The model to use, or undefined for the provider's own default. Settings
+ * (agent-config.json) is the single source — install.sh seeds the same file,
+ * and there are no per-provider env fallbacks.
+ */
+export function configuredModel(): string | undefined {
+  return readAgentConfig().model || undefined;
 }
 
 const DEFAULT_BASE_URLS = {

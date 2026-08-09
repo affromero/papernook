@@ -12,7 +12,7 @@
 #   PAPERNOOK_PASSWORD             shared instance access password
 #   APP_HOST / WEBDAV_HOST         use 127.0.0.1 behind a public TLS proxy
 #   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST, ANTHROPIC_API_KEY, OPENAI_API_KEY
-#   OLLAMA_HOST / LLAMACPP_BASE_URL / VLLM_BASE_URL and matching *_MODEL
+#   OLLAMA_HOST / LLAMACPP_BASE_URL / VLLM_BASE_URL (models live in Settings)
 #   SESSION_SECRET                 pin sessions across container rebuilds
 
 services:

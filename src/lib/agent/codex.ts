@@ -26,7 +26,7 @@ function buildBase(): string[] {
     "read-only",
     "--skip-git-repo-check",
   ];
-  const model = configuredModel("codex");
+  const model = configuredModel();
   if (model) args.push("-m", model);
   return args;
 }

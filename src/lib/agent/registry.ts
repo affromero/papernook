@@ -151,7 +151,7 @@ export async function providerStatus(
 ): Promise<ProviderReadiness> {
   if (isLocalProvider(id)) {
     if (!(await localProviderResponds(id))) return "unreachable";
-    return configuredModel(id) ? "ready" : "no_model";
+    return configuredModel() ? "ready" : "no_model";
   }
   switch (id) {
     case "anthropic":
