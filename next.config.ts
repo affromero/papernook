@@ -47,6 +47,22 @@ const nextConfig: NextConfig = {
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
       },
+      {
+        // The chat ThreeSandbox iframe (sandbox="allow-scripts") has an
+        // opaque origin, and ES-module fetches are CORS-gated — vendored
+        // libs must answer with ACAO. SAMEORIGIN overrides the global
+        // DENY so the app may frame three-sandbox.html; /vendor/ is also
+        // excluded from the auth/CSP proxy (public library code only).
+        source: "/vendor/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
     ];
   },
   turbopack: { root: projectRoot },

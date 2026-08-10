@@ -51,6 +51,22 @@ describe("chat context", () => {
     expect(system.length).toBeLessThan(60_000);
   });
 
+  it("tells the model replies render as markdown with KaTeX math", async () => {
+    const paper = await placePaper();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+    const system = await buildChatSystem(paper);
+    expect(system).toContain("GitHub-flavored markdown");
+    expect(system).toContain("$$...$$");
+  });
+
+  it("documents the threejs fenced-block contract", async () => {
+    const paper = await placePaper();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+    const system = await buildChatSystem(paper);
+    expect(system).toContain('fenced code block tagged "threejs"');
+    expect(system).toContain("renderer.setAnimationLoop");
+  });
+
   it("retrieves passages past the head window for the current question", async () => {
     const paper = await placePaper();
     const papers = await import("@/lib/library/papers");
@@ -229,6 +245,25 @@ describe("exercises", () => {
     expect(out).toContain(
       path.join("papers", "nlp", "attention.exercises.pdf"),
     );
+  });
+
+  it("survives math unicode and drops fenced code blocks", async () => {
+    const paper = await placePaper();
+    const ex = await import("@/lib/library/exercises");
+    ex.saveExercise(
+      "nlp",
+      "attention",
+      "# Noise ε_μ\n\nGradient ∇g satisfies α → β, x ≥ 0.\n\n" +
+        "```threejs\nimport * as THREE from 'three';\n```\n\n- Prove $a^2$",
+    );
+    const out = await ex.renderExercisesPdf(
+      "nlp",
+      "attention",
+      paper.meta.title,
+    );
+    expect(out).toBeTruthy();
+    const bytes = fs.readFileSync(out as string);
+    expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
   });
 
   it("returns null when there is nothing to render", async () => {

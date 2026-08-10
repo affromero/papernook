@@ -63,10 +63,14 @@
   background: rgba(127, 127, 127, 0.1);
 }
 
-.userMsg p,
-.assistantMsg p {
+/* Assistant bubbles render markdown; only raw user text keeps pre-wrap. */
+.userMsg p {
   margin: 0;
   white-space: pre-wrap;
+}
+
+.assistantMsg > p {
+  margin: 0;
 }
 
 .msgImage {

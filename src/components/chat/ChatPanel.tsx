@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Markdown } from "./Markdown";
 import styles from "./ChatPanel.module.css";
 
 interface ChatHeader {
@@ -216,10 +217,17 @@ export function ChatPanel({
                 alt="attached crop"
               />
             ))}
-            <p>
-              {message.content ||
-                (busy && i === messages.length - 1 ? "…" : "")}
-            </p>
+            {message.role === "assistant" ? (
+              <Markdown
+                content={
+                  message.content ||
+                  (busy && i === messages.length - 1 ? "…" : "")
+                }
+                renderThree={!(busy && i === messages.length - 1)}
+              />
+            ) : (
+              <p>{message.content}</p>
+            )}
             {message.role === "assistant" && message.content && (
               <button
                 type="button"

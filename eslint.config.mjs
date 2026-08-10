@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Plain WebExtension JS (chrome/browser globals, no Next rules).
     "extension/**",
+    // Vendored third-party runtime for the chat ThreeSandbox iframe.
+    "public/vendor/**",
   ]),
 ]);
 
