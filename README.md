@@ -148,7 +148,7 @@ flowchart LR
     subgraph ui["App (src/app + src/components)"]
       picker["ProfilePicker"]
       libview["LibraryView"]
-      chatpanel["ChatPanel"]
+      chatpanel["ChatPanel<br/>markdown + KaTeX · ThreeSandbox iframe"]
       pdfreader["PdfReader<br/>pdf.js annotations + reference previews"]
       viewer["/viewer + ViewerShell<br/>external PDFs via /api/v1/viewer/pdf proxy"]
       wizard["WelcomeFlow"]

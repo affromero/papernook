@@ -59,6 +59,14 @@ describe("chat context", () => {
     expect(system).toContain("$$...$$");
   });
 
+  it("documents the threejs fenced-block contract", async () => {
+    const paper = await placePaper();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+    const system = await buildChatSystem(paper);
+    expect(system).toContain('fenced code block tagged "threejs"');
+    expect(system).toContain("renderer.setAnimationLoop");
+  });
+
   it("retrieves passages past the head window for the current question", async () => {
     const paper = await placePaper();
     const papers = await import("@/lib/library/papers");

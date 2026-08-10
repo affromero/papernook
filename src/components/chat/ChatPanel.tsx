@@ -223,6 +223,7 @@ export function ChatPanel({
                   message.content ||
                   (busy && i === messages.length - 1 ? "…" : "")
                 }
+                renderThree={!(busy && i === messages.length - 1)}
               />
             ) : (
               <p>{message.content}</p>

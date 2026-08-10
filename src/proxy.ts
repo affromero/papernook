@@ -64,7 +64,7 @@ function continueRequest(request: NextRequest, csp: string): NextResponse {
 
 export const config = {
   matcher: [
-    "/((?!_next/|avatars/|favicon\\.ico|icon\\.svg|apple-icon\\.png|logo\\.(?:svg|png)|manifest\\.webmanifest|sw\\.js).*)",
+    "/((?!_next/|avatars/|vendor/|favicon\\.ico|icon\\.svg|apple-icon\\.png|logo\\.(?:svg|png)|manifest\\.webmanifest|sw\\.js).*)",
   ],
 };
 

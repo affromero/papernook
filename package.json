@@ -19,7 +19,7 @@
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
     "dev": "next dev",
     "format:check": "prettier --check .",
-    "postinstall": "node scripts/patch-tldraw-font-manager.mjs && (cp node_modules/thesidedoor/src/pwa/sw.js public/sw.js || true)",
+    "postinstall": "node scripts/patch-tldraw-font-manager.mjs && (cp node_modules/thesidedoor/src/pwa/sw.js public/sw.js || true) && (node scripts/vendor-three.mjs || true)",
     "lint": "eslint",
     "screenshots": "playwright test --update-snapshots",
     "start": "next start",
@@ -65,6 +65,7 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "thesidedoor": "^0.1.0",
+    "three": "^0.185.1",
     "tldraw": "^5.2.5",
     "undici": "^8.9.0",
     "zod": "^4.4.3"
