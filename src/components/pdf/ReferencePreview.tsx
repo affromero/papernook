@@ -3,10 +3,8 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { PDFDocumentProxy, PageViewport, RenderTask } from "pdfjs-dist";
 import type { ResolvedPdfDestination } from "@/lib/pdf/destinations";
-import {
-  referenceTextAtPoint,
-  type PdfTextChunk,
-} from "@/lib/pdf/reference-text";
+import type { PdfTextChunk } from "@/lib/pdf/bibliography";
+import { referenceTextAtPoint } from "@/lib/pdf/reference-text";
 import { pdfTextItems } from "@/lib/pdf/text-items";
 import styles from "./PdfReader.module.css";
 

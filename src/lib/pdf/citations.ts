@@ -33,9 +33,12 @@ const PARTICLE =
   "(?:(?:della|delle|del|den|der|des|de|dos|du|da|di|van|von|ten|ter|le|la|el|al)\\s+)*";
 /**
  * One surname. The inner group re-joins hyphenated names that the text layer
- * split across a line break ("Parker-\nHolder" ⇒ "Parker- Holder").
+ * split across a line break ("Parker-\nHolder" ⇒ "Parker- Holder"). Exported
+ * as the one canonical surname pattern; bibliography.ts builds its
+ * entry-head detection from it.
  */
-const NAME = `${PARTICLE}\\p{Lu}[\\p{L}'’]*(?:-\\s*[\\p{L}'’]+)*`;
+export const NAME_PATTERN = `${PARTICLE}\\p{Lu}[\\p{L}'’]*(?:-\\s*[\\p{L}'’]+)*`;
+const NAME = NAME_PATTERN;
 /** "Smith", "Smith, Jones", "Smith and Jones", "Smith, Jones, & Brown". */
 const NAME_LIST = `${NAME}(?:,\\s*${NAME})*(?:,?\\s+(?:and|&)\\s+${NAME})?`;
 const ET_AL = "(?:\\s+et\\s+al\\.?)?";

@@ -41,3 +41,52 @@ describe("referenceTextAtPoint", () => {
     ).toBeNull();
   });
 });
+
+// An author-year bibliography without markers or hanging indent (AAAI
+// style): entries separated only by slightly larger vertical gaps.
+const AUTHOR_YEAR_CHUNKS = [
+  { str: "References", x: 140, y: 320 },
+  {
+    str: "Bansal, H.; and Grover, A. 2025. VideoPhy: Evaluating",
+    x: 54,
+    y: 300,
+  },
+  { str: "Physical Commonsense for Video Generation. In ICLR,", x: 54, y: 289 },
+  { str: "volume 2025, 102075–102121.", x: 54, y: 278 },
+  {
+    str: "Bian, Y.; and Xu, Q. 2025. VideoPainter: Video Inpainting",
+    x: 54,
+    y: 263,
+  },
+  { str: "and Editing with Plug-and-Play Context Control. In", x: 54, y: 252 },
+  { str: "SIGGRAPH Conference Papers.", x: 54, y: 241 },
+  { str: "Guan, H.; and Lau, R. W. 2022. Learning Semantic", x: 54, y: 226 },
+  {
+    str: "Associations for Mirror Detection. In CVPR, 5941–5950.",
+    x: 54,
+    y: 215,
+  },
+];
+
+describe("referenceTextAtPoint (author-year)", () => {
+  it("returns the clicked entry bounded by its neighbors", () => {
+    const text = referenceTextAtPoint(
+      AUTHOR_YEAR_CHUNKS,
+      { x: 200, y: 252 },
+      PAGE_WIDTH,
+    );
+    expect(text).toBe(
+      "Bian, Y.; and Xu, Q. 2025. VideoPainter: Video Inpainting and Editing with Plug-and-Play Context Control. In SIGGRAPH Conference Papers.",
+    );
+  });
+
+  it("does not bleed the previous or next entry into the result", () => {
+    const text = referenceTextAtPoint(
+      AUTHOR_YEAR_CHUNKS,
+      { x: 200, y: 300 },
+      PAGE_WIDTH,
+    );
+    expect(text).toContain("VideoPhy");
+    expect(text).not.toContain("VideoPainter");
+  });
+});
