@@ -107,6 +107,7 @@ export function PdfReader({
   > | null>(null);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
+  const restoreViewRef = useRef<{ page: number; scale: number } | null>(null);
   const onEditStateChangeRef = useRef(onEditStateChange);
   const onDocumentTitleRef = useRef(onDocumentTitle);
   const previewRef = useRef<Preview | null>(null);
@@ -126,6 +127,7 @@ export function PdfReader({
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
   const [remoteUpdate, setRemoteUpdate] = useState(false);
+  const [documentGeneration, setDocumentGeneration] = useState(0);
   const [pencilMode, setPencilMode] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -214,7 +216,17 @@ export function PdfReader({
         setViewerBus(eventBus);
 
         const onPagesInit = () => {
-          pdfViewer.currentScaleValue = "page-width";
+          const restore = restoreViewRef.current;
+          restoreViewRef.current = null;
+          if (restore) {
+            pdfViewer.currentScale = restore.scale;
+            pdfViewer.currentPageNumber = Math.min(
+              restore.page,
+              pdfViewer.pagesCount,
+            );
+          } else {
+            pdfViewer.currentScaleValue = "page-width";
+          }
           setStatus("");
         };
         const onPageChanging = (event: unknown) => {
@@ -429,7 +441,7 @@ export function PdfReader({
       setEditorReady(false);
       void loadingTask?.destroy();
     };
-  }, [editable, src]);
+  }, [editable, src, documentGeneration]);
 
   useSaveOnLeave(editable, dirtyRef, autosaveRef);
 
@@ -466,11 +478,19 @@ export function PdfReader({
         if (savingRef.current || dirtyRef.current) return;
         const current = response.headers.get("etag");
         if (current && current !== baseline && etagRef.current === baseline) {
-          autosaveRef.current?.pause();
-          setRemoteUpdate(true);
-          setSaveStatus(
-            "This PDF changed elsewhere. Reload to see the latest version.",
-          );
+          // Nothing unsaved here, so another session's annotations can be
+          // picked up silently: remount the document at the same page and
+          // zoom instead of interrupting with a reload banner.
+          const viewer = pdfViewerRef.current;
+          if (viewer) {
+            restoreViewRef.current = {
+              page: viewer.currentPageNumber,
+              scale: viewer.currentScale,
+            };
+          }
+          setEditMode("select");
+          setSaveStatus("Updated with annotations saved in another session.");
+          setDocumentGeneration((generation) => generation + 1);
         }
       } catch {
         // Connectivity errors are transient; the next poll checks again.
