@@ -81,3 +81,26 @@
   overflow-y: hidden;
   padding: 0.2em 0;
 }
+
+.root button[data-paper-ref],
+.root button[data-citation] {
+  display: inline;
+  padding: 0 0.1em;
+  margin: 0;
+  border: 0;
+  background: rgba(127, 127, 127, 0.12);
+  border-radius: 4px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+}
+
+.root button[data-paper-ref]:hover,
+.root button[data-citation]:hover,
+.root button[data-paper-ref]:focus-visible,
+.root button[data-citation]:focus-visible {
+  background: rgba(127, 127, 127, 0.28);
+  text-decoration-style: solid;
+}

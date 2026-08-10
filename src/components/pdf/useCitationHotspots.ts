@@ -50,6 +50,9 @@ interface UseCitationHotspotsOptions {
    * highlight/ink strokes. */
   enabled: boolean;
   onCitation(target: CitationTarget): void;
+  /** Fired once per document when the bibliography scan lands, so the
+   * owner can resolve chat-originated citations against it. */
+  onBibliography?(bibliography: Bibliography): void;
 }
 
 /** Only the trailing pages can hold a bibliography worth scanning. */
@@ -110,14 +113,17 @@ export function useCitationHotspots({
   eventBus,
   enabled,
   onCitation,
+  onBibliography,
 }: UseCitationHotspotsOptions): void {
   const onCitationRef = useRef(onCitation);
+  const onBibliographyRef = useRef(onBibliography);
   const enabledRef = useRef(enabled);
   const overlaysRef = useRef(new Set<HTMLElement>());
 
   useEffect(() => {
     onCitationRef.current = onCitation;
-  }, [onCitation]);
+    onBibliographyRef.current = onBibliography;
+  }, [onCitation, onBibliography]);
 
   useEffect(() => {
     enabledRef.current = enabled;
@@ -292,6 +298,7 @@ export function useCitationHotspots({
       .then((scanned) => {
         if (disposed || !scanned) return;
         bibliography = scanned;
+        onBibliographyRef.current?.(scanned);
         const layers = [...pendingLayers];
         pendingLayers.clear();
         for (const [pageNumber, layer] of layers) {

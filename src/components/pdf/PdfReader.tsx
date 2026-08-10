@@ -25,10 +25,14 @@ import {
 import "pdfjs-dist/web/pdf_viewer.css";
 import styles from "./PdfReader.module.css";
 import { ReferencePreview, type Preview } from "./ReferencePreview";
+import { BIBLIOGRAPHY_EVENT } from "@/lib/chat/paper-ref-events";
+import type { Bibliography } from "@/lib/pdf/bibliography";
 import {
   useCitationHotspots,
   type ViewerEventBus,
 } from "./useCitationHotspots";
+import { usePaperRefBridge } from "./usePaperRefBridge";
+import { usePinchZoom } from "./usePinchZoom";
 
 export interface PdfReaderEditState {
   dirty: boolean;
@@ -96,7 +100,6 @@ export function PdfReader({
   const editorTypesRef = useRef<EditorTypes | null>(null);
   const autosaveRef = useRef<PdfAutosaveCoordinator | null>(null);
   const pendingPenRef = useRef(false);
-  const pinchDistanceRef = useRef<number | null>(null);
   const referenceAnchorRef = useRef<Pick<
     Preview,
     "horizontal" | "vertical"
@@ -106,6 +109,7 @@ export function PdfReader({
   const onEditStateChangeRef = useRef(onEditStateChange);
   const onDocumentTitleRef = useRef(onDocumentTitle);
   const previewRef = useRef<Preview | null>(null);
+  const bibliographyRef = useRef<Bibliography | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const hoverLinkRef = useRef<HTMLAnchorElement | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -384,6 +388,7 @@ export function PdfReader({
       setViewerBus(null);
       pdfViewerRef.current = null;
       documentRef.current = null;
+      bibliographyRef.current = null;
       etagRef.current = null;
       editorTypesRef.current = null;
       autosaveRef.current?.stop();
@@ -392,7 +397,6 @@ export function PdfReader({
       savingRef.current = false;
       onEditStateChangeRef.current?.({ dirty: false, saving: false });
       pendingPenRef.current = false;
-      pinchDistanceRef.current = null;
       setEditorReady(false);
       void loadingTask?.destroy();
     };
@@ -458,67 +462,7 @@ export function PdfReader({
       document.removeEventListener("click", saveBeforeClientNavigation, true);
   }, [editable]);
 
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage || !pencilMode) return;
-    const reserveTouch = (event: TouchEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    const touchDistance = (event: TouchEvent): number | null => {
-      if (event.touches.length !== 2) return null;
-      const first = event.touches[0];
-      const second = event.touches[1];
-      if (!first || !second) return null;
-      return Math.hypot(
-        second.clientX - first.clientX,
-        second.clientY - first.clientY,
-      );
-    };
-    const beginGesture = (event: TouchEvent) => {
-      reserveTouch(event);
-      pinchDistanceRef.current = touchDistance(event);
-    };
-    const updateGesture = (event: TouchEvent) => {
-      reserveTouch(event);
-      const nextDistance = touchDistance(event);
-      const previousDistance = pinchDistanceRef.current;
-      if (!nextDistance || !previousDistance) {
-        pinchDistanceRef.current = nextDistance;
-        return;
-      }
-      const first = event.touches[0];
-      const second = event.touches[1];
-      if (!first || !second) return;
-      pdfViewerRef.current?.updateScale({
-        drawingDelay: 180,
-        scaleFactor: nextDistance / previousDistance,
-        origin: [
-          (first.clientX + second.clientX) / 2,
-          (first.clientY + second.clientY) / 2,
-        ],
-      });
-      pinchDistanceRef.current = nextDistance;
-    };
-    const endGesture = (event: TouchEvent) => {
-      reserveTouch(event);
-      if (event.touches.length < 2) pinchDistanceRef.current = null;
-    };
-    const options: AddEventListenerOptions = {
-      capture: true,
-      passive: false,
-    };
-    stage.addEventListener("touchstart", beginGesture, options);
-    stage.addEventListener("touchmove", updateGesture, options);
-    stage.addEventListener("touchend", endGesture, options);
-    stage.addEventListener("touchcancel", endGesture, options);
-    return () => {
-      stage.removeEventListener("touchstart", beginGesture, options);
-      stage.removeEventListener("touchmove", updateGesture, options);
-      stage.removeEventListener("touchend", endGesture, options);
-      stage.removeEventListener("touchcancel", endGesture, options);
-    };
-  }, [pencilMode]);
+  usePinchZoom(stageRef, pdfViewerRef, pencilMode);
 
   useEffect(() => {
     if (!editable || !pdfDocument) return;
@@ -752,6 +696,42 @@ export function PdfReader({
     enabled: !editable || editMode === "select",
     onCitation: (target) =>
       showReferencePreview(target.destination, target.entryText, target),
+    onBibliography: (bibliography) => {
+      bibliographyRef.current = bibliography;
+      // ChatPanel gates its citation decorations on this.
+      window.dispatchEvent(
+        new CustomEvent(BIBLIOGRAPHY_EVENT, { detail: bibliography }),
+      );
+    },
+  });
+
+  usePaperRefBridge({
+    pdfDocument,
+    enabled: !editable || editMode === "select",
+    bibliography: () => bibliographyRef.current,
+    onNavigate: (target) => {
+      closePreview();
+      pdfViewerRef.current?.scrollPageIntoView({
+        pageNumber: target.pageNumber,
+        ...(target.kind === "XYZ"
+          ? {
+              // Zoom stays null: keep the reader's scale, matching the
+              // link service's ignoreDestinationZoom.
+              destArray: [null, { name: "XYZ" }, target.left, target.top, null],
+            }
+          : {}),
+      });
+    },
+    onPreview: (target, entryText) => {
+      // Chat events carry no useful pointer position; anchor to the PDF's
+      // chat-adjacent corner instead of a stale in-pane one.
+      const stage = stageRef.current?.getBoundingClientRect();
+      showReferencePreview(
+        target,
+        entryText,
+        stage ? { clientX: stage.right, clientY: stage.bottom } : null,
+      );
+    },
   });
 
   useEffect(() => {
