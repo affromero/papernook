@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  BIBLIOGRAPHY_EVENT,
+  PAPER_REF_EVENT,
+  detailFromDataset,
+  type PaperRefAction,
+} from "@/lib/chat/paper-ref-events";
+import type { Bibliography } from "@/lib/pdf/bibliography";
 import { Markdown } from "./Markdown";
 import styles from "./ChatPanel.module.css";
 
@@ -39,7 +46,9 @@ export function ChatPanel({
   const [pastedImages, setPastedImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bibliography, setBibliography] = useState<Bibliography | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const refHoverTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     void fetch(`${base}/chats`, { credentials: "include" })
@@ -67,6 +76,66 @@ export function ChatPanel({
     window.addEventListener("papernook:attach", onAttach);
     return () => window.removeEventListener("papernook:attach", onAttach);
   }, [visionAvailable]);
+
+  // PdfReader publishes the scanned bibliography once per document; with it
+  // in hand, Markdown decorates resolvable citations as interactive.
+  useEffect(() => {
+    const onBibliography = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (
+        detail &&
+        typeof detail === "object" &&
+        "style" in detail &&
+        "entries" in detail &&
+        Array.isArray((detail as { entries: unknown }).entries)
+      ) {
+        setBibliography(detail as Bibliography);
+      }
+    };
+    window.addEventListener(BIBLIOGRAPHY_EVENT, onBibliography);
+    return () => {
+      window.removeEventListener(BIBLIOGRAPHY_EVENT, onBibliography);
+      clearRefHover();
+    };
+  }, []);
+
+  function clearRefHover(): void {
+    if (refHoverTimerRef.current !== null) {
+      window.clearTimeout(refHoverTimerRef.current);
+      refHoverTimerRef.current = null;
+    }
+  }
+
+  function dispatchRef(target: EventTarget | null, action: PaperRefAction) {
+    const button =
+      target instanceof Element
+        ? target.closest<HTMLButtonElement>(
+            "button[data-paper-ref], button[data-citation]",
+          )
+        : null;
+    if (!button) return false;
+    const detail = detailFromDataset(button.dataset, action);
+    if (!detail) return false;
+    window.dispatchEvent(new CustomEvent(PAPER_REF_EVENT, { detail }));
+    return true;
+  }
+
+  // Same interaction grammar as the PDF's own citation hotspots: mouse
+  // dwell (180ms) previews, click commits — navigation for in-paper refs,
+  // preview for citations (their click IS the preview, matching the PDF).
+  function onRefHover(event: PointerEvent<HTMLDivElement>): void {
+    if (event.pointerType !== "mouse") return;
+    const target = event.target;
+    clearRefHover();
+    refHoverTimerRef.current = window.setTimeout(() => {
+      dispatchRef(target, "preview");
+    }, 180);
+  }
+
+  function onRefClick(event: React.MouseEvent<HTMLDivElement>): void {
+    clearRefHover();
+    dispatchRef(event.target, "goto");
+  }
 
   async function openChat(id: string): Promise<void> {
     setActiveId(id);
@@ -200,7 +269,13 @@ export function ChatPanel({
         </button>
       </header>
 
-      <div className={styles.messages} ref={scrollRef}>
+      <div
+        className={styles.messages}
+        ref={scrollRef}
+        onClick={onRefClick}
+        onPointerOver={onRefHover}
+        onPointerOut={clearRefHover}
+      >
         {messages.map((message, i) => (
           <div
             key={i}
@@ -224,6 +299,8 @@ export function ChatPanel({
                   (busy && i === messages.length - 1 ? "…" : "")
                 }
                 renderThree={!(busy && i === messages.length - 1)}
+                decorateRefs={!(busy && i === messages.length - 1)}
+                bibliography={bibliography}
               />
             ) : (
               <p>{message.content}</p>
