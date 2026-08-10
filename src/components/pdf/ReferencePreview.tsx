@@ -3,15 +3,16 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { PDFDocumentProxy, PageViewport, RenderTask } from "pdfjs-dist";
 import type { ResolvedPdfDestination } from "@/lib/pdf/destinations";
-import {
-  referenceTextAtPoint,
-  type PdfTextChunk,
-} from "@/lib/pdf/reference-text";
-import { pdfTextItems } from "@/lib/pdf/text-items";
+import type { PdfTextChunk } from "@/lib/pdf/bibliography";
+import { referenceTextAtPoint } from "@/lib/pdf/reference-text";
+import { pdfTextChunks, pdfTextItems } from "@/lib/pdf/text-items";
 import styles from "./PdfReader.module.css";
 
 export interface Preview {
   destination: ResolvedPdfDestination;
+  /** Known entry text (text-recognized citations); link-annotation
+   * citations derive it from the destination point instead. */
+  entryText?: string;
   horizontal: "left" | "right";
   vertical: "top" | "bottom";
 }
@@ -53,25 +54,21 @@ const pageTextCache = new WeakMap<
   PDFDocumentProxy,
   Map<number, PdfTextChunk[]>
 >();
+/**
+ * Resolved library matches per reference text: hotspot papers surface many
+ * previews per session and the match API is rate-limited (120 per 10 min),
+ * so never ask twice for the same entry.
+ */
+const libraryMatchCache = new WeakMap<
+  PDFDocumentProxy,
+  Map<string, LibraryMatch | null>
+>();
 
 interface CropMapping {
   viewport: PageViewport;
   sourceX: number;
   sourceY: number;
   pageWidth: number;
-}
-
-function isRawTextItem(
-  item: unknown,
-): item is { str: string; transform: number[] } {
-  return (
-    typeof item === "object" &&
-    item !== null &&
-    "str" in item &&
-    typeof (item as { str: unknown }).str === "string" &&
-    "transform" in item &&
-    Array.isArray((item as { transform: unknown }).transform)
-  );
 }
 
 async function pageTextChunks(
@@ -86,17 +83,7 @@ async function pageTextChunks(
   const cached = cache.get(pageNumber);
   if (cached) return cached;
   const page = await document.getPage(pageNumber);
-  const items = await pdfTextItems(page);
-  const chunks: PdfTextChunk[] = [];
-  for (const item of items) {
-    if (isRawTextItem(item)) {
-      chunks.push({
-        str: item.str,
-        x: item.transform[4],
-        y: item.transform[5],
-      });
-    }
-  }
+  const chunks = pdfTextChunks(await pdfTextItems(page));
   cache.set(pageNumber, chunks);
   return chunks;
 }
@@ -145,6 +132,11 @@ export function ReferencePreview({
   // The citation's GoTo destination points at the entry's marker, so the
   // header button searches exactly the referenced entry's full text.
   function searchTargetReference(): void {
+    const entryText = preview.entryText;
+    if (entryText) {
+      searchViaPopup(async () => entryText.slice(0, 300));
+      return;
+    }
     const mapping = mappingRef.current;
     const { left, top } = destination;
     if (!mapping || left === null || top === null) return;
@@ -272,30 +264,41 @@ export function ReferencePreview({
         // Eagerly resolve the cited entry against the library so the header
         // can offer "In your library" (signed-in surfaces only).
         const { left, top } = destination;
-        if (libraryLookup && left !== null && top !== null) {
+        const entryText = preview.entryText;
+        if (libraryLookup && (entryText || (left !== null && top !== null))) {
           void (async () => {
-            const chunks = await pageTextChunks(
-              document,
-              destination.pageNumber,
-            );
-            const reference = referenceTextAtPoint(
-              chunks,
-              { x: left + 15, y: top - 6 },
-              base.width,
-            );
-            if (!reference || disposed) return;
-            const response = await fetch(
-              `/api/v1/citations/match?q=${encodeURIComponent(reference)}`,
-              { credentials: "same-origin" },
-            );
-            if (!response.ok || disposed) return;
-            const data = (await response.json()) as {
-              match: LibraryMatch | null;
-            };
+            const reference =
+              entryText ??
+              referenceTextAtPoint(
+                await pageTextChunks(document, destination.pageNumber),
+                { x: (left ?? 0) + 15, y: (top ?? 0) - 6 },
+                base.width,
+              );
+            // The match API requires 12-400 chars.
+            if (!reference || reference.length < 12 || disposed) return;
+            const query = reference.slice(0, 400);
+            let cache = libraryMatchCache.get(document);
+            if (!cache) {
+              cache = new Map();
+              libraryMatchCache.set(document, cache);
+            }
+            let match = cache.get(query);
+            if (match === undefined) {
+              const response = await fetch(
+                `/api/v1/citations/match?q=${encodeURIComponent(query)}`,
+                { credentials: "same-origin" },
+              );
+              if (!response.ok || disposed) return;
+              const data = (await response.json()) as {
+                match: LibraryMatch | null;
+              };
+              match = data.match;
+              cache.set(query, match);
+            }
             if (!disposed) {
               setLibraryMatch({
                 key: `${destination.pageNumber}:${left}:${top}`,
-                match: data.match,
+                match,
               });
             }
           })().catch(() => undefined);
@@ -315,7 +318,7 @@ export function ReferencePreview({
       disposed = true;
       renderTask?.cancel();
     };
-  }, [destination, document, libraryLookup]);
+  }, [destination, document, libraryLookup, preview.entryText]);
 
   return (
     <aside

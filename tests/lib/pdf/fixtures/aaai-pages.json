@@ -1,0 +1,2033 @@
+[
+  {
+    "pageNumber": 1,
+    "pageWidth": 612,
+    "chunks": [
+      {
+        "str": "MirrorWorld: Taming Video Diffusion Models for Mirror Reflection Generation",
+        "x": 60.68,
+        "y": 683.12,
+        "width": 490.64
+      },
+      { "str": "", "x": 138.28, "y": 653.32, "width": 0 },
+      { "str": "Youjun Zhao", "x": 138.28, "y": 653.32, "width": 66.96 },
+      { "str": "1", "x": 205.24, "y": 657.66, "width": 3.99 },
+      { "str": ", Alex Warren", "x": 209.72, "y": 653.32, "width": 71.52 },
+      { "str": "2", "x": 281.24, "y": 657.66, "width": 3.99 },
+      { "str": ", Gary K.L. Tam", "x": 285.72, "y": 653.32, "width": 84.91 },
+      { "str": "2", "x": 370.62, "y": 657.66, "width": 3.99 },
+      { "str": ", Rynson W.H. Lau", "x": 375.11, "y": 653.32, "width": 97.12 },
+      { "str": "1", "x": 472.23, "y": 657.66, "width": 3.99 },
+      { "str": "", "x": 197.37, "y": 639.66, "width": 0 },
+      { "str": "1", "x": 197.37, "y": 639.66, "width": 3.49 },
+      { "str": " ", "x": 200.85, "y": 639.66, "width": 2.99 },
+      {
+        "str": "City University of Hong Kong,",
+        "x": 203.84,
+        "y": 636.05,
+        "width": 123.31
+      },
+      { "str": " ", "x": 327.15, "y": 636.05, "width": 2.49 },
+      { "str": "2", "x": 329.64, "y": 639.66, "width": 3.49 },
+      { "str": " ", "x": 333.13, "y": 639.66, "width": 2.99 },
+      { "str": "Swansea University", "x": 336.12, "y": 636.05, "width": 78.52 },
+      { "str": "", "x": 168.55, "y": 622.25, "width": 0 },
+      {
+        "str": "https://youjunzhao.github.io/MirrorWorld/",
+        "x": 168.55,
+        "y": 622.25,
+        "width": 268.36
+      },
+      { "str": "", "x": 154.81, "y": 566.04, "width": 0 },
+      { "str": "Abstract", "x": 154.81, "y": 566.04, "width": 36.87 },
+      { "str": "", "x": 63.96, "y": 547.26, "width": 0 },
+      {
+        "str": "Recent advances in video diffusion models (VDMs) have en-",
+        "x": 63.96,
+        "y": 547.26,
+        "width": 218.57
+      },
+      {
+        "str": "abled high-fidelity video synthesis. However, generating mir-",
+        "x": 63.96,
+        "y": 537.29,
+        "width": 218.57
+      },
+      {
+        "str": "ror reflections remains challenging because the content within",
+        "x": 63.96,
+        "y": 527.33,
+        "width": 218.57
+      },
+      {
+        "str": "a mirror must remain consistent with the surrounding scene.",
+        "x": 63.96,
+        "y": 517.37,
+        "width": 218.57
+      },
+      {
+        "str": "Existing VDMs are not specifically designed to model scene-",
+        "x": 63.96,
+        "y": 507.4,
+        "width": 218.57
+      },
+      {
+        "str": "to-mirror relationships, which can lead to reflections with",
+        "x": 63.96,
+        "y": 497.44,
+        "width": 218.57
+      },
+      {
+        "str": "incorrect content or inconsistent spatial arrangements. We ob-",
+        "x": 63.96,
+        "y": 487.48,
+        "width": 218.57
+      },
+      {
+        "str": "serve that mirror reflection generation involves two comple-",
+        "x": 63.96,
+        "y": 477.52,
+        "width": 218.57
+      },
+      {
+        "str": "mentary challenges: determining what scene content should",
+        "x": 63.96,
+        "y": 467.55,
+        "width": 218.57
+      },
+      {
+        "str": "be reflected and how the reflected content should be spatially",
+        "x": 63.96,
+        "y": 457.59,
+        "width": 218.57
+      },
+      {
+        "str": "arranged within the mirror region. Motivated by this obser-",
+        "x": 63.96,
+        "y": 447.63,
+        "width": 218.57
+      },
+      { "str": "vation, we propose", "x": 63.96, "y": 437.67, "width": 69.76 },
+      { "str": " ", "x": 133.72, "y": 437.67, "width": 3.38 },
+      { "str": "MirrorWorld", "x": 137.1, "y": 437.67, "width": 51.4 },
+      {
+        "str": ", a reflection-aware video",
+        "x": 188.5,
+        "y": 437.67,
+        "width": 94.04
+      },
+      {
+        "str": "inpainting framework that models scene-to-mirror relation-",
+        "x": 63.96,
+        "y": 427.7,
+        "width": 218.57
+      },
+      {
+        "str": "ships during generation. Specifically, we introduce",
+        "x": 63.96,
+        "y": 417.74,
+        "width": 180.96
+      },
+      { "str": " ", "x": 244.92, "y": 417.74, "width": 2.25 },
+      { "str": "Semantic", "x": 247.17, "y": 417.74, "width": 35.36 },
+      {
+        "str": "Relation Distillation (SRD)",
+        "x": 63.96,
+        "y": 407.78,
+        "width": 105.69
+      },
+      {
+        "str": ", which transfers relational in-",
+        "x": 169.65,
+        "y": 407.78,
+        "width": 112.89
+      },
+      {
+        "str": "formation from a frozen visual foundation model to encour-",
+        "x": 63.96,
+        "y": 397.81,
+        "width": 218.57
+      },
+      {
+        "str": "age semantic associations between visible scene content and",
+        "x": 63.96,
+        "y": 387.85,
+        "width": 218.57
+      },
+      {
+        "str": "mirror regions. We further propose",
+        "x": 63.96,
+        "y": 377.89,
+        "width": 125.42
+      },
+      { "str": " ", "x": 189.39, "y": 377.89, "width": 2.21 },
+      {
+        "str": "Geometric Transforma-",
+        "x": 191.59,
+        "y": 377.89,
+        "width": 90.95
+      },
+      { "str": "tion Alignment (GTA)", "x": 63.96, "y": 367.93, "width": 86.5 },
+      {
+        "str": ", which learns a transformation that",
+        "x": 150.46,
+        "y": 367.93,
+        "width": 132.08
+      },
+      {
+        "str": "guides the spatial arrangement of reflected content. The two",
+        "x": 63.96,
+        "y": 357.96,
+        "width": 218.57
+      },
+      {
+        "str": "components play complementary roles, with SRD modeling",
+        "x": 63.96,
+        "y": 348,
+        "width": 218.57
+      },
+      {
+        "str": "what should be reflected and GTA modeling how it should",
+        "x": 63.96,
+        "y": 338.04,
+        "width": 218.57
+      },
+      {
+        "str": "be arranged. To facilitate research on this problem, we con-",
+        "x": 63.96,
+        "y": 328.08,
+        "width": 218.57
+      },
+      {
+        "str": "struct a benchmark for video mirror reflection generation by",
+        "x": 63.96,
+        "y": 318.11,
+        "width": 218.57
+      },
+      {
+        "str": "repurposing four existing video mirror datasets into a uni-",
+        "x": 63.96,
+        "y": 308.15,
+        "width": 218.57
+      },
+      {
+        "str": "fied reflection reconstruction task. Experimental results show",
+        "x": 63.96,
+        "y": 298.19,
+        "width": 218.57
+      },
+      {
+        "str": "that MirrorWorld achieves improved reflection reconstruction",
+        "x": 63.96,
+        "y": 288.23,
+        "width": 218.57
+      },
+      {
+        "str": "quality over representative image-based reflection generation",
+        "x": 63.96,
+        "y": 278.26,
+        "width": 218.57
+      },
+      {
+        "str": "methods and strong video inpainting baselines.",
+        "x": 63.96,
+        "y": 268.3,
+        "width": 168.09
+      },
+      { "str": "", "x": 140.79, "y": 237.37, "width": 0 },
+      { "str": "Introduction", "x": 140.79, "y": 237.37, "width": 64.92 },
+      { "str": "", "x": 54, "y": 221.51, "width": 0 },
+      {
+        "str": "Recent advances in video diffusion models (VDMs) (Yang",
+        "x": 54,
+        "y": 221.51,
+        "width": 238.49
+      },
+      {
+        "str": "et al. 2025b; Wan et al. 2025; Kong et al. 2024; HaCohen",
+        "x": 54,
+        "y": 210.55,
+        "width": 238.49
+      },
+      {
+        "str": "et al. 2024) have enabled high-fidelity video synthesis with",
+        "x": 54,
+        "y": 199.59,
+        "width": 238.5
+      },
+      {
+        "str": "realistic objects, complex motion, and smooth camera move-",
+        "x": 54,
+        "y": 188.63,
+        "width": 238.49
+      },
+      {
+        "str": "ment. These capabilities support applications such as movie",
+        "x": 54,
+        "y": 177.67,
+        "width": 238.49
+      },
+      {
+        "str": "creation (Xiao et al. 2026), synthetic data generation (Wen",
+        "x": 54,
+        "y": 166.71,
+        "width": 238.49
+      },
+      {
+        "str": "et al. 2024), and interactive environment simulation (Bruce",
+        "x": 54,
+        "y": 155.75,
+        "width": 238.49
+      },
+      {
+        "str": "et al. 2024). At the same time, generating content that re-",
+        "x": 54,
+        "y": 144.79,
+        "width": 238.49
+      },
+      {
+        "str": "mains consistent across different regions of a scene is still",
+        "x": 54,
+        "y": 133.84,
+        "width": 238.49
+      },
+      {
+        "str": "non-trivial. Mirror reflections provide a representative case,",
+        "x": 54,
+        "y": 122.88,
+        "width": 238.49
+      },
+      {
+        "str": "since the content within a mirror is constrained by its relation-",
+        "x": 54,
+        "y": 111.92,
+        "width": 238.49
+      },
+      {
+        "str": "ship with the surrounding scene rather than being determined",
+        "x": 54,
+        "y": 100.96,
+        "width": 238.49
+      },
+      {
+        "str": "solely from local visual context. This raises an important",
+        "x": 54,
+        "y": 90,
+        "width": 238.49
+      },
+      {
+        "str": "A kettle placed in front of a plane mirror, with a realistic reflection.",
+        "x": 351.63,
+        "y": 460.92,
+        "width": 173.44
+      },
+      { "str": "", "x": 351.63, "y": 500.31, "width": 0 },
+      {
+        "str": "A white suitcase placed in front of a plane mirror, with a realistic reflection.",
+        "x": 351.63,
+        "y": 500.31,
+        "width": 195.47
+      },
+      { "str": "", "x": 351.63, "y": 538.36, "width": 0 },
+      {
+        "str": "A wooden chair placed in front of a plane mirror, with a realistic reflection.",
+        "x": 351.63,
+        "y": 538.36,
+        "width": 194.03
+      },
+      { "str": "", "x": 319.5, "y": 441.76, "width": 0 },
+      {
+        "str": "Figure 1: Video mirror reflection generation remains chal-",
+        "x": 319.5,
+        "y": 441.76,
+        "width": 238.49
+      },
+      {
+        "str": "lenging even for advanced VDMs. Veo 3.1 generates visu-",
+        "x": 319.5,
+        "y": 430.8,
+        "width": 238.49
+      },
+      {
+        "str": "ally realistic videos but often produces mirror content that",
+        "x": 319.5,
+        "y": 419.84,
+        "width": 238.49
+      },
+      {
+        "str": "is inconsistent with the visible scene, including incorrect re-",
+        "x": 319.5,
+        "y": 408.88,
+        "width": 238.49
+      },
+      {
+        "str": "flected objects and implausible spatial arrangements.",
+        "x": 319.5,
+        "y": 397.92,
+        "width": 210.29
+      },
+      {
+        "str": "question: can current VDMs generate reflections that remain",
+        "x": 319.5,
+        "y": 364.36,
+        "width": 238.49
+      },
+      {
+        "str": "consistent with the visible scene?",
+        "x": 319.5,
+        "y": 353.4,
+        "width": 132.67
+      },
+      {
+        "str": "To investigate this question, we prompt a representative",
+        "x": 329.46,
+        "y": 342.25,
+        "width": 228.53
+      },
+      {
+        "str": "VDM to generate videos containing mirrors. As illustrated",
+        "x": 319.5,
+        "y": 331.29,
+        "width": 238.49
+      },
+      {
+        "str": "in Figure 1, Veo 3.1 (Veo Team 2025) produces visually",
+        "x": 319.5,
+        "y": 320.33,
+        "width": 238.49
+      },
+      {
+        "str": "realistic scenes, but the reflected content can be inconsis-",
+        "x": 319.5,
+        "y": 309.37,
+        "width": 238.49
+      },
+      {
+        "str": "tent with the visible environment. As highlighted by the red",
+        "x": 319.5,
+        "y": 298.41,
+        "width": 238.49
+      },
+      {
+        "str": "boxes, the reflections may contain incorrect objects, spatial",
+        "x": 319.5,
+        "y": 287.45,
+        "width": 238.49
+      },
+      {
+        "str": "arrangements that do not match the surrounding scene, or",
+        "x": 319.5,
+        "y": 276.49,
+        "width": 238.49
+      },
+      {
+        "str": "temporal inconsistencies across frames. These observations",
+        "x": 319.5,
+        "y": 265.54,
+        "width": 238.49
+      },
+      {
+        "str": "suggest that mirror reflection generation remains a challeng-",
+        "x": 319.5,
+        "y": 254.58,
+        "width": 238.49
+      },
+      {
+        "str": "ing setting for video diffusion models.",
+        "x": 319.5,
+        "y": 243.62,
+        "width": 151.7
+      },
+      {
+        "str": "Recent studies have explored mirror reflection generation",
+        "x": 329.46,
+        "y": 232.47,
+        "width": 228.53
+      },
+      {
+        "str": "in image diffusion models (Dhiman et al. 2025; Dhiman,",
+        "x": 319.5,
+        "y": 221.51,
+        "width": 238.49
+      },
+      {
+        "str": "Shah, and Babu 2025) by formulating the task as an image",
+        "x": 319.5,
+        "y": 210.55,
+        "width": 238.49
+      },
+      {
+        "str": "inpainting problem. While these approaches show promising",
+        "x": 319.5,
+        "y": 199.59,
+        "width": 238.49
+      },
+      {
+        "str": "results for image synthesis, they are designed for single-",
+        "x": 319.5,
+        "y": 188.63,
+        "width": 238.49
+      },
+      {
+        "str": "image generation and do not explicitly model",
+        "x": 319.5,
+        "y": 177.67,
+        "width": 185.35
+      },
+      { "str": " ", "x": 504.85, "y": 177.67, "width": 6.8 },
+      { "str": "consistency", "x": 511.66, "y": 177.67, "width": 46.34 },
+      {
+        "str": "across video frames. When applied independently to each",
+        "x": 319.5,
+        "y": 166.71,
+        "width": 238.49
+      },
+      {
+        "str": "frame, reflected appearances",
+        "x": 319.5,
+        "y": 155.75,
+        "width": 115.22
+      },
+      { "str": " ", "x": 434.72, "y": 155.75, "width": 6.51 },
+      {
+        "str": "may vary over time. In addi-",
+        "x": 441.22,
+        "y": 155.75,
+        "width": 116.77
+      },
+      {
+        "str": "tion, existing methods focus on object-centric scenarios in",
+        "x": 319.5,
+        "y": 144.79,
+        "width": 238.49
+      },
+      {
+        "str": "which one or a few foreground objects are placed in front",
+        "x": 319.5,
+        "y": 133.84,
+        "width": 238.49
+      },
+      {
+        "str": "of a mirror. Such settings only partially capture real-world",
+        "x": 319.5,
+        "y": 122.88,
+        "width": 238.49
+      },
+      {
+        "str": "videos, where mirrors often reflect complex scenes contain-",
+        "x": 319.5,
+        "y": 111.92,
+        "width": 238.49
+      },
+      {
+        "str": "ing multiple objects, background structures, camera motion,",
+        "x": 319.5,
+        "y": 100.96,
+        "width": 238.49
+      },
+      {
+        "str": "and interactions. Extending reflection generation from im-",
+        "x": 319.5,
+        "y": 90,
+        "width": 238.49
+      },
+      {
+        "str": "arXiv:2608.07463v1 [cs.CV] 7 Aug 2026",
+        "x": 36,
+        "y": 163.2,
+        "width": 343.3
+      }
+    ]
+  },
+  {
+    "pageNumber": 8,
+    "pageWidth": 612,
+    "chunks": [
+      { "str": "References", "x": 145.73, "y": 728.04, "width": 55.04 },
+      { "str": "", "x": 54, "y": 712.71, "width": 0 },
+      {
+        "str": "Bansal, H.; Lin, Z.; Xie, T.; Zong, Z.; Yarom, M.; Bitton, Y.;",
+        "x": 54,
+        "y": 712.71,
+        "width": 238.49
+      },
+      {
+        "str": "Jiang, C.; Sun, Y.; Chang, K.-W.; and Grover, A. 2025. Video-",
+        "x": 54,
+        "y": 701.76,
+        "width": 238.49
+      },
+      {
+        "str": "Phy: Evaluating Physical Commonsense for Video Genera-",
+        "x": 54,
+        "y": 690.8,
+        "width": 238.49
+      },
+      {
+        "str": "tion. In Yue, Y.; Garg, A.; Peng, N.; Sha, F.; and Yu, R., eds.,",
+        "x": 54,
+        "y": 679.84,
+        "width": 238.49
+      },
+      { "str": "", "x": 54, "y": 668.88, "width": 0 },
+      {
+        "str": "International Conference on Learning Representations",
+        "x": 54,
+        "y": 668.88,
+        "width": 217.91
+      },
+      { "str": ", vol-", "x": 271.91, "y": 668.88, "width": 20.58 },
+      {
+        "str": "ume 2025, 102075–102121.",
+        "x": 54,
+        "y": 657.92,
+        "width": 111.8
+      },
+      {
+        "str": "Bian, Y.; Zhang, Z.; Ju, X.; Cao, M.; Xie, L.; Shan, Y.; and",
+        "x": 54,
+        "y": 643.09,
+        "width": 238.49
+      },
+      {
+        "str": "Xu, Q. 2025. VideoPainter: Any-length Video Inpainting and",
+        "x": 54,
+        "y": 632.14,
+        "width": 238.49
+      },
+      {
+        "str": "Editing with Plug-and-Play Context Control. In",
+        "x": 54,
+        "y": 621.18,
+        "width": 186.95
+      },
+      { "str": " ", "x": 240.95, "y": 621.18, "width": 1.99 },
+      { "str": "Proceedings", "x": 242.94, "y": 621.18, "width": 49.55 },
+      {
+        "str": "of the Special Interest Group on Computer Graphics and",
+        "x": 54,
+        "y": 610.22,
+        "width": 238.49
+      },
+      {
+        "str": "Interactive Techniques Conference Conference Papers",
+        "x": 54,
+        "y": 599.26,
+        "width": 214.22
+      },
+      { "str": ", SIG-", "x": 268.22, "y": 599.26, "width": 24.28 },
+      {
+        "str": "GRAPH Conference Papers ’25. New York, NY, USA: As-",
+        "x": 54,
+        "y": 588.3,
+        "width": 238.49
+      },
+      {
+        "str": "sociation for Computing Machinery. ISBN 9798400715402.",
+        "x": 54,
+        "y": 577.34,
+        "width": 238.49
+      },
+      {
+        "str": "Blattmann, A.; Rombach, R.; Ling, H.; Dockhorn, T.; Kim,",
+        "x": 54,
+        "y": 562.52,
+        "width": 238.5
+      },
+      {
+        "str": "S. W.; Fidler, S.; and Kreis, K. 2023.",
+        "x": 54,
+        "y": 551.56,
+        "width": 162.93
+      },
+      { "str": " ", "x": 216.93, "y": 551.56, "width": 9.88 },
+      { "str": "Align Your La-", "x": 226.81, "y": 551.56, "width": 65.68 },
+      {
+        "str": "tents: High-Resolution Video Synthesis With Latent Diffu-",
+        "x": 54,
+        "y": 540.6,
+        "width": 238.49
+      },
+      { "str": "sion Models. In", "x": 54, "y": 529.64, "width": 60.99 },
+      { "str": " ", "x": 114.99, "y": 529.64, "width": 1.61 },
+      {
+        "str": "Proceedings of the IEEE/CVF Conference on",
+        "x": 116.6,
+        "y": 529.64,
+        "width": 175.89
+      },
+      {
+        "str": "Computer Vision and Pattern Recognition (CVPR)",
+        "x": 54,
+        "y": 518.68,
+        "width": 203.21
+      },
+      { "str": ", 22563–", "x": 257.21, "y": 518.68, "width": 35.29 },
+      { "str": "22575.", "x": 54, "y": 507.72, "width": 27.4 },
+      {
+        "str": "Bruce, J.; Dennis, M. D.; Edwards, A.; Parker-Holder, J.;",
+        "x": 54,
+        "y": 492.9,
+        "width": 238.49
+      },
+      {
+        "str": "Shi, Y.; Hughes, E.; Lai, M.; Mavalankar, A.; Steigerwald,",
+        "x": 54,
+        "y": 481.94,
+        "width": 238.49
+      },
+      {
+        "str": "R.; Apps, C.; Aytar, Y.; Bechtle, S. M. E.; Behbahani, F.;",
+        "x": 54,
+        "y": 470.98,
+        "width": 238.49
+      },
+      {
+        "str": "Chan, S. C.; Heess, N.; Gonzalez, L.; Osindero, S.; Ozair,",
+        "x": 54,
+        "y": 460.02,
+        "width": 238.49
+      },
+      {
+        "str": "S.; Reed, S.; Zhang, J.; Zolna, K.; Clune, J.; Freitas, N. D.;",
+        "x": 54,
+        "y": 449.06,
+        "width": 238.49
+      },
+      {
+        "str": "Singh, S.; and Rocktäschel, T. 2024. Genie: Generative Inter-",
+        "x": 54,
+        "y": 438.1,
+        "width": 238.49
+      },
+      {
+        "str": "active Environments. In Salakhutdinov, R.; Kolter, Z.; Heller,",
+        "x": 54,
+        "y": 427.14,
+        "width": 238.49
+      },
+      {
+        "str": "K.; Weller, A.; Oliver, N.; Scarlett, J.; and Berkenkamp, F.,",
+        "x": 54,
+        "y": 416.18,
+        "width": 238.5
+      },
+      { "str": "eds.,", "x": 54, "y": 405.22, "width": 18.26 },
+      { "str": " ", "x": 72.26, "y": 405.22, "width": 3.79 },
+      {
+        "str": "Proceedings of the 41st International Conference on",
+        "x": 76.05,
+        "y": 405.22,
+        "width": 216.45
+      },
+      { "str": "Machine Learning", "x": 54, "y": 394.27, "width": 74.12 },
+      { "str": ", volume 235 of", "x": 128.12, "y": 394.27, "width": 63.89 },
+      { "str": " ", "x": 192.01, "y": 394.27, "width": 2.87 },
+      {
+        "str": "Proceedings of Machine",
+        "x": 194.88,
+        "y": 394.27,
+        "width": 97.61
+      },
+      { "str": "Learning Research", "x": 54, "y": 383.31, "width": 75.55 },
+      { "str": ", 4603–4623. PMLR.", "x": 129.55, "y": 383.31, "width": 84.41 },
+      {
+        "str": "Carreira, J.; and Zisserman, A. 2017.",
+        "x": 54,
+        "y": 368.48,
+        "width": 154.63
+      },
+      { "str": " ", "x": 208.63, "y": 368.48, "width": 7.28 },
+      { "str": "Quo Vadis, Action", "x": 215.91, "y": 368.48, "width": 76.58 },
+      {
+        "str": "Recognition? A New Model and the Kinetics Dataset.",
+        "x": 54,
+        "y": 357.52,
+        "width": 223.15
+      },
+      { "str": " ", "x": 277.15, "y": 357.52, "width": 7.04 },
+      { "str": "In", "x": 284.2, "y": 357.52, "width": 8.3 },
+      { "str": "", "x": 54, "y": 346.56, "width": 0 },
+      {
+        "str": "Proceedings of the IEEE Conference on Computer Vision",
+        "x": 54,
+        "y": 346.56,
+        "width": 238.49
+      },
+      {
+        "str": "and Pattern Recognition (CVPR)",
+        "x": 54,
+        "y": 335.6,
+        "width": 131.1
+      },
+      { "str": ".", "x": 185.1, "y": 335.6, "width": 2.49 },
+      {
+        "str": "Chen, H.; Zhang, Y.; Cun, X.; Xia, M.; Wang, X.; Weng,",
+        "x": 54,
+        "y": 320.78,
+        "width": 238.49
+      },
+      { "str": "C.; and Shan, Y. 2024.", "x": 54, "y": 309.82, "width": 95.19 },
+      { "str": " ", "x": 149.19, "y": 309.82, "width": 7.21 },
+      {
+        "str": "VideoCrafter2: Overcoming Data",
+        "x": 156.41,
+        "y": 309.82,
+        "width": 136.09
+      },
+      {
+        "str": "Limitations for High-Quality Video Diffusion Models.",
+        "x": 54,
+        "y": 298.86,
+        "width": 223.21
+      },
+      { "str": " ", "x": 277.21, "y": 298.86, "width": 6.98 },
+      { "str": "In", "x": 284.2, "y": 298.86, "width": 8.3 },
+      { "str": "", "x": 54, "y": 287.9, "width": 0 },
+      {
+        "str": "Proceedings of the IEEE/CVF Conference on Computer Vi-",
+        "x": 54,
+        "y": 287.9,
+        "width": 238.49
+      },
+      {
+        "str": "sion and Pattern Recognition (CVPR)",
+        "x": 54,
+        "y": 276.94,
+        "width": 150.2
+      },
+      { "str": ", 7310–7320.", "x": 204.2, "y": 276.94, "width": 52.3 },
+      {
+        "str": "Chen, H. H.; Huang, H.; Chen, Q.; Yang, H.; and Lim, S. N.",
+        "x": 54,
+        "y": 262.12,
+        "width": 238.49
+      },
+      { "str": "2025.", "x": 54, "y": 251.16, "width": 22.42 },
+      { "str": " ", "x": 76.42, "y": 251.16, "width": 8.4 },
+      {
+        "str": "Hierarchical Fine-grained Preference Optimization",
+        "x": 84.81,
+        "y": 251.16,
+        "width": 207.68
+      },
+      {
+        "str": "for Physically Plausible Video Generation. In Belgrave, D.;",
+        "x": 54,
+        "y": 240.2,
+        "width": 238.49
+      },
+      {
+        "str": "Zhang, C.; Lin, H.; Pascanu, R.; Koniusz, P.; Ghassemi, M.;",
+        "x": 54,
+        "y": 229.24,
+        "width": 238.49
+      },
+      { "str": "and Chen, N., eds.,", "x": 54, "y": 218.28, "width": 73.95 },
+      { "str": " ", "x": 127.95, "y": 218.28, "width": 1.93 },
+      {
+        "str": "Advances in Neural Information Process-",
+        "x": 129.89,
+        "y": 218.28,
+        "width": 162.61
+      },
+      { "str": "ing Systems", "x": 54, "y": 207.32, "width": 45.48 },
+      {
+        "str": ", volume 38, 133919–133951. Curran Associates,",
+        "x": 99.48,
+        "y": 207.32,
+        "width": 193.02
+      },
+      { "str": "Inc.", "x": 54, "y": 196.36, "width": 15.21 },
+      {
+        "str": "Dhiman, A.; Shah, M.; and Babu, R. V. 2025. MirrorVerse:",
+        "x": 54,
+        "y": 181.54,
+        "width": 238.49
+      },
+      {
+        "str": "Pushing Diffusion Models to Realistically Reflect the World.",
+        "x": 54,
+        "y": 170.58,
+        "width": 238.49
+      },
+      { "str": "In", "x": 54, "y": 159.62, "width": 8.3 },
+      { "str": " ", "x": 62.3, "y": 159.62, "width": 3.24 },
+      {
+        "str": "Proceedings of the IEEE/CVF Conference on Computer",
+        "x": 65.54,
+        "y": 159.62,
+        "width": 226.96
+      },
+      {
+        "str": "Vision and Pattern Recognition (CVPR)",
+        "x": 54,
+        "y": 148.66,
+        "width": 158.9
+      },
+      { "str": ", 11239–11249.", "x": 212.9, "y": 148.66, "width": 62.27 },
+      {
+        "str": "Dhiman, A.; Shah, M.; Parihar, R.; Bhalgat, Y.; Boregowda,",
+        "x": 54,
+        "y": 133.84,
+        "width": 238.49
+      },
+      {
+        "str": "L. R.; and Babu, R. V. 2025. Reflecting Reality: Enabling",
+        "x": 54,
+        "y": 122.88,
+        "width": 238.49
+      },
+      {
+        "str": "Diffusion Models to Produce Faithful Mirror Reflections. In",
+        "x": 54,
+        "y": 111.92,
+        "width": 238.49
+      },
+      { "str": "", "x": 54, "y": 100.96, "width": 0 },
+      {
+        "str": "2025 International Conference on 3D Vision (3DV)",
+        "x": 54,
+        "y": 100.96,
+        "width": 212.32
+      },
+      { "str": ", 824–", "x": 266.32, "y": 100.96, "width": 26.17 },
+      { "str": "834.", "x": 54, "y": 90, "width": 17.43 },
+      {
+        "str": "Guan, H.; Lin, J.; and Lau, R. W. 2022. Learning Seman-",
+        "x": 319.5,
+        "y": 728.04,
+        "width": 238.49
+      },
+      {
+        "str": "tic Associations for Mirror Detection.",
+        "x": 319.5,
+        "y": 717.08,
+        "width": 156.68
+      },
+      { "str": " ", "x": 476.18, "y": 717.08, "width": 7.94 },
+      { "str": "In", "x": 484.12, "y": 717.08, "width": 8.3 },
+      { "str": " ", "x": 492.42, "y": 717.08, "width": 4.13 },
+      { "str": "Proceedings of", "x": 496.56, "y": 717.08, "width": 61.44 },
+      {
+        "str": "the IEEE/CVF Conference on Computer Vision and Pattern",
+        "x": 319.5,
+        "y": 706.12,
+        "width": 238.49
+      },
+      { "str": "Recognition (CVPR)", "x": 319.5, "y": 695.16, "width": 82.03 },
+      { "str": ", 5941–5950.", "x": 401.53, "y": 695.16, "width": 52.3 },
+      {
+        "str": "Guo, Y.; Yang, C.; Rao, A.; Liang, Z.; Wang, Y.; Qiao, Y.;",
+        "x": 319.5,
+        "y": 682.17,
+        "width": 238.49
+      },
+      {
+        "str": "Agrawala, M.; Lin, D.; and Dai, B. 2024.",
+        "x": 319.5,
+        "y": 671.22,
+        "width": 176.9
+      },
+      { "str": " ", "x": 496.4, "y": 671.22, "width": 8.58 },
+      { "str": "AnimateDiff:", "x": 504.97, "y": 671.22, "width": 53.02 },
+      {
+        "str": "Animate Your Personalized Text-to-Image Diffusion Mod-",
+        "x": 319.5,
+        "y": 660.26,
+        "width": 238.49
+      },
+      {
+        "str": "els without Specific Tuning.",
+        "x": 319.5,
+        "y": 649.3,
+        "width": 115.59
+      },
+      { "str": " ", "x": 435.09, "y": 649.3, "width": 7.27 },
+      {
+        "str": "International Conference on",
+        "x": 442.36,
+        "y": 649.3,
+        "width": 115.64
+      },
+      {
+        "str": "Learning Representations",
+        "x": 319.5,
+        "y": 638.34,
+        "width": 102.92
+      },
+      { "str": ".", "x": 422.42, "y": 638.34, "width": 2.49 },
+      {
+        "str": "HaCohen, Y.; Chiprut, N.; Brazowski, B.; Shalem, D.;",
+        "x": 319.5,
+        "y": 625.35,
+        "width": 238.49
+      },
+      {
+        "str": "Moshe, D.; Richardson, E.; Levin, E.; Shiran, G.; Zabari, N.;",
+        "x": 319.5,
+        "y": 614.39,
+        "width": 238.49
+      },
+      {
+        "str": "Gordon, O.; Panet, P.; Weissbuch, S.; Kulikov, V.; Bitterman,",
+        "x": 319.5,
+        "y": 603.43,
+        "width": 238.49
+      },
+      {
+        "str": "Y.; Melumian, Z.; and Bibi, O. 2024. LTX-Video: Realtime",
+        "x": 319.5,
+        "y": 592.47,
+        "width": 238.49
+      },
+      {
+        "str": "Video Latent Diffusion.",
+        "x": 319.5,
+        "y": 581.52,
+        "width": 94.6
+      },
+      { "str": " ", "x": 414.1, "y": 581.52, "width": 3.59 },
+      {
+        "str": "arXiv preprint arXiv:2501.00103",
+        "x": 417.69,
+        "y": 581.52,
+        "width": 131.76
+      },
+      { "str": ".", "x": 549.45, "y": 581.52, "width": 2.49 },
+      {
+        "str": "Ho, J.; Salimans, T.; Gritsenko, A.; Chan, W.; Norouzi, M.;",
+        "x": 319.5,
+        "y": 568.53,
+        "width": 238.49
+      },
+      { "str": "and Fleet, D. 2022.", "x": 319.5, "y": 557.57, "width": 80.18 },
+      { "str": " ", "x": 399.68, "y": 557.57, "width": 6.95 },
+      {
+        "str": "Video Diffusion Models.",
+        "x": 406.63,
+        "y": 557.57,
+        "width": 101.58
+      },
+      { "str": " ", "x": 508.21, "y": 557.57, "width": 6.95 },
+      { "str": "In Koyejo,", "x": 515.17, "y": 557.57, "width": 42.83 },
+      {
+        "str": "S.; Mohamed, S.; Agarwal, A.; Belgrave, D.; Cho, K.; and",
+        "x": 319.5,
+        "y": 546.61,
+        "width": 238.49
+      },
+      { "str": "Oh, A., eds.,", "x": 319.5, "y": 535.65, "width": 53.42 },
+      { "str": " ", "x": 372.92, "y": 535.65, "width": 4.15 },
+      {
+        "str": "Advances in Neural Information Processing",
+        "x": 377.07,
+        "y": 535.65,
+        "width": 180.92
+      },
+      { "str": "Systems", "x": 319.5, "y": 524.69, "width": 31.09 },
+      {
+        "str": ", volume 35, 8633–8646. Curran Associates, Inc.",
+        "x": 350.59,
+        "y": 524.69,
+        "width": 194.98
+      },
+      {
+        "str": "Hu, E. J.; yelong shen; Wallis, P.; Allen-Zhu, Z.; Li, Y.;",
+        "x": 319.5,
+        "y": 511.71,
+        "width": 238.49
+      },
+      {
+        "str": "Wang, S.; Wang, L.; and Chen, W. 2022. LoRA: Low-Rank",
+        "x": 319.5,
+        "y": 500.75,
+        "width": 238.49
+      },
+      {
+        "str": "Adaptation of Large Language Models.",
+        "x": 319.5,
+        "y": 489.79,
+        "width": 164.35
+      },
+      { "str": " ", "x": 483.85, "y": 489.79, "width": 8.81 },
+      { "str": "In", "x": 492.66, "y": 489.79, "width": 8.3 },
+      { "str": " ", "x": 500.96, "y": 489.79, "width": 4.45 },
+      { "str": "International", "x": 505.41, "y": 489.79, "width": 52.58 },
+      {
+        "str": "Conference on Learning Representations",
+        "x": 319.5,
+        "y": 478.83,
+        "width": 163.2
+      },
+      { "str": ".", "x": 482.7, "y": 478.83, "width": 2.49 },
+      {
+        "str": "Jiang, Z.; Han, Z.; Mao, C.; Zhang, J.; Pan, Y.; and Liu, Y.",
+        "x": 319.5,
+        "y": 465.84,
+        "width": 238.49
+      },
+      { "str": "2025.", "x": 319.5, "y": 454.88, "width": 22.42 },
+      { "str": " ", "x": 341.92, "y": 454.88, "width": 6.59 },
+      {
+        "str": "VACE: All-in-One Video Creation and Editing.",
+        "x": 348.5,
+        "y": 454.88,
+        "width": 194.61
+      },
+      { "str": " ", "x": 543.11, "y": 454.88, "width": 6.59 },
+      { "str": "In", "x": 549.7, "y": 454.88, "width": 8.3 },
+      { "str": "", "x": 319.5, "y": 443.92, "width": 0 },
+      {
+        "str": "Proceedings of the IEEE/CVF International Conference on",
+        "x": 319.5,
+        "y": 443.92,
+        "width": 238.49
+      },
+      {
+        "str": "Computer Vision (ICCV)",
+        "x": 319.5,
+        "y": 432.97,
+        "width": 99.33
+      },
+      { "str": ", 17191–17202.", "x": 418.83, "y": 432.97, "width": 62.27 },
+      {
+        "str": "Ju, X.; Liu, X.; Wang, X.; Bian, Y.; Shan, Y.; and Xu, Q.",
+        "x": 319.5,
+        "y": 419.98,
+        "width": 238.49
+      },
+      {
+        "str": "2025. BrushNet: A Plug-and-Play Image Inpainting Model",
+        "x": 319.5,
+        "y": 409.02,
+        "width": 238.49
+      },
+      {
+        "str": "with Decomposed Dual-Branch Diffusion. In Leonardis, A.;",
+        "x": 319.5,
+        "y": 398.06,
+        "width": 238.49
+      },
+      {
+        "str": "Ricci, E.; Roth, S.; Russakovsky, O.; Sattler, T.; and Varol,",
+        "x": 319.5,
+        "y": 387.1,
+        "width": 238.49
+      },
+      { "str": "G., eds.,", "x": 319.5, "y": 376.14, "width": 33.71 },
+      { "str": " ", "x": 353.21, "y": 376.14, "width": 3.29 },
+      {
+        "str": "Computer Vision – ECCV 2024",
+        "x": 356.5,
+        "y": 376.14,
+        "width": 128.52
+      },
+      { "str": ", 150–168. Cham:", "x": 485.02, "y": 376.14, "width": 72.98 },
+      {
+        "str": "Springer Nature Switzerland. ISBN 978-3-031-72661-3.",
+        "x": 319.5,
+        "y": 365.18,
+        "width": 225.27
+      },
+      {
+        "str": "Ke, B.; Obukhov, A.; Huang, S.; Metzger, N.; Daudt, R. C.;",
+        "x": 319.5,
+        "y": 352.2,
+        "width": 238.49
+      },
+      {
+        "str": "and Schindler, K. 2024. Repurposing Diffusion-Based Image",
+        "x": 319.5,
+        "y": 341.24,
+        "width": 238.49
+      },
+      {
+        "str": "Generators for Monocular Depth Estimation. In",
+        "x": 319.5,
+        "y": 330.28,
+        "width": 187.04
+      },
+      { "str": " ", "x": 506.54, "y": 330.28, "width": 1.9 },
+      { "str": "Proceedings", "x": 508.44, "y": 330.28, "width": 49.55 },
+      {
+        "str": "of the IEEE/CVF Conference on Computer Vision and Pat-",
+        "x": 319.5,
+        "y": 319.32,
+        "width": 238.49
+      },
+      {
+        "str": "tern Recognition (CVPR)",
+        "x": 319.5,
+        "y": 308.36,
+        "width": 100.57
+      },
+      { "str": ", 9492–9502.", "x": 420.07, "y": 308.36, "width": 52.3 },
+      {
+        "str": "Kong, W.; Tian, Q.; Zhang, Z.; Min, R.; Dai, Z.; Zhou, J.;",
+        "x": 319.5,
+        "y": 295.37,
+        "width": 238.49
+      },
+      {
+        "str": "Xiong, J.; Li, X.; Wu, B.; Zhang, J.; et al. 2024. Hunyuan-",
+        "x": 319.5,
+        "y": 284.41,
+        "width": 238.49
+      },
+      {
+        "str": "video: A systematic framework for large video generative",
+        "x": 319.5,
+        "y": 273.46,
+        "width": 238.49
+      },
+      { "str": "models.", "x": 319.5, "y": 262.5, "width": 31.27 },
+      { "str": " ", "x": 350.77, "y": 262.5, "width": 3.59 },
+      {
+        "str": "arXiv preprint arXiv:2412.03603",
+        "x": 354.36,
+        "y": 262.5,
+        "width": 131.76
+      },
+      { "str": ".", "x": 486.11, "y": 262.5, "width": 2.49 },
+      { "str": "Labs, B. F. 2024.", "x": 319.5, "y": 249.51, "width": 71.39 },
+      { "str": " ", "x": 390.89, "y": 249.51, "width": 6.31 },
+      { "str": "FLUX.", "x": 397.2, "y": 249.51, "width": 28.25 },
+      { "str": " ", "x": 425.45, "y": 249.51, "width": 6.3 },
+      {
+        "str": "https://github.com/black-forest-",
+        "x": 431.75,
+        "y": 249.51,
+        "width": 125.75
+      },
+      { "str": "labs/flux.", "x": 319.5, "y": 238.55, "width": 36.9 },
+      {
+        "str": "Lai, W.-S.; Huang, J.-B.; Wang, O.; Shechtman, E.; Yumer,",
+        "x": 319.5,
+        "y": 225.56,
+        "width": 238.49
+      },
+      {
+        "str": "E.; and Yang, M.-H. 2018. Learning Blind Video Temporal",
+        "x": 319.5,
+        "y": 214.6,
+        "width": 238.49
+      },
+      { "str": "Consistency. In", "x": 319.5, "y": 203.65, "width": 61.67 },
+      { "str": " ", "x": 381.17, "y": 203.65, "width": 2.18 },
+      {
+        "str": "Proceedings of the European Conference on",
+        "x": 383.35,
+        "y": 203.65,
+        "width": 174.64
+      },
+      {
+        "str": "Computer Vision (ECCV)",
+        "x": 319.5,
+        "y": 192.69,
+        "width": 102.1
+      },
+      { "str": ".", "x": 421.6, "y": 192.69, "width": 2.49 },
+      {
+        "str": "Li, Z.; Lu, C.-Z.; Qin, J.; Guo, C.-L.; and Cheng, M.-M. 2022.",
+        "x": 319.5,
+        "y": 179.7,
+        "width": 238.49
+      },
+      {
+        "str": "Towards an End-to-End Framework for Flow-Guided Video",
+        "x": 319.5,
+        "y": 168.74,
+        "width": 238.49
+      },
+      { "str": "Inpainting. In", "x": 319.5, "y": 157.78, "width": 55.34 },
+      { "str": " ", "x": 374.84, "y": 157.78, "width": 2.56 },
+      {
+        "str": "Proceedings of the IEEE/CVF Conference on",
+        "x": 377.4,
+        "y": 157.78,
+        "width": 180.59
+      },
+      {
+        "str": "Computer Vision and Pattern Recognition (CVPR)",
+        "x": 319.5,
+        "y": 146.82,
+        "width": 203.21
+      },
+      { "str": ", 17562–", "x": 522.71, "y": 146.82, "width": 35.29 },
+      { "str": "17571.", "x": 319.5, "y": 135.86, "width": 27.4 },
+      {
+        "str": "Lin, J.; Tan, X.; and Lau, R. W. 2023. Learning To Detect",
+        "x": 319.5,
+        "y": 122.88,
+        "width": 238.49
+      },
+      {
+        "str": "Mirrors From Videos via Dual Correspondences.",
+        "x": 319.5,
+        "y": 111.92,
+        "width": 201.69
+      },
+      { "str": " ", "x": 521.19, "y": 111.92, "width": 6.79 },
+      { "str": "In", "x": 527.99, "y": 111.92, "width": 8.3 },
+      { "str": " ", "x": 536.29, "y": 111.92, "width": 3.7 },
+      { "str": "Pro-", "x": 539.98, "y": 111.92, "width": 18.01 },
+      {
+        "str": "ceedings of the IEEE/CVF Conference on Computer Vision",
+        "x": 319.5,
+        "y": 100.96,
+        "width": 238.49
+      },
+      {
+        "str": "and Pattern Recognition (CVPR)",
+        "x": 319.5,
+        "y": 90,
+        "width": 131.1
+      },
+      { "str": ", 9109–9118.", "x": 450.6, "y": 90, "width": 52.3 }
+    ]
+  },
+  {
+    "pageNumber": 9,
+    "pageWidth": 612,
+    "chunks": [
+      {
+        "str": "Lin, J.; Wang, G.; and Lau, R. W. 2020. Progressive Mirror",
+        "x": 54,
+        "y": 728.04,
+        "width": 238.49
+      },
+      { "str": "Detection. In", "x": 54, "y": 717.08, "width": 53.91 },
+      { "str": " ", "x": 107.91, "y": 717.08, "width": 2.79 },
+      {
+        "str": "Proceedings of the IEEE/CVF Conference on",
+        "x": 110.7,
+        "y": 717.08,
+        "width": 181.8
+      },
+      {
+        "str": "Computer Vision and Pattern Recognition (CVPR)",
+        "x": 54,
+        "y": 706.12,
+        "width": 201.1
+      },
+      { "str": ".", "x": 255.1, "y": 706.12, "width": 2.49 },
+      {
+        "str": "Litman, Y.; Liu, S.; Seyb, D.; Milef, N.; Zhou, Y.; Marshall,",
+        "x": 54,
+        "y": 692.95,
+        "width": 238.49
+      },
+      {
+        "str": "C.; Tulsiani, S.; and Leak, C. 2026. EditCtrl: Disentangled",
+        "x": 54,
+        "y": 681.99,
+        "width": 238.49
+      },
+      {
+        "str": "Local and Global Control for Real-Time Generative Video",
+        "x": 54,
+        "y": 671.03,
+        "width": 238.49
+      },
+      { "str": "Editing.", "x": 54, "y": 660.07, "width": 31.83 },
+      { "str": " ", "x": 85.83, "y": 660.07, "width": 7.26 },
+      { "str": "In", "x": 93.09, "y": 660.07, "width": 8.3 },
+      { "str": " ", "x": 101.39, "y": 660.07, "width": 3.88 },
+      {
+        "str": "Proceedings of the IEEE/CVF Conference on",
+        "x": 105.27,
+        "y": 660.07,
+        "width": 187.23
+      },
+      {
+        "str": "Computer Vision and Pattern Recognition (CVPR)",
+        "x": 54,
+        "y": 649.11,
+        "width": 207.36
+      },
+      { "str": ", 8965–", "x": 261.36, "y": 649.11, "width": 31.13 },
+      { "str": "8975.", "x": 54, "y": 638.15, "width": 22.42 },
+      {
+        "str": "Loshchilov, I.; and Hutter, F. 2019. Decoupled Weight Decay",
+        "x": 54,
+        "y": 624.98,
+        "width": 238.49
+      },
+      { "str": "Regularization.", "x": 54, "y": 614.02, "width": 61.1 },
+      { "str": " ", "x": 115.1, "y": 614.02, "width": 7.97 },
+      { "str": "In", "x": 123.07, "y": 614.02, "width": 8.3 },
+      { "str": " ", "x": 131.37, "y": 614.02, "width": 4.14 },
+      {
+        "str": "International Conference on Learning",
+        "x": 135.51,
+        "y": 614.02,
+        "width": 156.98
+      },
+      { "str": "Representations", "x": 54, "y": 603.06, "width": 63.75 },
+      { "str": ".", "x": 117.75, "y": 603.06, "width": 2.49 },
+      {
+        "str": "Mei, H.; Dong, B.; Dong, W.; Peers, P.; Yang, X.; Zhang,",
+        "x": 54,
+        "y": 589.89,
+        "width": 238.49
+      },
+      {
+        "str": "Q.; and Wei, X. 2021. Depth-Aware Mirror Segmentation.",
+        "x": 54,
+        "y": 578.93,
+        "width": 238.49
+      },
+      { "str": "In", "x": 54, "y": 567.98, "width": 8.3 },
+      { "str": " ", "x": 62.3, "y": 567.98, "width": 3.24 },
+      {
+        "str": "Proceedings of the IEEE/CVF Conference on Computer",
+        "x": 65.54,
+        "y": 567.98,
+        "width": 226.96
+      },
+      {
+        "str": "Vision and Pattern Recognition (CVPR)",
+        "x": 54,
+        "y": 557.02,
+        "width": 158.9
+      },
+      { "str": ", 3044–3053.", "x": 212.9, "y": 557.02, "width": 52.3 },
+      {
+        "str": "Meng, F.; Liao, J.; Tan, X.; Lu, Q.; Shao, W.; Zhang, K.;",
+        "x": 54,
+        "y": 543.84,
+        "width": 238.49
+      },
+      {
+        "str": "Cheng, Y.; Li, D.; and Luo, P. 2025. Towards World Simula-",
+        "x": 54,
+        "y": 532.89,
+        "width": 238.49
+      },
+      {
+        "str": "tor: Crafting Physical Commonsense-Based Benchmark for",
+        "x": 54,
+        "y": 521.93,
+        "width": 238.49
+      },
+      {
+        "str": "Video Generation. In Singh, A.; Fazel, M.; Hsu, D.; Lacoste-",
+        "x": 54,
+        "y": 510.97,
+        "width": 238.49
+      },
+      {
+        "str": "Julien, S.; Berkenkamp, F.; Maharaj, T.; Wagstaff, K.; and",
+        "x": 54,
+        "y": 500.01,
+        "width": 238.49
+      },
+      { "str": "Zhu, J., eds.,", "x": 54, "y": 489.05, "width": 50.85 },
+      { "str": " ", "x": 104.85, "y": 489.05, "width": 2.59 },
+      {
+        "str": "Proceedings of the 42nd International Confer-",
+        "x": 107.44,
+        "y": 489.05,
+        "width": 185.06
+      },
+      {
+        "str": "ence on Machine Learning",
+        "x": 54,
+        "y": 478.09,
+        "width": 109.38
+      },
+      { "str": ", volume 267 of", "x": 163.38, "y": 478.09, "width": 65.2 },
+      { "str": " ", "x": 228.57, "y": 478.09, "width": 3.31 },
+      { "str": "Proceedings of", "x": 231.88, "y": 478.09, "width": 60.61 },
+      {
+        "str": "Machine Learning Research",
+        "x": 54,
+        "y": 467.13,
+        "width": 112.6
+      },
+      {
+        "str": ", 43781–43806. PMLR.",
+        "x": 166.6,
+        "y": 467.13,
+        "width": 94.38
+      },
+      {
+        "str": "Ronneberger, O.; Fischer, P.; and Brox, T. 2015. U-Net: Con-",
+        "x": 54,
+        "y": 453.96,
+        "width": 238.49
+      },
+      {
+        "str": "volutional Networks for Biomedical Image Segmentation. In",
+        "x": 54,
+        "y": 443,
+        "width": 238.49
+      },
+      {
+        "str": "Navab, N.; Hornegger, J.; Wells, W. M.; and Frangi, A. F.,",
+        "x": 54,
+        "y": 432.04,
+        "width": 238.49
+      },
+      { "str": "eds.,", "x": 54, "y": 421.08, "width": 18.26 },
+      { "str": " ", "x": 72.26, "y": 421.08, "width": 2.9 },
+      {
+        "str": "Medical Image Computing and Computer-Assisted In-",
+        "x": 75.16,
+        "y": 421.08,
+        "width": 217.33
+      },
+      {
+        "str": "tervention – MICCAI 2015",
+        "x": 54,
+        "y": 410.13,
+        "width": 106.53
+      },
+      {
+        "str": ", 234–241. Cham: Springer Inter-",
+        "x": 160.53,
+        "y": 410.13,
+        "width": 131.96
+      },
+      {
+        "str": "national Publishing. ISBN 978-3-319-24574-4.",
+        "x": 54,
+        "y": 399.17,
+        "width": 189
+      },
+      {
+        "str": "Siméoni, O.; Vo, H. V.; Seitzer, M.; Baldassarre, F.; Oquab,",
+        "x": 54,
+        "y": 386,
+        "width": 238.49
+      },
+      {
+        "str": "M.; Jose, C.; Khalidov, V.; Szafraniec, M.; Yi, S.; Rama-",
+        "x": 54,
+        "y": 375.04,
+        "width": 238.49
+      },
+      {
+        "str": "monjisoa, M.; Massa, F.; Haziza, D.; Wehrstedt, L.; Wang,",
+        "x": 54,
+        "y": 364.08,
+        "width": 238.49
+      },
+      {
+        "str": "J.; Darcet, T.; Moutakanni, T.; Sentana, L.; Roberts, C.;",
+        "x": 54,
+        "y": 353.12,
+        "width": 238.49
+      },
+      {
+        "str": "Vedaldi, A.; Tolan, J.; Brandt, J.; Couprie, C.; Mairal, J.;",
+        "x": 54,
+        "y": 342.16,
+        "width": 238.49
+      },
+      {
+        "str": "Jégou, H.; Labatut, P.; and Bojanowski, P. 2025. DINOv3.",
+        "x": 54,
+        "y": 331.2,
+        "width": 238.49
+      },
+      { "str": "arXiv:2508.10104.", "x": 54, "y": 320.24, "width": 75.07 },
+      {
+        "str": "Skorokhodov, I.; Tulyakov, S.; and Elhoseiny, M. 2022.",
+        "x": 54,
+        "y": 307.07,
+        "width": 238.49
+      },
+      {
+        "str": "StyleGAN-V: A Continuous Video Generator With the Price,",
+        "x": 54,
+        "y": 296.11,
+        "width": 238.49
+      },
+      {
+        "str": "Image Quality and Perks of StyleGAN2. In",
+        "x": 54,
+        "y": 285.15,
+        "width": 175.39
+      },
+      { "str": " ", "x": 229.39, "y": 285.15, "width": 2.9 },
+      { "str": "Proceedings of", "x": 232.29, "y": 285.15, "width": 60.2 },
+      {
+        "str": "the IEEE/CVF Conference on Computer Vision and Pattern",
+        "x": 54,
+        "y": 274.19,
+        "width": 238.49
+      },
+      { "str": "Recognition (CVPR)", "x": 54, "y": 263.23, "width": 82.03 },
+      { "str": ", 3626–3636.", "x": 136.03, "y": 263.23, "width": 52.3 },
+      {
+        "str": "Teed, Z.; and Deng, J. 2020. RAFT: Recurrent All-Pairs Field",
+        "x": 54,
+        "y": 250.06,
+        "width": 238.49
+      },
+      {
+        "str": "Transforms for Optical Flow.",
+        "x": 54,
+        "y": 239.1,
+        "width": 118.31
+      },
+      { "str": " ", "x": 172.31, "y": 239.1, "width": 6.34 },
+      {
+        "str": "In Vedaldi, A.; Bischof, H.;",
+        "x": 178.64,
+        "y": 239.1,
+        "width": 113.85
+      },
+      {
+        "str": "Brox, T.; and Frahm, J.-M., eds.,",
+        "x": 54,
+        "y": 228.15,
+        "width": 131.6
+      },
+      { "str": " ", "x": 185.6, "y": 228.15, "width": 2.86 },
+      {
+        "str": "Computer Vision – ECCV",
+        "x": 188.46,
+        "y": 228.15,
+        "width": 104.04
+      },
+      { "str": "2020", "x": 54, "y": 217.19, "width": 19.93 },
+      {
+        "str": ", 402–419. Cham: Springer International Publishing.",
+        "x": 73.93,
+        "y": 217.19,
+        "width": 218.57
+      },
+      {
+        "str": "ISBN 978-3-030-58536-5.",
+        "x": 54,
+        "y": 206.23,
+        "width": 105.7
+      },
+      {
+        "str": "Unterthiner, T.; Van Steenkiste, S.; Kurach, K.; Marinier,",
+        "x": 54,
+        "y": 193.06,
+        "width": 238.49
+      },
+      {
+        "str": "R.; Michalski, M.; and Gelly, S. 2018.",
+        "x": 54,
+        "y": 182.1,
+        "width": 160.52
+      },
+      { "str": " ", "x": 214.52, "y": 182.1, "width": 7.47 },
+      { "str": "Towards accurate", "x": 221.99, "y": 182.1, "width": 70.51 },
+      {
+        "str": "generative models of video: A new metric & challenges.",
+        "x": 54,
+        "y": 171.14,
+        "width": 238.49
+      },
+      { "str": "", "x": 54, "y": 160.18, "width": 0 },
+      {
+        "str": "arXiv preprint arXiv:1812.01717",
+        "x": 54,
+        "y": 160.18,
+        "width": 131.76
+      },
+      { "str": ".", "x": 185.76, "y": 160.18, "width": 2.49 },
+      {
+        "str": "Veo Team. 2025. Veo: A Text-to-Video Generation System.",
+        "x": 54,
+        "y": 147.01,
+        "width": 238.49
+      },
+      {
+        "str": "Technical report, Google DeepMind.",
+        "x": 54,
+        "y": 136.05,
+        "width": 146.72
+      },
+      {
+        "str": "Wan, T.; Wang, A.; Ai, B.; Wen, B.; Mao, C.; Xie, C.-W.;",
+        "x": 54,
+        "y": 122.88,
+        "width": 238.49
+      },
+      {
+        "str": "Chen, D.; Yu, F.; Zhao, H.; Yang, J.; Zeng, J.; Wang, J.;",
+        "x": 54,
+        "y": 111.92,
+        "width": 238.49
+      },
+      {
+        "str": "Zhang, J.; Zhou, J.; Wang, J.; Chen, J.; Zhu, K.; Zhao, K.;",
+        "x": 54,
+        "y": 100.96,
+        "width": 238.49
+      },
+      {
+        "str": "Yan, K.; Huang, L.; Feng, M.; Zhang, N.; Li, P.; Wu, P.;",
+        "x": 54,
+        "y": 90,
+        "width": 238.49
+      },
+      {
+        "str": "Chu, R.; Feng, R.; Zhang, S.; Sun, S.; Fang, T.; Wang, T.;",
+        "x": 319.5,
+        "y": 728.04,
+        "width": 238.49
+      },
+      {
+        "str": "Gui, T.; Weng, T.; Shen, T.; Lin, W.; Wang, W.; Wang, W.;",
+        "x": 319.5,
+        "y": 717.08,
+        "width": 238.49
+      },
+      {
+        "str": "Zhou, W.; Wang, W.; Shen, W.; Yu, W.; Shi, X.; Huang, X.;",
+        "x": 319.5,
+        "y": 706.12,
+        "width": 238.5
+      },
+      {
+        "str": "Xu, X.; Kou, Y.; Lv, Y.; Li, Y.; Liu, Y.; Wang, Y.; Zhang,",
+        "x": 319.5,
+        "y": 695.16,
+        "width": 238.49
+      },
+      {
+        "str": "Y.; Huang, Y.; Li, Y.; Wu, Y.; Liu, Y.; Pan, Y.; Zheng, Y.;",
+        "x": 319.5,
+        "y": 684.2,
+        "width": 238.49
+      },
+      {
+        "str": "Hong, Y.; Shi, Y.; Feng, Y.; Jiang, Z.; Han, Z.; Wu, Z.-F.; and",
+        "x": 319.5,
+        "y": 673.24,
+        "width": 238.49
+      },
+      {
+        "str": "Liu, Z. 2025. Wan: Open and Advanced Large-Scale Video",
+        "x": 319.5,
+        "y": 662.28,
+        "width": 238.49
+      },
+      { "str": "Generative Models.", "x": 319.5, "y": 651.33, "width": 78.23 },
+      { "str": " ", "x": 397.73, "y": 651.33, "width": 3.59 },
+      {
+        "str": "arXiv preprint arXiv:2503.20314",
+        "x": 401.31,
+        "y": 651.33,
+        "width": 131.76
+      },
+      { "str": ".", "x": 533.07, "y": 651.33, "width": 2.49 },
+      {
+        "str": "Wang, L.; Huang, B.; Zhao, Z.; Tong, Z.; He, Y.; Wang,",
+        "x": 319.5,
+        "y": 636.84,
+        "width": 238.49
+      },
+      {
+        "str": "Y.; Wang, Y.; and Qiao, Y. 2023. VideoMAE V2: Scaling",
+        "x": 319.5,
+        "y": 625.88,
+        "width": 238.49
+      },
+      {
+        "str": "Video Masked Autoencoders With Dual Masking. In",
+        "x": 319.5,
+        "y": 614.92,
+        "width": 217.23
+      },
+      { "str": " ", "x": 536.73, "y": 614.92, "width": 3.25 },
+      { "str": "Pro-", "x": 539.98, "y": 614.92, "width": 18.01 },
+      {
+        "str": "ceedings of the IEEE/CVF Conference on Computer Vision",
+        "x": 319.5,
+        "y": 603.96,
+        "width": 238.49
+      },
+      {
+        "str": "and Pattern Recognition (CVPR)",
+        "x": 319.5,
+        "y": 593,
+        "width": 131.1
+      },
+      { "str": ", 14549–14560.", "x": 450.6, "y": 593, "width": 62.27 },
+      {
+        "str": "Wang, Z.; Bovik, A.; Sheikh, H.; and Simoncelli, E. 2004.",
+        "x": 319.5,
+        "y": 578.51,
+        "width": 238.5
+      },
+      {
+        "str": "Image quality assessment: from error visibility to structural",
+        "x": 319.5,
+        "y": 567.55,
+        "width": 238.49
+      },
+      { "str": "similarity.", "x": 319.5, "y": 556.59, "width": 40.14 },
+      { "str": " ", "x": 359.64, "y": 556.59, "width": 5.15 },
+      {
+        "str": "IEEE Transactions on Image Processing",
+        "x": 364.79,
+        "y": 556.59,
+        "width": 163.29
+      },
+      { "str": ", 13(4):", "x": 528.08, "y": 556.59, "width": 29.92 },
+      { "str": "600–612.", "x": 319.5, "y": 545.64, "width": 37.36 },
+      {
+        "str": "Warren, A.; Xu, K.; Lin, J.; Tam, G. K.; and Lau, R. W.",
+        "x": 319.5,
+        "y": 531.15,
+        "width": 238.49
+      },
+      { "str": "2024.", "x": 319.5, "y": 520.19, "width": 22.42 },
+      { "str": " ", "x": 341.92, "y": 520.19, "width": 6.74 },
+      {
+        "str": "Effective Video Mirror Detection with Inconsistent",
+        "x": 348.66,
+        "y": 520.19,
+        "width": 209.33
+      },
+      { "str": "Motion Cues.", "x": 319.5, "y": 509.23, "width": 56.23 },
+      { "str": " ", "x": 375.73, "y": 509.23, "width": 8.85 },
+      { "str": "In", "x": 384.58, "y": 509.23, "width": 8.3 },
+      { "str": " ", "x": 392.87, "y": 509.23, "width": 4.48 },
+      {
+        "str": "Proceedings of the IEEE/CVF Confer-",
+        "x": 397.36,
+        "y": 509.23,
+        "width": 160.64
+      },
+      {
+        "str": "ence on Computer Vision and Pattern Recognition (CVPR)",
+        "x": 319.5,
+        "y": 498.27,
+        "width": 236
+      },
+      { "str": ",", "x": 555.5, "y": 498.27, "width": 2.49 },
+      { "str": "17244–17252.", "x": 319.5, "y": 487.31, "width": 57.28 },
+      {
+        "str": "Wen, Y.; Zhao, Y.; Liu, Y.; Jia, F.; Wang, Y.; Luo, C.;",
+        "x": 319.5,
+        "y": 472.82,
+        "width": 238.49
+      },
+      {
+        "str": "Zhang, C.; Wang, T.; Sun, X.; and Zhang, X. 2024. Panacea:",
+        "x": 319.5,
+        "y": 461.86,
+        "width": 238.49
+      },
+      {
+        "str": "Panoramic and controllable video generation for autonomous",
+        "x": 319.5,
+        "y": 450.91,
+        "width": 238.49
+      },
+      { "str": "driving.", "x": 319.5, "y": 439.95, "width": 31.47 },
+      { "str": " ", "x": 350.97, "y": 439.95, "width": 7.37 },
+      { "str": "In", "x": 358.34, "y": 439.95, "width": 8.3 },
+      { "str": " ", "x": 366.64, "y": 439.95, "width": 3.92 },
+      {
+        "str": "Proceedings of the IEEE/CVF Conference on",
+        "x": 370.56,
+        "y": 439.95,
+        "width": 187.44
+      },
+      {
+        "str": "Computer Vision and Pattern Recognition",
+        "x": 319.5,
+        "y": 428.99,
+        "width": 167.06
+      },
+      { "str": ", 6902–6912.", "x": 486.56, "y": 428.99, "width": 52.3 },
+      {
+        "str": "Xiao, J.; Yang, C.; Zhang, L.; Cai, S.; Zhao, Y.; Guo, Y.;",
+        "x": 319.5,
+        "y": 414.5,
+        "width": 238.49
+      },
+      {
+        "str": "Wetzstein, G.; Agrawala, M.; Yuille, A.; and Jiang, L. 2026.",
+        "x": 319.5,
+        "y": 403.54,
+        "width": 238.49
+      },
+      {
+        "str": "Captain Cinema: Towards Short Movie Generation. In",
+        "x": 319.5,
+        "y": 392.58,
+        "width": 220.56
+      },
+      { "str": " ", "x": 540.06, "y": 392.58, "width": 2.99 },
+      { "str": "The", "x": 543.05, "y": 392.58, "width": 14.94 },
+      {
+        "str": "Fourteenth International Conference on Learning Represen-",
+        "x": 319.5,
+        "y": 381.62,
+        "width": 238.49
+      },
+      { "str": "tations", "x": 319.5, "y": 370.66, "width": 27.13 },
+      { "str": ".", "x": 346.63, "y": 370.66, "width": 2.49 },
+      {
+        "str": "Xu, K.; Siu, T. W.; and Lau, R. W. 2024. ZOOM: Learning",
+        "x": 319.5,
+        "y": 356.17,
+        "width": 238.49
+      },
+      {
+        "str": "Video Mirror Detection with Extremely-Weak Supervision.",
+        "x": 319.5,
+        "y": 345.22,
+        "width": 238.49
+      },
+      { "str": "", "x": 319.5, "y": 334.26, "width": 0 },
+      {
+        "str": "Proceedings of the AAAI Conference on Artificial Intelli-",
+        "x": 319.5,
+        "y": 334.26,
+        "width": 238.49
+      },
+      { "str": "gence", "x": 319.5, "y": 323.3, "width": 22.78 },
+      { "str": ", 38(6): 6315–6323.", "x": 342.28, "y": 323.3, "width": 79.14 },
+      {
+        "str": "Xu, M.; Herbert, P.; Lai, Y.-K.; Ji, Z.; and Wu, J. 2025.",
+        "x": 319.5,
+        "y": 308.81,
+        "width": 238.49
+      },
+      {
+        "str": "RGB-D Video Mirror Detection. In",
+        "x": 319.5,
+        "y": 297.85,
+        "width": 141.53
+      },
+      { "str": " ", "x": 461.03, "y": 297.85, "width": 2.37 },
+      {
+        "str": "2025 IEEE/CVF Winter",
+        "x": 463.4,
+        "y": 297.85,
+        "width": 94.59
+      },
+      {
+        "str": "Conference on Applications of Computer Vision (WACV)",
+        "x": 319.5,
+        "y": 286.89,
+        "width": 236
+      },
+      { "str": ",", "x": 555.5, "y": 286.89, "width": 2.49 },
+      { "str": "9640–9649.", "x": 319.5, "y": 275.93, "width": 47.32 },
+      {
+        "str": "Yang, X.; Li, B.; Zhang, Y.; Yin, Z.; Bai, L.; Ma, L.; Wang,",
+        "x": 319.5,
+        "y": 261.44,
+        "width": 238.49
+      },
+      {
+        "str": "Z.; Cai, J.; Wong, T.-T.; Lu, H.; and Jia, X. 2025a. VLIPP:",
+        "x": 319.5,
+        "y": 250.48,
+        "width": 238.49
+      },
+      {
+        "str": "Towards Physically Plausible Video Generation with Vision",
+        "x": 319.5,
+        "y": 239.53,
+        "width": 238.49
+      },
+      {
+        "str": "and Language Informed Physical Prior.",
+        "x": 319.5,
+        "y": 228.57,
+        "width": 159.63
+      },
+      { "str": " ", "x": 479.13, "y": 228.57, "width": 6.27 },
+      { "str": "In", "x": 485.4, "y": 228.57, "width": 8.3 },
+      { "str": " ", "x": 493.7, "y": 228.57, "width": 3.5 },
+      { "str": "Proceedings of", "x": 497.19, "y": 228.57, "width": 60.8 },
+      {
+        "str": "the IEEE/CVF International Conference on Computer Vision",
+        "x": 319.5,
+        "y": 217.61,
+        "width": 238.49
+      },
+      { "str": "(ICCV)", "x": 319.5, "y": 206.65, "width": 29.33 },
+      { "str": ", 12360–12370.", "x": 348.83, "y": 206.65, "width": 62.27 },
+      {
+        "str": "Yang, Z.; Teng, J.; Zheng, W.; Ding, M.; Huang, S.; Xu,",
+        "x": 319.5,
+        "y": 192.16,
+        "width": 238.49
+      },
+      {
+        "str": "J.; Yang, Y.; Hong, W.; Zhang, X.; Feng, G.; Yin, D.; Yux-",
+        "x": 319.5,
+        "y": 181.2,
+        "width": 238.49
+      },
+      {
+        "str": "uan.Zhang; Wang, W.; Cheng, Y.; Xu, B.; Gu, X.; Dong,",
+        "x": 319.5,
+        "y": 170.24,
+        "width": 238.49
+      },
+      {
+        "str": "Y.; and Tang, J. 2025b.",
+        "x": 319.5,
+        "y": 159.28,
+        "width": 95.63
+      },
+      { "str": " ", "x": 415.13, "y": 159.28, "width": 6.18 },
+      {
+        "str": "CogVideoX: Text-to-Video Diffu-",
+        "x": 421.31,
+        "y": 159.28,
+        "width": 136.69
+      },
+      {
+        "str": "sion Models with An Expert Transformer. In",
+        "x": 319.5,
+        "y": 148.33,
+        "width": 177.53
+      },
+      { "str": " ", "x": 497.03, "y": 148.33, "width": 2.33 },
+      { "str": "The Thirteenth", "x": 499.36, "y": 148.33, "width": 58.63 },
+      {
+        "str": "International Conference on Learning Representations",
+        "x": 319.5,
+        "y": 137.37,
+        "width": 218.27
+      },
+      { "str": ".", "x": 537.77, "y": 137.37, "width": 2.49 },
+      {
+        "str": "Yu, S.; Kwak, S.; Jang, H.; Jeong, J.; Huang, J.; Shin, J.;",
+        "x": 319.5,
+        "y": 122.88,
+        "width": 238.49
+      },
+      {
+        "str": "and Xie, S. 2025. Representation Alignment for Generation:",
+        "x": 319.5,
+        "y": 111.92,
+        "width": 238.49
+      },
+      {
+        "str": "Training Diffusion Transformers Is Easier Than You Think.",
+        "x": 319.5,
+        "y": 100.96,
+        "width": 238.49
+      },
+      { "str": "In", "x": 319.5, "y": 90, "width": 8.3 },
+      { "str": " ", "x": 327.8, "y": 90, "width": 2.49 },
+      {
+        "str": "International Conference on Learning Representations",
+        "x": 330.29,
+        "y": 90,
+        "width": 218.27
+      },
+      { "str": ".", "x": 548.56, "y": 90, "width": 2.49 }
+    ]
+  }
+]

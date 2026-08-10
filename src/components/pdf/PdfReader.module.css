@@ -387,3 +387,31 @@
     height: 44px;
   }
 }
+
+.citationOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.citationHotspot {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.citationHotspot:hover,
+.citationHotspot:focus-visible {
+  outline: 2px solid rgba(60, 111, 83, 0.82);
+  background: rgba(60, 111, 83, 0.14);
+}
+
+.citationOverlayDisabled .citationHotspot {
+  pointer-events: none;
+}

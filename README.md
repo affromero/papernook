@@ -108,11 +108,11 @@ The PDF is the portable annotation layer. The web reader writes highlights,
 text, and ink back with version checks so another device cannot be overwritten
 silently.
 
-| Reading surface        | Source of truth                  | Sync boundary                                                                 |
-| ---------------------- | -------------------------------- | ----------------------------------------------------------------------------- |
-| Native PDF annotations | `data/papers/<topic>/<slug>.pdf` | Autosave from the web reader and flow to shared readings and optional WebDAV. |
-| Reference preview      | Current PDF                      | Opens a cropped destination beside the citation without moving the reader.    |
-| Conversations          | Per-profile JSONL                | Stay private unless the owner snapshots selected chats into a share.          |
+| Reading surface        | Source of truth                  | Sync boundary                                                                                                                                |
+| ---------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native PDF annotations | `data/papers/<topic>/<slug>.pdf` | Autosave from the web reader and flow to shared readings and optional WebDAV.                                                                |
+| Reference preview      | Current PDF                      | Opens the cited entry beside the citation via embedded links or, when the PDF has none, text-recognized citations (numeric and author-year). |
+| Conversations          | Per-profile JSONL                | Stay private unless the owner snapshots selected chats into a share.                                                                         |
 
 ```mermaid
 flowchart LR

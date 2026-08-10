@@ -13,7 +13,10 @@ import {
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
-import { resolvePdfDestination } from "@/lib/pdf/destinations";
+import {
+  resolvePdfDestination,
+  type ResolvedPdfDestination,
+} from "@/lib/pdf/destinations";
 import { resolvePdfDocumentTitle } from "@/lib/pdf/title";
 import {
   createPdfAutosave,
@@ -22,6 +25,10 @@ import {
 import "pdfjs-dist/web/pdf_viewer.css";
 import styles from "./PdfReader.module.css";
 import { ReferencePreview, type Preview } from "./ReferencePreview";
+import {
+  useCitationHotspots,
+  type ViewerEventBus,
+} from "./useCitationHotspots";
 
 export interface PdfReaderEditState {
   dirty: boolean;
@@ -103,6 +110,7 @@ export function PdfReader({
   const hoverLinkRef = useRef<HTMLAnchorElement | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
+  const [viewerBus, setViewerBus] = useState<ViewerEventBus | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [status, setStatus] = useState("Loading paper…");
@@ -188,9 +196,7 @@ export function PdfReader({
 
         const originalGoToDestination =
           linkService.goToDestination.bind(linkService);
-        const interceptDestination: typeof linkService.goToDestination = async (
-          destination,
-        ) => {
+        linkService.goToDestination = async (destination) => {
           const document = documentRef.current;
           if (!document) return;
           const target = await resolvePdfDestination(document, destination);
@@ -198,31 +204,9 @@ export function PdfReader({
             await originalGoToDestination(destination);
             return;
           }
-          const focusedLink =
-            window.document.activeElement instanceof HTMLElement
-              ? window.document.activeElement.closest("a")
-              : null;
-          const focusedRect = focusedLink?.getBoundingClientRect();
-          const containerRect = container.getBoundingClientRect();
-          const anchor = referenceAnchorRef.current ?? {
-            horizontal:
-              focusedRect &&
-              focusedRect.left + focusedRect.width / 2 <
-                containerRect.left + containerRect.width / 2
-                ? "left"
-                : "right",
-            vertical:
-              focusedRect &&
-              focusedRect.top + focusedRect.height / 2 <
-                containerRect.top + containerRect.height / 2
-                ? "top"
-                : "bottom",
-          };
-          const nextPreview = { destination: target, ...anchor };
-          previewRef.current = nextPreview;
-          setPreview(nextPreview);
+          showReferencePreview(target, null, null);
         };
-        linkService.goToDestination = interceptDestination;
+        setViewerBus(eventBus);
 
         const onPagesInit = () => {
           pdfViewer.currentScaleValue = "page-width";
@@ -397,6 +381,7 @@ export function PdfReader({
       disposed = true;
       abortController.abort();
       viewerCleanup?.();
+      setViewerBus(null);
       pdfViewerRef.current = null;
       documentRef.current = null;
       etagRef.current = null;
@@ -716,6 +701,58 @@ export function PdfReader({
     previewRef.current = null;
     setPreview(null);
   }
+
+  function showReferencePreview(
+    target: ResolvedPdfDestination,
+    entryText: string | null,
+    at: { clientX: number; clientY: number } | null,
+  ): void {
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    // Anchor priority: the triggering point, then the last captured pointer
+    // anchor, then the focused link's center (keyboard activation).
+    let point = at;
+    if (!point && !referenceAnchorRef.current) {
+      const link =
+        window.document.activeElement instanceof HTMLElement
+          ? window.document.activeElement.closest("a")
+          : null;
+      const linkRect = link?.getBoundingClientRect();
+      if (linkRect) {
+        point = {
+          clientX: linkRect.left + linkRect.width / 2,
+          clientY: linkRect.top + linkRect.height / 2,
+        };
+      }
+    }
+    const anchor: Pick<Preview, "horizontal" | "vertical"> = point
+      ? {
+          horizontal:
+            point.clientX - rect.left < rect.width / 2 ? "left" : "right",
+          vertical:
+            point.clientY - rect.top < rect.height / 2 ? "top" : "bottom",
+        }
+      : (referenceAnchorRef.current ?? {
+          horizontal: "right",
+          vertical: "bottom",
+        });
+    const nextPreview = {
+      destination: target,
+      ...(entryText === null ? {} : { entryText }),
+      ...anchor,
+    };
+    previewRef.current = nextPreview;
+    setPreview(nextPreview);
+  }
+
+  useCitationHotspots({
+    pdfDocument,
+    eventBus: viewerBus,
+    enabled: !editable || editMode === "select",
+    onCitation: (target) =>
+      showReferencePreview(target.destination, target.entryText, target),
+  });
 
   useEffect(() => {
     if (!preview) return;
