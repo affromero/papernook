@@ -31,7 +31,7 @@ function textWindow(
     const excerpts: string[] = [];
     let budget = MAX_TEXT_CHARS - assembled.length - 200;
     for (const chunk of retrieved) {
-      if (chunk.body.length > budget) break;
+      if (chunk.body.length > budget) continue;
       excerpts.push(chunk.body);
       budget -= chunk.body.length;
     }
@@ -48,10 +48,12 @@ export async function buildChatSystem(
   paper: Paper,
   username?: string,
   focusQuery?: string,
+  allowWeb?: boolean,
 ): Promise<string> {
   const meta = paper.meta;
   const text = readText(paper.topic, paper.slug) ?? "";
   const window = textWindow(paper, text, focusQuery);
+  const truncated = text.length > MAX_TEXT_CHARS;
   const annotations = username
     ? await annotationsForPaper(username, paper)
     : [];
@@ -66,6 +68,7 @@ export async function buildChatSystem(
     "",
     `Title: ${meta.title}`,
     `Authors: ${meta.authors.join(", ") || "unknown"}`,
+    meta.sourceUrl ? `Source: ${meta.sourceUrl}` : "",
     meta.year ? `Year: ${meta.year}` : "",
     meta.venue ? `Venue: ${meta.venue}` : "",
     meta.tags.length ? `Tags: ${meta.tags.join(", ")}` : "",
@@ -77,6 +80,9 @@ export async function buildChatSystem(
     "",
     focusQuery ? relatedLibraryContext(paper, focusQuery, username) : "",
     "",
+    truncated && allowWeb && meta.sourceUrl
+      ? "The paper text below is truncated. If the answer may be in an omitted section (e.g. an appendix), fetch the full paper from the Source URL before saying it is unavailable."
+      : "",
     window ? `Paper text:\n${window}` : "(No extracted text available.)",
   ]
     .filter((line) => line !== "")

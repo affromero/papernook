@@ -172,13 +172,14 @@ export async function POST(request: NextRequest, { params }: Params) {
     at: new Date().toISOString(),
   });
 
+  const allowWeb = webAccessEnabled() && Boolean(provider.capabilities?.web);
   const system = await buildChatSystem(
     paper,
     profile.username,
     body.data.content,
+    allowWeb,
   );
   const prompt = buildChatPrompt(chat.messages, body.data.content);
-  const allowWeb = webAccessEnabled() && Boolean(provider.capabilities?.web);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
