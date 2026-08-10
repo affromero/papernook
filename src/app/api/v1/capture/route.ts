@@ -3,7 +3,7 @@ import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
 import { consumeRequestLimit } from "@/lib/auth/rate-limit";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
-import { capture } from "@/lib/capture";
+import { captureAsync } from "@/lib/capture";
 import { CaptureError } from "@/lib/capture/download";
 
 export const dynamic = "force-dynamic";
@@ -41,21 +41,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
   try {
-    const result = await capture(body.data.url, profile.username);
-    return NextResponse.json({
-      slug: result.slug,
-      proposedTopic: result.proposedTopic,
-      href: `/inbox/${result.slug}`,
-    });
+    // Async: the marker on disk carries the outcome (Cloudflare cuts
+    // responses at 100s, so waiting inline loses it). Failures — including
+    // duplicates — surface as job cards in the inbox view.
+    const result = captureAsync(body.data.url, profile.username);
+    return NextResponse.json(
+      { slug: result.slug, href: "/?topic=_inbox" },
+      { status: 202 },
+    );
   } catch (error) {
-    // Cloudflare cuts responses at 100s, so slow failures never reach the
-    // browser — this line is the only durable record of why a capture died.
+    // Synchronous failures only: profile mid-erasure, disk errors.
     console.error(`papernook capture failed (${body.data.url}):`, error);
     if (error instanceof CaptureError) {
       return NextResponse.json({ error: error.message }, { status: 422 });
     }
-    // Configuration failures (e.g. a CLI provider under public exposure)
-    // must reach the user as the actual reason, not a blank 500.
     const message =
       error instanceof Error ? error.message : "Capture failed on the server.";
     return NextResponse.json(

@@ -15,16 +15,16 @@ class FakeCaptureError extends Error {}
 
 function mocks(opts: {
   signedIn: boolean;
-  capture?: () => Promise<{ slug: string; proposedTopic: string }>;
+  captureAsync?: () => { slug: string };
 }): void {
   vi.doMock("@/lib/auth/session", () => ({
     activeProfile: async () => (opts.signedIn ? { username: "andres" } : null),
   }));
   vi.doMock("@/lib/capture", () => ({
-    capture:
-      opts.capture ??
-      (async () => {
-        throw new Error("capture must not run");
+    captureAsync:
+      opts.captureAsync ??
+      (() => {
+        throw new Error("captureAsync must not run");
       }),
   }));
   vi.doMock("@/lib/capture/download", () => ({
@@ -58,59 +58,51 @@ describe("session-authed capture route", () => {
     ).toBe(400);
   });
 
-  it("returns the inbox href on success", async () => {
+  it("accepts the capture and points at the inbox without waiting", async () => {
     mocks({
       signedIn: true,
-      capture: async () => ({
-        slug: "attention-is-all-you-need",
-        proposedTopic: "transformers",
-      }),
+      captureAsync: () => ({ slug: "1706-03762" }),
     });
     const route = await import("@/app/api/v1/capture/route");
     const response = await route.POST(
       post({ url: "https://arxiv.org/abs/1706.03762" }),
     );
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
     expect(await response.json()).toEqual({
-      slug: "attention-is-all-you-need",
-      proposedTopic: "transformers",
-      href: "/inbox/attention-is-all-you-need",
+      slug: "1706-03762",
+      href: "/?topic=_inbox",
     });
   });
 
-  it("surfaces non-capture errors (misconfigured provider) as 502 with the reason", async () => {
+  it("surfaces synchronous start failures with the reason", async () => {
     mocks({
       signedIn: true,
-      capture: async () => {
-        throw new Error(
-          "CLI agent providers are disabled for public exposure because model tools can read host files.",
+      captureAsync: () => {
+        throw new Error("Disk full.");
+      },
+    });
+    const route = await import("@/app/api/v1/capture/route");
+    const response = await route.POST(post({ url: "https://a.io/x.pdf" }));
+    expect(response.status).toBe(502);
+    expect(((await response.json()) as { error: string }).error).toMatch(
+      /Disk full/,
+    );
+  });
+
+  it("maps synchronous capture errors (profile mid-erasure) to 422", async () => {
+    mocks({
+      signedIn: true,
+      captureAsync: () => {
+        throw new FakeCaptureError(
+          "This profile was deleted while the capture was running.",
         );
       },
     });
     const route = await import("@/app/api/v1/capture/route");
-    const response = await route.POST(
-      post({ url: "https://arxiv.org/abs/1706.03762" }),
-    );
-    expect(response.status).toBe(502);
-    expect(((await response.json()) as { error: string }).error).toMatch(
-      /public exposure/,
-    );
-  });
-
-  it("maps capture failures (duplicates, dead URLs) to 422", async () => {
-    mocks({
-      signedIn: true,
-      capture: async () => {
-        throw new FakeCaptureError("This paper is already in your library.");
-      },
-    });
-    const route = await import("@/app/api/v1/capture/route");
-    const response = await route.POST(
-      post({ url: "https://arxiv.org/abs/1706.03762" }),
-    );
+    const response = await route.POST(post({ url: "https://a.io/x.pdf" }));
     expect(response.status).toBe(422);
     expect(((await response.json()) as { error: string }).error).toMatch(
-      /already in your library/,
+      /deleted/,
     );
   });
 });

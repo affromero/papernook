@@ -13,6 +13,8 @@ import {
   matchesLibraryFilters,
 } from "@/lib/library/citations/filters";
 import { listTopics, listInbox } from "@/lib/library/papers";
+import { listCaptureJobs } from "@/lib/capture/jobs";
+import { CaptureJobs, type CaptureJobView } from "./CaptureJobs";
 import { LibraryCitationExport } from "./LibraryCitationExport";
 import styles from "./LibraryView.module.css";
 
@@ -47,9 +49,25 @@ export function LibraryView({
     );
   const topics = listTopics();
   const tags = allTags(username);
-  const inboxCount = listInbox().filter(
-    (paper) => paper.meta.addedBy === username,
-  ).length;
+  // "done" markers are handles for the /add status page, not jobs to show;
+  // the finished paper appears as a normal inbox card.
+  const captureJobs: CaptureJobView[] = listCaptureJobs(username).flatMap(
+    (job) =>
+      job.state === "done"
+        ? []
+        : [
+            {
+              slug: job.slug,
+              state: job.state,
+              sourceUrl: job.sourceUrl,
+              startedAt: job.startedAt,
+              error: job.error,
+            },
+          ],
+  );
+  const inboxCount =
+    listInbox().filter((paper) => paper.meta.addedBy === username).length +
+    captureJobs.length;
   const flagged = allIndexed()
     .filter((p) => p.needsReview && p.topic !== null)
     .map((p) => ({ slug: p.slug, topic: p.topic as string, title: p.title }));
@@ -127,12 +145,15 @@ export function LibraryView({
           />
         </form>
 
+        {activeTopic === "_inbox" && <CaptureJobs jobs={captureJobs} />}
         {papers.length === 0 ? (
-          <p className={styles.empty}>
-            {query
-              ? "Nothing matches that search."
-              : "No papers yet. Paste a link above to add your first."}
-          </p>
+          activeTopic === "_inbox" && captureJobs.length > 0 ? null : (
+            <p className={styles.empty}>
+              {query
+                ? "Nothing matches that search."
+                : "No papers yet. Paste a link above to add your first."}
+            </p>
+          )
         ) : (
           <ul className={styles.grid}>
             {papers.map((paper) => (
