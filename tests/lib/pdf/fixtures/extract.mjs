@@ -19,7 +19,9 @@ const { getDocument } = await import(
 
 const [pdfPath, outPath, ...pageArgs] = process.argv.slice(2);
 if (!pdfPath || !outPath || pageArgs.length === 0) {
-  console.error("usage: node extract.mjs <paper.pdf> <out.json> <page> [page…]");
+  console.error(
+    "usage: node extract.mjs <paper.pdf> <out.json> <page> [page…]",
+  );
   process.exit(1);
 }
 
