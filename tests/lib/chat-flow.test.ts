@@ -82,6 +82,30 @@ describe("chat context", () => {
     expect(withoutQuery).toContain("[...text truncated...]");
   });
 
+  it("points web-capable turns at the source URL when text is truncated", async () => {
+    const paper = await placePaper();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+
+    const webTurn = await buildChatSystem(paper, undefined, undefined, true);
+    expect(webTurn).toContain("Source: https://arxiv.org/abs/1706.03762");
+    expect(webTurn).toContain("fetch the full paper from the Source URL");
+
+    const noWebTurn = await buildChatSystem(paper, undefined, undefined, false);
+    expect(noWebTurn).toContain("Source: https://arxiv.org/abs/1706.03762");
+    expect(noWebTurn).not.toContain("fetch the full paper");
+
+    const papers = await import("@/lib/library/papers");
+    papers.writeText(paper.topic, paper.slug, "short text that fits whole");
+    const shortPaper = papers.getPaper(paper.topic, paper.slug)!;
+    const shortTurn = await buildChatSystem(
+      shortPaper,
+      undefined,
+      undefined,
+      true,
+    );
+    expect(shortTurn).not.toContain("fetch the full paper");
+  });
+
   it("flattens history into a resumable prompt", async () => {
     const { buildChatPrompt } = await import("@/lib/library/chat-context");
     const prompt = buildChatPrompt(
