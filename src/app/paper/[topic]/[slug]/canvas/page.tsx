@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
-import { hasConfiguredProvider } from "@/lib/agent/registry";
+import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
 import { PaperHeader } from "@/components/paper/PaperHeader";
@@ -29,6 +29,8 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
   const headerStore = await headers();
   const protocol = headerStore.get("x-forwarded-proto") ?? "http";
   const hostname = headerStore.get("host") ?? "localhost";
+  const aiAvailable = hasConfiguredProvider();
+  const visionAvailable = aiAvailable && getProvider().capabilities.vision;
   let licenseKey: string | null = null;
   let licenseError: string | null = null;
   try {
@@ -60,6 +62,7 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
             licenseKey={licenseKey}
             licenseRequired={tldrawLicenseRequired(protocol, hostname)}
             licenseError={licenseError}
+            visionAvailable={visionAvailable}
           />
         }
         chat={
@@ -68,7 +71,8 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
             <ChatPanel
               topic={topic}
               slug={slug}
-              aiAvailable={hasConfiguredProvider()}
+              aiAvailable={aiAvailable}
+              visionAvailable={visionAvailable}
             />
           </div>
         }
