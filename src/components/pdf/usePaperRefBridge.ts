@@ -20,12 +20,22 @@ import {
   PAPER_REF_EVENT,
   parsePaperRefEvent,
 } from "@/lib/chat/paper-ref-events";
-import { matchCitation, type Bibliography } from "@/lib/pdf/bibliography";
+import {
+  matchCitation,
+  pageLines,
+  type Bibliography,
+  type TextLine,
+} from "@/lib/pdf/bibliography";
 import {
   resolvePdfDestination,
   type ResolvedPdfDestination,
 } from "@/lib/pdf/destinations";
-import { destinationCandidates, type PaperRef } from "@/lib/pdf/paper-refs";
+import {
+  captionPattern,
+  destinationCandidates,
+  type PaperRef,
+} from "@/lib/pdf/paper-refs";
+import { pdfTextChunks, pdfTextItems } from "@/lib/pdf/text-items";
 
 interface UsePaperRefBridgeOptions {
   pdfDocument: PDFDocumentProxy | null;
@@ -48,6 +58,62 @@ async function resolveRef(
   return null;
 }
 
+/** Promise-per-page so concurrent lookups never extract a page twice. */
+type LineCache = Map<number, Promise<TextLine[]>>;
+
+function pageTextLines(
+  pdfDocument: PDFDocumentProxy,
+  pageNumber: number,
+  cache: LineCache,
+): Promise<TextLine[]> {
+  let lines = cache.get(pageNumber);
+  if (!lines) {
+    lines = (async () => {
+      const page = await pdfDocument.getPage(pageNumber);
+      const items = await pdfTextItems(page);
+      const viewport = page.getViewport({ scale: 1 });
+      return pageLines({
+        pageNumber,
+        pageWidth: viewport.width,
+        chunks: pdfTextChunks(items),
+      });
+    })();
+    cache.set(pageNumber, lines);
+  }
+  return lines;
+}
+
+/**
+ * Fallback for PDFs without named destinations: find the ref's caption
+ * (or heading) line in page text. First line-start match wins — captions
+ * are the only place "Figure 3:" starts a line.
+ */
+async function findCaption(
+  pdfDocument: PDFDocumentProxy,
+  ref: Pick<PaperRef, "kind" | "label">,
+  cache: LineCache,
+  cancelled: () => boolean,
+): Promise<ResolvedPdfDestination | null> {
+  const pattern = captionPattern(ref);
+  if (!pattern) return null;
+  for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber++) {
+    if (cancelled()) return null;
+    const lines = await pageTextLines(pdfDocument, pageNumber, cache);
+    const hit = lines.find((line) => pattern.test(line.text));
+    if (hit) {
+      return {
+        pageNumber,
+        kind: "XYZ",
+        left: hit.x,
+        // Slightly above the line's baseline, like hyperref destinations.
+        top: hit.y + 8,
+        zoom: null,
+      };
+    }
+  }
+  return null;
+}
+
 export function usePaperRefBridge({
   pdfDocument,
   enabled,
@@ -63,6 +129,9 @@ export function usePaperRefBridge({
   useEffect(() => {
     if (!pdfDocument) return;
     let disposed = false;
+    // Effect-scoped: a document change re-runs the effect, dropping the
+    // stale cache with it.
+    const lineCache: LineCache = new Map();
 
     const onPaperRef = (event: Event) => {
       if (!optionsRef.current.enabled) return;
@@ -89,6 +158,11 @@ export function usePaperRefBridge({
       }
 
       void resolveRef(pdfDocument, detail.ref)
+        .then(
+          (target) =>
+            target ??
+            findCaption(pdfDocument, detail.ref, lineCache, () => disposed),
+        )
         .then((target) => {
           if (disposed || !target) return;
           if (detail.action === "goto") {
