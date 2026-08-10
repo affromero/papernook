@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
-import { hasConfiguredProvider } from "@/lib/agent/registry";
+import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
 import { PdfReader } from "@/components/pdf/PdfReader";
@@ -22,6 +22,8 @@ export default async function PaperPage({ params }: PaperPageProps) {
   if (!paper) notFound();
 
   const meta = paper.meta;
+  const aiAvailable = hasConfiguredProvider();
+  const visionAvailable = aiAvailable && getProvider().capabilities.vision;
   return (
     <main className={styles.root}>
       <ReadingWorkspace
@@ -43,7 +45,8 @@ export default async function PaperPage({ params }: PaperPageProps) {
             <ChatPanel
               topic={topic}
               slug={slug}
-              aiAvailable={hasConfiguredProvider()}
+              aiAvailable={aiAvailable}
+              visionAvailable={visionAvailable}
             />
           </div>
         }

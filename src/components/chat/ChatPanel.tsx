@@ -20,9 +20,16 @@ interface ChatPanelProps {
   slug: string;
   /** Server-computed hasConfiguredProvider(); false renders a setup hint. */
   aiAvailable: boolean;
+  /** Provider capabilities.vision; false disables image attachments. */
+  visionAvailable: boolean;
 }
 
-export function ChatPanel({ topic, slug, aiAvailable }: ChatPanelProps) {
+export function ChatPanel({
+  topic,
+  slug,
+  aiAvailable,
+  visionAvailable,
+}: ChatPanelProps) {
   const base = `/api/v1/papers/${topic}/${slug}`;
   const [chats, setChats] = useState<ChatHeader[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -49,6 +56,7 @@ export function ChatPanel({ topic, slug, aiAvailable }: ChatPanelProps) {
 
   // Canvas "Explain selection" hands crops over via this window event.
   useEffect(() => {
+    if (!visionAvailable) return;
     const onAttach = (event: Event) => {
       const dataUrl = (event as CustomEvent<string>).detail;
       if (typeof dataUrl === "string" && dataUrl.startsWith("data:image/")) {
@@ -57,7 +65,7 @@ export function ChatPanel({ topic, slug, aiAvailable }: ChatPanelProps) {
     };
     window.addEventListener("papernook:attach", onAttach);
     return () => window.removeEventListener("papernook:attach", onAttach);
-  }, []);
+  }, [visionAvailable]);
 
   async function openChat(id: string): Promise<void> {
     setActiveId(id);
@@ -86,6 +94,7 @@ export function ChatPanel({ topic, slug, aiAvailable }: ChatPanelProps) {
   }
 
   function onPaste(event: React.ClipboardEvent): void {
+    if (!visionAvailable) return;
     for (const item of event.clipboardData.items) {
       if (!item.type.startsWith("image/")) continue;
       const file = item.getAsFile();
@@ -225,8 +234,9 @@ export function ChatPanel({ topic, slug, aiAvailable }: ChatPanelProps) {
         ))}
         {messages.length === 0 && (
           <p className={styles.empty}>
-            Ask anything about this paper, or paste a marked-up screenshot and
-            ask &ldquo;explain this&rdquo;.
+            {visionAvailable
+              ? "Ask anything about this paper, or paste a marked-up screenshot and ask “explain this”."
+              : "Ask anything about this paper."}
           </p>
         )}
       </div>
@@ -267,7 +277,11 @@ export function ChatPanel({ topic, slug, aiAvailable }: ChatPanelProps) {
                 void send();
               }
             }}
-            placeholder="Ask about the paper… (paste screenshots here)"
+            placeholder={
+              visionAvailable
+                ? "Ask about the paper… (paste screenshots here)"
+                : "Ask about the paper…"
+            }
             rows={2}
             disabled={busy}
           />

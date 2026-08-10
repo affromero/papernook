@@ -21,6 +21,8 @@ export interface CanvasBoardProps {
   licenseKey: string | null;
   licenseRequired: boolean;
   licenseError: string | null;
+  /** Provider capabilities.vision; false hides "Explain selection". */
+  visionAvailable: boolean;
 }
 
 const SAVE_DELAY_MS = 1_200;
@@ -246,6 +248,7 @@ export function CanvasBoard({
   licenseKey,
   licenseRequired,
   licenseError,
+  visionAvailable,
 }: CanvasBoardProps) {
   const base = `/api/v1/papers/${topic}/${slug}`;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -610,7 +613,7 @@ export function CanvasBoard({
               Annotate PDF
             </button>
           )}
-          {!canvasUnavailable && (
+          {!canvasUnavailable && visionAvailable && (
             <button type="button" onClick={() => void explainSelection()}>
               Explain selection
             </button>

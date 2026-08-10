@@ -143,6 +143,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invalid message." }, { status: 400 });
   }
 
+  // capabilities is optional-chained so registry mocks without it stay
+  // conservative: no declared capabilities means no vision and no web.
+  const provider = getProvider();
+  if (body.data.images?.length && !provider.capabilities?.vision) {
+    return NextResponse.json(
+      { error: "The configured AI provider can't read images." },
+      { status: 400 },
+    );
+  }
+
   let images: ReturnType<typeof persistImages>;
   try {
     images = persistImages(paper.companionDir, body.data.images ?? []);
@@ -168,8 +178,6 @@ export async function POST(request: NextRequest, { params }: Params) {
     body.data.content,
   );
   const prompt = buildChatPrompt(chat.messages, body.data.content);
-  const provider = getProvider();
-  // capabilities is optional-chained so registry mocks without it stay valid.
   const allowWeb = webAccessEnabled() && Boolean(provider.capabilities?.web);
 
   const encoder = new TextEncoder();
