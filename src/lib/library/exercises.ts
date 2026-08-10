@@ -44,10 +44,33 @@ interface Line {
   indent: number;
 }
 
+/**
+ * Helvetica is WinAnsi-only; pdf-lib throws on anything outside it. Chat
+ * markdown now carries math and code, so transliterate common symbols and
+ * blank out the rest rather than 500 on "save as exercise".
+ */
+function sanitizeForWinAnsi(s: string): string {
+  return s
+    .replace(/[‘’‛]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—−]/g, "-")
+    .replace(/…/g, "...")
+    .replace(/[→⇒]/g, "->")
+    .replace(/[←⇐]/g, "<-")
+    .replace(/≤/g, "<=")
+    .replace(/≥/g, ">=")
+    .replace(/[^\n\x20-\x7E\u00A0-\u00FF]/g, "?");
+}
+
 function markdownToLines(markdown: string): Line[] {
   const lines: Line[] = [];
-  for (const raw of markdown.split("\n")) {
-    const line = raw.trimEnd();
+  // Fenced code (incl. ```threejs demos) is not Pencil practice material.
+  const withoutFences = markdown.replace(
+    /^```[^\n]*\n[\s\S]*?^```[ \t]*$/gm,
+    "[code block omitted]",
+  );
+  for (const raw of withoutFences.split("\n")) {
+    const line = sanitizeForWinAnsi(raw.trimEnd());
     const heading = line.match(/^(#{1,3})\s+(.*)$/);
     const bullet = line.match(/^\s*[-*]\s+(.*)$/);
     const numbered = line.match(/^\s*(\d+)[.)]\s+(.*)$/);

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Markdown } from "@/components/chat/Markdown";
 import { PdfReader } from "@/components/pdf/PdfReader";
 import { getPaper } from "@/lib/library/papers";
 import { getShare, type PaperShare } from "@/lib/library/shares";
@@ -127,7 +128,13 @@ export default async function SharePage({ params }: SharePageProps) {
                             />
                           ) : null;
                         })}
-                        <p className={styles.messageText}>{message.content}</p>
+                        {message.role === "assistant" ? (
+                          <Markdown content={message.content} />
+                        ) : (
+                          <p className={styles.messageText}>
+                            {message.content}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
