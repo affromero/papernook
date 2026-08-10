@@ -51,6 +51,21 @@ describe("chat context", () => {
     expect(system.length).toBeLessThan(60_000);
   });
 
+  it("injects huge text whole for unbounded-context providers", async () => {
+    const paper = await placePaper();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+    const system = await buildChatSystem(
+      paper,
+      undefined,
+      undefined,
+      true,
+      true,
+    );
+    expect(system).toContain("x".repeat(80_000));
+    expect(system).not.toContain("[...text truncated...]");
+    expect(system).not.toContain("fetch the full paper");
+  });
+
   it("tells the model replies render as markdown with KaTeX math", async () => {
     const paper = await placePaper();
     const { buildChatSystem } = await import("@/lib/library/chat-context");

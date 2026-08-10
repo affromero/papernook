@@ -201,7 +201,7 @@ async function* streamCompatible(
 
 export const anthropicProvider: AgentProvider = {
   id: "anthropic",
-  capabilities: { web: true, vision: true },
+  capabilities: { web: true, vision: true, unboundedContext: false },
   execute: executeAnthropic,
   stream: streamAnthropic,
 };
@@ -211,7 +211,7 @@ export const openaiProvider: AgentProvider = {
   // web stays off for now: chat.completions' web_search_options is gated to
   // specific search-preview models, and papernook lets the admin pick any
   // model. Revisit alongside a Responses-API migration.
-  capabilities: { web: false, vision: true },
+  capabilities: { web: false, vision: true, unboundedContext: false },
   execute: (turn) => executeCompatible("openai", turn),
   stream: (turn) => streamCompatible("openai", turn),
 };
@@ -219,7 +219,7 @@ export const openaiProvider: AgentProvider = {
 function localProvider(id: LocalProviderId): AgentProvider {
   return {
     id,
-    capabilities: { web: false, vision: true },
+    capabilities: { web: false, vision: true, unboundedContext: false },
     execute: (turn) => executeCompatible(id, turn),
     stream: (turn) => streamCompatible(id, turn),
   };

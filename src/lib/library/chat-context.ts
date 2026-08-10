@@ -5,9 +5,11 @@ import { annotationsForPaper } from "../capture/zotero-service";
 
 /**
  * System context injected into every per-paper chat turn: summary + metadata
- * always. Papers that fit inside MAX_TEXT_CHARS are injected whole; longer
- * papers get the head window plus passages retrieved for the current
- * question, so the tail of a long paper stays reachable.
+ * always. Providers with capabilities.unboundedContext (agentic CLIs) get the
+ * full text and manage their own context. For the rest, papers that fit
+ * inside MAX_TEXT_CHARS are injected whole; longer papers get the head window
+ * plus passages retrieved for the current question, so the tail of a long
+ * paper stays reachable.
  */
 
 const MAX_TEXT_CHARS = 50_000;
@@ -49,11 +51,12 @@ export async function buildChatSystem(
   username?: string,
   focusQuery?: string,
   allowWeb?: boolean,
+  unboundedContext?: boolean,
 ): Promise<string> {
   const meta = paper.meta;
   const text = readText(paper.topic, paper.slug) ?? "";
-  const window = textWindow(paper, text, focusQuery);
-  const truncated = text.length > MAX_TEXT_CHARS;
+  const window = unboundedContext ? text : textWindow(paper, text, focusQuery);
+  const truncated = !unboundedContext && text.length > MAX_TEXT_CHARS;
   const annotations = username
     ? await annotationsForPaper(username, paper)
     : [];

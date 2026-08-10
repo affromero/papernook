@@ -221,6 +221,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     profile.username,
     body.data.content,
     allowWeb,
+    Boolean(provider.capabilities?.unboundedContext),
   );
   const prompt = buildChatPrompt(chat.messages, body.data.content);
 

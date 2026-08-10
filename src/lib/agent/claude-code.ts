@@ -322,7 +322,7 @@ export async function* streamClaudeCode(
 
 export const claudeCodeProvider: AgentProvider = {
   id: "claude-code",
-  capabilities: { web: true, vision: true },
+  capabilities: { web: true, vision: true, unboundedContext: true },
   execute: executeClaudeCode,
   stream: streamClaudeCode,
 };

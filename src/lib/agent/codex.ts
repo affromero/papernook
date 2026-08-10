@@ -169,7 +169,7 @@ export async function* streamCodex(turn: AgentTurn): AsyncGenerator<string> {
 export const codexProvider: AgentProvider = {
   id: "codex",
   // The read-only sandbox has no network, so allowWeb cannot be honored.
-  capabilities: { web: false, vision: true },
+  capabilities: { web: false, vision: true, unboundedContext: true },
   execute: executeCodex,
   stream: streamCodex,
 };

@@ -50,6 +50,12 @@ export interface AgentCapabilities {
   web: boolean;
   /** Accepts image attachments. */
   vision: boolean;
+  /**
+   * Manages context internally (agentic CLIs): send full paper text and let
+   * the provider compact/window it. False caps injected text at a size safe
+   * for small local models.
+   */
+  unboundedContext: boolean;
 }
 
 export interface AgentProvider {
