@@ -90,6 +90,12 @@ function assertWritablePdf(bytes: Uint8Array): void {
   if (!header.includes("%PDF-")) {
     throw new InvalidPdfError("The saved file is not a valid PDF.");
   }
+  // A body cut off in transit keeps its header but loses the trailer; the
+  // spec requires %%EOF within the last 1024 bytes.
+  const trailer = new TextDecoder("latin1").decode(bytes.subarray(-1024));
+  if (!trailer.includes("%%EOF")) {
+    throw new InvalidPdfError("The saved PDF is incomplete. Try saving again.");
+  }
 }
 
 async function assertNotRecentlyWritten(

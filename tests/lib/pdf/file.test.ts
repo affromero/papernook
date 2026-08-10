@@ -82,6 +82,24 @@ describe("versioned PDF files", () => {
     ).toBe(false);
   });
 
+  it("rejects a PDF truncated in transit and keeps the file intact", async () => {
+    const pdfPath = await placePaper();
+    const before = fs.readFileSync(pdfPath);
+    const { InvalidPdfError, readVersionedPdf, replacePdf } =
+      await import("@/lib/library/pdf/file");
+    const opened = await readVersionedPdf("nlp", "attention");
+    const annotated = await makePdf("annotated");
+    const truncated = annotated.subarray(
+      0,
+      Math.floor(annotated.byteLength / 2),
+    );
+
+    await expect(
+      replacePdf("nlp", "attention", opened!.etag, truncated),
+    ).rejects.toThrow(InvalidPdfError);
+    expect(fs.readFileSync(pdfPath)).toEqual(before);
+  });
+
   it("never overwrites a PDF changed after the reader opened it", async () => {
     const pdfPath = await placePaper();
     const { PdfConflictError, readVersionedPdf, replacePdf } =
@@ -211,6 +229,56 @@ describe("authenticated PDF route", () => {
     expect(await stale.json()).toMatchObject({
       error: expect.stringContaining("Reload before saving"),
     });
+  });
+
+  it("rejects saves that arrive truncated instead of writing them", async () => {
+    const pdfPath = await placePaper();
+    const before = fs.readFileSync(pdfPath);
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    await signedInAs("andres");
+    const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
+    const params = {
+      params: Promise.resolve({ topic: "nlp", slug: "attention" }),
+    };
+    const etag = (
+      await route.GET(
+        new NextRequest("http://localhost/api/v1/papers/nlp/attention/pdf"),
+        params,
+      )
+    ).headers.get("etag");
+    const annotated = await makePdf("web annotation");
+
+    // Body cut off mid-stream: the PDF trailer never arrives.
+    const cutOff = await route.PUT(
+      new NextRequest("http://localhost/api/v1/papers/nlp/attention/pdf", {
+        method: "PUT",
+        headers: { "content-type": "application/pdf", "if-match": etag! },
+        body: annotated.slice(0, Math.floor(annotated.byteLength / 2))
+          .buffer as ArrayBuffer,
+      }),
+      params,
+    );
+    expect(cutOff.status).toBe(422);
+
+    // Intact body but shorter than the length the client declared.
+    const shortened = await route.PUT(
+      new NextRequest("http://localhost/api/v1/papers/nlp/attention/pdf", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/pdf",
+          "if-match": etag!,
+          "content-length": String(annotated.byteLength * 2),
+        },
+        body: new Uint8Array(annotated).buffer,
+      }),
+      params,
+    );
+    expect(shortened.status).toBe(422);
+    expect(await shortened.json()).toMatchObject({
+      error: expect.stringContaining("incomplete"),
+    });
+    expect(fs.readFileSync(pdfPath)).toEqual(before);
   });
 
   it("requires a signed-in profile, PDF content type, and opened version", async () => {

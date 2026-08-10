@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { MAX_PDF_BYTES } from "./src/lib/pdf-limits";
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const privateTraceExcludes = [
@@ -66,6 +67,11 @@ const nextConfig: NextConfig = {
     ];
   },
   turbopack: { root: projectRoot },
+  experimental: {
+    // Annotation saves PUT the whole PDF through src/proxy.ts; the 10MB
+    // default silently truncates larger bodies instead of failing them.
+    proxyClientMaxBodySize: MAX_PDF_BYTES,
+  },
 };
 
 export default nextConfig;

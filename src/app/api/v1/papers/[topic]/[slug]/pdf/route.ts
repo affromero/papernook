@@ -155,6 +155,17 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   try {
     const bytes = await readPdfBody(request);
+    // The proxy buffers request bodies and hands truncated ones to the
+    // handler without an error; a declared length that does not match the
+    // received bytes means the PDF was cut off in transit.
+    if (
+      headers.data.contentLength !== null &&
+      bytes.byteLength !== headers.data.contentLength
+    ) {
+      throw new InvalidPdfError(
+        "The saved PDF arrived incomplete. Try saving again.",
+      );
+    }
     const { topic, slug } = parsedParams.data;
     const result = await replacePdf(topic, slug, headers.data.ifMatch, bytes);
     return NextResponse.json(result, {
