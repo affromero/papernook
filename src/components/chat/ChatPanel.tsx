@@ -21,6 +21,8 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   images?: string[];
+  /** Server timestamp; absent on optimistic bubbles until the next reload. */
+  at?: string;
 }
 
 interface ChatPanelProps {
@@ -45,6 +47,7 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [pastedImages, setPastedImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [vanishing, setVanishing] = useState<ReadonlySet<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [bibliography, setBibliography] = useState<Bibliography | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -144,6 +147,33 @@ export function ChatPanel({
       chat?: { messages: ChatMessage[] };
     };
     setMessages(data.chat?.messages ?? []);
+    setVanishing(new Set());
+  }
+
+  /** iOS-style vanish: shrink the bubble, then remove it here and on disk. */
+  function deleteMsg(index: number): void {
+    const chatId = activeId;
+    const at = messages[index]?.at;
+    if (!chatId || !at || busy) return;
+    setVanishing((v) => new Set(v).add(index));
+    window.setTimeout(() => {
+      void (async () => {
+        const res = await fetch(`${base}/chats/${chatId}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ index, at }),
+        }).catch(() => null);
+        setVanishing(new Set());
+        if (res?.ok) {
+          setMessages((m) => m.filter((_, i) => i !== index));
+        } else {
+          // ponytail: stale index (e.g. two rapid deletes) → resync from disk.
+          setError("Delete failed.");
+          void openChat(chatId);
+        }
+      })();
+    }, 220);
   }
 
   async function newChat(): Promise<void> {
@@ -231,6 +261,9 @@ export function ChatPanel({
       setError(e instanceof Error ? e.message : "Send failed.");
     } finally {
       setBusy(false);
+      // Reload from disk so the new bubbles carry their server timestamps
+      // (needed to delete them) and a failed send drops nothing silently.
+      void openChat(chatId);
     }
   }
 
@@ -279,10 +312,22 @@ export function ChatPanel({
         {messages.map((message, i) => (
           <div
             key={i}
-            className={
-              message.role === "user" ? styles.userMsg : styles.assistantMsg
-            }
+            className={[
+              message.role === "user" ? styles.userMsg : styles.assistantMsg,
+              vanishing.has(i) ? styles.vanish : "",
+            ].join(" ")}
           >
+            {message.at && !busy && (
+              <button
+                type="button"
+                className={styles.deleteBtn}
+                onClick={() => deleteMsg(i)}
+                aria-label="Delete message"
+                title="Delete message"
+              >
+                ×
+              </button>
+            )}
             {message.images?.map((src, j) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img

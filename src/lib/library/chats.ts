@@ -110,6 +110,40 @@ export function readChat(
   }
 }
 
+/**
+ * Remove one message (by position, guarded by its timestamp so a stale
+ * client can't delete the wrong line) and its pasted-image files. Rewrites
+ * the jsonl atomically; crop filenames are unique per message, so removing
+ * this message's images never orphans another reference.
+ */
+export function deleteMessage(
+  topic: string | null,
+  slug: string,
+  username: string,
+  chatId: string,
+  index: number,
+  at: string,
+): boolean {
+  const chat = readChat(topic, slug, username, chatId);
+  const target = chat?.messages[index];
+  if (!chat || !target || target.at !== at) return false;
+
+  const file = chatPath(topic, slug, username, chatId);
+  const kept = chat.messages.filter((_, i) => i !== index);
+  const lines = [chat.header, ...kept].map((l) => JSON.stringify(l));
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, `${lines.join("\n")}\n`);
+  fs.renameSync(tmp, file);
+
+  const companion = companionDir(topic, slug);
+  for (const image of target.images ?? []) {
+    if (/^crops\/[a-zA-Z0-9._-]+$/.test(image)) {
+      fs.rmSync(path.join(companion, image), { force: true });
+    }
+  }
+  return true;
+}
+
 export function listChats(
   topic: string | null,
   slug: string,

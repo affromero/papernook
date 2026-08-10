@@ -46,11 +46,56 @@
 
 .userMsg,
 .assistantMsg {
+  position: relative;
   max-width: 88%;
   border-radius: 12px;
   padding: 0.6rem 0.85rem;
   font-size: 0.93rem;
   line-height: 1.5;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.deleteBtn {
+  position: absolute;
+  top: -0.45rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: var(--background, #fff);
+  color: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.userMsg .deleteBtn {
+  left: -0.45rem;
+}
+
+.assistantMsg .deleteBtn {
+  right: -0.45rem;
+}
+
+.userMsg:hover .deleteBtn,
+.assistantMsg:hover .deleteBtn,
+.deleteBtn:focus-visible {
+  opacity: 1;
+}
+
+/* No hover on touch: keep the control reachable, just subtle. */
+@media (hover: none) {
+  .deleteBtn {
+    opacity: 0.45;
+  }
+}
+
+.vanish {
+  opacity: 0;
+  transform: scale(0.7);
 }
 
 .userMsg {

@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
-import { readChat, appendMessage } from "@/lib/library/chats";
+import { readChat, appendMessage, deleteMessage } from "@/lib/library/chats";
 import { buildChatSystem, buildChatPrompt } from "@/lib/library/chat-context";
 import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { webAccessEnabled } from "@/lib/agent/config";
@@ -26,6 +26,49 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!chat)
     return NextResponse.json({ error: "Unknown chat." }, { status: 404 });
   return NextResponse.json({ chat });
+}
+
+const deleteSchema = z.object({
+  index: z.number().int().min(0).max(100_000),
+  at: z.string().min(1).max(64),
+});
+
+/** Delete one message from the caller's own chat, matched by index + at. */
+export async function DELETE(request: NextRequest, { params }: Params) {
+  const profile = await activeProfile();
+  if (!profile)
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const { topic, slug, chatId } = await params;
+  let raw: unknown;
+  try {
+    raw = await readBoundedJson(request, 4096);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
+    }
+    throw error;
+  }
+  const body = deleteSchema.safeParse(raw);
+  if (!body.success) {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  const removed = deleteMessage(
+    topic,
+    slug,
+    profile.username,
+    chatId,
+    body.data.index,
+    body.data.at,
+  );
+  if (!removed) {
+    // Missing chat and stale index/timestamp look the same on purpose:
+    // the client's view is outdated either way — reload the chat.
+    return NextResponse.json({ error: "Message not found." }, { status: 409 });
+  }
+  return NextResponse.json({ ok: true });
 }
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
