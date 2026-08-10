@@ -14,6 +14,12 @@ interface PaperPageProps {
   params: Promise<{ topic: string; slug: string }>;
 }
 
+export async function generateMetadata({ params }: PaperPageProps) {
+  const { topic, slug } = await params;
+  const paper = getPaper(topic, slug);
+  return { title: paper ? `[nook] ${paper.meta.title}` : "papernook" };
+}
+
 export default async function PaperPage({ params }: PaperPageProps) {
   const profile = await activeProfile();
   if (!profile) redirect("/login");
