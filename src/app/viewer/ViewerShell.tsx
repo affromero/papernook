@@ -20,7 +20,7 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
   const [displayTitle, setDisplayTitle] = useState(title);
 
   useEffect(() => {
-    document.title = `${displayTitle} · papernook`;
+    document.title = `[nook] ${displayTitle}`;
   }, [displayTitle]);
 
   async function addToLibrary(): Promise<void> {

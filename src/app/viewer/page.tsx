@@ -21,8 +21,8 @@ interface ViewerPageProps {
 export async function generateMetadata({ searchParams }: ViewerPageProps) {
   const { src } = await searchParams;
   const url = parseHttpUrl(src);
-  if (!url) return { title: "Viewer · papernook" };
-  return { title: `${fileName(url)} · papernook` };
+  if (!url) return { title: "[nook] viewer" };
+  return { title: `[nook] ${fileName(url)}` };
 }
 
 /** Last path segment, decoded; a malformed %-escape falls back to the raw. */
