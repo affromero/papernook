@@ -104,6 +104,7 @@ export function proxy(request: NextRequest): NextResponse {
     !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
     pathname !== "/add" &&
     pathname !== "/add/confirm" &&
+    pathname !== "/add/status" &&
     crossSiteMutation(request)
   ) {
     return secureResponse(
@@ -118,6 +119,7 @@ export function proxy(request: NextRequest): NextResponse {
     PUBLIC_PATHS.has(pathname) ||
     pathname === "/add" ||
     pathname === "/add/confirm" ||
+    pathname === "/add/status" ||
     privateSharePath
   ) {
     const response = continueRequest(request, csp);

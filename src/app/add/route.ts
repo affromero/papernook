@@ -6,10 +6,10 @@ import {
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
 import { clientIp } from "@/lib/auth/request-security";
-import { capture } from "@/lib/capture";
+import { captureAsync } from "@/lib/capture";
 import { CaptureError } from "@/lib/capture/download";
 import { readBoundedForm, RequestBodyError } from "@/lib/bounded-request";
-import { confirmationPage, errorPage } from "./pages";
+import { errorPage, pendingPage } from "./pages";
 
 /**
  * The one-tap capture endpoint. Authenticated by the per-profile capture
@@ -59,8 +59,11 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const result = await capture(url, profile.username);
-    return html(confirmationPage(result, token), 200);
+    // Async: the pending page polls /add/status for the outcome, so the
+    // response returns before Cloudflare's 100s proxy limit can cut it.
+    const result = captureAsync(url, profile.username);
+    const nonce = request.headers.get("x-nonce") ?? "";
+    return html(pendingPage(result.slug, token, nonce), 202);
   } catch (err) {
     console.error(`papernook capture failed (${url}):`, err);
     const message =

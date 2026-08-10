@@ -1,5 +1,4 @@
-import { listTopics } from "@/lib/library/papers";
-import type { CaptureResult } from "@/lib/capture";
+import { listTopics, type Paper } from "@/lib/library/papers";
 
 /**
  * Self-contained HTML for the capture flow. These pages must work in any
@@ -46,8 +45,38 @@ function page(title: string, body: string): string {
 <body><main>${body}</main></body></html>`;
 }
 
-export function confirmationPage(result: CaptureResult, token: string): string {
-  const { analysis, slug, proposedTopic } = result;
+/**
+ * The capture runs in the background (see captureAsync); this page holds
+ * the token+slug in a POST form and re-checks /add/status. Auto-submits
+ * via a CSP-nonced script; the button is the no-JS fallback. The token
+ * stays out of URLs — POST bodies only.
+ */
+export function pendingPage(
+  slug: string,
+  token: string,
+  nonce: string,
+): string {
+  return page(
+    "Capturing…",
+    `<h1>Capturing…</h1>
+<div class="card">
+  <p class="summary">Downloading and analyzing the paper. This can take a few
+  minutes for large PDFs — this page checks automatically.</p>
+  <form id="status-form" method="post" action="/add/status">
+    <input type="hidden" name="token" value="${esc(token)}">
+    <input type="hidden" name="slug" value="${esc(slug)}">
+    <button type="submit">Check now</button>
+  </form>
+</div>
+<script nonce="${esc(nonce)}">setTimeout(function () {
+  document.getElementById("status-form").submit();
+}, 4000);</script>`,
+  );
+}
+
+export function confirmationPage(paper: Paper, token: string): string {
+  const { meta, slug } = paper;
+  const proposedTopic = meta.proposedTopic ?? "unsorted";
   const topics = new Set(listTopics());
   topics.add(proposedTopic);
   const options = [...topics]
@@ -57,8 +86,8 @@ export function confirmationPage(result: CaptureResult, token: string): string {
         `<option value="${esc(t)}" ${t === proposedTopic ? "selected" : ""}>${esc(t)}${topics.has(t) && t === proposedTopic ? " (proposed)" : ""}</option>`,
     )
     .join("");
-  const authors = analysis.authors.join(", ");
-  const tags = analysis.tags
+  const authors = meta.authors.join(", ");
+  const tags = meta.tags
     .map((t) => `<span class="tag">${esc(t)}</span>`)
     .join("");
 
@@ -66,9 +95,9 @@ export function confirmationPage(result: CaptureResult, token: string): string {
     "Confirm capture",
     `<h1>Captured ✓</h1>
 <div class="card">
-  <strong>${esc(analysis.title)}</strong>
-  <p class="meta">${esc(authors)}${analysis.year ? ` · ${analysis.year}` : ""}${analysis.venue ? ` · ${esc(analysis.venue)}` : ""}</p>
-  <p class="summary">${esc(analysis.summary)}</p>
+  <strong>${esc(meta.title)}</strong>
+  <p class="meta">${esc(authors)}${meta.year ? ` · ${meta.year}` : ""}${meta.venue ? ` · ${esc(meta.venue)}` : ""}</p>
+  <p class="summary">${esc(paper.summary ?? "")}</p>
   <div class="tags">${tags}</div>
   <form method="post" action="/add/confirm">
     <input type="hidden" name="token" value="${esc(token)}">
