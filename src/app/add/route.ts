@@ -62,9 +62,7 @@ async function handle(request: NextRequest): Promise<NextResponse> {
     const result = await capture(url, profile.username);
     return html(confirmationPage(result, token), 200);
   } catch (err) {
-    if (!(err instanceof CaptureError)) {
-      console.error("papernook capture failed:", err);
-    }
+    console.error(`papernook capture failed (${url}):`, err);
     const message =
       err instanceof CaptureError
         ? err.message

@@ -48,6 +48,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       href: `/inbox/${result.slug}`,
     });
   } catch (error) {
+    // Cloudflare cuts responses at 100s, so slow failures never reach the
+    // browser — this line is the only durable record of why a capture died.
+    console.error(`papernook capture failed (${body.data.url}):`, error);
     if (error instanceof CaptureError) {
       return NextResponse.json({ error: error.message }, { status: 422 });
     }

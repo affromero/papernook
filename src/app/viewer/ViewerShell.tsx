@@ -51,7 +51,7 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
         "error" in payload &&
         typeof payload.error === "string"
           ? payload.error
-          : "Capture failed.";
+          : "Capture failed: no response from the server. A slow capture may still finish — check the Inbox before retrying.";
       setError(message);
       setBusy(false);
     } catch {
