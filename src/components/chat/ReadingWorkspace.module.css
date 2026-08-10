@@ -5,9 +5,8 @@
   width: 100%;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--chat-width);
+  grid-template-columns: minmax(0, 1fr) auto var(--chat-width);
   grid-template-rows: auto minmax(0, 1fr);
-  column-gap: 1rem;
   row-gap: 0.45rem;
   min-height: 0;
   overflow: hidden;
@@ -32,11 +31,50 @@
 }
 
 .chat {
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 2;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.divider {
+  grid-column: 2;
+  grid-row: 2;
+  width: 1rem;
+  cursor: col-resize;
+  touch-action: none;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.divider::after {
+  content: "";
+  width: 3px;
+  border-radius: 999px;
+  background: rgba(34, 45, 38, 0.14);
+  transition: background 120ms ease;
+}
+
+.divider:hover::after,
+.divider:focus-visible::after,
+.resizing .divider::after {
+  background: rgba(49, 95, 76, 0.55);
+}
+
+.divider:focus-visible {
+  outline: none;
+}
+
+.resizing {
+  transition: none;
+  user-select: none;
+}
+
+.resizing .main,
+.resizing .chat {
+  pointer-events: none;
 }
 
 .focusMode {
@@ -134,7 +172,8 @@
     display: flex;
   }
 
-  .toggle {
+  .toggle,
+  .divider {
     display: none;
   }
 
