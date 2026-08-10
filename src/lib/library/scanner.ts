@@ -2,6 +2,7 @@ import chokidar, { type FSWatcher } from "chokidar";
 import { papersRoot, libraryRoot, ensureDataDirs } from "../data-dir";
 import { rebuildIndex } from "./index-db";
 import { recoverInterruptedMoves } from "./papers";
+import { recoverInterruptedCaptures } from "../capture/jobs";
 
 /**
  * Keeps the SQLite index in sync with disk: full rescan on boot, then a
@@ -41,6 +42,7 @@ export function startScanner(): void {
   if (watcher) return;
   ensureDataDirs();
   recoverInterruptedMoves();
+  recoverInterruptedCaptures();
   rebuildIndex();
   watcher = chokidar.watch([papersRoot(), libraryRoot()], {
     ignoreInitial: true,

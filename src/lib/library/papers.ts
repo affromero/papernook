@@ -7,6 +7,11 @@ import {
   ensureDataDirs,
 } from "../data-dir";
 import { assertSlug, isValidSlug } from "./slug";
+import {
+  readCaptureJob,
+  removeCaptureJobDir,
+  sweepCaptureJobs,
+} from "../capture/jobs";
 
 /**
  * Paper CRUD over the two trees. The filesystem is the source of truth:
@@ -216,6 +221,8 @@ export function anonymizePapersByUser(username: string): void {
       fs.rmSync(paper.companionDir, { recursive: true, force: true });
     }
   }
+  // Marker-only capture dirs (no meta.json) carry the username too.
+  sweepCaptureJobs(username);
   for (const paper of listPapers()) {
     if (paper.meta.addedBy === username) {
       writeMeta(paper.topic, paper.slug, {
@@ -350,6 +357,15 @@ export function uniqueSlug(base: string): string {
   const taken = new Set<string>();
   for (const p of listPapers()) taken.add(p.slug);
   for (const p of listInbox()) taken.add(p.slug);
+  // In-flight async captures own their dir before meta.json exists —
+  // loadPaper can't see them, so reserve every raw inbox dir name too.
+  try {
+    for (const entry of fs.readdirSync(inboxRoot(), { withFileTypes: true })) {
+      if (entry.isDirectory()) taken.add(entry.name);
+    }
+  } catch {
+    // No inbox yet — nothing reserved.
+  }
   if (!taken.has(base)) return base;
   for (let i = 2; ; i += 1) {
     const candidate = `${base.slice(0, 76)}-${i}`;
@@ -376,6 +392,8 @@ export function acceptFromInbox(slug: string, topic: string): Paper {
   }
   fs.mkdirSync(path.dirname(toPdf), { recursive: true });
   fs.mkdirSync(path.dirname(toDir), { recursive: true });
+  // Async-capture status marker must not travel into the library.
+  fs.rmSync(path.join(fromDir, "capture.json"), { force: true });
   // The WebDAV-visible PDF is the commit point. Until this final rename, an
   // interrupted acceptance cannot expose an unconfirmed capture.
   fs.renameSync(fromDir, toDir);
@@ -512,10 +530,22 @@ export function discardInboxCapture(slug: string, username: string): void {
   assertSlug(slug);
   assertSlug(username);
   const paper = loadPaper(null, slug);
-  if (!paper || paper.meta.addedBy !== username) {
+  if (paper) {
+    if (paper.meta.addedBy !== username) {
+      throw new CaptureOwnershipError(
+        "No pending capture is available for this profile.",
+      );
+    }
+    fs.rmSync(paper.companionDir, { recursive: true, force: true });
+    return;
+  }
+  // Marker-only dirs (failed/stale async captures) own no meta.json;
+  // ownership comes from the marker itself.
+  const job = readCaptureJob(slug);
+  if (!job || job.addedBy !== username) {
     throw new CaptureOwnershipError(
       "No pending capture is available for this profile.",
     );
   }
-  fs.rmSync(paper.companionDir, { recursive: true, force: true });
+  removeCaptureJobDir(slug);
 }

@@ -27,6 +27,12 @@ import {
 } from "../auth/profile-activity";
 import { CaptureError } from "./download";
 import { captureLockKey, withZoteroLock } from "./zotero-lock";
+import {
+  clearCaptureJob,
+  findAnalyzingJobBySource,
+  removeCaptureJobDir,
+  writeCaptureJob,
+} from "./jobs";
 
 /**
  * Capture orchestration: URL → inbox paper with proposed filing.
@@ -60,6 +66,85 @@ export interface CapturePdfOptions {
   >;
   /** Trusted source tags merged after AI-proposed tags. */
   sourceTags?: string[];
+  /** Reuse an async-capture marker dir instead of minting a new slug. */
+  provisionalSlug?: string;
+}
+
+/**
+ * Async capture for interactive callers: writes an "analyzing" marker,
+ * returns the provisional slug immediately, and finishes in the background
+ * (Cloudflare cuts responses at 100s, so waiting inline loses the outcome).
+ * The marker transitions to "done" (with finalSlug) or "failed" (with the
+ * user-facing error); the UI reads markers, never this promise.
+ */
+export function captureAsync(url: string, username: string): { slug: string } {
+  ensureDataDirs();
+  const running = findAnalyzingJobBySource(url, username);
+  if (running) return { slug: running.slug };
+  const activity = beginProfileActivity(username);
+  if (!activity) throw profileDeletedError();
+  const slug = uniqueSlug(provisionalBase(url));
+  const startedAt = new Date().toISOString();
+  writeCaptureJob({
+    slug,
+    state: "analyzing",
+    sourceUrl: url,
+    addedBy: username,
+    startedAt,
+  });
+  void (async () => {
+    try {
+      const pdf = await downloadPdf(url);
+      assertActive(activity);
+      const result = await capturePdf(
+        pdf.bytes,
+        {
+          sourceUrl: url,
+          username,
+          finalUrl: pdf.finalUrl,
+          arxivId: pdf.arxivId,
+          provisionalSlug: slug,
+        },
+        activity,
+      );
+      // The "analyzing" marker traveled with the (possibly renamed) dir;
+      // clear it so the inbox paper doesn't also read as a running job.
+      clearCaptureJob(result.slug);
+      // The done marker stays at the provisional slug — the caller's
+      // stable handle for the /add status page.
+      writeCaptureJob({
+        slug,
+        state: "done",
+        sourceUrl: url,
+        addedBy: username,
+        startedAt,
+        finalSlug: result.slug,
+      });
+    } catch (error) {
+      if (activity.cancelled()) {
+        // Profile erasure won: leave nothing behind.
+        removeCaptureJobDir(slug);
+        return;
+      }
+      if (!(error instanceof CaptureError)) {
+        console.error(`papernook capture failed (${url}):`, error);
+      }
+      writeCaptureJob({
+        slug,
+        state: "failed",
+        sourceUrl: url,
+        addedBy: username,
+        startedAt,
+        error:
+          error instanceof CaptureError
+            ? error.message
+            : "Capture failed unexpectedly on the server. Dismiss and retry.",
+      });
+    } finally {
+      activity.finish();
+    }
+  })();
+  return { slug };
 }
 
 export async function capture(
@@ -131,9 +216,9 @@ async function capturePdfLocked(
   }
 
   // Slug from the analyzed title once we have it; provisional from URL now.
-  const provisional = uniqueSlug(
-    provisionalBase(opts.finalUrl ?? opts.sourceUrl),
-  );
+  const provisional =
+    opts.provisionalSlug ??
+    uniqueSlug(provisionalBase(opts.finalUrl ?? opts.sourceUrl));
   const inboxPdf = pdfPath(null, provisional);
   fs.mkdirSync(path.dirname(inboxPdf), { recursive: true });
   fs.writeFileSync(inboxPdf, bytes);
