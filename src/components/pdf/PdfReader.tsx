@@ -33,6 +33,7 @@ import {
 } from "./useCitationHotspots";
 import { usePaperRefBridge } from "./usePaperRefBridge";
 import { usePinchZoom } from "./usePinchZoom";
+import { useSaveOnLeave } from "./useSaveOnLeave";
 
 export interface PdfReaderEditState {
   dirty: boolean;
@@ -250,10 +251,34 @@ export function PdfReader({
             );
           }
         };
+        // Double-clicking an annotation that came from the saved PDF makes
+        // pdf.js dispatch this event instead of switching modes itself; the
+        // embedding viewer must apply it or saved highlights stay read-only.
+        const onSwitchAnnotationEditorMode = (event: unknown) => {
+          if (
+            !editable ||
+            !event ||
+            typeof event !== "object" ||
+            !("mode" in event) ||
+            typeof event.mode !== "number"
+          ) {
+            return;
+          }
+          pdfViewer.annotationEditorMode = event as { mode: number };
+          const toolByType: [EditMode, number][] = [
+            ["select", pdfjs.AnnotationEditorType.NONE],
+            ["highlight", pdfjs.AnnotationEditorType.HIGHLIGHT],
+            ["text", pdfjs.AnnotationEditorType.FREETEXT],
+            ["draw", pdfjs.AnnotationEditorType.INK],
+          ];
+          const tool = toolByType.find(([, type]) => type === event.mode)?.[0];
+          if (tool) setEditMode(tool);
+        };
         eventBus.on("pagesinit", onPagesInit);
         eventBus.on("pagechanging", onPageChanging);
         eventBus.on("scalechanging", onScaleChanging);
         eventBus.on("annotationeditoruimanager", onAnnotationEditorReady);
+        eventBus.on("switchannotationeditormode", onSwitchAnnotationEditorMode);
 
         const response = await fetch(src, {
           // Editable PDFs must always see the latest saved version (etag
@@ -361,6 +386,10 @@ export function PdfReader({
           eventBus.off("pagechanging", onPageChanging);
           eventBus.off("scalechanging", onScaleChanging);
           eventBus.off("annotationeditoruimanager", onAnnotationEditorReady);
+          eventBus.off(
+            "switchannotationeditormode",
+            onSwitchAnnotationEditorMode,
+          );
           if (editable) {
             const storage =
               document.annotationStorage as unknown as MutableAnnotationStorage;
@@ -402,65 +431,7 @@ export function PdfReader({
     };
   }, [editable, src]);
 
-  useEffect(() => {
-    if (!editable) return;
-    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
-      if (!dirtyRef.current) return;
-      event.preventDefault();
-      event.returnValue = true;
-    };
-    window.addEventListener("beforeunload", warnBeforeLeaving);
-    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [editable]);
-
-  useEffect(() => {
-    if (!editable) return;
-    const saveBeforeClientNavigation = (event: MouseEvent) => {
-      if (
-        !dirtyRef.current ||
-        event.defaultPrevented ||
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      ) {
-        return;
-      }
-      const target = event.target;
-      const anchor =
-        target instanceof Element
-          ? target.closest<HTMLAnchorElement>("a")
-          : null;
-      if (
-        !anchor?.href ||
-        anchor.target === "_blank" ||
-        anchor.hasAttribute("download")
-      ) {
-        return;
-      }
-      const destination = new URL(anchor.href, window.location.href);
-      if (
-        destination.origin !== window.location.origin ||
-        destination.href === window.location.href
-      ) {
-        return;
-      }
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      void (async () => {
-        const autosave = autosaveRef.current;
-        await autosave?.flush();
-        const state = autosave?.state();
-        if (state && !state.dirty && !state.saving && !state.error) {
-          window.location.assign(destination.href);
-        }
-      })();
-    };
-    document.addEventListener("click", saveBeforeClientNavigation, true);
-    return () =>
-      document.removeEventListener("click", saveBeforeClientNavigation, true);
-  }, [editable]);
+  useSaveOnLeave(editable, dirtyRef, autosaveRef);
 
   usePinchZoom(stageRef, pdfViewerRef, pencilMode);
 
@@ -487,14 +458,18 @@ export function PdfReader({
         });
         if (disposed || response.status === 409) return;
         if (!response.ok) return;
+        // A save that started or was queued while this HEAD was in flight
+        // can make the response reflect our own write before the PUT
+        // result lands; skip the round instead of flagging our own save
+        // as a remote change. A genuine conflict still surfaces as a 412
+        // on that save.
+        if (savingRef.current || dirtyRef.current) return;
         const current = response.headers.get("etag");
         if (current && current !== baseline && etagRef.current === baseline) {
           autosaveRef.current?.pause();
           setRemoteUpdate(true);
           setSaveStatus(
-            dirtyRef.current
-              ? "This PDF changed elsewhere while you have unsaved annotations."
-              : "This PDF changed elsewhere. Reload to see the latest version.",
+            "This PDF changed elsewhere. Reload to see the latest version.",
           );
         }
       } catch {
