@@ -420,6 +420,9 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     }
     // Both assistant events stream; the result must not repeat the reply.
     expect(chunks).toEqual(["first ", "second"]);
+    // Streaming must request live deltas, or long replies sit silent until
+    // the end and idle proxies drop the connection.
+    expect(calls[0].args).toContain("--include-partial-messages");
     vi.doUnmock("node:child_process");
   });
 

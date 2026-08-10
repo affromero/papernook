@@ -108,7 +108,11 @@ async function buildArgs(
   const model = configuredModel();
   if (model) args.push("--model", model);
   args.push("--output-format", streaming ? "stream-json" : "text");
-  if (streaming) args.push("--verbose");
+  // --include-partial-messages makes the CLI emit content_block_delta events
+  // as tokens arrive; without it the reply lands as one assistant event at
+  // the very end, so a long answer streams nothing for minutes and proxies
+  // (Cloudflare's 100s idle cutoff) kill the connection mid-chat.
+  if (streaming) args.push("--verbose", "--include-partial-messages");
   if (turn.system) args.push("--system-prompt", turn.system);
 
   const images = turn.images ?? [];
