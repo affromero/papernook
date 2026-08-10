@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { readImageBase64 } from "./attachments";
 import { configuredModel } from "./config";
 import { buildAgentInvocation, getClaudeSshHost } from "./invocation";
 import {
@@ -17,6 +18,10 @@ import {
  * default to none so paper content cannot turn the CLI into a
  * filesystem-reading agent; when the admin opts a turn into web access the
  * only tools granted are WebSearch and WebFetch — never the filesystem.
+ * Image attachments travel as base64 content blocks inside a stream-json
+ * stdin message (which requires stream-json output), so vision needs no
+ * tools and no files on the agent host — the same transport works locally
+ * and over SSH.
  */
 
 /**
@@ -88,7 +93,7 @@ export function claudeCodeEnvironment(): NodeJS.ProcessEnv {
 async function buildArgs(
   turn: AgentTurn,
   streaming: boolean,
-): Promise<{ args: string[]; prompt: string }> {
+): Promise<{ args: string[]; stdin: string }> {
   const args = [
     "-p",
     "--safe-mode",
@@ -106,19 +111,36 @@ async function buildArgs(
   if (streaming) args.push("--verbose");
   if (turn.system) args.push("--system-prompt", turn.system);
 
-  const prompt = turn.prompt;
   const images = turn.images ?? [];
-  if (images.length > 0) {
-    throw new Error(
-      "claude-code image attachments are disabled because they require filesystem tools. Use an API provider for image chats.",
-    );
-  }
-  return { args, prompt };
+  if (images.length === 0) return { args, stdin: turn.prompt };
+
+  // Images ride inside a single stream-json user message so the CLI needs
+  // no filesystem access — required by the security posture above.
+  args.push("--input-format", "stream-json");
+  const content: object[] = images.map((image) => {
+    const { mediaType, data } = readImageBase64(image);
+    return {
+      type: "image",
+      source: { type: "base64", media_type: mediaType, data },
+    };
+  });
+  content.push({ type: "text", text: turn.prompt });
+  const message = {
+    type: "user",
+    message: { role: "user", content },
+  };
+  return { args, stdin: `${JSON.stringify(message)}\n` };
 }
 
 export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
+  if (turn.images?.length) {
+    // stream-json input requires stream-json output; reuse the stream parser.
+    let full = "";
+    for await (const chunk of streamClaudeCode(turn)) full += chunk;
+    return full;
+  }
   const timeoutMs = turn.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const { args, prompt } = await buildArgs(turn, false);
+  const { args, stdin } = await buildArgs(turn, false);
   const { command, args: spawnArgs } = buildAgentInvocation(
     "claude",
     args,
@@ -169,7 +191,7 @@ export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
         ),
       );
     });
-    child.stdin.write(prompt);
+    child.stdin.write(stdin);
     child.stdin.end();
   });
 }
@@ -183,20 +205,36 @@ interface StreamEvent {
   content?: unknown;
 }
 
+/**
+ * Which event kinds already produced text. Deltas outrank assistant events
+ * (assistant messages repeat delta text); assistant events outrank the final
+ * result (which repeats the full reply). Every assistant event yields — a
+ * turn without deltas can carry text across several of them.
+ */
+interface StreamTextState {
+  sawDelta: boolean;
+  sawAssistant: boolean;
+}
+
 function* textFromEvent(
   raw: StreamEvent,
-  hasDeltas: boolean,
+  state: StreamTextState,
 ): Generator<string> {
   const event = raw.type === "stream_event" && raw.event ? raw.event : raw;
   if (event.type === "content_block_delta" && event.delta?.text) {
+    state.sawDelta = true;
     yield event.delta.text;
-  } else if (event.type === "result" && !hasDeltas) {
+  } else if (event.type === "result" && !state.sawDelta) {
+    if (state.sawAssistant) return;
     if (typeof event.result === "string" && event.result) yield event.result;
-  } else if (event.type === "assistant" && !hasDeltas) {
+  } else if (event.type === "assistant" && !state.sawDelta) {
     const blocks = event.message?.content ?? event.content;
     if (Array.isArray(blocks)) {
       for (const block of blocks as { type?: string; text?: string }[]) {
-        if (block.type === "text" && block.text) yield block.text;
+        if (block.type === "text" && block.text) {
+          state.sawAssistant = true;
+          yield block.text;
+        }
       }
     }
   }
@@ -206,7 +244,7 @@ export async function* streamClaudeCode(
   turn: AgentTurn,
 ): AsyncGenerator<string> {
   const timeoutMs = turn.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const { args, prompt } = await buildArgs(turn, true);
+  const { args, stdin } = await buildArgs(turn, true);
   const { command, args: spawnArgs } = buildAgentInvocation(
     "claude",
     args,
@@ -226,11 +264,12 @@ export async function* streamClaudeCode(
   child.on("close", (code) => {
     exitCode = code;
   });
-  child.stdin.write(prompt);
+  child.stdin.write(stdin);
   child.stdin.end();
 
   let buffer = "";
-  let hasDeltas = false;
+  let produced = false;
+  const state: StreamTextState = { sawDelta: false, sawAssistant: false };
   try {
     for await (const chunk of child.stdout) {
       buffer += (chunk as Buffer).toString();
@@ -240,8 +279,8 @@ export async function* streamClaudeCode(
         if (!line.trim()) continue;
         try {
           const raw = JSON.parse(line) as StreamEvent;
-          for (const text of textFromEvent(raw, hasDeltas)) {
-            hasDeltas = true;
+          for (const text of textFromEvent(raw, state)) {
+            produced = true;
             yield text;
           }
         } catch {
@@ -252,16 +291,16 @@ export async function* streamClaudeCode(
     if (buffer.trim()) {
       try {
         const raw = JSON.parse(buffer) as StreamEvent;
-        for (const text of textFromEvent(raw, hasDeltas)) {
-          hasDeltas = true;
+        for (const text of textFromEvent(raw, state)) {
+          produced = true;
           yield text;
         }
       } catch {
         yield buffer.trim();
-        hasDeltas = true;
+        produced = true;
       }
     }
-    if (!hasDeltas) {
+    if (!produced) {
       if (exitCode !== null && exitCode !== 0) {
         throw new Error(
           stderr.trim() || `claude-code exited with code ${exitCode}`,
@@ -279,7 +318,7 @@ export async function* streamClaudeCode(
 
 export const claudeCodeProvider: AgentProvider = {
   id: "claude-code",
-  capabilities: { web: true, vision: false },
+  capabilities: { web: true, vision: true },
   execute: executeClaudeCode,
   stream: streamClaudeCode,
 };

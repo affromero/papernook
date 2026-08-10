@@ -10,9 +10,11 @@ import {
 
 /**
  * Attachment routing per transport:
- *  - local CLI: images stay where they are; paths are handed to the CLI.
- *  - SSH CLI: images are scp'd to a temp dir on the agent host first and the
- *    remote paths are referenced instead.
+ *  - codex CLI, local: images stay where they are; paths are handed via -i.
+ *  - codex CLI, SSH: images are scp'd to a temp dir on the agent host first
+ *    and the remote paths are referenced instead.
+ *  - claude-code CLI (local and SSH): images are embedded as base64 blocks
+ *    in a stream-json stdin message; no files reach the agent host.
  *  - API: callers read the files as base64 (see api.ts).
  */
 

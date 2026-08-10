@@ -292,6 +292,10 @@ describe("claude-code argv (mocked spawn boundary)", () => {
             on: (event: string, cb: (chunk: Buffer) => void) => {
               if (event === "data") setImmediate(() => cb(Buffer.from(stdout)));
             },
+            // streamClaudeCode consumes stdout with `for await`.
+            [Symbol.asyncIterator]: async function* () {
+              yield Buffer.from(stdout);
+            },
           },
           stderr: {
             on: (event: string, cb: (chunk: Buffer) => void) => {
@@ -348,18 +352,74 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     vi.doUnmock("node:child_process");
   });
 
-  it("rejects images instead of granting filesystem tools", async () => {
+  it("sends images as base64 stream-json stdin without granting tools", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-vision-"));
+    const crop = path.join(dir, "crop.png");
+    fs.writeFileSync(crop, Buffer.from("89504e470d0a1a0a", "hex"));
+
     const calls: SpawnCall[] = [];
-    mockSpawn(calls);
+    const events = `${JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "a red square" }] },
+    })}\n${JSON.stringify({ type: "result", result: "a red square" })}\n`;
+    mockSpawn(calls, events);
     const { executeClaudeCode } = await import("@/lib/agent/claude-code");
-    await expect(
-      executeClaudeCode({
-        system: "",
-        prompt: "explain this figure",
-        images: ["/data/library/nlp/attention/crops/1.png"],
-      }),
-    ).rejects.toThrow(/filesystem tools/);
-    expect(calls).toHaveLength(0);
+    const result = await executeClaudeCode({
+      system: "be brief",
+      prompt: "explain this figure",
+      images: [crop],
+    });
+    expect(result).toBe("a red square");
+
+    const args = calls[0].args;
+    expect(args[args.indexOf("--input-format") + 1]).toBe("stream-json");
+    expect(args[args.indexOf("--output-format") + 1]).toBe("stream-json");
+    // The security invariant: images must never widen the tool grant.
+    expect(args[args.indexOf("--tools") + 1]).toBe("");
+
+    const stdin = calls[0].stdin.join("");
+    expect(stdin.endsWith("\n")).toBe(true);
+    const message = JSON.parse(stdin) as {
+      type: string;
+      message: { role: string; content: unknown[] };
+    };
+    expect(message.type).toBe("user");
+    expect(message.message.content[0]).toEqual({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: "image/png",
+        data: fs.readFileSync(crop).toString("base64"),
+      },
+    });
+    expect(message.message.content[1]).toEqual({
+      type: "text",
+      text: "explain this figure",
+    });
+    fs.rmSync(dir, { recursive: true, force: true });
+    vi.doUnmock("node:child_process");
+  });
+
+  it("yields every assistant event when the stream has no deltas", async () => {
+    const calls: SpawnCall[] = [];
+    const events = `${JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "first " }] },
+    })}\n${JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "second" }] },
+    })}\n${JSON.stringify({ type: "result", result: "first second" })}\n`;
+    mockSpawn(calls, events);
+    const { streamClaudeCode } = await import("@/lib/agent/claude-code");
+    const chunks: string[] = [];
+    for await (const chunk of streamClaudeCode({ system: "", prompt: "hi" })) {
+      chunks.push(chunk);
+    }
+    // Both assistant events stream; the result must not repeat the reply.
+    expect(chunks).toEqual(["first ", "second"]);
     vi.doUnmock("node:child_process");
   });
 
