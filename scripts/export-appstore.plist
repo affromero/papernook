@@ -2,9 +2,34 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!--
+	  Manual signing on purpose: the team's App Store Connect API key has no
+	  cloud-signing permission, and xcodebuild's account auth fails headless
+	  ("Failed to Use Accounts"). The certificates ("3rd Party Mac Developer
+	  Application"/"Installer", created 2026-08-09, expire 2027-08-09) and
+	  both MAC_APP_STORE profiles were issued via the ASC API; the private
+	  key lives in the login keychain, the API key in
+	  ~/.appstoreconnect/private_keys (backup: Infisical papernook /apple).
+	  destination=upload sends the package straight to App Store Connect.
+	-->
 	<key>method</key>
 	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>upload</string>
 	<key>teamID</key>
 	<string>2HVQQ4W769</string>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>3rd Party Mac Developer Application</string>
+	<key>installerSigningCertificate</key>
+	<string>3rd Party Mac Developer Installer</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>co.afromero.papernook</key>
+		<string>papernook Mac App Store</string>
+		<key>co.afromero.papernook.Extension</key>
+		<string>papernook Extension Mac App Store</string>
+	</dict>
 </dict>
 </plist>

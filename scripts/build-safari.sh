@@ -43,6 +43,11 @@ done
 
 echo "built version $VERSION (build $BUILD)"
 
-echo "archive at build/papernook.xcarchive — open in Xcode Organizer to upload,"
-echo "or: xcodebuild -exportArchive -archivePath build/papernook.xcarchive \\"
-echo "      -exportOptionsPlist scripts/export-appstore.plist -exportPath build/"
+echo "archive at build/papernook.xcarchive — upload to App Store Connect with:"
+echo "  xcodebuild -exportArchive -archivePath build/papernook.xcarchive \\"
+echo "    -exportOptionsPlist scripts/export-appstore.plist -exportPath build/upload \\"
+echo "    -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_HKD4KW9CHB.p8 \\"
+echo "    -authenticationKeyID HKD4KW9CHB \\"
+echo "    -authenticationKeyIssuerID bc437eea-9a23-4fec-8a05-e85495c989ad"
+echo "(manual signing; certs + profiles issued 2026-08-09 via the ASC API,"
+echo " .p8 backup in Infisical papernook /apple — see scripts/export-appstore.plist)"
