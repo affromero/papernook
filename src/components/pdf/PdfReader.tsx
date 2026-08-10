@@ -29,6 +29,7 @@ import {
   useCitationHotspots,
   type ViewerEventBus,
 } from "./useCitationHotspots";
+import { usePinchZoom } from "./usePinchZoom";
 
 export interface PdfReaderEditState {
   dirty: boolean;
@@ -96,7 +97,6 @@ export function PdfReader({
   const editorTypesRef = useRef<EditorTypes | null>(null);
   const autosaveRef = useRef<PdfAutosaveCoordinator | null>(null);
   const pendingPenRef = useRef(false);
-  const pinchDistanceRef = useRef<number | null>(null);
   const referenceAnchorRef = useRef<Pick<
     Preview,
     "horizontal" | "vertical"
@@ -392,7 +392,6 @@ export function PdfReader({
       savingRef.current = false;
       onEditStateChangeRef.current?.({ dirty: false, saving: false });
       pendingPenRef.current = false;
-      pinchDistanceRef.current = null;
       setEditorReady(false);
       void loadingTask?.destroy();
     };
@@ -458,67 +457,7 @@ export function PdfReader({
       document.removeEventListener("click", saveBeforeClientNavigation, true);
   }, [editable]);
 
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage || !pencilMode) return;
-    const reserveTouch = (event: TouchEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    const touchDistance = (event: TouchEvent): number | null => {
-      if (event.touches.length !== 2) return null;
-      const first = event.touches[0];
-      const second = event.touches[1];
-      if (!first || !second) return null;
-      return Math.hypot(
-        second.clientX - first.clientX,
-        second.clientY - first.clientY,
-      );
-    };
-    const beginGesture = (event: TouchEvent) => {
-      reserveTouch(event);
-      pinchDistanceRef.current = touchDistance(event);
-    };
-    const updateGesture = (event: TouchEvent) => {
-      reserveTouch(event);
-      const nextDistance = touchDistance(event);
-      const previousDistance = pinchDistanceRef.current;
-      if (!nextDistance || !previousDistance) {
-        pinchDistanceRef.current = nextDistance;
-        return;
-      }
-      const first = event.touches[0];
-      const second = event.touches[1];
-      if (!first || !second) return;
-      pdfViewerRef.current?.updateScale({
-        drawingDelay: 180,
-        scaleFactor: nextDistance / previousDistance,
-        origin: [
-          (first.clientX + second.clientX) / 2,
-          (first.clientY + second.clientY) / 2,
-        ],
-      });
-      pinchDistanceRef.current = nextDistance;
-    };
-    const endGesture = (event: TouchEvent) => {
-      reserveTouch(event);
-      if (event.touches.length < 2) pinchDistanceRef.current = null;
-    };
-    const options: AddEventListenerOptions = {
-      capture: true,
-      passive: false,
-    };
-    stage.addEventListener("touchstart", beginGesture, options);
-    stage.addEventListener("touchmove", updateGesture, options);
-    stage.addEventListener("touchend", endGesture, options);
-    stage.addEventListener("touchcancel", endGesture, options);
-    return () => {
-      stage.removeEventListener("touchstart", beginGesture, options);
-      stage.removeEventListener("touchmove", updateGesture, options);
-      stage.removeEventListener("touchend", endGesture, options);
-      stage.removeEventListener("touchcancel", endGesture, options);
-    };
-  }, [pencilMode]);
+  usePinchZoom(stageRef, pdfViewerRef, pencilMode);
 
   useEffect(() => {
     if (!editable || !pdfDocument) return;
