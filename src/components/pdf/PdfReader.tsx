@@ -66,6 +66,9 @@ interface EditorTypes {
 interface MutableAnnotationStorage {
   onSetModified: (() => void) | null;
   onResetModified: (() => void) | null;
+  resetModified(): void;
+  /** Content hash over real annotation edits; "" when nothing would save. */
+  readonly serializable: { hash: string };
 }
 
 class PdfSaveConflictError extends Error {}
@@ -321,6 +324,12 @@ export function PdfReader({
         if (editable) {
           const storage =
             document.annotationStorage as unknown as MutableAnnotationStorage;
+          // Entering an editor mode registers the PDF's existing annotations
+          // in the storage, which flips its modified latch without any real
+          // edit. Only a moved content hash may dirty the reader — otherwise
+          // every Highlight/Draw toggle uploads the whole PDF and churns the
+          // save version other sessions poll against.
+          let savedAnnotationsHash = storage.serializable.hash;
           const coordinator = createPdfAutosave({
             delayMs: 1_800,
             save: async () => {
@@ -330,6 +339,13 @@ export function PdfReader({
               }
               const focused = containerRef.current?.querySelector(":focus");
               if (focused instanceof HTMLElement) focused.blur();
+              const annotationsHash = storage.serializable.hash;
+              if (annotationsHash === savedAnnotationsHash) {
+                // Edits were undone before the save fired; re-arm the latch
+                // so the next real edit reports again, and write nothing.
+                storage.resetModified();
+                return;
+              }
               const bytes = await document.saveDocument();
               const response = await fetch(src, {
                 method: "PUT",
@@ -359,6 +375,7 @@ export function PdfReader({
                 throw new Error("The save response had no PDF version.");
               }
               etagRef.current = nextEtag;
+              savedAnnotationsHash = annotationsHash;
             },
             onChange: (next) => {
               dirtyRef.current = next.dirty;
@@ -386,6 +403,13 @@ export function PdfReader({
           });
           autosaveRef.current = coordinator;
           storage.onSetModified = () => {
+            if (storage.serializable.hash === savedAnnotationsHash) {
+              // A mode switch registered untouched annotations, not an
+              // edit. The latch must be re-armed or a later real edit
+              // would never fire this callback again.
+              storage.resetModified();
+              return;
+            }
             coordinator.markDirty();
           };
           storage.onResetModified = null;
