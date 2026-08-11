@@ -413,7 +413,6 @@ export function ChatPanel({
                 : "Ask about the paper…"
             }
             rows={2}
-            disabled={busy}
           />
           <button
             type="button"

@@ -14,7 +14,7 @@ import {
  * locally, or scp + path preamble over SSH (codex -i needs local files).
  */
 
-function buildBase(): string[] {
+function buildBase(turn: AgentTurn): string[] {
   const args = [
     "exec",
     "--ephemeral",
@@ -22,6 +22,8 @@ function buildBase(): string[] {
     "--ignore-rules",
     "-c",
     "mcp_servers={}",
+    "-c",
+    `web_search=${JSON.stringify(turn.allowWeb ? "live" : "disabled")}`,
     "-s",
     "read-only",
     "--skip-git-repo-check",
@@ -38,7 +40,7 @@ function buildBase(): string[] {
 async function prepare(
   turn: AgentTurn,
 ): Promise<{ args: string[]; prompt: string; cleanup?: () => Promise<void> }> {
-  const args = buildBase();
+  const args = buildBase(turn);
   let cleanup: (() => Promise<void>) | undefined;
   let prompt = turn.system ? `${turn.system}\n\n${turn.prompt}` : turn.prompt;
   const images = turn.images ?? [];
@@ -172,8 +174,9 @@ export async function* streamCodex(turn: AgentTurn): AsyncGenerator<string> {
 
 export const codexProvider: AgentProvider = {
   id: "codex",
-  // The read-only sandbox has no network, so allowWeb cannot be honored.
-  capabilities: { web: false, vision: true, unboundedContext: true },
+  // Native web search is independent of shell network access, so the
+  // filesystem remains read-only while searches can be enabled per turn.
+  capabilities: { web: true, vision: true, unboundedContext: true },
   execute: executeCodex,
   stream: streamCodex,
 };

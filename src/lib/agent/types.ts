@@ -37,7 +37,7 @@ export interface AgentTurn {
   /** Ask compatible APIs to constrain the response to a JSON object. */
   responseFormat?: "json_object";
   /**
-   * Let this turn use the provider's web search (admin-opted in Settings).
+   * Let this turn use the provider's web search (enabled by default in Settings).
    * Providers whose capabilities.web is false ignore it.
    */
   allowWeb?: boolean;

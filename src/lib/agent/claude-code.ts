@@ -16,7 +16,7 @@ import {
  * (CLAUDE_CODE_SSH_HOST). Prompt is piped via stdin to avoid ARG_MAX.
  * Project settings, MCP servers, and persistence are disabled, and tools
  * default to none so paper content cannot turn the CLI into a
- * filesystem-reading agent; when the admin opts a turn into web access the
+ * filesystem-reading agent; when web access is enabled for a turn, the
  * only tools granted are WebSearch and WebFetch — never the filesystem.
  * Image attachments travel as base64 content blocks inside a stream-json
  * stdin message (which requires stream-json output), so vision needs no

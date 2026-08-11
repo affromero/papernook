@@ -46,6 +46,8 @@ describe("agent model settings route", () => {
       suggestions: string[];
       effort: string | null;
       effortOptions: string[];
+      webAccess: boolean;
+      webCapable: boolean;
     };
 
     expect(body.provider).toBe("codex");
@@ -63,6 +65,8 @@ describe("agent model settings route", () => {
       "max",
       "ultra",
     ]);
+    expect(body.webAccess).toBe(true);
+    expect(body.webCapable).toBe(true);
     expect(Object.values(body.statuses)).toEqual(Array(7).fill("checking"));
   });
 
