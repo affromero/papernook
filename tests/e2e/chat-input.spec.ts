@@ -23,6 +23,7 @@ test("PDF text can be copied and the chat draft stays editable while answering",
   await login(page);
   await page.goto("/paper/machine-learning/attention-is-all-you-need");
   await expect(page.getByText("Page 1 of 3")).toBeVisible();
+  await expect(page).toHaveTitle("Attention Is All You Need");
 
   const textLayer = page.locator(".textLayer").first();
   await expect(textLayer).toContainText("Attention Is All You Need");

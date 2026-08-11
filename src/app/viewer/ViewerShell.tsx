@@ -26,7 +26,7 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
   const unmounted = useRef(false);
 
   useEffect(() => {
-    document.title = `[nook] ${displayTitle}`;
+    document.title = displayTitle;
   }, [displayTitle]);
 
   useEffect(() => {

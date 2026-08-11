@@ -17,7 +17,7 @@ interface PaperPageProps {
 export async function generateMetadata({ params }: PaperPageProps) {
   const { topic, slug } = await params;
   const paper = getPaper(topic, slug);
-  return { title: paper ? `[nook] ${paper.meta.title}` : "papernook" };
+  return { title: paper ? paper.meta.title : "papernook" };
 }
 
 export default async function PaperPage({ params }: PaperPageProps) {
