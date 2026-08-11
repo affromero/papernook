@@ -15,6 +15,7 @@ import {
 import { listTopics, listInbox } from "@/lib/library/papers";
 import { listCaptureJobs } from "@/lib/capture/jobs";
 import { CaptureJobs, type CaptureJobView } from "./CaptureJobs";
+import { InboxCardDelete } from "./InboxCardDelete";
 import { LibraryCitationExport } from "./LibraryCitationExport";
 import styles from "./LibraryView.module.css";
 
@@ -178,6 +179,9 @@ export function LibraryView({
                     ))}
                   </p>
                 </Link>
+                {paper.topic === null && (
+                  <InboxCardDelete slug={paper.slug} title={paper.title} />
+                )}
               </li>
             ))}
           </ul>
