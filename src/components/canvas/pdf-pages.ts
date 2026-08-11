@@ -5,6 +5,7 @@ import {
   type TLImageShape,
   type TLShape,
 } from "tldraw";
+import { normalizeEtag } from "@/lib/pdf/etag";
 
 const PAGE_GAP = 48;
 const RENDER_SCALE = 1.6;
@@ -107,7 +108,7 @@ async function currentPdfVersion(url: string): Promise<string> {
       `The PDF version could not be checked (${response.status}).`,
     );
   }
-  const version = response.headers.get("etag");
+  const version = normalizeEtag(response.headers.get("etag"));
   if (!version) throw new Error("The PDF did not include a version.");
   return version;
 }
@@ -120,7 +121,7 @@ async function renderAndStorePdfPages(
   if (!response.ok) {
     throw new Error(`The PDF could not be loaded (${response.status}).`);
   }
-  const version = response.headers.get("etag");
+  const version = normalizeEtag(response.headers.get("etag"));
   if (!version) throw new Error("The PDF did not include a version.");
 
   const pdfjs = await import("pdfjs-dist");

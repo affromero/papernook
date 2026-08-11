@@ -18,6 +18,8 @@ import {
   type ResolvedPdfDestination,
 } from "@/lib/pdf/destinations";
 import { resolvePdfDocumentTitle } from "@/lib/pdf/title";
+import { normalizeEtag } from "@/lib/pdf/etag";
+import { usePdfVersionPoll } from "./usePdfVersionPoll";
 import {
   createPdfAutosave,
   type PdfAutosaveCoordinator,
@@ -309,7 +311,7 @@ export function PdfReader({
         if (!response.ok) {
           throw new Error(`PDF request failed with ${response.status}.`);
         }
-        const etag = response.headers.get("etag");
+        const etag = normalizeEtag(response.headers.get("etag"));
         if (editable && !etag) {
           throw new Error("The PDF did not include a save version.");
         }
@@ -373,7 +375,19 @@ export function PdfReader({
                   errorMessage(payload, `Save failed with ${response.status}.`),
                 );
               }
-              const nextEtag = response.headers.get("etag");
+              // Prefer the etag echoed in the JSON body: proxies that
+              // compress the response (Cloudflare) weaken or drop the
+              // header, but never touch the body.
+              const bodyEtag =
+                payload &&
+                typeof payload === "object" &&
+                "etag" in payload &&
+                typeof payload.etag === "string"
+                  ? payload.etag
+                  : null;
+              const nextEtag = normalizeEtag(
+                bodyEtag ?? response.headers.get("etag"),
+              );
               if (!nextEtag) {
                 throw new Error("The save response had no PDF version.");
               }
@@ -474,67 +488,28 @@ export function PdfReader({
 
   usePinchZoom(stageRef, pdfViewerRef, pencilMode);
 
-  useEffect(() => {
-    if (!editable || !pdfDocument) return;
-
-    let disposed = false;
-    const checkVersion = async () => {
-      if (
-        disposed ||
-        document.visibilityState !== "visible" ||
-        savingRef.current ||
-        remoteUpdate
-      ) {
-        return;
+  usePdfVersionPoll({
+    enabled: editable && !!pdfDocument && !remoteUpdate,
+    src,
+    etagRef,
+    savingRef,
+    dirtyRef,
+    onRemoteUpdate: () => {
+      // Nothing unsaved here, so another session's annotations can be
+      // picked up silently: remount the document at the same page and
+      // zoom instead of interrupting with a reload banner.
+      const viewer = pdfViewerRef.current;
+      if (viewer) {
+        restoreViewRef.current = {
+          page: viewer.currentPageNumber,
+          scale: viewer.currentScale,
+        };
       }
-      const baseline = etagRef.current;
-      if (!baseline) return;
-      try {
-        const response = await fetch(src, {
-          method: "HEAD",
-          cache: "no-store",
-          credentials: "same-origin",
-        });
-        if (disposed || response.status === 409) return;
-        if (!response.ok) return;
-        // A save that started or was queued while this HEAD was in flight
-        // can make the response reflect our own write before the PUT
-        // result lands; skip the round instead of flagging our own save
-        // as a remote change. A genuine conflict still surfaces as a 412
-        // on that save.
-        if (savingRef.current || dirtyRef.current) return;
-        const current = response.headers.get("etag");
-        if (current && current !== baseline && etagRef.current === baseline) {
-          // Nothing unsaved here, so another session's annotations can be
-          // picked up silently: remount the document at the same page and
-          // zoom instead of interrupting with a reload banner.
-          const viewer = pdfViewerRef.current;
-          if (viewer) {
-            restoreViewRef.current = {
-              page: viewer.currentPageNumber,
-              scale: viewer.currentScale,
-            };
-          }
-          setEditMode("select");
-          setSaveStatus("Updated with annotations saved in another session.");
-          setDocumentGeneration((generation) => generation + 1);
-        }
-      } catch {
-        // Connectivity errors are transient; the next poll checks again.
-      }
-    };
-
-    const interval = window.setInterval(() => void checkVersion(), 30_000);
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") void checkVersion();
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      disposed = true;
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [editable, pdfDocument, remoteUpdate, src]);
+      setEditMode("select");
+      setSaveStatus("Updated with annotations saved in another session.");
+      setDocumentGeneration((generation) => generation + 1);
+    },
+  });
 
   function chooseEditMode(nextMode: EditMode): void {
     const viewer = pdfViewerRef.current;
