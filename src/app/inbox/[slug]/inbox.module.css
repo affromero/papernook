@@ -66,6 +66,37 @@
   font: inherit;
 }
 
+.topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.topic,
+.topicActive {
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 999px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.topicActive {
+  border-color: #315f4c;
+  color: #fff;
+  background: #315f4c;
+}
+
+.topic:disabled,
+.topicActive:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 .actions {
   display: flex;
   gap: 0.6rem;
