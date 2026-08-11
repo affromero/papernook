@@ -44,10 +44,18 @@ export const analysisSchema = z.object({
     .string()
     .min(1)
     .describe("kebab-case topic folder, existing preferred"),
-  tags: z.array(z.string()).max(8).default([]),
+  // Bounded arrays clamp instead of reject: a model that over-delivers
+  // (6 questions, 9 tags) must not fail the whole capture.
+  tags: z
+    .array(z.string())
+    .default([])
+    .transform((tags) => tags.slice(0, 8)),
   summary: z.string().min(1),
   related: z.array(z.string()).default([]),
-  starterQuestions: z.array(z.string()).min(1).max(5),
+  starterQuestions: z
+    .array(z.string())
+    .min(1)
+    .transform((questions) => questions.slice(0, 5)),
 });
 
 export type Analysis = z.infer<typeof analysisSchema>;

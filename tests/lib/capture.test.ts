@@ -355,6 +355,19 @@ describe("analysis parsing", () => {
     expect(() => parseAnalysis(JSON.stringify({ title: "x" }))).toThrow();
     expect(() => parseAnalysis("no json at all")).toThrow();
   });
+
+  it("clamps over-delivered tags and starter questions instead of failing", async () => {
+    const { parseAnalysis } = await import("@/lib/capture/analyze");
+    const chatty = {
+      ...valid,
+      tags: Array.from({ length: 12 }, (_, i) => `tag-${i}`),
+      starterQuestions: Array.from({ length: 7 }, (_, i) => `Question ${i}?`),
+    };
+    const analysis = parseAnalysis(JSON.stringify(chatty));
+    expect(analysis.tags).toHaveLength(8);
+    expect(analysis.starterQuestions).toHaveLength(5);
+    expect(analysis.starterQuestions[0]).toBe("Question 0?");
+  });
 });
 
 describe("chat store round-trip", () => {
