@@ -32,6 +32,9 @@ interface AgentState {
   provider: string | null;
   statuses: Record<string, Readiness>;
   model: string | null;
+  effort: string | null;
+  effortOptions: string[];
+  defaultEffort: string | null;
   baseUrl: string | null;
   baseUrlPlaceholder: string | null;
   endpointConfigurable: boolean;
@@ -67,7 +70,7 @@ export function ModelPicker() {
       if (announce) {
         setStatus(
           data.available
-            ? `${data.provider} answers with ${data.model ?? "its default model"}.`
+            ? `${data.provider} answers with ${data.model ?? "its default model"} at ${data.effort ?? data.defaultEffort ?? "default"} effort.`
             : `Saved, but ${data.provider} is not answering. It may need its CLI, key, or SSH host on the server.`,
         );
       }
@@ -100,6 +103,7 @@ export function ModelPicker() {
   async function save(body: {
     provider?: string;
     model?: string | null;
+    effort?: string | null;
     baseUrl?: string | null;
     webAccess?: boolean;
   }): Promise<void> {
@@ -138,6 +142,7 @@ export function ModelPicker() {
           <strong>{state.provider ?? "Not configured"}</strong>
           {state.provider && <span aria-hidden="true">/</span>}
           {state.provider && <code>{state.model ?? "provider default"}</code>}
+          {state.provider && state.effort && <code>{state.effort} effort</code>}
         </span>
       </div>
       <p className={styles.line}>Provider</p>
@@ -285,6 +290,45 @@ export function ModelPicker() {
         </button>
       </div>
       {modelChanged && <p className={styles.draftNote}>Unsaved model change</p>}
+      {state.effortOptions.length > 0 && (
+        <>
+          <p className={styles.line}>
+            Thinking effort{" "}
+            <span className={styles.hint}>
+              {state.defaultEffort
+                ? `(model default: ${state.defaultEffort})`
+                : "(default follows the selected model)"}
+            </span>
+          </p>
+          <div className={styles.controls}>
+            <button
+              type="button"
+              className={
+                state.effort === null ? styles.chipActive : styles.chip
+              }
+              onClick={() => void save({ effort: null })}
+              disabled={busy || state.effort === null}
+              aria-pressed={state.effort === null}
+            >
+              Default
+            </button>
+            {state.effortOptions.map((effort) => (
+              <button
+                key={effort}
+                type="button"
+                className={
+                  state.effort === effort ? styles.chipActive : styles.chip
+                }
+                onClick={() => void save({ effort })}
+                disabled={busy || state.effort === effort}
+                aria-pressed={state.effort === effort}
+              >
+                {effort}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {status && (
         <p className={styles.status} role="status" aria-live="polite">
           {status}

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readImageBase64 } from "./attachments";
-import { configuredModel } from "./config";
+import { configuredEffort, configuredModel } from "./config";
 import { buildAgentInvocation, getClaudeSshHost } from "./invocation";
 import {
   DEFAULT_TIMEOUT_MS,
@@ -107,6 +107,8 @@ async function buildArgs(
   ];
   const model = configuredModel();
   if (model) args.push("--model", model);
+  const effort = configuredEffort();
+  if (effort) args.push("--effort", effort);
   args.push("--output-format", streaming ? "stream-json" : "text");
   // --include-partial-messages makes the CLI emit content_block_delta events
   // as tokens arrive; without it the reply lands as one assistant event at

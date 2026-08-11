@@ -13,9 +13,25 @@ import type { ProviderId } from "./types";
 interface AgentConfig {
   provider?: ProviderId;
   model?: string;
+  effort?: AgentEffort;
   baseUrl?: string;
   /** Admin opt-in: turns may use the provider's web search. */
   webAccess?: boolean;
+}
+
+export const AGENT_EFFORTS = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+] as const;
+
+export type AgentEffort = (typeof AGENT_EFFORTS)[number];
+
+export function isAgentEffort(value: unknown): value is AgentEffort {
+  return AGENT_EFFORTS.includes(value as AgentEffort);
 }
 
 const FILE = () => path.join(dataRoot(), "agent-config.json");
@@ -47,6 +63,7 @@ export function setAgentModel(model: string | null): void {
 export function updateAgentConfig(update: {
   provider?: ProviderId | null;
   model?: string | null;
+  effort?: AgentEffort | null;
   baseUrl?: string | null;
   webAccess?: boolean | null;
 }): void {
@@ -55,13 +72,19 @@ export function updateAgentConfig(update: {
     if (update.provider) config.provider = update.provider;
     else delete config.provider;
     delete config.model;
+    delete config.effort;
     delete config.baseUrl;
     // Capability opt-ins don't carry across providers.
     delete config.webAccess;
   }
   if (update.model !== undefined) {
+    delete config.effort;
     if (update.model) config.model = update.model;
     else delete config.model;
+  }
+  if (update.effort !== undefined) {
+    if (update.effort) config.effort = update.effort;
+    else delete config.effort;
   }
   if (update.baseUrl !== undefined) {
     if (update.baseUrl) config.baseUrl = update.baseUrl;
@@ -95,6 +118,20 @@ export function configuredProviderOverride(): ProviderId | undefined {
  */
 export function configuredModel(): string | undefined {
   return readAgentConfig().model || undefined;
+}
+
+/** Explicit thinking effort, or undefined for the model/provider default. */
+export function configuredEffort(): AgentEffort | undefined {
+  return readAgentConfig().effort || undefined;
+}
+
+/** Curated fallback when a CLI cannot report model-specific effort levels. */
+export function effortSuggestions(provider: ProviderId): AgentEffort[] {
+  if (provider === "codex") return [...AGENT_EFFORTS];
+  if (provider === "claude-code") {
+    return ["low", "medium", "high", "xhigh", "max"];
+  }
+  return [];
 }
 
 const DEFAULT_BASE_URLS = {
@@ -137,7 +174,7 @@ export function modelSuggestions(provider: ProviderId): string[] {
       // tier. Exact model ids remain available through the custom model field.
       return ["fable", "opus", "sonnet", "haiku"];
     case "codex":
-      return ["gpt-5.5", "gpt-5.5-mini"];
+      return ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"];
     case "anthropic":
       return [
         "claude-fable-5",

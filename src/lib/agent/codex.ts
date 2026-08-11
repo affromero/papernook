@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { configuredModel } from "./config";
+import { configuredEffort, configuredModel } from "./config";
 import { buildAgentInvocation, getCodexSshHost } from "./invocation";
 import { stageImagesOverSsh, imagePromptPreamble } from "./attachments";
 import {
@@ -28,6 +28,10 @@ function buildBase(): string[] {
   ];
   const model = configuredModel();
   if (model) args.push("-m", model);
+  const effort = configuredEffort();
+  if (effort) {
+    args.push("-c", `model_reasoning_effort=${JSON.stringify(effort)}`);
+  }
   return args;
 }
 

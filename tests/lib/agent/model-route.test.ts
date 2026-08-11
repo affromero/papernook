@@ -44,10 +44,25 @@ describe("agent model settings route", () => {
       provider: string;
       statuses: Record<string, string>;
       suggestions: string[];
+      effort: string | null;
+      effortOptions: string[];
     };
 
     expect(body.provider).toBe("codex");
-    expect(body.suggestions).toEqual(["gpt-5.5", "gpt-5.5-mini"]);
+    expect(body.suggestions).toEqual([
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+    ]);
+    expect(body.effort).toBeNull();
+    expect(body.effortOptions).toEqual([
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+      "ultra",
+    ]);
     expect(Object.values(body.statuses)).toEqual(Array(7).fill("checking"));
   });
 
@@ -57,12 +72,17 @@ describe("agent model settings route", () => {
       new NextRequest("http://localhost/api/v1/agent/model", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "gpt-5.5" }),
+        body: JSON.stringify({
+          model: "gpt-5.6-terra",
+          effort: "high",
+        }),
       }),
     );
 
     expect(response.ok).toBe(true);
-    const { configuredModel } = await import("@/lib/agent/config");
-    expect(configuredModel()).toBe("gpt-5.5");
+    const { configuredEffort, configuredModel } =
+      await import("@/lib/agent/config");
+    expect(configuredModel()).toBe("gpt-5.6-terra");
+    expect(configuredEffort()).toBe("high");
   });
 });

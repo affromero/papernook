@@ -5,8 +5,11 @@ import { isPublicExposure } from "@/lib/data-dir";
 import { isAdmin, verifyProfilePassword } from "@/lib/auth/users";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import {
+  AGENT_EFFORTS,
   configuredBaseUrl,
+  configuredEffort,
   configuredModel,
+  effortSuggestions,
   modelSuggestions,
   storedBaseUrl,
   updateAgentConfig,
@@ -47,8 +50,15 @@ async function snapshot(admin: boolean, probe: boolean) {
         : Promise.resolve({
             models: modelSuggestions(provider),
             live: false,
+            effortOptions: effortSuggestions(provider),
+            defaultEffort: null,
           })
-      : Promise.resolve({ models: [], live: false }),
+      : Promise.resolve({
+          models: [],
+          live: false,
+          effortOptions: [],
+          defaultEffort: null,
+        }),
     probe
       ? allProviderStatuses()
       : Promise.resolve(
@@ -61,6 +71,9 @@ async function snapshot(admin: boolean, probe: boolean) {
     provider,
     statuses,
     model: provider ? (configuredModel() ?? null) : null,
+    effort: provider ? (configuredEffort() ?? null) : null,
+    effortOptions: offered.effortOptions ?? [],
+    defaultEffort: offered.defaultEffort ?? null,
     baseUrl: admin && provider ? (storedBaseUrl(provider) ?? null) : null,
     baseUrlPlaceholder:
       admin && provider ? (configuredBaseUrl(provider) ?? null) : null,
@@ -106,6 +119,7 @@ const baseUrlSchema = z
 const schema = z.object({
   provider: z.enum(PROVIDER_IDS).optional(),
   model: z.string().max(200).nullable().optional(),
+  effort: z.enum(AGENT_EFFORTS).nullable().optional(),
   baseUrl: baseUrlSchema.nullable().optional(),
   webAccess: z.boolean().optional(),
   password: z.string().max(200).optional(),
@@ -133,6 +147,16 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
   const targetProvider = body.data.provider ?? configuredProviderId();
   if (
+    body.data.effort != null &&
+    targetProvider !== "codex" &&
+    targetProvider !== "claude-code"
+  ) {
+    return NextResponse.json(
+      { error: "Thinking effort is only supported by CLI providers." },
+      { status: 400 },
+    );
+  }
+  if (
     body.data.baseUrl !== undefined &&
     targetProvider !== "openai" &&
     !isLocalProvider(targetProvider)
@@ -157,6 +181,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       body.data.model === undefined
         ? undefined
         : body.data.model?.trim() || null,
+    effort: body.data.effort,
     baseUrl:
       body.data.baseUrl === undefined
         ? undefined

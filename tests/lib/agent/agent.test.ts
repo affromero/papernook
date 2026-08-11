@@ -337,6 +337,31 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     vi.doUnmock("node:child_process");
   });
 
+  it("passes the configured thinking effort to both CLI providers", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-effort-"));
+    vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
+    const calls: SpawnCall[] = [];
+    mockSpawn(calls);
+    const cfg = await import("@/lib/agent/config");
+
+    cfg.updateAgentConfig({ provider: "claude-code", effort: "high" });
+    const { executeClaudeCode } = await import("@/lib/agent/claude-code");
+    await executeClaudeCode({ system: "", prompt: "analyze" });
+    expect(calls[0].args).toContain("--effort");
+    expect(calls[0].args[calls[0].args.indexOf("--effort") + 1]).toBe("high");
+
+    cfg.updateAgentConfig({ provider: "codex", effort: "xhigh" });
+    const { executeCodex } = await import("@/lib/agent/codex");
+    await executeCodex({ system: "", prompt: "analyze" });
+    expect(calls[1].args).toContain('model_reasoning_effort="xhigh"');
+
+    fs.rmSync(tmp, { recursive: true, force: true });
+    vi.doUnmock("node:child_process");
+  });
+
   it("grants only the web tools when the turn allows web access", async () => {
     const calls: SpawnCall[] = [];
     mockSpawn(calls);
@@ -467,8 +492,11 @@ describe("model configuration", () => {
     expect(cfg.configuredModel()).toBeUndefined(); // env is ignored
     cfg.setAgentModel("opus");
     expect(cfg.configuredModel()).toBe("opus"); // file wins
+    cfg.updateAgentConfig({ effort: "high" });
+    expect(cfg.configuredEffort()).toBe("high");
     cfg.setAgentModel(null);
     expect(cfg.configuredModel()).toBeUndefined(); // provider default
+    expect(cfg.configuredEffort()).toBeUndefined(); // model change clears effort
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
@@ -493,7 +521,129 @@ describe("model configuration", () => {
     await expect(listOfferedModels("claude-code")).resolves.toEqual({
       models: ["fable", "opus", "sonnet", "haiku"],
       live: false,
+      effortOptions: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: null,
     });
+  });
+
+  it("discovers picker-visible Codex models through app-server over SSH", async () => {
+    vi.stubEnv("CODEX_SSH_HOST", "agent-host");
+    const calls: Array<{
+      command: string;
+      args: string[];
+      messages: unknown[];
+    }> = [];
+    vi.doMock("node:child_process", () => ({
+      spawn: (command: string, args: string[]) => {
+        let stdoutData: ((chunk: Buffer) => void) | undefined;
+        let close: ((code: number) => void) | undefined;
+        const call = { command, args, messages: [] as unknown[] };
+        calls.push(call);
+        return {
+          stdout: {
+            on: (event: string, callback: (chunk: Buffer) => void) => {
+              if (event === "data") stdoutData = callback;
+            },
+          },
+          stderr: { on: vi.fn() },
+          stdin: {
+            write: (data: string) => {
+              const message = JSON.parse(data) as {
+                id?: number;
+                method?: string;
+                params?: { cursor?: string };
+              };
+              call.messages.push(message);
+              if (message.id === 0) {
+                setImmediate(() =>
+                  stdoutData?.(Buffer.from('{"id":0,"result":{}}\n')),
+                );
+              } else if (message.method === "model/list") {
+                const result = message.params?.cursor
+                  ? {
+                      data: [{ model: "gpt-5.6-terra", hidden: false }],
+                      nextCursor: null,
+                    }
+                  : {
+                      data: [
+                        {
+                          model: "gpt-5.6-sol",
+                          hidden: false,
+                          isDefault: true,
+                          defaultReasoningEffort: "low",
+                          supportedReasoningEfforts: [
+                            { reasoningEffort: "low" },
+                            { reasoningEffort: "high" },
+                            { reasoningEffort: "future-value" },
+                          ],
+                        },
+                        { model: "internal-model", hidden: true },
+                      ],
+                      nextCursor: "page-2",
+                    };
+                setImmediate(() =>
+                  stdoutData?.(
+                    Buffer.from(
+                      `${JSON.stringify({ id: message.id, result })}\n`,
+                    ),
+                  ),
+                );
+              }
+            },
+            end: vi.fn(),
+          },
+          kill: () => setImmediate(() => close?.(0)),
+          on: (event: string, callback: (code: number) => void) => {
+            if (event === "close") close = callback;
+          },
+        };
+      },
+    }));
+
+    const { listOfferedModels } = await import("@/lib/agent/models");
+    await expect(listOfferedModels("codex")).resolves.toEqual({
+      models: ["gpt-5.6-sol", "gpt-5.6-terra"],
+      live: true,
+      effortOptions: ["low", "high"],
+      defaultEffort: "low",
+    });
+    expect(calls[0].command).toBe("ssh");
+    expect(calls[0].args.at(-1)).toBe("'codex' 'app-server'");
+    expect(calls[0].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ method: "initialize", id: 0 }),
+        expect.objectContaining({ method: "initialized" }),
+        expect.objectContaining({
+          method: "model/list",
+          params: expect.objectContaining({ includeHidden: false }),
+        }),
+      ]),
+    );
+    vi.doUnmock("node:child_process");
+  });
+
+  it("falls back to current Codex suggestions when discovery fails", async () => {
+    vi.doMock("node:child_process", () => ({
+      spawn: () => ({
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        stdin: { write: vi.fn(), end: vi.fn() },
+        kill: vi.fn(),
+        on: (event: string, callback: (error: Error) => void) => {
+          if (event === "error")
+            setImmediate(() => callback(new Error("not installed")));
+        },
+      }),
+    }));
+
+    const { listOfferedModels } = await import("@/lib/agent/models");
+    await expect(listOfferedModels("codex")).resolves.toEqual({
+      models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"],
+      live: false,
+      effortOptions: ["low", "medium", "high", "xhigh", "max", "ultra"],
+      defaultEffort: null,
+    });
+    vi.doUnmock("node:child_process");
   });
 
   it("uses stored endpoint then env then local default", async () => {
