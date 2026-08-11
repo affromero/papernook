@@ -74,6 +74,17 @@ describe("chat context", () => {
     expect(system).toContain("$$...$$");
   });
 
+  it("requires typed, shape-aware code examples with explicit outputs", async () => {
+    const paper = await placePaper();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+    const system = await buildChatSystem(paper);
+
+    expect(system).toContain("correct fenced language tag");
+    expect(system).toContain("native type annotations");
+    expect(system).toContain("shapes at each transformation");
+    expect(system).toContain("output type, shape, and meaning");
+  });
+
   it("documents the threejs fenced-block contract", async () => {
     const paper = await placePaper();
     const { buildChatSystem } = await import("@/lib/library/chat-context");

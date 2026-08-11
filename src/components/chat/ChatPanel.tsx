@@ -338,16 +338,26 @@ export function ChatPanel({
               />
             ))}
             {message.role === "assistant" ? (
-              <Markdown
-                content={
-                  message.content ||
-                  (busy && i === messages.length - 1 ? "…" : "")
-                }
-                renderThree={!(busy && i === messages.length - 1)}
-                highlightCode={!(busy && i === messages.length - 1)}
-                decorateRefs={!(busy && i === messages.length - 1)}
-                bibliography={bibliography}
-              />
+              message.content ? (
+                <Markdown
+                  content={message.content}
+                  renderThree={!(busy && i === messages.length - 1)}
+                  highlightCode={!(busy && i === messages.length - 1)}
+                  copyCode={!(busy && i === messages.length - 1)}
+                  decorateRefs={!(busy && i === messages.length - 1)}
+                  bibliography={bibliography}
+                />
+              ) : busy && i === messages.length - 1 ? (
+                <span
+                  className={styles.typingIndicator}
+                  role="status"
+                  aria-label="Assistant is responding"
+                >
+                  <span aria-hidden="true" />
+                  <span aria-hidden="true" />
+                  <span aria-hidden="true" />
+                </span>
+              ) : null
             ) : (
               <p>{message.content}</p>
             )}

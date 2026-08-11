@@ -16,6 +16,7 @@ describe("chat markdown code blocks", () => {
     expect(html).toContain("hljs-keyword");
     expect(html).toContain("hljs-title");
     expect(html).toContain("hljs-string");
+    expect(html).toContain('aria-label="Copy code"');
   });
 
   it("keeps inline code compact and outside the highlighted frame", () => {
@@ -27,6 +28,7 @@ describe("chat markdown code blocks", () => {
 
     expect(html).toContain("<code>torch.linalg.lstsq</code>");
     expect(html).not.toContain("hljs");
+    expect(html).not.toContain('aria-label="Copy code"');
   });
 
   it("can defer syntax highlighting while a response is streaming", () => {
@@ -34,10 +36,12 @@ describe("chat markdown code blocks", () => {
       createElement(Markdown, {
         content: "```\nconst answer = 42;\n```",
         highlightCode: false,
+        copyCode: false,
       }),
     );
 
     expect(html).toContain("const answer = 42;");
     expect(html).not.toContain("hljs");
+    expect(html).not.toContain('aria-label="Copy code"');
   });
 });

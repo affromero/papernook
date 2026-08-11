@@ -118,6 +118,51 @@
   margin: 0;
 }
 
+.typingIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  min-height: 1.2rem;
+  padding: 0 0.1rem;
+  color: rgba(127, 127, 127, 0.9);
+}
+
+.typingIndicator > span {
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.38;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .typingIndicator > span {
+    animation: typingPulse 1.15s ease-in-out infinite;
+  }
+
+  .typingIndicator > span:nth-child(2) {
+    animation-delay: 0.14s;
+  }
+
+  .typingIndicator > span:nth-child(3) {
+    animation-delay: 0.28s;
+  }
+}
+
+@keyframes typingPulse {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.38;
+  }
+
+  30% {
+    transform: translateY(-0.2rem);
+    opacity: 1;
+  }
+}
+
 .msgImage {
   max-width: 220px;
   border-radius: 8px;

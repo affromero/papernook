@@ -67,10 +67,66 @@
   text-transform: uppercase;
 }
 
-.codeLights {
-  color: #68716b;
-  font-size: 0.48rem;
-  letter-spacing: 0.2em;
+.copyCodeWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.copyCode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  min-height: 22px;
+  padding: 0 0.42rem;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #939d96;
+  background: transparent;
+  font: inherit;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.copyCode svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.8;
+}
+
+.copyCode:hover {
+  border-color: #464c48;
+  color: #e4e8e5;
+  background: #292d2a;
+}
+
+.copyCode:focus-visible {
+  outline: 2px solid #9fd3aa;
+  outline-offset: 2px;
+}
+
+.copyCode[data-state="copied"] {
+  color: #9fd3aa;
+}
+
+.copyCode[data-state="error"] {
+  color: #ff8f70;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .codeFrame pre {
@@ -92,46 +148,45 @@
 
 .codeFrame :global(.hljs-comment),
 .codeFrame :global(.hljs-quote) {
-  color: #77817b;
-  font-style: italic;
+  color: #6a9955;
 }
 
 .codeFrame :global(.hljs-keyword),
 .codeFrame :global(.hljs-selector-tag),
 .codeFrame :global(.hljs-doctag) {
-  color: #ff8f70;
+  color: #c586c0;
 }
 
 .codeFrame :global(.hljs-title),
 .codeFrame :global(.hljs-title.function_),
 .codeFrame :global(.hljs-section) {
-  color: #e8c86d;
+  color: #dcdcaa;
 }
 
 .codeFrame :global(.hljs-string),
 .codeFrame :global(.hljs-regexp),
 .codeFrame :global(.hljs-addition),
 .codeFrame :global(.hljs-attribute) {
-  color: #9fd3aa;
+  color: #ce9178;
 }
 
 .codeFrame :global(.hljs-number),
 .codeFrame :global(.hljs-literal),
 .codeFrame :global(.hljs-symbol),
 .codeFrame :global(.hljs-bullet) {
-  color: #8ccbd5;
+  color: #b5cea8;
 }
 
 .codeFrame :global(.hljs-built_in),
 .codeFrame :global(.hljs-type),
 .codeFrame :global(.hljs-meta) {
-  color: #c2a8e5;
+  color: #4ec9b0;
 }
 
 .codeFrame :global(.hljs-variable),
 .codeFrame :global(.hljs-params),
 .codeFrame :global(.hljs-property) {
-  color: #d9dedb;
+  color: #9cdcfe;
 }
 
 .codeFrame :global(.hljs-deletion) {

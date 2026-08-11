@@ -7,6 +7,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { rehypePaperRefs } from "@/lib/chat/ref-decorations";
 import type { Bibliography } from "@/lib/pdf/bibliography";
+import { CopyCodeButton } from "./CopyCodeButton";
 import { ThreeSandbox } from "./ThreeSandbox";
 import styles from "./Markdown.module.css";
 
@@ -29,14 +30,28 @@ function codeLanguage(children: ReactNode): string {
   );
 }
 
-function CodeFrame({ children }: { children: ReactNode }) {
+function codeText(children: ReactNode): string {
+  if (typeof children === "string" || typeof children === "number") {
+    return String(children);
+  }
+  if (Array.isArray(children)) return children.map(codeText).join("");
+  if (!isValidElement(children)) return "";
+  return codeText((children.props as { children?: ReactNode }).children);
+}
+
+function CodeFrame({
+  children,
+  copyCode,
+}: {
+  children: ReactNode;
+  copyCode: boolean;
+}) {
+  const text = codeText(children).replace(/\n$/, "");
   return (
     <div className={styles.codeFrame}>
       <div className={styles.codeHeader}>
         <span>{codeLanguage(children)}</span>
-        <span className={styles.codeLights} aria-hidden="true">
-          ● ● ●
-        </span>
+        {copyCode && <CopyCodeButton code={text} />}
       </div>
       <pre>{children}</pre>
     </div>
@@ -60,12 +75,14 @@ export function Markdown({
   content,
   renderThree = false,
   highlightCode = true,
+  copyCode = true,
   decorateRefs = false,
   bibliography = null,
 }: {
   content: string;
   renderThree?: boolean;
   highlightCode?: boolean;
+  copyCode?: boolean;
   decorateRefs?: boolean;
   bibliography?: Bibliography | null;
 }) {
@@ -92,7 +109,7 @@ export function Markdown({
             return code ? (
               <ThreeSandbox code={code} />
             ) : (
-              <CodeFrame>{props.children}</CodeFrame>
+              <CodeFrame copyCode={copyCode}>{props.children}</CodeFrame>
             );
           },
         }}
