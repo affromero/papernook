@@ -15,7 +15,7 @@ interface AgentConfig {
   model?: string;
   effort?: AgentEffort;
   baseUrl?: string;
-  /** Admin opt-in: turns may use the provider's web search. */
+  /** Admin override; web-capable providers default to allowing web search. */
   webAccess?: boolean;
 }
 
@@ -74,8 +74,6 @@ export function updateAgentConfig(update: {
     delete config.model;
     delete config.effort;
     delete config.baseUrl;
-    // Capability opt-ins don't carry across providers.
-    delete config.webAccess;
   }
   if (update.model !== undefined) {
     delete config.effort;
@@ -90,16 +88,17 @@ export function updateAgentConfig(update: {
     if (update.baseUrl) config.baseUrl = update.baseUrl;
     else delete config.baseUrl;
   }
-  if (update.webAccess !== undefined) {
-    if (update.webAccess) config.webAccess = true;
-    else delete config.webAccess;
+  if (update.webAccess === null) {
+    delete config.webAccess;
+  } else if (update.webAccess !== undefined) {
+    config.webAccess = update.webAccess;
   }
   writeConfig(config);
 }
 
-/** Admin opt-in to web-capable turns; stored in the config file only. */
+/** Web-capable turns are enabled unless an admin explicitly opts out. */
 export function webAccessEnabled(): boolean {
-  return readAgentConfig().webAccess === true;
+  return readAgentConfig().webAccess !== false;
 }
 
 export function setAgentProvider(provider: ProviderId | null): void {

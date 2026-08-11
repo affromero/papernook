@@ -13,6 +13,7 @@
 #   APP_HOST / WEBDAV_HOST         use 127.0.0.1 behind a public TLS proxy
 #   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST, ANTHROPIC_API_KEY, OPENAI_API_KEY
 #   OLLAMA_HOST / LLAMACPP_BASE_URL / VLLM_BASE_URL (models live in Settings)
+#   WEB_SEARCH_BASE_URL            custom SearXNG endpoint (bundled by default)
 #   SESSION_SECRET                 pin sessions across container rebuilds
 
 services:
@@ -31,6 +32,7 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       LLAMACPP_BASE_URL: ${LLAMACPP_BASE_URL:-http://host.docker.internal:8080}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-http://host.docker.internal:8000}
+      WEB_SEARCH_BASE_URL: ${WEB_SEARCH_BASE_URL:-http://search:8080}
       PAPERNOOK_SSH_KEY_PATH: /home/node/.ssh/id_papernook
       PAPERNOOK_SSH_KNOWN_HOSTS_PATH: /home/node/.ssh/known_hosts
     extra_hosts:
@@ -55,6 +57,24 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 20s
+
+  # Internal metasearch backend for local-model web_search tool calls. It is
+  # reachable from the host only on loopback and never receives server files.
+  search:
+    image: searxng/searxng:latest@sha256:7a39e9e2610fb6f332393d0f1c69534d5f1fd4e85cb4b204cd1b1768195b8ee9
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-${SESSION_SECRET:-papernook-internal-only}}
+    ports:
+      - "127.0.0.1:8888:8080"
+    volumes:
+      - ./deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
       start_period: 20s
 
   webdav:

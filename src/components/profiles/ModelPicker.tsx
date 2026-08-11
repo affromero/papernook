@@ -202,8 +202,8 @@ export function ModelPicker() {
             </button>
           </div>
           <p className={styles.hint}>
-            With web access on, a malicious paper could steer a web request.
-            Answers gain live lookups; nothing on this server becomes readable.
+            On by default. A malicious paper could steer a web request. Answers
+            gain live lookups; nothing on this server becomes readable.
           </p>
         </>
       )}

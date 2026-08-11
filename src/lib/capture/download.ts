@@ -120,13 +120,16 @@ async function resolvePublicUrl(
   return { url, address: addresses[0] };
 }
 
-interface FetchedResponse {
+export interface FetchedPublicResponse {
   response: Response;
   url: string;
   close: () => Promise<void>;
 }
 
-async function politeFetch(url: string): Promise<FetchedResponse> {
+/** Fetch a public HTTP(S) URL with DNS pinning and redirect SSRF guards. */
+export async function fetchPublicUrl(
+  url: string,
+): Promise<FetchedPublicResponse> {
   let current = await resolvePublicUrl(url);
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     const currentUrl = current.url.toString();
@@ -246,7 +249,7 @@ async function downloadPdfInner(input: string): Promise<DownloadedPdf> {
       response: page,
       url: pageUrl,
       close,
-    } = await politeFetch(target.url);
+    } = await fetchPublicUrl(target.url);
     if (!page.ok) {
       await close();
       throw new CaptureError(
@@ -271,7 +274,7 @@ async function downloadPdfInner(input: string): Promise<DownloadedPdf> {
     pdfUrl = found;
   }
 
-  const { response, url: finalUrl, close } = await politeFetch(pdfUrl);
+  const { response, url: finalUrl, close } = await fetchPublicUrl(pdfUrl);
   if (!response.ok) {
     await close();
     throw new CaptureError(

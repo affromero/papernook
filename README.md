@@ -267,6 +267,16 @@ Images use the native attachment mechanism for each transport. Local image chat
 requires a vision-capable model, and paper capture needs enough context for
 roughly 60,000 characters. Provider errors surface without silent fallback.
 
+Web access is on by default and can be disabled by an admin in Settings.
+Claude Code, Codex, Anthropic, and the OpenAI Responses API use their native
+search tools. Ollama, llama.cpp, vLLM, and custom OpenAI-compatible endpoints
+use Papernook's bounded `web_search` / SSRF-guarded `web_fetch` tool loop.
+Docker Compose includes a SearXNG service for those searches, exposed only on
+host loopback by default (`127.0.0.1:8888`). Set `WEB_SEARCH_BASE_URL` to use a
+different SearXNG instance.
+Local models must support OpenAI-compatible function calling; llama.cpp and
+vLLM also need their tool-call parser/template enabled for the selected model.
+
 The installer prefers an authenticated local Codex CLI, then Claude Code. In
 Docker, Compose mounts only the selected CLI credential file read-only and the
 entrypoint copies that file into a writable container home. It does not mount

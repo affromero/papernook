@@ -175,7 +175,7 @@ case "$PUBLIC" in
     echo
     validate_papernook_password "$PAPERNOOK_PASSWORD" || exit 1
     if [ "$CHOICE" = "1" ] || [ "$CHOICE" = "2" ] || [ "$CHOICE" = "3" ]; then
-      echo "Public deployments cannot use CLI agent providers. Choose an API or tool-free local model provider." >&2
+      echo "Public deployments cannot use CLI agent providers. Choose an API or local model provider." >&2
       exit 1
     fi
     PUBLIC_BLOCK=$'PUBLIC_EXPOSURE=true\n'

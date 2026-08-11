@@ -106,6 +106,13 @@ describe("provider registry", () => {
     expect(getProvider().id).toBe("claude-code");
   });
 
+  it("offers web access through every provider", async () => {
+    const { getProvider, providerIds } = await import("@/lib/agent/registry");
+    for (const id of providerIds()) {
+      expect(getProvider(id).capabilities.web, id).toBe(true);
+    }
+  });
+
   it("allows CLI providers on public deployments — the admin's password-confirmed Settings choice is the consent", async () => {
     vi.stubEnv("PUBLIC_EXPOSURE", "true");
     vi.stubEnv("AI_PROVIDER", "codex");
@@ -359,6 +366,22 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     expect(calls[1].args).toContain('model_reasoning_effort="xhigh"');
 
     fs.rmSync(tmp, { recursive: true, force: true });
+    vi.doUnmock("node:child_process");
+  });
+
+  it("enables Codex live search only for web-enabled turns", async () => {
+    const calls: SpawnCall[] = [];
+    mockSpawn(calls);
+    const { executeCodex } = await import("@/lib/agent/codex");
+    await executeCodex({ system: "", prompt: "local context" });
+    await executeCodex({
+      system: "",
+      prompt: "find the implementation",
+      allowWeb: true,
+    });
+
+    expect(calls[0].args).toContain('web_search="disabled"');
+    expect(calls[1].args).toContain('web_search="live"');
     vi.doUnmock("node:child_process");
   });
 
@@ -672,7 +695,7 @@ describe("model configuration", () => {
 });
 
 describe("provider override", () => {
-  it("file provider beats AI_PROVIDER env, and switching clears the model", async () => {
+  it("defaults web access on and preserves an opt-out across provider switches", async () => {
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
@@ -682,13 +705,14 @@ describe("provider override", () => {
     const cfg = await import("@/lib/agent/config");
     const { configuredProviderId } = await import("@/lib/agent/registry");
     expect(configuredProviderId()).toBe("claude-code");
-    cfg.setAgentModel("opus");
-    cfg.updateAgentConfig({ webAccess: true });
     expect(cfg.webAccessEnabled()).toBe(true);
+    cfg.setAgentModel("opus");
+    cfg.updateAgentConfig({ webAccess: false });
+    expect(cfg.webAccessEnabled()).toBe(false);
     cfg.setAgentProvider("codex");
     expect(configuredProviderId()).toBe("codex");
     expect(cfg.configuredModel()).toBeUndefined(); // model cleared
-    expect(cfg.webAccessEnabled()).toBe(false); // capability opt-in cleared
+    expect(cfg.webAccessEnabled()).toBe(false);
     cfg.setAgentProvider(null);
     expect(configuredProviderId()).toBe("claude-code"); // env again
     fs.rmSync(tmp, { recursive: true, force: true });

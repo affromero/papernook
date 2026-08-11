@@ -51,8 +51,8 @@ tree.
 - Raw app and WebDAV ports bind to `127.0.0.1`; only the TLS proxy is public.
 - `PAPERNOOK_PASSWORD`, every profile password, `WEBDAV_PASS`, and
   `SESSION_SECRET` are distinct and stored outside Git.
-- CLI AI providers are refused in public mode. Use a tool-free API or local
-  model endpoint.
+- CLI AI providers are refused by the installer in public mode. Use an API or
+  local model endpoint; web tools can still be disabled in Settings.
 - Review logs and repeated `429` responses. Put edge rate limiting or fail2ban
   in front of `/api/v1/gate` and `/api/v1/session` for high-traffic hosts.
 - Rotate a capture token immediately if its bookmarklet or Shortcut is lost.

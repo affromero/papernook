@@ -1,8 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+import type {
+  ResponseCreateParamsNonStreaming,
+  ResponseCreateParamsStreaming,
+  ResponseInput,
+  ResponseInputContent,
+} from "openai/resources/responses/responses";
 import { readImageBase64 } from "./attachments";
 import { configuredModel } from "./config";
 import { compatibleBaseUrl } from "./local";
+import { executeWebTool, WEB_TOOLS } from "./web/tools";
 import {
   DEFAULT_TIMEOUT_MS,
   type AgentProvider,
@@ -151,6 +158,77 @@ function openaiMessages(
   return messages;
 }
 
+function openaiResponseInput(turn: AgentTurn): string | ResponseInput {
+  const images = turn.images ?? [];
+  if (images.length === 0) return turn.prompt;
+  const content: ResponseInputContent[] = images.map((filePath) => {
+    const { mediaType, data } = readImageBase64(filePath);
+    return {
+      type: "input_image" as const,
+      detail: "auto" as const,
+      image_url: `data:${mediaType};base64,${data}`,
+    };
+  });
+  content.push({ type: "input_text", text: turn.prompt });
+  return [{ role: "user", content }];
+}
+
+function openaiResponseBase(turn: AgentTurn) {
+  return {
+    model: openaiModel(),
+    instructions: turn.system || undefined,
+    input: openaiResponseInput(turn),
+    store: false,
+    ...(turn.allowWeb ? { tools: [{ type: "web_search" as const }] } : {}),
+    ...(turn.responseFormat
+      ? { text: { format: { type: turn.responseFormat } } }
+      : {}),
+  };
+}
+
+async function executeOpenAI(turn: AgentTurn): Promise<string> {
+  if (compatibleBaseUrl("openai")) return executeCompatible("openai", turn);
+  const response = await openai("openai").responses.create(
+    openaiResponseBase(turn) satisfies ResponseCreateParamsNonStreaming,
+    { timeout: turn.timeoutMs ?? DEFAULT_TIMEOUT_MS },
+  );
+  if (response.status === "failed") {
+    throw new Error(`openai: ${response.error?.message ?? "response failed"}`);
+  }
+  if (response.status === "incomplete") {
+    throw new Error("openai: response incomplete");
+  }
+  return response.output_text;
+}
+
+async function* streamOpenAI(turn: AgentTurn): AsyncGenerator<string> {
+  if (compatibleBaseUrl("openai")) {
+    yield* streamCompatible("openai", turn);
+    return;
+  }
+  const stream = await openai("openai").responses.create(
+    {
+      ...openaiResponseBase(turn),
+      stream: true,
+    } satisfies ResponseCreateParamsStreaming,
+    { timeout: turn.timeoutMs ?? DEFAULT_TIMEOUT_MS },
+  );
+  for await (const event of stream) {
+    if (event.type === "response.output_text.delta") yield event.delta;
+    if (event.type === "error") {
+      throw new Error(`openai: ${event.message}`);
+    }
+    if (event.type === "response.failed") {
+      throw new Error(
+        `openai: ${event.response.error?.message ?? "response failed"}`,
+      );
+    }
+    if (event.type === "response.incomplete") {
+      throw new Error("openai: response incomplete");
+    }
+  }
+}
+
 function compatibleModel(provider: "openai" | LocalProviderId): string {
   const model = provider === "openai" ? openaiModel() : configuredModel();
   if (!model) {
@@ -165,6 +243,9 @@ async function executeCompatible(
   provider: "openai" | LocalProviderId,
   turn: AgentTurn,
 ): Promise<string> {
+  if (turn.allowWeb) {
+    return executeCompatibleWithWeb(provider, turn);
+  }
   const completion = await openai(provider).chat.completions.create(
     {
       model: compatibleModel(provider),
@@ -178,10 +259,255 @@ async function executeCompatible(
   return completion.choices[0]?.message?.content ?? "";
 }
 
+const MAX_WEB_TOOL_ROUNDS = 6;
+
+type CompatibleMessage = OpenAI.Chat.ChatCompletionMessageParam;
+type CompatibleFunctionCall = OpenAI.Chat.ChatCompletionMessageFunctionToolCall;
+
+function remainingTimeout(provider: string, deadline: number): number {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0)
+    throw new Error(`${provider}: timed out during web access`);
+  return remaining;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function warningSuffix(warnings: string[]): string {
+  if (warnings.length === 0) return "";
+  return `\n\nWeb access warning: ${warnings.join("; ")}`;
+}
+
+async function withinDeadline<T>(
+  operation: Promise<T>,
+  provider: string,
+  deadline: number,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("web tool timed out")),
+          remainingTimeout(provider, deadline),
+        );
+        timer.unref();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function appendWebToolResults(
+  messages: CompatibleMessage[],
+  calls: CompatibleFunctionCall[],
+  warnings: string[],
+  provider: string,
+  deadline: number,
+): Promise<void> {
+  for (const call of calls) {
+    let content: string;
+    try {
+      content = await withinDeadline(
+        executeWebTool(call.function.name, call.function.arguments),
+        provider,
+        deadline,
+      );
+    } catch (error) {
+      const warning = `${call.function.name} failed: ${errorMessage(error)}`;
+      warnings.push(warning);
+      content = JSON.stringify({ error: warning });
+    }
+    messages.push({ role: "tool", tool_call_id: call.id, content });
+  }
+}
+
+function functionCalls(
+  provider: string,
+  toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[],
+): CompatibleFunctionCall[] {
+  const calls = toolCalls.filter(
+    (call): call is CompatibleFunctionCall => call.type === "function",
+  );
+  if (calls.length !== toolCalls.length) {
+    throw new Error(`${provider}: returned an unsupported custom tool call`);
+  }
+  return calls;
+}
+
+async function finalCompatibleAnswer(
+  provider: "openai" | LocalProviderId,
+  turn: AgentTurn,
+  messages: CompatibleMessage[],
+  warnings: string[],
+  deadline: number,
+): Promise<string> {
+  const completion = await openai(provider).chat.completions.create(
+    {
+      model: compatibleModel(provider),
+      messages,
+      ...(turn.responseFormat
+        ? { response_format: { type: turn.responseFormat } }
+        : {}),
+    },
+    { timeout: remainingTimeout(provider, deadline) },
+  );
+  const content = completion.choices[0]?.message?.content ?? "";
+  return turn.responseFormat ? content : content + warningSuffix(warnings);
+}
+
+async function executeCompatibleWithWeb(
+  provider: "openai" | LocalProviderId,
+  turn: AgentTurn,
+): Promise<string> {
+  const messages = openaiMessages(turn);
+  const warnings: string[] = [];
+  const deadline = Date.now() + (turn.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  for (let round = 0; round < MAX_WEB_TOOL_ROUNDS; round += 1) {
+    const completion = await openai(provider).chat.completions.create(
+      {
+        model: compatibleModel(provider),
+        messages,
+        tools: WEB_TOOLS,
+        parallel_tool_calls: false,
+      },
+      { timeout: remainingTimeout(provider, deadline) },
+    );
+    const message = completion.choices[0]?.message;
+    if (!message) throw new Error(`${provider}: no response message produced`);
+    const toolCalls = message.tool_calls ?? [];
+    if (toolCalls.length === 0) {
+      if (!turn.responseFormat) {
+        return (message.content ?? "") + warningSuffix(warnings);
+      }
+      return finalCompatibleAnswer(
+        provider,
+        turn,
+        messages,
+        warnings,
+        deadline,
+      );
+    }
+    const calls = functionCalls(provider, toolCalls);
+    messages.push({
+      role: "assistant",
+      content: message.content,
+      tool_calls: calls,
+    });
+    await appendWebToolResults(messages, calls, warnings, provider, deadline);
+  }
+  warnings.push(`web tool limit reached (${MAX_WEB_TOOL_ROUNDS} rounds)`);
+  return finalCompatibleAnswer(provider, turn, messages, warnings, deadline);
+}
+
+interface StreamedToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+function completeStreamedCalls(
+  provider: string,
+  calls: Map<number, StreamedToolCall>,
+): CompatibleFunctionCall[] {
+  return [...calls.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, call]) => {
+      if (!call.id || !call.name) {
+        throw new Error(`${provider}: returned an incomplete web tool call`);
+      }
+      return {
+        id: call.id,
+        type: "function",
+        function: { name: call.name, arguments: call.arguments },
+      };
+    });
+}
+
+async function* streamCompatibleWithWeb(
+  provider: "openai" | LocalProviderId,
+  turn: AgentTurn,
+): AsyncGenerator<string> {
+  if (turn.responseFormat) {
+    yield await executeCompatibleWithWeb(provider, turn);
+    return;
+  }
+  const messages = openaiMessages(turn);
+  const warnings: string[] = [];
+  const deadline = Date.now() + (turn.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  for (let round = 0; round < MAX_WEB_TOOL_ROUNDS; round += 1) {
+    const stream = await openai(provider).chat.completions.create(
+      {
+        model: compatibleModel(provider),
+        messages,
+        tools: WEB_TOOLS,
+        parallel_tool_calls: false,
+        stream: true,
+      },
+      { timeout: remainingTimeout(provider, deadline) },
+    );
+    const streamedCalls = new Map<number, StreamedToolCall>();
+    let content = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta;
+      if (!delta) continue;
+      if (delta.content) {
+        content += delta.content;
+        yield delta.content;
+      }
+      for (const call of delta.tool_calls ?? []) {
+        const current = streamedCalls.get(call.index) ?? {
+          id: "",
+          name: "",
+          arguments: "",
+        };
+        current.id += call.id ?? "";
+        current.name += call.function?.name ?? "";
+        current.arguments += call.function?.arguments ?? "";
+        streamedCalls.set(call.index, current);
+      }
+    }
+    const calls = completeStreamedCalls(provider, streamedCalls);
+    if (calls.length === 0) {
+      const suffix = warningSuffix(warnings);
+      if (suffix) yield suffix;
+      return;
+    }
+    messages.push({
+      role: "assistant",
+      content: content || null,
+      tool_calls: calls,
+    });
+    await appendWebToolResults(messages, calls, warnings, provider, deadline);
+  }
+  warnings.push(`web tool limit reached (${MAX_WEB_TOOL_ROUNDS} rounds)`);
+  const finalStream = await openai(provider).chat.completions.create(
+    {
+      model: compatibleModel(provider),
+      messages,
+      stream: true,
+    },
+    { timeout: remainingTimeout(provider, deadline) },
+  );
+  for await (const chunk of finalStream) {
+    const content = chunk.choices[0]?.delta?.content;
+    if (content) yield content;
+  }
+  yield warningSuffix(warnings);
+}
+
 async function* streamCompatible(
   provider: "openai" | LocalProviderId,
   turn: AgentTurn,
 ): AsyncGenerator<string> {
+  if (turn.allowWeb) {
+    yield* streamCompatibleWithWeb(provider, turn);
+    return;
+  }
   const stream = await openai(provider).chat.completions.create(
     {
       model: compatibleModel(provider),
@@ -208,18 +534,15 @@ export const anthropicProvider: AgentProvider = {
 
 export const openaiProvider: AgentProvider = {
   id: "openai",
-  // web stays off for now: chat.completions' web_search_options is gated to
-  // specific search-preview models, and papernook lets the admin pick any
-  // model. Revisit alongside a Responses-API migration.
-  capabilities: { web: false, vision: true, unboundedContext: false },
-  execute: (turn) => executeCompatible("openai", turn),
-  stream: (turn) => streamCompatible("openai", turn),
+  capabilities: { web: true, vision: true, unboundedContext: false },
+  execute: executeOpenAI,
+  stream: streamOpenAI,
 };
 
 function localProvider(id: LocalProviderId): AgentProvider {
   return {
     id,
-    capabilities: { web: false, vision: true, unboundedContext: false },
+    capabilities: { web: true, vision: true, unboundedContext: false },
     execute: (turn) => executeCompatible(id, turn),
     stream: (turn) => streamCompatible(id, turn),
   };
