@@ -291,6 +291,24 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(
       annotator.getByRole("button", { name: "Highlight" }),
     ).toBeEnabled();
+    await annotator.getByRole("button", { name: "Highlight" }).click();
+    const highlightText = annotator
+      .locator(".textLayer span")
+      .filter({ hasText: "dominant sequence transduction" })
+      .first();
+    await expect(highlightText).toBeVisible();
+    await expect(highlightText.locator("xpath=..")).toHaveClass(/highlighting/);
+    const highlightBox = await highlightText.boundingBox();
+    expect(highlightBox).not.toBeNull();
+    await page.mouse.move(highlightBox!.x + 4, highlightBox!.y + 4);
+    await page.mouse.down();
+    await page.mouse.move(
+      highlightBox!.x + highlightBox!.width - 4,
+      highlightBox!.y + highlightBox!.height - 4,
+      { steps: 6 },
+    );
+    await page.mouse.up();
+    await expect(annotator.locator(".highlightEditor").first()).toBeVisible();
     await annotator.getByRole("button", { name: "Text" }).click();
     const annotationPage = annotator.locator(".pdfViewer .page").first();
     const annotationPageBox = await annotationPage.boundingBox();

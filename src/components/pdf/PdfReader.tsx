@@ -117,6 +117,7 @@ export function PdfReader({
   const bibliographyRef = useRef<Bibliography | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const hoverLinkRef = useRef<HTMLAnchorElement | null>(null);
+  const hoverPreviewRequestedRef = useRef(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [viewerBus, setViewerBus] = useState<ViewerEventBus | null>(null);
@@ -207,6 +208,8 @@ export function PdfReader({
         const originalGoToDestination =
           linkService.goToDestination.bind(linkService);
         linkService.goToDestination = async (destination) => {
+          if (!hoverPreviewRequestedRef.current)
+            return originalGoToDestination(destination);
           const document = documentRef.current;
           if (!document) return;
           const target = await resolvePdfDestination(document, destination);
@@ -537,6 +540,7 @@ export function PdfReader({
     const viewer = pdfViewerRef.current;
     const editorTypes = editorTypesRef.current;
     if (!viewer || !editorTypes) return;
+    cancelHoverPreview();
     const modes: Record<EditMode, number> = {
       select: editorTypes.NONE,
       highlight: editorTypes.HIGHLIGHT,
@@ -577,11 +581,8 @@ export function PdfReader({
     };
   }
 
-  // Hovering an internal GoTo link opens the reference preview after a short
-  // dwell — clicking still works (and is the only path on touch/pen). The
-  // synthetic click() is safe: goToDestination is intercepted above, and
-  // external links (no .internalLink class) never hover-trigger.
   function scheduleHoverPreview(event: PointerEvent<HTMLDivElement>): void {
+    if (editable && editMode !== "select") return;
     if (event.pointerType !== "mouse") return;
     const target = event.target;
     const link = target instanceof Element ? target.closest("a") : null;
@@ -600,7 +601,14 @@ export function PdfReader({
     };
     hoverTimerRef.current = window.setTimeout(() => {
       referenceAnchorRef.current = anchor;
-      hoverLinkRef.current?.click();
+      const link = hoverLinkRef.current;
+      if (!link) return;
+      hoverPreviewRequestedRef.current = true;
+      try {
+        link.click();
+      } finally {
+        hoverPreviewRequestedRef.current = false;
+      }
     }, 180);
   }
 
@@ -673,8 +681,7 @@ export function PdfReader({
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    // Anchor priority: the triggering point, then the last captured pointer
-    // anchor, then the focused link's center (keyboard activation).
+    // Prefer the trigger, then the captured pointer, then keyboard focus.
     let point = at;
     if (!point && !referenceAnchorRef.current) {
       const link =
@@ -717,7 +724,6 @@ export function PdfReader({
       showReferencePreview(target.destination, target.entryText, target),
     onBibliography: (bibliography) => {
       bibliographyRef.current = bibliography;
-      // ChatPanel gates its citation decorations on this.
       window.dispatchEvent(
         new CustomEvent(BIBLIOGRAPHY_EVENT, { detail: bibliography }),
       );
@@ -734,16 +740,14 @@ export function PdfReader({
         pageNumber: target.pageNumber,
         ...(target.kind === "XYZ"
           ? {
-              // Zoom stays null: keep the reader's scale, matching the
-              // link service's ignoreDestinationZoom.
+              // Keep the reader's scale, matching ignoreDestinationZoom.
               destArray: [null, { name: "XYZ" }, target.left, target.top, null],
             }
           : {}),
       });
     },
     onPreview: (target, entryText) => {
-      // Chat events carry no useful pointer position; anchor to the PDF's
-      // chat-adjacent corner instead of a stale in-pane one.
+      // Chat events have no pointer position; use the chat-adjacent corner.
       const stage = stageRef.current?.getBoundingClientRect();
       showReferencePreview(
         target,
@@ -758,8 +762,7 @@ export function PdfReader({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") closePreview();
     };
-    // Clicking anywhere outside the popover dismisses it; clicking another
-    // citation closes here first, then its own handler opens the new one.
+    // Outside clicks dismiss; another citation then opens its own preview.
     const closeOnOutsidePointer = (event: globalThis.PointerEvent) => {
       const target = event.target;
       if (
