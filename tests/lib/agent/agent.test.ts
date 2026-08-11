@@ -340,6 +340,10 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     expect(calls[0].args).toContain("--safe-mode");
     expect(calls[0].args).toContain("--tools");
     expect(calls[0].args[calls[0].args.indexOf("--tools") + 1]).toBe("");
+    expect(calls[0].args[calls[0].args.indexOf("--permission-mode") + 1]).toBe(
+      "dontAsk",
+    );
+    expect(calls[0].args).not.toContain("--allowedTools");
     expect(calls[0].stdin.join("")).toBe("explain section 3");
     vi.doUnmock("node:child_process");
   });
@@ -397,6 +401,12 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     expect(calls[0].args[calls[0].args.indexOf("--tools") + 1]).toBe(
       "WebSearch,WebFetch",
     );
+    expect(calls[0].args[calls[0].args.indexOf("--allowedTools") + 1]).toBe(
+      "WebSearch,WebFetch",
+    );
+    expect(calls[0].args[calls[0].args.indexOf("--permission-mode") + 1]).toBe(
+      "dontAsk",
+    );
     vi.doUnmock("node:child_process");
   });
 
@@ -427,6 +437,7 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     expect(args[args.indexOf("--output-format") + 1]).toBe("stream-json");
     // The security invariant: images must never widen the tool grant.
     expect(args[args.indexOf("--tools") + 1]).toBe("");
+    expect(args).not.toContain("--allowedTools");
 
     const stdin = calls[0].stdin.join("");
     expect(stdin.endsWith("\n")).toBe(true);

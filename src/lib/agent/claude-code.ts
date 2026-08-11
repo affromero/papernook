@@ -104,7 +104,15 @@ async function buildArgs(
     '{"mcpServers":{}}',
     "--tools",
     turn.allowWeb ? "WebSearch,WebFetch" : "",
+    "--permission-mode",
+    "dontAsk",
   ];
+  if (turn.allowWeb) {
+    // --tools exposes the pair, while --allowedTools pre-authorizes it.
+    // Without both, print mode cannot show an approval prompt and Claude
+    // receives a permission-denied tool result instead of searching.
+    args.push("--allowedTools", "WebSearch,WebFetch");
+  }
   const model = configuredModel();
   if (model) args.push("--model", model);
   const effort = configuredEffort();

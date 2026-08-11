@@ -344,6 +344,7 @@ export function ChatPanel({
                   (busy && i === messages.length - 1 ? "…" : "")
                 }
                 renderThree={!(busy && i === messages.length - 1)}
+                highlightCode={!(busy && i === messages.length - 1)}
                 decorateRefs={!(busy && i === messages.length - 1)}
                 bibliography={bibliography}
               />

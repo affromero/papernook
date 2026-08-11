@@ -2,6 +2,7 @@ import { isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { rehypePaperRefs } from "@/lib/chat/ref-decorations";
@@ -17,12 +18,39 @@ function threeCode(children: ReactNode): string | null {
   return typeof props.children === "string" ? props.children : null;
 }
 
+function codeLanguage(children: ReactNode): string {
+  if (!isValidElement(children)) return "code";
+  const props = children.props as { className?: string };
+  const language = props.className?.match(/\blanguage-([\w-]+)/)?.[1];
+  return (
+    language?.replace(/^(js|ts)$/, (value) =>
+      value === "js" ? "javascript" : "typescript",
+    ) ?? "code"
+  );
+}
+
+function CodeFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className={styles.codeFrame}>
+      <div className={styles.codeHeader}>
+        <span>{codeLanguage(children)}</span>
+        <span className={styles.codeLights} aria-hidden="true">
+          ● ● ●
+        </span>
+      </div>
+      <pre>{children}</pre>
+    </div>
+  );
+}
+
 /**
  * Assistant-message renderer: GFM + $…$/$$…$$ KaTeX. Raw HTML stays dropped
  * (react-markdown default) and KaTeX keeps trust:false — AI output is
  * influenced by web-downloaded paper text, so nothing here may widen it.
  * renderThree swaps ```threejs fences for the sandboxed viewer; leave it
  * off while streaming (partial code) and on the public share page.
+ * highlightCode adds syntax colors; leave it off while streaming to avoid
+ * repeatedly auto-detecting the language for every partial response chunk.
  * decorateRefs marks paper refs/citations as interactive buttons (handled
  * by the enclosing ChatPanel via delegation — this component stays
  * server-renderable); leave it off while streaming, it re-walks the whole
@@ -31,38 +59,43 @@ function threeCode(children: ReactNode): string | null {
 export function Markdown({
   content,
   renderThree = false,
+  highlightCode = true,
   decorateRefs = false,
   bibliography = null,
 }: {
   content: string;
   renderThree?: boolean;
+  highlightCode?: boolean;
   decorateRefs?: boolean;
   bibliography?: Bibliography | null;
 }) {
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
-  const rehypePlugins: Options["rehypePlugins"] = decorateRefs
-    ? [rehypeKatex, [rehypePaperRefs, { bibliography }]]
-    : [rehypeKatex];
+  const rehypePlugins: Options["rehypePlugins"] = [rehypeKatex];
+  if (decorateRefs) {
+    rehypePlugins.push([rehypePaperRefs, { bibliography }]);
+  }
+  if (highlightCode) {
+    rehypePlugins.push([
+      rehypeHighlight,
+      { detect: true, plainText: ["threejs"] },
+    ]);
+  }
   return (
     <div className={styles.root}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={rehypePlugins}
-        components={
-          renderThree
-            ? {
-                pre(props) {
-                  const code = threeCode(props.children);
-                  return code ? (
-                    <ThreeSandbox code={code} />
-                  ) : (
-                    <pre>{props.children}</pre>
-                  );
-                },
-              }
-            : undefined
-        }
+        components={{
+          pre(props) {
+            const code = renderThree ? threeCode(props.children) : null;
+            return code ? (
+              <ThreeSandbox code={code} />
+            ) : (
+              <CodeFrame>{props.children}</CodeFrame>
+            );
+          },
+        }}
       >
         {content}
       </ReactMarkdown>
