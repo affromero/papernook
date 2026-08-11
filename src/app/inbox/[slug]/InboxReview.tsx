@@ -84,6 +84,23 @@ export function InboxReview({ slug, topics, proposedTopic }: InboxReviewProps) {
           <option key={item} value={item} />
         ))}
       </datalist>
+      {topics.length > 0 && (
+        <div className={styles.topics}>
+          {topics.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={
+                item === topic.trim() ? styles.topicActive : styles.topic
+              }
+              disabled={busy !== null}
+              onClick={() => setTopic(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      )}
       <div className={styles.actions}>
         <button
           type="button"
