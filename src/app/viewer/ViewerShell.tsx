@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { PdfReader } from "@/components/pdf/PdfReader";
 import styles from "./viewer.module.css";
 
@@ -11,21 +10,34 @@ interface ViewerShellProps {
   title: string;
 }
 
+type CaptureState =
+  | { phase: "idle" }
+  | { phase: "capturing"; slug: string }
+  | { phase: "added"; finalSlug: string | null }
+  | { phase: "failed"; error: string };
+
+const POLL_MS = 2000;
+
 export function ViewerShell({ src, title }: ViewerShellProps) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [capture, setCapture] = useState<CaptureState>({ phase: "idle" });
   // Prefer the PDF's embedded Title over the URL-derived filename — tabs and
   // the header then read as the actual paper name.
   const [displayTitle, setDisplayTitle] = useState(title);
+  const unmounted = useRef(false);
 
   useEffect(() => {
     document.title = `[nook] ${displayTitle}`;
   }, [displayTitle]);
 
+  useEffect(() => {
+    unmounted.current = false;
+    return () => {
+      unmounted.current = true;
+    };
+  }, []);
+
   async function addToLibrary(): Promise<void> {
-    setBusy(true);
-    setError(null);
+    setCapture({ phase: "capturing", slug: "" });
     try {
       const response = await fetch("/api/v1/capture", {
         method: "POST",
@@ -34,51 +46,97 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
         body: JSON.stringify({ url: src }),
       });
       const payload: unknown = await response.json().catch(() => null);
-      const href =
-        payload &&
-        typeof payload === "object" &&
-        "href" in payload &&
-        typeof payload.href === "string"
-          ? payload.href
-          : null;
-      if (response.ok && href) {
-        router.push(href);
+      const slug = stringField(payload, "slug");
+      if (!response.ok || !slug) {
+        setCapture({
+          phase: "failed",
+          error:
+            stringField(payload, "error") ??
+            "Capture failed: no response from the server. A slow capture may still finish — check the Inbox before retrying.",
+        });
         return;
       }
-      const message =
-        payload &&
-        typeof payload === "object" &&
-        "error" in payload &&
-        typeof payload.error === "string"
-          ? payload.error
-          : "Capture failed: no response from the server. A slow capture may still finish — check the Inbox before retrying.";
-      setError(message);
-      setBusy(false);
+      setCapture({ phase: "capturing", slug });
+      await pollUntilSettled(slug);
     } catch {
-      setError("Capture failed.");
-      setBusy(false);
+      setCapture({ phase: "failed", error: "Capture failed." });
     }
   }
 
+  /** Poll the job marker until done/failed; the viewer never navigates away. */
+  async function pollUntilSettled(slug: string): Promise<void> {
+    for (;;) {
+      await sleep(POLL_MS);
+      if (unmounted.current) return;
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/v1/capture?slug=${encodeURIComponent(slug)}`,
+          { credentials: "include" },
+        );
+      } catch {
+        // Transient network blip: the capture is still running server-side.
+        continue;
+      }
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        setCapture({
+          phase: "failed",
+          error: stringField(payload, "error") ?? "Capture failed.",
+        });
+        return;
+      }
+      const state = stringField(payload, "state");
+      if (state === "done") {
+        setCapture({
+          phase: "added",
+          finalSlug: stringField(payload, "finalSlug"),
+        });
+        return;
+      }
+      if (state === "failed") {
+        setCapture({
+          phase: "failed",
+          error: stringField(payload, "error") ?? "Capture failed.",
+        });
+        return;
+      }
+    }
+  }
+
+  const busy = capture.phase === "capturing";
   return (
     <>
       <header className={styles.bar}>
         <span className={styles.barTitle} title={displayTitle}>
           {displayTitle}
         </span>
-        <button
-          type="button"
-          className={styles.addBtn}
-          disabled={busy}
-          onClick={() => void addToLibrary()}
-        >
-          {busy && <span className={styles.spinner} aria-hidden="true" />}
-          {busy ? "Capturing…" : "+ Add to papernook"}
-        </button>
+        {capture.phase === "added" ? (
+          <a
+            className={styles.added}
+            href={
+              capture.finalSlug
+                ? `/inbox/${encodeURIComponent(capture.finalSlug)}`
+                : "/?topic=_inbox"
+            }
+          >
+            Added ✓ — review in Inbox
+          </a>
+        ) : (
+          <button
+            type="button"
+            className={styles.addBtn}
+            disabled={busy}
+            onClick={() => void addToLibrary()}
+          >
+            {busy && <span className={styles.spinner} aria-hidden="true" />}
+            {busy ? "Capturing…" : "+ Add to papernook"}
+          </button>
+        )}
       </header>
-      {error && (
+      {capture.phase === "failed" && (
         <p className={styles.error} role="alert">
-          {error}
+          {capture.error}
         </p>
       )}
       <PdfReader
@@ -90,4 +148,16 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
       />
     </>
   );
+}
+
+function stringField(payload: unknown, key: string): string | null {
+  if (payload && typeof payload === "object" && key in payload) {
+    const value = (payload as Record<string, unknown>)[key];
+    if (typeof value === "string") return value;
+  }
+  return null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

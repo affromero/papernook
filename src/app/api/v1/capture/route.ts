@@ -5,6 +5,12 @@ import { consumeRequestLimit } from "@/lib/auth/rate-limit";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { captureAsync } from "@/lib/capture";
 import { CaptureError } from "@/lib/capture/download";
+import {
+  clearCaptureJob,
+  readCaptureJob,
+  removeCaptureJobDir,
+} from "@/lib/capture/jobs";
+import { isValidSlug } from "@/lib/library/slug";
 
 export const dynamic = "force-dynamic";
 
@@ -45,10 +51,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // responses at 100s, so waiting inline loses it). Failures — including
     // duplicates — surface as job cards in the inbox view.
     const result = captureAsync(body.data.url, profile.username);
-    return NextResponse.json(
-      { slug: result.slug, href: "/?topic=_inbox" },
-      { status: 202 },
-    );
+    return NextResponse.json({ slug: result.slug }, { status: 202 });
   } catch (error) {
     // Synchronous failures only: profile mid-erasure, disk errors.
     console.error(`papernook capture failed (${body.data.url}):`, error);
@@ -62,4 +65,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 502 },
     );
   }
+}
+
+/**
+ * Poll target for the viewer's inline capture progress. Reads the caller's
+ * own on-disk job marker; "done" is viewed-once — reporting it retires the
+ * marker (same contract as the token-authed /add/status page).
+ */
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const profile = await activeProfile();
+  if (!profile)
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const slug = request.nextUrl.searchParams.get("slug") ?? "";
+  if (!isValidSlug(slug)) {
+    return NextResponse.json(
+      { error: "Invalid capture reference." },
+      { status: 400 },
+    );
+  }
+  const job = readCaptureJob(slug);
+  if (!job || job.addedBy !== profile.username) {
+    return NextResponse.json(
+      {
+        error:
+          "This capture is no longer pending — it may already be in your papernook inbox.",
+      },
+      { status: 404 },
+    );
+  }
+  if (job.state === "analyzing") {
+    return NextResponse.json({ state: "analyzing" });
+  }
+  if (job.state === "failed") {
+    return NextResponse.json({
+      state: "failed",
+      error: job.error ?? "Capture failed.",
+    });
+  }
+  clearCaptureJob(slug);
+  removeCaptureJobDir(slug);
+  return NextResponse.json({ state: "done", finalSlug: job.finalSlug ?? null });
 }
