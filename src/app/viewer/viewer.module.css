@@ -49,6 +49,17 @@
   background: #b8e9c4;
 }
 
+.added {
+  flex-shrink: 0;
+  padding: 0.45rem 1rem;
+  border: 1px solid #315f4c;
+  border-radius: 0.5rem;
+  color: #8ee3a1;
+  background: transparent;
+  font-weight: 600;
+  text-decoration: none;
+}
+
 .spinner {
   width: 0.9rem;
   height: 0.9rem;
