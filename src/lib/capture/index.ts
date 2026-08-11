@@ -30,6 +30,7 @@ import { captureLockKey, withZoteroLock } from "./zotero-lock";
 import {
   clearCaptureJob,
   findAnalyzingJobBySource,
+  readCaptureJob,
   removeCaptureJobDir,
   writeCaptureJob,
 } from "./jobs";
@@ -107,11 +108,8 @@ export function captureAsync(url: string, username: string): { slug: string } {
         },
         activity,
       );
-      // The "analyzing" marker traveled with the (possibly renamed) dir;
-      // clear it so the inbox paper doesn't also read as a running job.
-      clearCaptureJob(result.slug);
-      // The done marker stays at the provisional slug — the caller's
-      // stable handle for the /add status page.
+      // The marker stayed at the provisional slug through the title rename
+      // (retargetSlug moves it back) — the caller's stable polling handle.
       writeCaptureJob({
         slug,
         state: "done",
@@ -351,6 +349,15 @@ function retargetSlug(provisional: string, title: string): string {
   const toDir = companionDir(null, finalSlug);
   if (fs.existsSync(fromDir)) {
     fs.renameSync(fromDir, toDir);
+    // An async-capture marker traveled with the dir. Move it straight back:
+    // the provisional slug is the caller's polling handle, and while the
+    // marker sits at the final slug a status poll reads "job vanished" —
+    // the capture then finishes fine but the UI reports it lost.
+    const job = readCaptureJob(finalSlug);
+    if (job) {
+      writeCaptureJob({ ...job, slug: provisional });
+      clearCaptureJob(finalSlug);
+    }
   } else {
     fs.mkdirSync(toDir, { recursive: true });
     fs.renameSync(pdfPath(null, provisional), pdfPath(null, finalSlug));

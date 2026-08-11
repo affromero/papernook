@@ -206,6 +206,36 @@ describe("captureAsync", () => {
     expect(jobs.readCaptureJob("attention-is-all-you-need")).toBeNull();
   });
 
+  it("keeps the polling handle at the provisional slug across the title rename", async () => {
+    await mockPipeline();
+    const { ensureDataDirs } = await import("@/lib/data-dir");
+    ensureDataDirs();
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    const { capturePdf } = await import("@/lib/capture");
+    const jobs = await import("@/lib/capture/jobs");
+
+    // The async flow writes the marker, then runs capturePdf, then writes
+    // "done" over it. In between, a status poll may land at any moment —
+    // if the marker travels to the title slug with the renamed dir, the
+    // poll reads "job vanished" and the UI reports a finishing capture lost.
+    jobs.writeCaptureJob({
+      slug: "2209-03416",
+      state: "analyzing",
+      sourceUrl: "https://arxiv.org/pdf/2209.03416",
+      addedBy: "andres",
+      startedAt: "2026-08-11T10:00:00.000Z",
+    });
+    const result = await capturePdf(Buffer.from("%PDF-1.4 fake"), {
+      sourceUrl: "https://arxiv.org/pdf/2209.03416",
+      username: "andres",
+      provisionalSlug: "2209-03416",
+    });
+    expect(result.slug).toBe("attention-is-all-you-need");
+    expect(jobs.readCaptureJob("2209-03416")?.state).toBe("analyzing");
+    expect(jobs.readCaptureJob(result.slug)).toBeNull();
+  });
+
   it("dedupes a double-submit of the same URL while analyzing", async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
