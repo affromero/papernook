@@ -42,6 +42,17 @@ describe("clientIp trust boundary", () => {
     expect(clientIp(request)).toBe("unknown");
   });
 
+  it("ignores the header entirely when no proxy is in front", () => {
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "0");
+    const request = withHeaders({ "x-forwarded-for": "203.0.113.9" });
+    // Directly exposed: every entry is client-authored, so a rotating
+    // X-Forwarded-For must not mint a fresh rate-limit bucket per request.
+    expect(clientIp(request)).toBe("unknown");
+    expect(clientIp(withHeaders({ "x-forwarded-for": "198.51.100.4" }))).toBe(
+      "unknown",
+    );
+  });
+
   it("returns 'unknown' with no forwarding header and rejects non-IP junk", () => {
     expect(clientIp(withHeaders({}))).toBe("unknown");
     expect(clientIp(withHeaders({ "x-forwarded-for": "not an ip" }))).toBe(
