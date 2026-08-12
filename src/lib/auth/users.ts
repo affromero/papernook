@@ -80,7 +80,20 @@ function readProfile(username: string): Profile | null {
   if (!USERNAME_RE.test(username)) return null;
   try {
     const raw = fs.readFileSync(profilePath(username), "utf8");
-    return JSON.parse(raw) as Profile;
+    const parsed = JSON.parse(raw) as Profile & { passwordHash?: string };
+    // A profile written before per-profile passwords were removed still
+    // carries its scrypt verifier. Drop it on read so it is never handed
+    // around or written back, and rewrite the file to erase it from disk.
+    if (parsed.passwordHash !== undefined) {
+      delete parsed.passwordHash;
+      try {
+        writeProfile(parsed);
+      } catch {
+        // A read-only data dir must not break sign-in; the field is already
+        // gone from the object callers see.
+      }
+    }
+    return parsed;
   } catch {
     return null;
   }

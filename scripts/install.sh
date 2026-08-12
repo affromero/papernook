@@ -157,7 +157,7 @@ if [ "${#WEBDAV_PASS}" -lt 16 ] || [ "${#WEBDAV_PASS}" -gt 200 ]; then
 fi
 # The access password is papernook's only credential, so every install has
 # one. Everyone who knows it can pick any profile.
-read -r -s -p "Papernook access password (12-200 characters): " PAPERNOOK_PASSWORD < /dev/tty
+read -r -s -p "Papernook access password (16-200 characters): " PAPERNOOK_PASSWORD < /dev/tty
 echo
 validate_papernook_password "$PAPERNOOK_PASSWORD" || exit 1
 

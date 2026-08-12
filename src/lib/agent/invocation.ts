@@ -19,6 +19,17 @@ const BASE_ENV_KEYS = [
   "LOGNAME",
   "SHELL",
   "SSH_AUTH_SOCK",
+  // Networks that force egress through a proxy or a private CA: without
+  // these the CLI cannot reach its API even though the app itself can.
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "NODE_EXTRA_CA_CERTS",
 ];
 
 /**
@@ -26,19 +37,17 @@ const BASE_ENV_KEYS = [
  * environment would put WEBDAV_PASS, PAPERNOOK_PASSWORD, SESSION_SECRET and
  * every other provider's API key inside a process that a prompt-injected
  * paper can steer, so the child gets an allowlist instead: the base variables
- * above plus the provider's own namespace. Anything not named here is simply
- * absent from the child rather than merely discouraged.
+ * above plus the exact keys the provider needs. Named keys rather than a
+ * prefix match, so a future CODEX_INTERNAL_TOKEN or ANTHROPIC_ADMIN_KEY is
+ * absent by default instead of being swept in by its name.
  */
 export function minimalAgentEnvironment(
-  allowedPrefixes: string[],
+  providerKeys: string[],
 ): NodeJS.ProcessEnv {
   const env: Record<string, string | undefined> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value === undefined) continue;
-    const allowed =
-      BASE_ENV_KEYS.includes(key) ||
-      allowedPrefixes.some((prefix) => key.startsWith(prefix));
-    if (allowed) env[key] = value;
+  for (const key of [...BASE_ENV_KEYS, ...providerKeys]) {
+    const value = process.env[key];
+    if (value !== undefined) env[key] = value;
   }
   return env as NodeJS.ProcessEnv;
 }

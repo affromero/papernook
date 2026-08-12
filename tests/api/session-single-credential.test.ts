@@ -81,6 +81,24 @@ describe("session issuance requires the instance password", () => {
     expect(response.cookies.get("papernook_session")?.value).toBeTruthy();
   });
 
+  it("never lets failed guesses lock a named profile out", async () => {
+    const username = await seedProfile();
+    const route = await import("@/app/api/v1/session/route");
+
+    // An unauthenticated caller hammers one profile name with wrong passwords.
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await route.POST(login({ username, accessPassword: "wrong" }));
+    }
+
+    // Profiles hold no credential, so a per-username lockout would protect
+    // nothing while handing a stranger a denial-of-service on that reader.
+    const legitimate = await route.POST(
+      login({ username, accessPassword: ACCESS_PASSWORD }),
+    );
+    expect(legitimate.status).toBe(200);
+    expect(legitimate.cookies.get("papernook_session")?.value).toBeTruthy();
+  });
+
   it("fails closed when no access password is configured at all", async () => {
     vi.stubEnv("PAPERNOOK_PASSWORD", "");
     const username = await seedProfile();

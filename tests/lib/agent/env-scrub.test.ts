@@ -27,7 +27,9 @@ afterEach(() => {
 
 describe("CLI provider environment", () => {
   it("hands codex no app secret, only what it needs to run", async () => {
+    vi.stubEnv("CODEX_HOME", "/home/node/.codex");
     vi.stubEnv("CODEX_SSH_HOST", "you@vps");
+    vi.stubEnv("CODEX_INTERNAL_TOKEN", "a-future-secret");
     const { codexEnvironment } = await import("@/lib/agent/codex");
 
     const env = codexEnvironment();
@@ -36,10 +38,15 @@ describe("CLI provider environment", () => {
       expect(env[key], key).toBeUndefined();
     }
     expect(Object.values(env)).not.toContain(SECRETS.PAPERNOOK_PASSWORD);
-    // Still runnable, and its own namespace survives.
+    // Named keys, not a CODEX_ prefix sweep: a variable added later is
+    // absent by default rather than inherited because of how it is spelled.
+    expect(env.CODEX_INTERNAL_TOKEN).toBeUndefined();
+    // The app reads the SSH host to build the argv; the child never needs it.
+    expect(env.CODEX_SSH_HOST).toBeUndefined();
+    // Still runnable.
     expect(env.PATH).toBe("/usr/bin");
     expect(env.HOME).toBe("/home/node");
-    expect(env.CODEX_SSH_HOST).toBe("you@vps");
+    expect(env.CODEX_HOME).toBe("/home/node/.codex");
   });
 
   it("hands claude-code its own credentials but no unrelated secret", async () => {

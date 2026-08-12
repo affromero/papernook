@@ -24,7 +24,7 @@ import {
  */
 
 export function codexEnvironment(): NodeJS.ProcessEnv {
-  return minimalAgentEnvironment(["CODEX_"]);
+  return minimalAgentEnvironment(["CODEX_HOME", "CODEX_API_KEY"]);
 }
 
 function buildBase(turn: AgentTurn): string[] {

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import { activeProfile } from "@/lib/auth/session";
-import { gatePassed } from "@/lib/auth/gate";
 
 /**
  * Serve the signed importable Shortcut to people who belong here: anyone on
@@ -14,7 +13,7 @@ import { gatePassed } from "@/lib/auth/gate";
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse> {
-  if (!(await activeProfile()) && !(await gatePassed())) {
+  if (!(await activeProfile())) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
   const file = path.join(process.cwd(), "assets", "add-to-papernook.shortcut");

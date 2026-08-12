@@ -88,7 +88,16 @@ function ensureClaudeHome(): string | undefined {
  */
 export function claudeCodeEnvironment(): NodeJS.ProcessEnv {
   // Allowlisted: the CLI's own namespace, never the app's other secrets.
-  const baseEnv = minimalAgentEnvironment(["CLAUDE", "ANTHROPIC_"]);
+  // CLAUDE_CODE_CREDENTIALS_JSON is deliberately absent: ensureClaudeHome has
+  // already written it to disk, so forwarding it would put the raw OAuth
+  // credential in a process paper text can steer.
+  const baseEnv = minimalAgentEnvironment([
+    "CLAUDE_HOME",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_AUTH_TOKEN",
+  ]);
   // Strip CLAUDECODE to prevent "cannot launch inside another session".
   delete baseEnv.CLAUDECODE;
   const home = ensureClaudeHome();
