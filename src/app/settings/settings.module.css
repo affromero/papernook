@@ -144,11 +144,41 @@
   padding: 2.5rem 0 1.5rem;
 }
 
+.section + .section {
+  margin-top: 1.75rem;
+  padding-top: 0;
+}
+
 .sectionHeader {
+  position: relative;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
   gap: 0.75rem;
-  margin-bottom: 1.6rem;
+  margin: 0 -1rem 1.5rem;
+  padding: 1rem;
+  border-left: 3px solid var(--settings-accent);
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(
+    90deg,
+    var(--settings-accent-soft) 0%,
+    color-mix(in oklab, var(--settings-accent) 5%, transparent) 52%,
+    transparent 86%
+  );
+}
+
+.section + .section .sectionHeader {
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--settings-line);
+}
+
+.section + .section .sectionHeader::before {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: calc(34px + 1rem);
+  height: 2px;
+  background: var(--settings-accent);
+  content: "";
 }
 
 .sectionNumber {
@@ -427,6 +457,11 @@
 
   .section {
     padding: 2.25rem 0 1.5rem;
+  }
+
+  .section + .section {
+    margin-top: 1.25rem;
+    padding-top: 0;
   }
 
   .setupItem {
