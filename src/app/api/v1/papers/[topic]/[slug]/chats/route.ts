@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
-import { listChats, createChat } from "@/lib/library/chats";
+import { listChats, createChat, NEW_CHAT_TITLE } from "@/lib/library/chats";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json({ chats: listChats(topic, slug, profile.username) });
 }
 
-const createSchema = z.object({ title: z.string().min(1).max(120) });
+const createSchema = z.object({}).strict();
 
 export async function POST(request: NextRequest, { params }: Params) {
   const profile = await activeProfile();
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
   const body = createSchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
-    return NextResponse.json({ error: "Invalid title." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
-  const header = createChat(topic, slug, profile.username, body.data.title);
+  const header = createChat(topic, slug, profile.username, NEW_CHAT_TITLE);
   return NextResponse.json({ chat: header }, { status: 201 });
 }

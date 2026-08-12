@@ -52,6 +52,7 @@ export function ChatPanel({
   const [bibliography, setBibliography] = useState<Bibliography | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const refHoverTimerRef = useRef<number | null>(null);
+  const openRequestRef = useRef(0);
 
   useEffect(() => {
     void fetch(`${base}/chats`, { credentials: "include" })
@@ -141,11 +142,19 @@ export function ChatPanel({
   }
 
   async function openChat(id: string): Promise<void> {
+    const request = ++openRequestRef.current;
     setActiveId(id);
     const res = await fetch(`${base}/chats/${id}`, { credentials: "include" });
     const data = (await res.json()) as {
-      chat?: { messages: ChatMessage[] };
+      chat?: { header: ChatHeader; messages: ChatMessage[] };
     };
+    if (request !== openRequestRef.current) return;
+    const header = data.chat?.header;
+    if (header) {
+      setChats((current) =>
+        current.map((chat) => (chat.id === header.id ? header : chat)),
+      );
+    }
     setMessages(data.chat?.messages ?? []);
     setVanishing(new Set());
   }
@@ -176,21 +185,22 @@ export function ChatPanel({
     }, 220);
   }
 
-  async function newChat(): Promise<void> {
+  async function newChat(): Promise<string | null> {
     const res = await fetch(`${base}/chats`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({
-        title: `Chat ${new Date().toLocaleDateString()}`,
-      }),
+      body: JSON.stringify({}),
     });
     const data = (await res.json()) as { chat?: ChatHeader };
     if (data.chat) {
+      ++openRequestRef.current;
       setChats((c) => [data.chat as ChatHeader, ...c]);
       setActiveId(data.chat.id);
       setMessages([]);
+      return data.chat.id;
     }
+    return null;
   }
 
   function onPaste(event: React.ClipboardEvent): void {
@@ -216,8 +226,7 @@ export function ChatPanel({
     if (!content || busy) return;
     let chatId = activeId;
     if (!chatId) {
-      await newChat();
-      chatId = activeId;
+      chatId = await newChat();
       if (!chatId) return;
     }
     setBusy(true);

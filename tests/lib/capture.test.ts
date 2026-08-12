@@ -408,6 +408,73 @@ describe("chat store round-trip", () => {
       }),
     ).toThrow(/Invalid chat id/);
   });
+
+  it("names a new conversation from its first user query", async () => {
+    const chats = await import("@/lib/library/chats");
+    const header = chats.createChat(
+      "nlp",
+      "attention",
+      "andres",
+      chats.NEW_CHAT_TITLE,
+    );
+
+    chats.appendUserMessage("nlp", "attention", "andres", header.id, {
+      role: "user",
+      content: "  How does\n multi-head attention improve the model?  ",
+      at: new Date().toISOString(),
+    });
+    chats.appendUserMessage("nlp", "attention", "andres", header.id, {
+      role: "user",
+      content: "A later question must not rename this conversation",
+      at: new Date().toISOString(),
+    });
+
+    expect(
+      chats.readChat("nlp", "attention", "andres", header.id)?.header.title,
+    ).toBe("How does multi-head attention improve the model?");
+  });
+
+  it("keeps explicit chat titles and derives legacy date titles on read", async () => {
+    const chats = await import("@/lib/library/chats");
+    const starter = chats.createChat(
+      "nlp",
+      "attention",
+      "andres",
+      "Starter questions",
+    );
+    chats.appendUserMessage("nlp", "attention", "andres", starter.id, {
+      role: "user",
+      content: "Do not replace the starter title",
+      at: new Date().toISOString(),
+    });
+    const legacy = chats.createChat(
+      "nlp",
+      "attention",
+      "andres",
+      "Chat 12/08/2026",
+    );
+    chats.appendMessage("nlp", "attention", "andres", legacy.id, {
+      role: "user",
+      content: "Why are residual connections important?",
+      at: new Date().toISOString(),
+    });
+
+    expect(
+      chats.readChat("nlp", "attention", "andres", starter.id)?.header.title,
+    ).toBe("Starter questions");
+    expect(
+      chats.readChat("nlp", "attention", "andres", legacy.id)?.header.title,
+    ).toBe("Why are residual connections important?");
+  });
+
+  it("truncates long query titles without splitting Unicode characters", async () => {
+    const chats = await import("@/lib/library/chats");
+    const title = chats.titleFromFirstQuery(`Explain ${"🧠".repeat(100)}`);
+
+    expect(Array.from(title)).toHaveLength(73);
+    expect(title.endsWith("…")).toBe(true);
+    expect(title).not.toContain("�");
+  });
 });
 
 describe("capture orchestration (mocked download + agent)", () => {

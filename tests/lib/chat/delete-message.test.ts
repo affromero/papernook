@@ -38,6 +38,57 @@ async function seedChat() {
   return { chats, chatId: chat.id };
 }
 
+async function placePaper() {
+  const papers = await import("@/lib/library/papers");
+  papers.writeMeta("ml", "paper", {
+    title: "Paper",
+    authors: [],
+    year: null,
+    venue: null,
+    arxivId: null,
+    bibtex: null,
+    tags: [],
+    related: [],
+    sourceUrl: "https://example.test/paper.pdf",
+    addedAt: new Date().toISOString(),
+    addedBy: "andres",
+  });
+  const pdf = papers.pdfPath("ml", "paper");
+  fs.mkdirSync(path.dirname(pdf), { recursive: true });
+  fs.writeFileSync(pdf, "%PDF-1.4");
+}
+
+describe("POST /chats", () => {
+  async function createConversation(body: unknown) {
+    const route =
+      await import("@/app/api/v1/papers/[topic]/[slug]/chats/route");
+    return route.POST(
+      new NextRequest("http://localhost/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ topic: "ml", slug: "paper" }) },
+    );
+  }
+
+  it("creates an untitled conversation for the first query to name", async () => {
+    await placePaper();
+    const response = await createConversation({});
+
+    expect(response.status).toBe(201);
+    const result = (await response.json()) as { chat: { title: string } };
+    expect(result.chat.title).toBe("New chat");
+  });
+
+  it("rejects caller-supplied titles", async () => {
+    await placePaper();
+    const response = await createConversation({ title: "Date title" });
+
+    expect(response.status).toBe(400);
+  });
+});
+
 describe("deleteMessage", () => {
   it("removes only the targeted message and keeps the rest readable", async () => {
     const { chats, chatId } = await seedChat();

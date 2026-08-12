@@ -5,7 +5,12 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
-import { readChat, appendMessage, deleteMessage } from "@/lib/library/chats";
+import {
+  readChat,
+  appendMessage,
+  appendUserMessage,
+  deleteMessage,
+} from "@/lib/library/chats";
 import { buildChatSystem, buildChatPrompt } from "@/lib/library/chat-context";
 import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { webAccessEnabled } from "@/lib/agent/config";
@@ -208,7 +213,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
     throw error;
   }
-  appendMessage(topic, slug, profile.username, chatId, {
+  appendUserMessage(topic, slug, profile.username, chatId, {
     role: "user",
     content: body.data.content,
     images: images.relative.length ? images.relative : undefined,

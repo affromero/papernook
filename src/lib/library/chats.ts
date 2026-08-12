@@ -8,8 +8,8 @@ import { assertSlug } from "./slug";
 /**
  * Per-paper, per-account conversations as jsonl files:
  *   data/library/<topic>/<slug>/chats/<username>/<chat-id>.jsonl
- * Line 1 is the chat header; every following line is one message. Files are
- * append-only during a conversation, so resume = read the file back.
+ * Line 1 is the chat header; every following line is one message. The first
+ * user turn replaces the new-chat header atomically; later turns append.
  */
 
 export interface ChatHeader {
@@ -33,6 +33,30 @@ export interface Chat {
 }
 
 const CHAT_ID_RE = /^[a-f0-9]{16}$/;
+export const NEW_CHAT_TITLE = "New chat";
+const MAX_CHAT_TITLE_LENGTH = 72;
+
+/** Build a compact, stable conversation title without another AI request. */
+export function titleFromFirstQuery(query: string): string {
+  const normalized = query.replace(/\s+/g, " ").trim();
+  if (!normalized) return NEW_CHAT_TITLE;
+  const characters = Array.from(normalized);
+  if (characters.length <= MAX_CHAT_TITLE_LENGTH) return normalized;
+
+  const prefix = characters.slice(0, MAX_CHAT_TITLE_LENGTH + 1).join("");
+  const lastSpace = prefix.lastIndexOf(" ");
+  const clipped =
+    lastSpace >= Math.floor(MAX_CHAT_TITLE_LENGTH * 0.6)
+      ? prefix.slice(0, lastSpace)
+      : characters.slice(0, MAX_CHAT_TITLE_LENGTH).join("");
+  return `${clipped.trimEnd()}…`;
+}
+
+function hasGeneratedTitle(title: string): boolean {
+  if (title === NEW_CHAT_TITLE) return true;
+  const match = title.match(/^Chat\s+\d{1,4}([./-])\d{1,2}\1\d{1,4}$/);
+  return Boolean(match);
+}
 
 function chatsDir(
   topic: string | null,
@@ -87,6 +111,57 @@ export function appendMessage(
   );
 }
 
+/**
+ * Append the first user turn and permanently name a placeholder conversation
+ * from that query in the same filesystem replacement.
+ */
+export function appendUserMessage(
+  topic: string | null,
+  slug: string,
+  username: string,
+  chatId: string,
+  message: ChatMessage,
+): ChatHeader {
+  if (message.role !== "user") {
+    throw new Error("appendUserMessage requires a user message");
+  }
+  const file = chatPath(topic, slug, username, chatId);
+  const raw = fs.readFileSync(file, "utf8");
+  const firstNewline = raw.indexOf("\n");
+  if (firstNewline < 0) throw new Error("Invalid chat file");
+
+  const header = JSON.parse(raw.slice(0, firstNewline)) as ChatHeader;
+  const existing = raw.slice(firstNewline + 1);
+  const alreadyHasUser = existing
+    .split("\n")
+    .filter(Boolean)
+    .some((line) => {
+      try {
+        return (JSON.parse(line) as ChatMessage).role === "user";
+      } catch {
+        return false;
+      }
+    });
+  if (alreadyHasUser || !hasGeneratedTitle(header.title)) {
+    appendMessage(topic, slug, username, chatId, message);
+    return header;
+  }
+
+  const titled = { ...header, title: titleFromFirstQuery(message.content) };
+  const tmp = `${file}.tmp-${crypto.randomUUID()}`;
+  try {
+    fs.writeFileSync(
+      tmp,
+      `${JSON.stringify(titled)}\n${existing}${JSON.stringify(message)}\n`,
+    );
+    fs.renameSync(tmp, file);
+  } catch (error) {
+    fs.rmSync(tmp, { force: true });
+    throw error;
+  }
+  return titled;
+}
+
 export function readChat(
   topic: string | null,
   slug: string,
@@ -102,8 +177,14 @@ export function readChat(
   const lines = raw.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length === 0) return null;
   try {
-    const header = JSON.parse(lines[0]) as ChatHeader;
+    let header = JSON.parse(lines[0]) as ChatHeader;
     const messages = lines.slice(1).map((l) => JSON.parse(l) as ChatMessage);
+    if (hasGeneratedTitle(header.title)) {
+      const firstQuery = messages.find((message) => message.role === "user");
+      if (firstQuery) {
+        header = { ...header, title: titleFromFirstQuery(firstQuery.content) };
+      }
+    }
     return { header, messages };
   } catch {
     return null;

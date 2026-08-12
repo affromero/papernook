@@ -58,7 +58,7 @@ afterEach(async () => {
 
 async function postMessage(images?: string[]) {
   const chats = await import("@/lib/library/chats");
-  const chat = chats.createChat("ml", "paper", "andres", "First chat");
+  const chat = chats.createChat("ml", "paper", "andres", chats.NEW_CHAT_TITLE);
   const route =
     await import("@/app/api/v1/papers/[topic]/[slug]/chats/[chatId]/route");
   const response = await route.POST(
@@ -90,8 +90,12 @@ describe("chat image sends on a provider without vision", () => {
   });
 
   it("still accepts text-only sends", async () => {
-    const { response } = await postMessage();
+    const { response, chatId, chats } = await postMessage();
     // The mocked stream throws, but the gate must not reject text sends.
     expect(response.status).toBe(200);
+    await response.text();
+    expect(chats.readChat("ml", "paper", "andres", chatId)?.header.title).toBe(
+      "explain this figure",
+    );
   });
 });
