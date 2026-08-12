@@ -7,7 +7,7 @@ import type {
   ResponseInputContent,
 } from "openai/resources/responses/responses";
 import { readImageBase64 } from "./attachments";
-import { configuredModel } from "./config";
+import { configuredModel, storedBaseUrl } from "./config";
 import { compatibleBaseUrl } from "./local";
 import { executeWebTool, WEB_TOOLS } from "./web/tools";
 import {
@@ -43,12 +43,22 @@ function anthropic(): Anthropic {
 function openai(provider: "openai" | LocalProviderId): OpenAI {
   const baseURL = compatibleBaseUrl(provider);
   return new OpenAI({
-    apiKey:
-      provider === "openai"
-        ? process.env.OPENAI_API_KEY || (baseURL ? "unused" : undefined)
-        : "unused",
+    apiKey: provider === "openai" ? openaiApiKey(baseURL) : "unused",
     baseURL,
   });
+}
+
+/**
+ * OPENAI_API_KEY belongs to api.openai.com. An endpoint typed into Settings
+ * is not that host, so sending the real key there would hand it to whatever
+ * server an admin (or a hijacked admin session) named; those endpoints
+ * authenticate with OPENAI_COMPATIBLE_API_KEY, if anything.
+ */
+function openaiApiKey(baseURL: string | undefined): string | undefined {
+  if (!storedBaseUrl("openai")) {
+    return process.env.OPENAI_API_KEY || (baseURL ? "unused" : undefined);
+  }
+  return process.env.OPENAI_COMPATIBLE_API_KEY || "unused";
 }
 
 type AnthropicImageBlock = {
