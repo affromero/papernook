@@ -33,7 +33,10 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   const url = form.get("url") ?? "";
   const token = form.get("token") ?? "";
 
-  const ipKey = lockoutKey(request, "ip");
+  // Its own bucket, never the login one: /add deliberately accepts
+  // cross-site form posts, so a hostile page could otherwise make a victim's
+  // browser submit bad tokens until that victim is locked out of signing in.
+  const ipKey = lockoutKey(request, "capture-token-ip");
   if (ipKey && retryAfterMs(ipKey) > 0) {
     return html(errorPage("Too many attempts. Try again later."), 429);
   }

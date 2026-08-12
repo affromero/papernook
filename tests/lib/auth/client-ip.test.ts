@@ -82,3 +82,22 @@ describe("lockout buckets", () => {
     expect(lockoutKey(request, "ip")).toBe("ip:203.0.113.9");
   });
 });
+
+describe("escalating lockout buckets stay isolated", () => {
+  it("never lets a cross-site-reachable route lock the login bucket", async () => {
+    const { lockoutKey } = await import("@/lib/auth/request-security");
+    const request = withHeaders({ "x-forwarded-for": "203.0.113.9" });
+
+    // /add accepts cross-site form posts by design (bookmarklet, Shortcut),
+    // so a hostile page can drive its failure counter using the victim's own
+    // address. That must never be the bucket that gates signing in.
+    const login = lockoutKey(request, "ip");
+    const capture = lockoutKey(request, "capture-token-ip");
+    const status = lockoutKey(request, "status-ip");
+    const confirm = lockoutKey(request, "confirm-ip");
+    const gate = lockoutKey(request, "gate");
+
+    const buckets = [login, capture, status, confirm, gate];
+    expect(new Set(buckets).size).toBe(buckets.length);
+  });
+});
