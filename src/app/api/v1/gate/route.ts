@@ -13,7 +13,7 @@ import {
 } from "@/lib/auth/rate-limit";
 import {
   authenticationFailureDelay,
-  clientIp,
+  lockoutKey,
   rejectCrossSiteMutation,
 } from "@/lib/auth/request-security";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
@@ -31,8 +31,8 @@ const schema = z.object({ password: z.string().min(1).max(200) });
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const crossSite = rejectCrossSiteMutation(request);
   if (crossSite) return crossSite;
-  const ipKey = `gate:${clientIp(request)}`;
-  const wait = retryAfterMs(ipKey);
+  const ipKey = lockoutKey(request, "gate");
+  const wait = ipKey ? retryAfterMs(ipKey) : 0;
   if (wait > 0) {
     return NextResponse.json(
       { error: "Too many attempts. Try again later." },
@@ -44,11 +44,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
   const body = schema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success || !verifyInstancePassword(body.data.password)) {
-    recordFailure(ipKey);
+    if (ipKey) recordFailure(ipKey);
     await authenticationFailureDelay();
     return NextResponse.json({ error: "Wrong password." }, { status: 401 });
   }
-  recordSuccess(ipKey);
+  if (ipKey) recordSuccess(ipKey);
   const response = NextResponse.json({ ok: true });
   response.cookies.set(GATE_COOKIE, createGateToken(), gateCookieOptions());
   return response;

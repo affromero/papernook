@@ -20,7 +20,7 @@ import {
 } from "@/lib/auth/rate-limit";
 import {
   authenticationFailureDelay,
-  clientIp,
+  lockoutKey,
   rejectCrossSiteMutation,
 } from "@/lib/auth/request-security";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
@@ -67,10 +67,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // bucket would let one attacker shut the whole instance out. Guessing is
   // still bounded there by the per-request failure delay and the global
   // request limit in the proxy.
-  const ip = clientIp(request);
-  const identified = ip !== "unknown";
-  const ipKey = `ip:${ip}`;
-  const wait = identified ? retryAfterMs(ipKey) : 0;
+  const ipKey = lockoutKey(request, "ip");
+  const wait = ipKey ? retryAfterMs(ipKey) : 0;
   if (wait > 0) {
     return NextResponse.json(
       { error: "Too many attempts. Try again later." },
@@ -83,11 +81,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (!(await gatePassed())) {
     if (!accessPassword || !verifyInstancePassword(accessPassword)) {
-      if (identified) recordFailure(ipKey);
+      if (ipKey) recordFailure(ipKey);
       await authenticationFailureDelay();
       return NextResponse.json({ error: "Invalid login." }, { status: 401 });
     }
-    if (identified) recordSuccess(ipKey);
+    if (ipKey) recordSuccess(ipKey);
   }
 
   const profile = getProfile(username);

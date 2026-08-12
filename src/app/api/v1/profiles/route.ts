@@ -16,7 +16,10 @@ import {
   recordSuccess,
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
-import { clientIp, rejectCrossSiteMutation } from "@/lib/auth/request-security";
+import {
+  lockoutKey,
+  rejectCrossSiteMutation,
+} from "@/lib/auth/request-security";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 export async function GET(): Promise<NextResponse> {
@@ -50,13 +53,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!body.success) {
     return NextResponse.json({ error: "Invalid profile." }, { status: 400 });
   }
-  // Public exposure: strangers must not self-register. Creation needs an
-  // existing session, or the instance password when one is configured.
-  // The password check shares the login lockout so it cannot be
-  // brute-forced from this endpoint either.
+  // Strangers must not self-register. Creation needs an existing session, or
+  // the instance password. The password check shares the login lockout so it
+  // cannot be brute-forced from this endpoint either.
   if (!(await activeProfile()) && !(await gatePassed())) {
-    const ipKey = `ip:${clientIp(request)}`;
-    const wait = retryAfterMs(ipKey);
+    const ipKey = lockoutKey(request, "ip");
+    const wait = ipKey ? retryAfterMs(ipKey) : 0;
     if (wait > 0) {
       return NextResponse.json(
         { error: "Too many attempts. Try again later." },
@@ -70,7 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       instancePasswordConfigured() &&
       verifyInstancePassword(body.data.password ?? "");
     if (!allowed) {
-      recordFailure(ipKey);
+      if (ipKey) recordFailure(ipKey);
       return NextResponse.json(
         {
           error: instancePasswordConfigured()
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: instancePasswordConfigured() ? 403 : 503 },
       );
     }
-    recordSuccess(ipKey);
+    if (ipKey) recordSuccess(ipKey);
   }
   try {
     const profile = createProfile(body.data.displayName, body.data.avatarSlug);

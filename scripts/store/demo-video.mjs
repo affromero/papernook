@@ -114,8 +114,6 @@ await setup
   .fill("admin-created-password");
 await setup.getByRole("button", { name: "Enter" }).click();
 await setup.getByRole("button", { name: "Switch to Maya" }).click();
-await setup.getByLabel("Profile password").fill("maya-profile-password");
-await setup.getByRole("button", { name: "Sign in" }).click();
 await setup.waitForURL(`${BASE}/`);
 let [worker] = ctx.serviceWorkers();
 worker ??= await ctx.waitForEvent("serviceworker");

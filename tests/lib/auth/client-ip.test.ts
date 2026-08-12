@@ -60,3 +60,25 @@ describe("clientIp trust boundary", () => {
     );
   });
 });
+
+describe("lockout buckets", () => {
+  it("gives no bucket to a client it cannot identify", async () => {
+    const { lockoutKey } = await import("@/lib/auth/request-security");
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "0");
+
+    // Without a trusted proxy every caller looks identical, so locking the
+    // shared bucket would let one attacker shut the whole instance out.
+    expect(
+      lockoutKey(withHeaders({ "x-forwarded-for": "203.0.113.9" }), "gate"),
+    ).toBeNull();
+    expect(lockoutKey(withHeaders({}), "ip")).toBeNull();
+  });
+
+  it("keys identifiable clients separately per purpose", async () => {
+    const { lockoutKey } = await import("@/lib/auth/request-security");
+    const request = withHeaders({ "x-forwarded-for": "1.2.3.4, 203.0.113.9" });
+
+    expect(lockoutKey(request, "gate")).toBe("gate:203.0.113.9");
+    expect(lockoutKey(request, "ip")).toBe("ip:203.0.113.9");
+  });
+});

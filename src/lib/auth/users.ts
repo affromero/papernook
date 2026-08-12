@@ -83,14 +83,19 @@ function readProfile(username: string): Profile | null {
     const parsed = JSON.parse(raw) as Profile & { passwordHash?: string };
     // A profile written before per-profile passwords were removed still
     // carries its scrypt verifier. Drop it on read so it is never handed
-    // around or written back, and rewrite the file to erase it from disk.
+    // around or written back, and erase it from disk.
     if (parsed.passwordHash !== undefined) {
       delete parsed.passwordHash;
-      try {
-        writeProfile(parsed);
-      } catch {
-        // A read-only data dir must not break sign-in; the field is already
-        // gone from the object callers see.
+      // Only ever rewrite the file we just read, addressed by the validated
+      // argument. The username inside the file is untrusted data and could
+      // otherwise redirect this write at another profile's directory.
+      if (parsed.username === username) {
+        try {
+          writeProfileAt(username, parsed);
+        } catch {
+          // A read-only data dir must not break sign-in; the field is
+          // already gone from the object callers see.
+        }
       }
     }
     return parsed;
@@ -100,11 +105,18 @@ function readProfile(username: string): Profile | null {
 }
 
 function writeProfile(profile: Profile): void {
-  const dir = path.dirname(profilePath(profile.username));
+  writeProfileAt(profile.username, profile);
+}
+
+function writeProfileAt(username: string, profile: Profile): void {
+  // Any stray verifier from an older release dies here too, so a profile
+  // touched by any normal update stops carrying one.
+  delete (profile as Profile & { passwordHash?: string }).passwordHash;
+  const dir = path.dirname(profilePath(username));
   fs.mkdirSync(dir, { recursive: true });
   const tmp = path.join(dir, `.profile.${process.pid}.tmp`);
   fs.writeFileSync(tmp, JSON.stringify(profile, null, 2), { mode: 0o600 });
-  fs.renameSync(tmp, profilePath(profile.username));
+  fs.renameSync(tmp, profilePath(username));
 }
 
 export function listProfiles(): Profile[] {

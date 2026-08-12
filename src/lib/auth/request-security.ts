@@ -42,6 +42,21 @@ export function clientIp(request: NextRequest): string {
     : "unknown";
 }
 
+/**
+ * The lockout bucket for this client, or null when we cannot tell clients
+ * apart. Without a trusted proxy every caller resolves to "unknown", and
+ * locking that shared bucket would let one attacker shut everyone out — so
+ * unidentified callers get no bucket, and stay bounded by the per-attempt
+ * failure delay and the proxy's global request limit instead.
+ */
+export function lockoutKey(
+  request: NextRequest,
+  prefix: string,
+): string | null {
+  const ip = clientIp(request);
+  return ip === "unknown" ? null : `${prefix}:${ip}`;
+}
+
 export function crossSiteMutation(request: NextRequest): boolean {
   const fetchSite = request.headers.get("sec-fetch-site");
   if (fetchSite === "cross-site") return true;
