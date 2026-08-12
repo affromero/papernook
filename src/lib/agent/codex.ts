@@ -62,6 +62,7 @@ function runCodex(
   args: string[],
   prompt: string,
   timeoutMs: number,
+  maxOutputChars?: number,
   onChunk?: (text: string) => void,
 ): Promise<string> {
   const { command, args: spawnArgs } = buildAgentInvocation(
@@ -83,6 +84,10 @@ function runCodex(
     child.stdout.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       stdout += text;
+      if (maxOutputChars && stdout.length > maxOutputChars) {
+        child.kill("SIGTERM");
+        return;
+      }
       onChunk?.(text);
     });
     child.stderr.on("data", (chunk: Buffer) => {
@@ -123,7 +128,12 @@ function runCodex(
 export async function executeCodex(turn: AgentTurn): Promise<string> {
   const { args, prompt, cleanup } = await prepare(turn);
   try {
-    return await runCodex(args, prompt, turn.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    return await runCodex(
+      args,
+      prompt,
+      turn.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      turn.maxOutputChars,
+    );
   } finally {
     await cleanup?.();
   }
@@ -141,6 +151,7 @@ export async function* streamCodex(turn: AgentTurn): AsyncGenerator<string> {
     args,
     prompt,
     turn.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    turn.maxOutputChars,
     (text) => {
       chunks.push(text);
       notify?.();

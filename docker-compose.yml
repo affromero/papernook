@@ -12,6 +12,7 @@
 #   PAPERNOOK_PASSWORD             shared instance access password
 #   APP_HOST / WEBDAV_HOST         use 127.0.0.1 behind a public TLS proxy
 #   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST, ANTHROPIC_API_KEY, OPENAI_API_KEY
+#   CLAUDE_AUTH_DIR / CODEX_AUTH_DIR override the Compose user's CLI homes
 #   OLLAMA_HOST / LLAMACPP_BASE_URL / VLLM_BASE_URL (models live in Settings)
 #   WEB_SEARCH_BASE_URL            custom SearXNG endpoint (bundled by default)
 #   SESSION_SECRET                 pin sessions across container rebuilds
@@ -21,6 +22,9 @@ services:
     build: .
     restart: unless-stopped
     init: true
+    depends_on:
+      credential-sync:
+        condition: service_healthy
     security_opt:
       - no-new-privileges:true
     ports:
@@ -35,6 +39,7 @@ services:
       WEB_SEARCH_BASE_URL: ${WEB_SEARCH_BASE_URL:-http://search:8080}
       PAPERNOOK_SSH_KEY_PATH: /home/node/.ssh/id_papernook
       PAPERNOOK_SSH_KNOWN_HOSTS_PATH: /home/node/.ssh/known_hosts
+      PAPERNOOK_CREDENTIAL_SYNC_DIR: /run/cli-credentials
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -42,10 +47,8 @@ services:
       # SSH mode mounts one explicit key and known_hosts file, never ~/.ssh.
       - ${SSH_KEY_FILE:-/dev/null}:/run/host-auth/ssh-key:ro
       - ${SSH_KNOWN_HOSTS_FILE:-/dev/null}:/run/host-auth/known-hosts:ro
-      # Only the selected CLI's credential file is mounted. The installer sets
-      # one path; /dev/null keeps the other provider unavailable.
-      - ${CODEX_AUTH_FILE:-/dev/null}:/run/host-auth/codex-auth.json:ro
-      - ${CLAUDE_AUTH_FILE:-/dev/null}:/run/host-auth/claude-credentials.json:ro
+      # A networkless sidecar refreshes this volume after host CLI login/logout.
+      - cli-credentials:/run/cli-credentials
     healthcheck:
       test:
         [
@@ -58,6 +61,30 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+  credential-sync:
+    image: alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+    restart: unless-stopped
+    network_mode: none
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # Host CLI files are normally mode 600 and may use a different UID.
+      - DAC_READ_SEARCH
+    volumes:
+      - ${CODEX_AUTH_DIR:-/dev/null}:/host-codex:ro
+      - ${CLAUDE_AUTH_DIR:-/dev/null}:/host-claude:ro
+      - cli-credentials:/credential-sync
+      - ./scripts/agent/sync-cli-credentials.sh:/usr/local/bin/sync-cli-credentials:ro
+    command: ["/bin/sh", "/usr/local/bin/sync-cli-credentials"]
+    healthcheck:
+      test: ["CMD", "test", "-f", "/credential-sync/ready"]
+      interval: 2s
+      timeout: 1s
+      retries: 10
 
   # Internal metasearch backend for local-model web_search tool calls. It is
   # reachable from the host only on loopback and never receives server files.
@@ -103,3 +130,6 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+volumes:
+  cli-credentials:

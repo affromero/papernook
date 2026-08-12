@@ -48,6 +48,7 @@ describe("agent model settings route", () => {
       effortOptions: string[];
       webAccess: boolean;
       webCapable: boolean;
+      credentialReloadAvailable: boolean;
     };
 
     expect(body.provider).toBe("codex");
@@ -67,6 +68,7 @@ describe("agent model settings route", () => {
     ]);
     expect(body.webAccess).toBe(true);
     expect(body.webCapable).toBe(true);
+    expect(body.credentialReloadAvailable).toBe(false);
     expect(Object.values(body.statuses)).toEqual(Array(7).fill("checking"));
   });
 

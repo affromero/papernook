@@ -147,7 +147,7 @@ async function buildArgs(
 }
 
 export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
-  if (turn.images?.length) {
+  if (turn.images?.length || turn.maxOutputChars) {
     // stream-json input requires stream-json output; reuse the stream parser.
     let full = "";
     for await (const chunk of streamClaudeCode(turn)) full += chunk;
@@ -283,6 +283,7 @@ export async function* streamClaudeCode(
 
   let buffer = "";
   let produced = false;
+  let outputChars = 0;
   const state: StreamTextState = { sawDelta: false, sawAssistant: false };
   try {
     for await (const chunk of child.stdout) {
@@ -291,25 +292,41 @@ export async function* streamClaudeCode(
       buffer = lines.pop() || "";
       for (const line of lines) {
         if (!line.trim()) continue;
+        let raw: StreamEvent;
         try {
-          const raw = JSON.parse(line) as StreamEvent;
-          for (const text of textFromEvent(raw, state)) {
-            produced = true;
-            yield text;
-          }
+          raw = JSON.parse(line) as StreamEvent;
         } catch {
           continue; // partial line, not valid JSON
+        }
+        for (const text of textFromEvent(raw, state)) {
+          outputChars += text.length;
+          if (turn.maxOutputChars && outputChars > turn.maxOutputChars) {
+            child.kill("SIGTERM");
+            throw new Error("claude-code: output limit exceeded");
+          }
+          produced = true;
+          yield text;
         }
       }
     }
     if (buffer.trim()) {
+      let raw: StreamEvent | null = null;
       try {
-        const raw = JSON.parse(buffer) as StreamEvent;
+        raw = JSON.parse(buffer) as StreamEvent;
+      } catch {
+        // Preserve a final plain-text fragment from unusual CLI output.
+      }
+      if (raw) {
         for (const text of textFromEvent(raw, state)) {
+          outputChars += text.length;
+          if (turn.maxOutputChars && outputChars > turn.maxOutputChars) {
+            child.kill("SIGTERM");
+            throw new Error("claude-code: output limit exceeded");
+          }
           produced = true;
           yield text;
         }
-      } catch {
+      } else {
         yield buffer.trim();
         produced = true;
       }

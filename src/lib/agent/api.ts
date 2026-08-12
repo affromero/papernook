@@ -106,7 +106,7 @@ async function executeAnthropic(turn: AgentTurn): Promise<string> {
   const stream = anthropic().messages.stream(
     {
       model: anthropicModel(),
-      max_tokens: 16000,
+      max_tokens: turn.maxOutputTokens ?? 16000,
       thinking: { type: "adaptive" },
       system: turn.system || undefined,
       tools: anthropicTools(turn),
@@ -125,7 +125,7 @@ async function* streamAnthropic(turn: AgentTurn): AsyncGenerator<string> {
   const stream = anthropic().messages.stream(
     {
       model: anthropicModel(),
-      max_tokens: 16000,
+      max_tokens: turn.maxOutputTokens ?? 16000,
       thinking: { type: "adaptive" },
       system: turn.system || undefined,
       tools: anthropicTools(turn),
@@ -189,6 +189,9 @@ function openaiResponseBase(turn: AgentTurn) {
     instructions: turn.system || undefined,
     input: openaiResponseInput(turn),
     store: false,
+    ...(turn.maxOutputTokens
+      ? { max_output_tokens: turn.maxOutputTokens }
+      : {}),
     ...(turn.allowWeb ? { tools: [{ type: "web_search" as const }] } : {}),
     ...(turn.responseFormat
       ? { text: { format: { type: turn.responseFormat } } }
@@ -260,6 +263,9 @@ async function executeCompatible(
     {
       model: compatibleModel(provider),
       messages: openaiMessages(turn),
+      ...(turn.maxOutputTokens
+        ? { max_completion_tokens: turn.maxOutputTokens }
+        : {}),
       ...(turn.responseFormat
         ? { response_format: { type: turn.responseFormat } }
         : {}),
@@ -360,6 +366,9 @@ async function finalCompatibleAnswer(
     {
       model: compatibleModel(provider),
       messages,
+      ...(turn.maxOutputTokens
+        ? { max_completion_tokens: turn.maxOutputTokens }
+        : {}),
       ...(turn.responseFormat
         ? { response_format: { type: turn.responseFormat } }
         : {}),
@@ -382,6 +391,9 @@ async function executeCompatibleWithWeb(
       {
         model: compatibleModel(provider),
         messages,
+        ...(turn.maxOutputTokens
+          ? { max_completion_tokens: turn.maxOutputTokens }
+          : {}),
         tools: WEB_TOOLS,
         parallel_tool_calls: false,
       },
@@ -454,6 +466,9 @@ async function* streamCompatibleWithWeb(
       {
         model: compatibleModel(provider),
         messages,
+        ...(turn.maxOutputTokens
+          ? { max_completion_tokens: turn.maxOutputTokens }
+          : {}),
         tools: WEB_TOOLS,
         parallel_tool_calls: false,
         stream: true,
@@ -522,6 +537,9 @@ async function* streamCompatible(
     {
       model: compatibleModel(provider),
       messages: openaiMessages(turn),
+      ...(turn.maxOutputTokens
+        ? { max_completion_tokens: turn.maxOutputTokens }
+        : {}),
       stream: true,
       ...(turn.responseFormat
         ? { response_format: { type: turn.responseFormat } }

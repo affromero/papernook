@@ -121,8 +121,10 @@ is optional compatibility for external PDF apps.
 - Keep `data/` backed up. The filesystem, not SQLite, is the source of truth.
 - For a subscription CLI, log in on the Docker host first. Papernook checks
   both installation and authentication before calling the provider ready.
-  Docker mounts only the selected provider's credential file; see
-  `.env.example` for `CODEX_AUTH_FILE` and `CLAUDE_AUTH_FILE`.
+  Docker gives a networkless sidecar read-only access to the selected CLI's
+  credential directory; use **Reload CLI login** in Settings after login or
+  logout. See `.env.example` for `CODEX_AUTH_DIR` and `CLAUDE_AUTH_DIR`.
+  Configure both directories only when both local CLIs should be selectable.
 - Use a long, unique `WEBDAV_PASS`.
 - For a custom domain, set `PUBLIC_EXPOSURE`, `PAPERNOOK_PUBLIC_HOST`,
   `PAPERNOOK_PASSWORD`, `SESSION_SECRET`, and loopback port bindings before
