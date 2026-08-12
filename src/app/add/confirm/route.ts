@@ -6,7 +6,7 @@ import {
 } from "@/lib/library/papers";
 import { slugify, isValidSlug } from "@/lib/library/slug";
 import { rebuildIndex } from "@/lib/library/index-db";
-import { clientIp } from "@/lib/auth/request-security";
+import { lockoutKey } from "@/lib/auth/request-security";
 import { recordFailure, retryAfterMs } from "@/lib/auth/rate-limit";
 import { readBoundedForm, RequestBodyError } from "@/lib/bounded-request";
 import { acceptedPage, errorPage } from "../pages";
@@ -43,13 +43,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const newTopic = form.get("newtopic") ?? "";
 
   // Same unauthenticated-token surface as /add: throttle guesses per client.
-  const ipKey = `confirm-ip:${clientIp(request)}`;
-  if (retryAfterMs(ipKey) > 0) {
+  const ipKey = lockoutKey(request, "confirm-ip");
+  if (ipKey && retryAfterMs(ipKey) > 0) {
     return html(errorPage("Too many attempts. Try again later."), 429);
   }
   const profile = profileForCaptureToken(token);
   if (!profile) {
-    recordFailure(ipKey);
+    if (ipKey) recordFailure(ipKey);
     return html(errorPage("Invalid capture token."), 401);
   }
   const topic = slugify(newTopic.trim() || chosen.trim());

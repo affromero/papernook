@@ -81,21 +81,21 @@ function readProfile(username: string): Profile | null {
   try {
     const raw = fs.readFileSync(profilePath(username), "utf8");
     const parsed = JSON.parse(raw) as Profile & { passwordHash?: string };
+    // The name inside the file must match the directory it was read from.
+    // Otherwise a session for "ana" would carry username "ben", and every
+    // later write — capture token, Zotero config, wizard state, deletion —
+    // would land in Ben's storage.
+    if (parsed.username !== username) return null;
     // A profile written before per-profile passwords were removed still
     // carries its scrypt verifier. Drop it on read so it is never handed
     // around or written back, and erase it from disk.
     if (parsed.passwordHash !== undefined) {
       delete parsed.passwordHash;
-      // Only ever rewrite the file we just read, addressed by the validated
-      // argument. The username inside the file is untrusted data and could
-      // otherwise redirect this write at another profile's directory.
-      if (parsed.username === username) {
-        try {
-          writeProfileAt(username, parsed);
-        } catch {
-          // A read-only data dir must not break sign-in; the field is
-          // already gone from the object callers see.
-        }
+      try {
+        writeProfileAt(username, parsed);
+      } catch {
+        // A read-only data dir must not break sign-in; the field is already
+        // gone from the object callers see.
       }
     }
     return parsed;

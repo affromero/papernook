@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { profileForCaptureToken } from "@/lib/auth/users";
 import { recordFailure, retryAfterMs } from "@/lib/auth/rate-limit";
-import { clientIp } from "@/lib/auth/request-security";
+import { lockoutKey } from "@/lib/auth/request-security";
 import { readBoundedForm, RequestBodyError } from "@/lib/bounded-request";
 import { getPaper } from "@/lib/library/papers";
 import { isValidSlug } from "@/lib/library/slug";
@@ -34,13 +34,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const token = form.get("token") ?? "";
   const slug = form.get("slug") ?? "";
 
-  const ipKey = `ip:${clientIp(request)}`;
-  if (retryAfterMs(ipKey) > 0) {
+  // Its own bucket: polling must not be able to lock out capture itself.
+  const ipKey = lockoutKey(request, "status-ip");
+  if (ipKey && retryAfterMs(ipKey) > 0) {
     return html(errorPage("Too many attempts. Try again later."), 429);
   }
   const profile = profileForCaptureToken(token);
   if (!profile) {
-    recordFailure(ipKey);
+    if (ipKey) recordFailure(ipKey);
     return html(
       errorPage(
         "Invalid capture token. Re-copy your bookmarklet or Shortcut from Settings.",

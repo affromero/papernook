@@ -17,6 +17,7 @@ import {
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
 import {
+  authenticationFailureDelay,
   lockoutKey,
   rejectCrossSiteMutation,
 } from "@/lib/auth/request-security";
@@ -73,6 +74,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       verifyInstancePassword(body.data.password ?? "");
     if (!allowed) {
       if (ipKey) recordFailure(ipKey);
+      // Same per-attempt cost as the login and gate routes; without it an
+      // unidentified client could spend the whole global limit guessing.
+      await authenticationFailureDelay();
       return NextResponse.json(
         {
           error: instancePasswordConfigured()
