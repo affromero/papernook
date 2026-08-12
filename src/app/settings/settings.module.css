@@ -141,12 +141,7 @@
 
 .section {
   scroll-margin-top: 1.5rem;
-  padding: 2.5rem 0 3rem;
-  border-bottom: 1px solid var(--settings-line);
-}
-
-.section:last-child {
-  border-bottom: 0;
+  padding: 2.5rem 0 1.5rem;
 }
 
 .sectionHeader {
@@ -431,7 +426,7 @@
   }
 
   .section {
-    padding: 2.5rem 0 3rem;
+    padding: 2.25rem 0 1.5rem;
   }
 
   .setupItem {
