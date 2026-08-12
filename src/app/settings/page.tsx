@@ -258,7 +258,7 @@ export default async function SettingsPage() {
                 )}
                 <p>
                   {admin
-                    ? "Share the invite link or QR — it opens the gate for seven days without revealing the access password. Their setup wizard starts when they add a profile."
+                    ? "Share the invite link or QR. It opens the gate for seven days without revealing the access password, and their setup wizard starts when they add a profile."
                     : "Ask the admin for an invite link or the access password."}
                 </p>
               </div>

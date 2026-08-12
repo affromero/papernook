@@ -1,8 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const password = "admin-created-password";
-const adminProfilePassword = "maya-profile-password";
-const friendProfilePassword = "jordan-profile-password";
 let pdfRestore:
   | {
       path: string;
@@ -24,8 +22,6 @@ async function passGate(page: Page): Promise<void> {
 async function loginAsAdmin(page: Page): Promise<void> {
   await passGate(page);
   await page.getByRole("button", { name: "Switch to Maya" }).click();
-  await page.getByLabel("Profile password").fill(adminProfilePassword);
-  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL("/");
   await expect(page.getByText("Attention Is All You Need")).toBeVisible();
 }
@@ -43,10 +39,7 @@ async function removeProfileAsAdminIfPresent(
   };
   if (body.profiles.some((profile) => profile.username === username)) {
     const removed = await page.request.delete(`/api/v1/profiles/${username}`, {
-      data: {
-        confirmation: username,
-        password: adminProfilePassword,
-      },
+      data: { confirmation: username },
     });
     expect(removed.ok(), await removed.text()).toBe(true);
   }
@@ -138,8 +131,6 @@ test.describe.serial("documentation journeys and screenshots", () => {
     });
 
     await page.getByRole("button", { name: "Switch to Maya" }).click();
-    await page.getByLabel("Profile password").fill(adminProfilePassword);
-    await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/");
     await expect(page).toHaveScreenshot(["product", "library.png"], {
       animations: "disabled",
@@ -498,29 +489,21 @@ test.describe.serial("documentation journeys and screenshots", () => {
       data: {
         displayName: "Casey",
         avatarSlug: "frog",
-        profilePassword: "casey-profile-password",
       },
     });
     expect(created.ok()).toBe(true);
     await page.reload();
-    page.on("dialog", (dialog) =>
-      dialog.type() === "prompt"
-        ? dialog.accept(adminProfilePassword)
-        : dialog.accept(),
-    );
+    page.on("dialog", (dialog) => dialog.accept());
     const casey = page.getByRole("listitem").filter({ hasText: "Casey casey" });
     await casey.getByRole("button", { name: "Remove completely" }).click();
     await expect(casey).not.toBeVisible();
   });
 
-  test("a friend creates a password-protected profile", async ({ page }) => {
+  test("a friend adds their own profile past the gate", async ({ page }) => {
     await removeProfileAsAdminIfPresent(page, "jordan");
     await passGate(page);
     await page.getByRole("button", { name: "Add profile" }).click();
     await page.getByLabel("Name").fill("Jordan");
-    await page
-      .getByLabel("Profile password", { exact: true })
-      .fill(friendProfilePassword);
     await page.getByRole("radio", { name: "Toucan" }).click();
     await page.getByRole("button", { name: "Create" }).click();
 
@@ -546,9 +529,6 @@ test.describe.serial("documentation journeys and screenshots", () => {
       .getByRole("button", { name: "Delete my profile and data" })
       .click();
     await page.getByLabel(/Type jordan to confirm/).fill("jordan");
-    await page
-      .getByLabel("Profile password", { exact: true })
-      .fill(friendProfilePassword);
     await page.getByRole("button", { name: "Delete permanently" }).click();
     await expect(page).toHaveURL("/login");
     await expect(
