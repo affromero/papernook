@@ -4,16 +4,54 @@ const baseUrlInput = document.getElementById("base-url");
 const autoInput = document.getElementById("auto-intercept");
 const extraHostInput = document.getElementById("extra-host");
 const extraHostsList = document.getElementById("extra-hosts");
+const saveButton = document.getElementById("save");
 const status = document.getElementById("status");
+let flashTimer;
 
 function flash(message, ok) {
+  clearTimeout(flashTimer);
   status.textContent = message;
-  status.style.color = ok ? "#2e7d32" : "#b3261e";
+  status.style.color = ok === undefined ? "#555" : ok ? "#2e7d32" : "#b3261e";
   if (ok) {
-    setTimeout(() => {
+    flashTimer = setTimeout(() => {
       status.textContent = "";
-    }, 2000);
+    }, 4000);
   }
+}
+
+function serverOriginPattern(url) {
+  return `${url.protocol}//${url.hostname}/*`;
+}
+
+async function testServer(baseUrl) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/health`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`server returned HTTP ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result || result.status !== "ok") {
+      throw new Error("server returned an unexpected health response");
+    }
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      throw new Error("the server did not respond within 10 seconds");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function requestServerAccess(url) {
+  const permission = { origins: [serverOriginPattern(url)] };
+  if (await api.permissions.contains(permission)) return true;
+  return api.permissions.request(permission);
 }
 
 async function renderExtraHosts() {
@@ -80,10 +118,11 @@ document.getElementById("add-host").addEventListener("click", async () => {
   renderExtraHosts();
 });
 
-document.getElementById("save").addEventListener("click", () => {
-  let baseUrl = baseUrlInput.value.trim().replace(/\/+$/, "");
+saveButton.addEventListener("click", async () => {
+  const baseUrl = baseUrlInput.value.trim().replace(/\/+$/, "");
+  let parsed;
   try {
-    const parsed = new URL(baseUrl);
+    parsed = new URL(baseUrl);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
       throw new Error("http(s) only");
     }
@@ -91,18 +130,61 @@ document.getElementById("save").addEventListener("click", () => {
     flash("Enter a full http(s) URL.", false);
     return;
   }
-  api.storage.sync
-    .set({ baseUrl, autoIntercept: autoInput.checked })
-    .then(() => api.runtime.sendMessage("rebuild-rules"))
-    .then((result) => {
-      if (result && result.ok === false) {
-        flash(
-          "Saved, but the browser refused the redirect rules — turn off automatic opening and use the toolbar button.",
-          false,
-        );
-        return;
-      }
-      flash("Saved.", true);
-    })
-    .catch(() => flash("Saved.", true));
+
+  saveButton.disabled = true;
+  flash("Saving and testing connection…");
+  let serverAccess = false;
+  try {
+    serverAccess = await requestServerAccess(parsed);
+  } catch {
+    serverAccess = false;
+  }
+
+  try {
+    await api.storage.sync.set({
+      baseUrl,
+      autoIntercept: autoInput.checked,
+    });
+
+    let rulesResult;
+    try {
+      rulesResult = await api.runtime.sendMessage("rebuild-rules");
+    } catch {
+      rulesResult = { ok: false };
+    }
+
+    if (!serverAccess) {
+      flash(
+        "Saved, but the browser did not grant server access, so the connection could not be tested.",
+        false,
+      );
+      return;
+    }
+
+    try {
+      await testServer(baseUrl);
+    } catch (error) {
+      flash(
+        `Saved, but the connection test failed: ${error instanceof Error ? error.message : "could not reach the server"}.`,
+        false,
+      );
+      return;
+    }
+
+    if (rulesResult && rulesResult.ok === false) {
+      flash(
+        "Saved and connected, but the browser refused the redirect rules — turn off automatic opening and use the toolbar button.",
+        false,
+      );
+      return;
+    }
+    flash("Saved. Connection successful.", true);
+  } catch (error) {
+    flash(
+      `Could not save settings: ${error instanceof Error ? error.message : "unknown error"}.`,
+      false,
+    );
+  } finally {
+    saveButton.disabled = false;
+  }
 });

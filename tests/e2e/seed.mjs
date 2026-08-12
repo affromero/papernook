@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 const root = path.join(process.cwd(), ".playwright-data");
