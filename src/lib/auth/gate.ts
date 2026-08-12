@@ -2,14 +2,13 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { sessionSecret } from "../data-dir";
 import { SESSION_COOKIE, verifySessionToken } from "./session";
-import { requestNeedsGate } from "./exposure";
 
 /**
- * The access gate stands in front of the whole profile picker on a public
- * instance that uses the shared instance password. Nobody sees a profile
- * name or an Add button until they prove the password; passing the gate sets
- * a short-lived signed cookie that unlocks the picker. A separate profile
- * password is still required before a profile session is issued.
+ * The access gate stands in front of the whole profile picker. Nobody sees a
+ * profile name or an Add button until they prove the instance password;
+ * passing the gate sets a short-lived signed cookie that unlocks the picker.
+ * This is the instance's only credential — everyone past it is a trusted
+ * member of the household, free to pick any profile.
  */
 
 export const GATE_COOKIE = "papernook_gate";
@@ -61,13 +60,12 @@ export function verifyGateToken(token: string, now = Date.now()): boolean {
 
 /**
  * Whether the picker must stay hidden behind the password prompt for this
- * request. True only in public mode with an instance password configured and
- * no valid gate cookie yet.
+ * request. True unless the visitor already holds a valid gate or session
+ * cookie.
  */
 export async function gateRequired(): Promise<boolean> {
-  if (!(await requestNeedsGate())) return false;
   const store = await cookies();
-  // A logged-in profile already passed both authentication boundaries.
+  // A logged-in profile already passed the gate.
   const session = store.get(SESSION_COOKIE)?.value;
   if (session && verifySessionToken(session)) return false;
   const token = store.get(GATE_COOKIE)?.value;

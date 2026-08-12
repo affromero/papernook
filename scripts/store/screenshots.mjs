@@ -34,7 +34,6 @@ const server = spawn(
       PAPERNOOK_DATA_DIR: join(ROOT, ".playwright-data"),
       SESSION_SECRET:
         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      PUBLIC_EXPOSURE: "true",
       PAPERNOOK_PUBLIC_HOST: "127.0.0.1",
       PAPERNOOK_PUBLIC_REQUEST_LIMIT: "1000",
       PAPERNOOK_PASSWORD: "admin-created-password",
@@ -85,8 +84,6 @@ for (const dsf of [1, 2]) {
     .fill("admin-created-password");
   await page.getByRole("button", { name: "Enter" }).click();
   await page.getByRole("button", { name: "Switch to Maya" }).click();
-  await page.getByLabel("Profile password").fill("maya-profile-password");
-  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(`${BASE}/`);
 
   // Point the extension at the server through its own options page — the

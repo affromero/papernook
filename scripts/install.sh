@@ -155,6 +155,12 @@ if [ "${#WEBDAV_PASS}" -lt 16 ] || [ "${#WEBDAV_PASS}" -gt 200 ]; then
   echo "The WebDAV password must be 16–200 characters." >&2
   exit 1
 fi
+# The access password is papernook's only credential, so every install has
+# one. Everyone who knows it can pick any profile.
+read -r -s -p "Papernook access password (16-200 characters): " PAPERNOOK_PASSWORD < /dev/tty
+echo
+validate_papernook_password "$PAPERNOOK_PASSWORD" || exit 1
+
 read -r -p "Expose publicly through a custom domain? [y/N]: " PUBLIC < /dev/tty
 
 PUBLIC_BLOCK=""
@@ -171,18 +177,8 @@ case "$PUBLIC" in
       "Public WebDAV URL (for example https://dav-papernook.example.com): " \
       PUBLIC_WEBDAV_URL < /dev/tty
     validate_public_webdav_url "$PUBLIC_WEBDAV_URL" || exit 1
-    read -r -s -p "Shared Papernook access password (12–200 characters): " PAPERNOOK_PASSWORD < /dev/tty
-    echo
-    validate_papernook_password "$PAPERNOOK_PASSWORD" || exit 1
-    if [ "$CHOICE" = "1" ] || [ "$CHOICE" = "2" ] || [ "$CHOICE" = "3" ]; then
-      echo "Public deployments cannot use CLI agent providers. Choose an API or local model provider." >&2
-      exit 1
-    fi
-    PUBLIC_BLOCK=$'PUBLIC_EXPOSURE=true\n'
-    PUBLIC_BLOCK+="PAPERNOOK_PUBLIC_HOST=${PUBLIC_HOST}"$'\n'
-    PUBLIC_BLOCK+="PAPERNOOK_WEBDAV_URL=$(dotenv_quote "$PUBLIC_WEBDAV_URL")"$'\n'
-    PUBLIC_BLOCK+="PAPERNOOK_PASSWORD=$(dotenv_quote "$PAPERNOOK_PASSWORD")"$'\n'
-    PUBLIC_BLOCK+=$'APP_HOST=127.0.0.1\nWEBDAV_HOST=127.0.0.1'
+    PUBLIC_BLOCK="PAPERNOOK_PUBLIC_HOST=${PUBLIC_HOST}"$'\n'
+    PUBLIC_BLOCK+="PAPERNOOK_WEBDAV_URL=$(dotenv_quote "$PUBLIC_WEBDAV_URL")"
     ;;
 esac
 
@@ -190,6 +186,7 @@ esac
   echo "$AI_BLOCK"
   echo "WEBDAV_USER=$(dotenv_quote "$WEBDAV_USER")"
   echo "WEBDAV_PASS=$(dotenv_quote "$WEBDAV_PASS")"
+  echo "PAPERNOOK_PASSWORD=$(dotenv_quote "$PAPERNOOK_PASSWORD")"
   echo "SESSION_SECRET=$(openssl rand -hex 32)"
   [ -z "$PUBLIC_BLOCK" ] || echo "$PUBLIC_BLOCK"
 } > .env

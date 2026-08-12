@@ -8,7 +8,6 @@ export function DeleteProfile({ username }: { username: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,7 +19,7 @@ export function DeleteProfile({ username }: { username: string }) {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ confirmation, password }),
+      body: JSON.stringify({ confirmation }),
     });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as {
@@ -63,14 +62,6 @@ export function DeleteProfile({ username }: { username: string }) {
         onChange={(event) => setConfirmation(event.target.value)}
         autoComplete="off"
       />
-      <label htmlFor="delete-profile-password">Profile password</label>
-      <input
-        id="delete-profile-password"
-        type="password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-        autoComplete="current-password"
-      />
       {error && (
         <p className={styles.error} role="alert">
           {error}
@@ -83,7 +74,6 @@ export function DeleteProfile({ username }: { username: string }) {
           onClick={() => {
             setOpen(false);
             setConfirmation("");
-            setPassword("");
             setError(null);
           }}
           disabled={busy}

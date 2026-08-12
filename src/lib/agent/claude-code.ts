@@ -3,7 +3,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readImageBase64 } from "./attachments";
 import { configuredEffort, configuredModel } from "./config";
-import { buildAgentInvocation, getClaudeSshHost } from "./invocation";
+import {
+  buildAgentInvocation,
+  getClaudeSshHost,
+  minimalAgentEnvironment,
+} from "./invocation";
 import {
   DEFAULT_TIMEOUT_MS,
   type AgentProvider,
@@ -83,8 +87,18 @@ function ensureClaudeHome(): string | undefined {
  * real prompts while Settings incorrectly reports that the CLI needs login.
  */
 export function claudeCodeEnvironment(): NodeJS.ProcessEnv {
+  // Allowlisted: the CLI's own namespace, never the app's other secrets.
+  // CLAUDE_CODE_CREDENTIALS_JSON is deliberately absent: ensureClaudeHome has
+  // already written it to disk, so forwarding it would put the raw OAuth
+  // credential in a process paper text can steer.
+  const baseEnv = minimalAgentEnvironment([
+    "CLAUDE_HOME",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_AUTH_TOKEN",
+  ]);
   // Strip CLAUDECODE to prevent "cannot launch inside another session".
-  const baseEnv = { ...process.env };
   delete baseEnv.CLAUDECODE;
   const home = ensureClaudeHome();
   return home ? { ...baseEnv, HOME: home } : baseEnv;

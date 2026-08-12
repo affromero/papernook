@@ -5,7 +5,7 @@ import {
   recordFailure,
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
-import { clientIp } from "@/lib/auth/request-security";
+import { clientIp, lockoutKey } from "@/lib/auth/request-security";
 import { captureAsync } from "@/lib/capture";
 import { CaptureError } from "@/lib/capture/download";
 import { readBoundedForm, RequestBodyError } from "@/lib/bounded-request";
@@ -33,13 +33,16 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   const url = form.get("url") ?? "";
   const token = form.get("token") ?? "";
 
-  const ipKey = `ip:${clientIp(request)}`;
-  if (retryAfterMs(ipKey) > 0) {
+  // Its own bucket, never the login one: /add deliberately accepts
+  // cross-site form posts, so a hostile page could otherwise make a victim's
+  // browser submit bad tokens until that victim is locked out of signing in.
+  const ipKey = lockoutKey(request, "capture-token-ip");
+  if (ipKey && retryAfterMs(ipKey) > 0) {
     return html(errorPage("Too many attempts. Try again later."), 429);
   }
   const profile = profileForCaptureToken(token);
   if (!profile) {
-    recordFailure(ipKey);
+    if (ipKey) recordFailure(ipKey);
     return html(
       errorPage(
         "Invalid capture token. Re-copy your bookmarklet or Shortcut from Settings.",
@@ -48,7 +51,7 @@ async function handle(request: NextRequest): Promise<NextResponse> {
     );
   }
   const quotaWait = Math.max(
-    consumeRequestLimit(`capture-ip:${ipKey}`, 30, 60 * 60_000),
+    consumeRequestLimit(`capture-ip:${clientIp(request)}`, 30, 60 * 60_000),
     consumeRequestLimit(`capture-profile:${profile.username}`, 20, 60 * 60_000),
   );
   if (quotaWait > 0) {

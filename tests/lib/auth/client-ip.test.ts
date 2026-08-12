@@ -42,10 +42,62 @@ describe("clientIp trust boundary", () => {
     expect(clientIp(request)).toBe("unknown");
   });
 
+  it("ignores the header entirely when no proxy is in front", () => {
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "0");
+    const request = withHeaders({ "x-forwarded-for": "203.0.113.9" });
+    // Directly exposed: every entry is client-authored, so a rotating
+    // X-Forwarded-For must not mint a fresh rate-limit bucket per request.
+    expect(clientIp(request)).toBe("unknown");
+    expect(clientIp(withHeaders({ "x-forwarded-for": "198.51.100.4" }))).toBe(
+      "unknown",
+    );
+  });
+
   it("returns 'unknown' with no forwarding header and rejects non-IP junk", () => {
     expect(clientIp(withHeaders({}))).toBe("unknown");
     expect(clientIp(withHeaders({ "x-forwarded-for": "not an ip" }))).toBe(
       "unknown",
     );
+  });
+});
+
+describe("lockout buckets", () => {
+  it("gives no bucket to a client it cannot identify", async () => {
+    const { lockoutKey } = await import("@/lib/auth/request-security");
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "0");
+
+    // Without a trusted proxy every caller looks identical, so locking the
+    // shared bucket would let one attacker shut the whole instance out.
+    expect(
+      lockoutKey(withHeaders({ "x-forwarded-for": "203.0.113.9" }), "gate"),
+    ).toBeNull();
+    expect(lockoutKey(withHeaders({}), "ip")).toBeNull();
+  });
+
+  it("keys identifiable clients separately per purpose", async () => {
+    const { lockoutKey } = await import("@/lib/auth/request-security");
+    const request = withHeaders({ "x-forwarded-for": "1.2.3.4, 203.0.113.9" });
+
+    expect(lockoutKey(request, "gate")).toBe("gate:203.0.113.9");
+    expect(lockoutKey(request, "ip")).toBe("ip:203.0.113.9");
+  });
+});
+
+describe("escalating lockout buckets stay isolated", () => {
+  it("never lets a cross-site-reachable route lock the login bucket", async () => {
+    const { lockoutKey } = await import("@/lib/auth/request-security");
+    const request = withHeaders({ "x-forwarded-for": "203.0.113.9" });
+
+    // /add accepts cross-site form posts by design (bookmarklet, Shortcut),
+    // so a hostile page can drive its failure counter using the victim's own
+    // address. That must never be the bucket that gates signing in.
+    const login = lockoutKey(request, "ip");
+    const capture = lockoutKey(request, "capture-token-ip");
+    const status = lockoutKey(request, "status-ip");
+    const confirm = lockoutKey(request, "confirm-ip");
+    const gate = lockoutKey(request, "gate");
+
+    const buckets = [login, capture, status, confirm, gate];
+    expect(new Set(buckets).size).toBe(buckets.length);
   });
 });

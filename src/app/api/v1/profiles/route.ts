@@ -11,22 +11,21 @@ import {
 } from "@/lib/auth/users";
 import { activeProfile } from "@/lib/auth/session";
 import { gatePassed } from "@/lib/auth/gate";
-import { requestIsPublic } from "@/lib/auth/exposure";
 import {
   recordFailure,
   recordSuccess,
   retryAfterMs,
 } from "@/lib/auth/rate-limit";
-import { clientIp, rejectCrossSiteMutation } from "@/lib/auth/request-security";
+import {
+  authenticationFailureDelay,
+  lockoutKey,
+  rejectCrossSiteMutation,
+} from "@/lib/auth/request-security";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 export async function GET(): Promise<NextResponse> {
-  // Behind the gate on a public instance, do not leak profile names.
-  if (
-    (await requestIsPublic()) &&
-    !(await activeProfile()) &&
-    !(await gatePassed())
-  ) {
+  // Behind the gate, do not leak profile names.
+  if (!(await activeProfile()) && !(await gatePassed())) {
     return NextResponse.json({
       profiles: [],
       instancePassword: instancePasswordConfigured(),
@@ -46,7 +45,6 @@ const createSchema = z.object({
     .optional(),
   /** Required in public mode without a session (self-registration gate). */
   password: z.string().max(200).optional(),
-  profilePassword: z.string().max(200).optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -56,17 +54,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!body.success) {
     return NextResponse.json({ error: "Invalid profile." }, { status: 400 });
   }
-  // Public exposure: strangers must not self-register. Creation needs an
-  // existing session, or the instance password when one is configured.
-  // The password check shares the login lockout so it cannot be
-  // brute-forced from this endpoint either.
-  if (
-    (await requestIsPublic()) &&
-    !(await activeProfile()) &&
-    !(await gatePassed())
-  ) {
-    const ipKey = `ip:${clientIp(request)}`;
-    const wait = retryAfterMs(ipKey);
+  // Strangers must not self-register. Creation needs an existing session, or
+  // the instance password. The password check shares the login lockout so it
+  // cannot be brute-forced from this endpoint either.
+  if (!(await activeProfile()) && !(await gatePassed())) {
+    const ipKey = lockoutKey(request, "ip");
+    const wait = ipKey ? retryAfterMs(ipKey) : 0;
     if (wait > 0) {
       return NextResponse.json(
         { error: "Too many attempts. Try again later." },
@@ -80,7 +73,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       instancePasswordConfigured() &&
       verifyInstancePassword(body.data.password ?? "");
     if (!allowed) {
-      recordFailure(ipKey);
+      if (ipKey) recordFailure(ipKey);
+      // Same per-attempt cost as the login and gate routes; without it an
+      // unidentified client could spend the whole global limit guessing.
+      await authenticationFailureDelay();
       return NextResponse.json(
         {
           error: instancePasswordConfigured()
@@ -90,20 +86,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: instancePasswordConfigured() ? 403 : 503 },
       );
     }
-    recordSuccess(ipKey);
-  }
-  if ((await requestIsPublic()) && !body.data.profilePassword) {
-    return NextResponse.json(
-      { error: "A profile password is required on public deployments." },
-      { status: 400 },
-    );
+    if (ipKey) recordSuccess(ipKey);
   }
   try {
-    const profile = createProfile(
-      body.data.displayName,
-      body.data.avatarSlug,
-      body.data.profilePassword,
-    );
+    const profile = createProfile(body.data.displayName, body.data.avatarSlug);
     return NextResponse.json(
       { profile: toPublicProfile(profile) },
       { status: 201 },

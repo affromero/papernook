@@ -8,7 +8,6 @@ let tmpDir: string;
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-test-"));
   process.env.PAPERNOOK_DATA_DIR = tmpDir;
-  delete process.env.PUBLIC_EXPOSURE;
   delete process.env.SESSION_SECRET;
   vi.resetModules();
 });
@@ -55,35 +54,55 @@ describe("profiles on disk", () => {
     expect(u.getProfile("a/../../b")).toBeNull();
   });
 
-  it("stores a salted profile verifier and never exposes it publicly", async () => {
+  it("keeps no per-profile credential and never leaks internals publicly", async () => {
     const u = await users();
-    const created = u.createProfile("Ana", "jaguar", "a-long-profile-password");
-    expect(created.passwordHash).toMatch(/^scrypt\$/);
-    expect(created.passwordHash).not.toContain("a-long-profile-password");
-    expect(
-      await u.verifyProfilePassword(created, "a-long-profile-password"),
-    ).toBe(true);
-    expect(await u.verifyProfilePassword(created, "wrong-password")).toBe(
-      false,
-    );
-    expect(JSON.stringify(u.toPublicProfile(created))).not.toContain(
-      "passwordHash",
-    );
+    const created = u.createProfile("Ana", "jaguar");
+    // Profiles separate whose chats are whose; the instance password is the
+    // only credential, so a profile carries nothing to brute-force.
+    const serialized = JSON.stringify(created);
+    expect(serialized).not.toContain("passwordHash");
+    const publicShape = JSON.stringify(u.toPublicProfile(created));
+    expect(publicShape).not.toContain(created.captureToken);
+    expect(publicShape).not.toContain("sessionEpoch");
   });
 
-  it("rotates the session epoch when the profile password changes", async () => {
+  it("refuses a profile file that names a different user", async () => {
     const u = await users();
-    u.createProfile("Ana", undefined, "original-profile-password");
-    const s = await session();
-    const oldSession = s.createSessionToken("ana");
-    u.setProfilePassword("ana", "replacement-profile-password");
-    expect(s.verifySessionToken(oldSession)).toBeNull();
-    expect(
-      await u.verifyProfilePassword(
-        u.getProfile("ana"),
-        "replacement-profile-password",
-      ),
-    ).toBe(true);
+    u.createProfile("Ana", "jaguar");
+    u.createProfile("Ben", "toucan");
+
+    // Ana's file is edited to claim Ben's identity. Returning it would give
+    // an Ana session username "ben", so every later write — capture token,
+    // Zotero config, deletion — would land in Ben's storage.
+    const anaFile = path.join(tmpDir, "users", "ana", "profile.json");
+    const forged = JSON.parse(fs.readFileSync(anaFile, "utf8")) as {
+      username: string;
+    };
+    forged.username = "ben";
+    fs.writeFileSync(anaFile, JSON.stringify(forged));
+
+    expect(u.getProfile("ana")).toBeNull();
+    expect(u.getProfile("ben")?.username).toBe("ben");
+    expect(u.getProfile("ben")?.avatarSlug).toBe("toucan");
+  });
+
+  it("erases a legacy password verifier from disk on first read", async () => {
+    const u = await users();
+    u.createProfile("Ana", "jaguar");
+    const anaFile = path.join(tmpDir, "users", "ana", "profile.json");
+    const legacy = JSON.parse(fs.readFileSync(anaFile, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    legacy.passwordHash = "scrypt$16384$8$1$c2FsdA$aGFzaA";
+    fs.writeFileSync(anaFile, JSON.stringify(legacy));
+
+    expect(u.getProfile("ana")).not.toBeNull();
+
+    // Gone from the returned object and from the file, so an obsolete
+    // verifier is not left waiting to be cracked offline.
+    expect(JSON.stringify(u.getProfile("ana"))).not.toContain("passwordHash");
+    expect(fs.readFileSync(anaFile, "utf8")).not.toContain("passwordHash");
   });
 });
 

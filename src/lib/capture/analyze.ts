@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { z } from "zod";
 import { getProvider, hasConfiguredProvider } from "../agent/registry";
+import { MAX_EXTRACTED_TEXT_BYTES } from "../pdf-limits";
 import { listTopics, listPapers } from "../library/papers";
 import { USER_AGENT } from "./download";
 
@@ -20,7 +21,14 @@ export function extractPdfText(pdfPath: string): Promise<string> {
     let out = "";
     const timer = setTimeout(() => child.kill("SIGTERM"), 60_000);
     child.stdout.on("data", (chunk: Buffer) => {
+      if (out.length >= MAX_EXTRACTED_TEXT_BYTES) return;
       out += chunk.toString();
+      // A compression bomb expands far faster than it downloads; stop
+      // reading rather than let one capture exhaust the heap.
+      if (out.length >= MAX_EXTRACTED_TEXT_BYTES) {
+        out = out.slice(0, MAX_EXTRACTED_TEXT_BYTES);
+        child.kill("SIGTERM");
+      }
     });
     child.on("close", () => {
       clearTimeout(timer);

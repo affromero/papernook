@@ -72,33 +72,22 @@ export function proxy(request: NextRequest): NextResponse {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const csp = contentSecurityPolicy(nonce);
   const { pathname } = request.nextUrl;
-  const publicRequest = process.env.PUBLIC_EXPOSURE === "true";
-  const privateSharePath =
-    !publicRequest &&
-    (pathname === "/share" ||
-      pathname.startsWith("/share/") ||
-      pathname === "/api/v1/shares" ||
-      pathname.startsWith("/api/v1/shares/") ||
-      pathname === "/invite" ||
-      pathname.startsWith("/invite/"));
-  if (publicRequest) {
-    const wait = consumeRequestLimit(
-      `request:${clientIp(request)}`,
-      publicRequestLimit(),
-      60_000,
+  const wait = consumeRequestLimit(
+    `request:${clientIp(request)}`,
+    publicRequestLimit(),
+    60_000,
+  );
+  if (wait > 0) {
+    return secureResponse(
+      NextResponse.json(
+        { error: "Too many requests." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(Math.ceil(wait / 1000)) },
+        },
+      ),
+      csp,
     );
-    if (wait > 0) {
-      return secureResponse(
-        NextResponse.json(
-          { error: "Too many requests." },
-          {
-            status: 429,
-            headers: { "Retry-After": String(Math.ceil(wait / 1000)) },
-          },
-        ),
-        csp,
-      );
-    }
   }
   if (
     !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
@@ -120,7 +109,15 @@ export function proxy(request: NextRequest): NextResponse {
     pathname === "/add" ||
     pathname === "/add/confirm" ||
     pathname === "/add/status" ||
-    privateSharePath
+    // Invite links must reach the gate route itself to open it.
+    pathname === "/invite" ||
+    // A share link's unguessable id IS its credential: the point is handing a
+    // single reading to someone who has no account here. Mutations under
+    // /api/v1/shares stay authenticated inside the route.
+    pathname === "/share" ||
+    pathname.startsWith("/share/") ||
+    pathname === "/api/v1/shares" ||
+    pathname.startsWith("/api/v1/shares/")
   ) {
     const response = continueRequest(request, csp);
     response.headers.set("Cache-Control", "private, no-store");

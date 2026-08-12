@@ -52,11 +52,6 @@ export function ensureDataDirs(): void {
 export function sessionSecret(): string {
   const fromEnv = process.env.SESSION_SECRET;
   if (fromEnv && fromEnv.length >= 32) return fromEnv;
-  if (isPublicExposure()) {
-    throw new Error(
-      "PUBLIC_EXPOSURE requires a stable SESSION_SECRET of at least 32 characters.",
-    );
-  }
   const file = path.join(dataRoot(), "session-secret");
   try {
     const existing = fs.readFileSync(file, "utf8").trim();
@@ -68,9 +63,4 @@ export function sessionSecret(): string {
   fs.mkdirSync(dataRoot(), { recursive: true });
   fs.writeFileSync(file, secret, { mode: 0o600 });
   return secret;
-}
-
-/** True when the instance is exposed beyond the private network. */
-export function isPublicExposure(): boolean {
-  return process.env.PUBLIC_EXPOSURE === "true";
 }

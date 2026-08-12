@@ -52,18 +52,26 @@ describe("request proxy", () => {
     );
   });
 
-  it("gates every hostname and public share when public exposure is enabled", () => {
-    vi.stubEnv("PUBLIC_EXPOSURE", "true");
-    vi.stubEnv("PAPERNOOK_PUBLIC_HOST", "papers.example.com");
+  it("gates every hostname identically, with no host-selected weak mode", () => {
+    // Host headers are attacker-controlled, so no hostname may unlock a
+    // softer path: a raw-port request is gated exactly like the public name.
     const rawPort = proxy(
       new NextRequest("http://127.0.0.1:3000/settings", {
         headers: { host: "localhost" },
       }),
     );
+    const publicName = proxy(
+      new NextRequest("https://papers.example.com/settings"),
+    );
+    expect(rawPort.status).toBe(307);
+    expect(publicName.status).toBe(307);
+  });
+
+  it("lets a share link through on its id alone", () => {
+    // The unguessable share id is the credential; a recipient has no account.
     const share = proxy(
       new NextRequest("https://papers.example.com/share/nlp/paper/token"),
     );
-    expect(rawPort.status).toBe(307);
-    expect(share.status).toBe(307);
+    expect(share.status).toBe(200);
   });
 });

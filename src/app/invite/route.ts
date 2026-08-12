@@ -5,7 +5,6 @@ import {
   gateCookieOptions,
   GATE_COOKIE,
 } from "@/lib/auth/gate";
-import { isPublicExposure } from "@/lib/data-dir";
 
 /**
  * Invite links: /invite?t=<signed token>. A valid invite opens the gate
@@ -25,7 +24,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     status: 302,
     headers: { location: "/login" },
   });
-  if (!isPublicExposure() && verifyInviteToken(token)) {
+  if (verifyInviteToken(token)) {
     response.cookies.set(GATE_COOKIE, createGateToken(), gateCookieOptions());
   }
   return response;

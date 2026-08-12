@@ -11,13 +11,11 @@ import {
 } from "@/lib/agent/registry";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { activeProfile } from "@/lib/auth/session";
-import { isAdmin, verifyProfilePassword } from "@/lib/auth/users";
+import { isAdmin } from "@/lib/auth/users";
 
 export const dynamic = "force-dynamic";
 
-const schema = z.object({
-  password: z.string().max(200).optional(),
-});
+const schema = z.object({});
 
 function json(body: object, status = 200): NextResponse {
   return NextResponse.json(body, {
@@ -32,12 +30,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!isAdmin(profile)) return json({ error: "Admin only." }, 403);
   const body = schema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) return json({ error: "Invalid request." }, 400);
-  if (
-    profile.passwordHash &&
-    !(await verifyProfilePassword(profile, body.data.password ?? ""))
-  ) {
-    return json({ error: "Your profile password is required." }, 401);
-  }
   try {
     const provider = configuredProviderId();
     if (!credentialReloadAvailable(provider)) {

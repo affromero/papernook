@@ -1,7 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const password = "admin-created-password";
-const profilePassword = "maya-profile-password";
 const pasteShortcut = process.platform === "darwin" ? "Meta+V" : "Control+V";
 const copyShortcut = process.platform === "darwin" ? "Meta+C" : "Control+C";
 
@@ -10,8 +9,6 @@ async function login(page: Page): Promise<void> {
   await page.getByRole("textbox", { name: "Password" }).fill(password);
   await page.getByRole("button", { name: "Enter" }).click();
   await page.getByRole("button", { name: "Switch to Maya" }).click();
-  await page.getByLabel("Profile password").fill(profilePassword);
-  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL("/");
 }
 

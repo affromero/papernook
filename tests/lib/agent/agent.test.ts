@@ -113,8 +113,7 @@ describe("provider registry", () => {
     }
   });
 
-  it("allows CLI providers on public deployments — the admin's password-confirmed Settings choice is the consent", async () => {
-    vi.stubEnv("PUBLIC_EXPOSURE", "true");
+  it("allows CLI providers — the admin's Settings choice is the consent", async () => {
     vi.stubEnv("AI_PROVIDER", "codex");
     let registry = await import("@/lib/agent/registry");
     expect(registry.getProvider().id).toBe("codex");

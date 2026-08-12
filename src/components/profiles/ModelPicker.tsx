@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./ModelPicker.module.css";
-import { promptSudoPassword, rejectSudoPassword } from "../sudoPassword";
 
 /**
  * Admin control: which provider answers (claude-code, codex, or an API key)
@@ -43,7 +42,6 @@ interface AgentState {
   liveList: boolean;
   admin: boolean;
   available?: boolean;
-  publicExposure: boolean;
   webAccess: boolean;
   webCapable: boolean;
   credentialReloadAvailable: boolean;
@@ -109,10 +107,6 @@ export function ModelPicker() {
     baseUrl?: string | null;
     webAccess?: boolean;
   }): Promise<void> {
-    const password = promptSudoPassword(
-      "Enter your profile password to authorize this system change.",
-    );
-    if (password === null) return;
     const version = requestVersion.current + 1;
     requestVersion.current = version;
     setBusy(true);
@@ -122,11 +116,10 @@ export function ModelPicker() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...body, password }),
+        body: JSON.stringify(body),
       });
       const data = (await res.json()) as AgentState & { error?: string };
       if (!res.ok) {
-        if (res.status === 401) rejectSudoPassword();
         setStatus(data.error ?? "Could not save.");
         return;
       }
@@ -150,10 +143,6 @@ export function ModelPicker() {
     ) {
       return;
     }
-    const password = promptSudoPassword(
-      "Enter your profile password to authorize this system change.",
-    );
-    if (password === null) return;
     setBusy(true);
     setStatus("Reloading CLI login…");
     try {
@@ -161,14 +150,12 @@ export function ModelPicker() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ password }),
       });
       const data = (await response.json()) as {
         error?: string;
         readiness?: Readiness;
       };
       if (!response.ok) {
-        if (response.status === 401) rejectSudoPassword();
         setStatus(data.error ?? "Could not reload CLI login.");
         return;
       }
@@ -188,10 +175,6 @@ export function ModelPicker() {
   }
 
   async function testModel(): Promise<void> {
-    const password = promptSudoPassword(
-      "Enter your profile password to authorize this model test.",
-    );
-    if (password === null) return;
     setBusy(true);
     setStatus("Testing the selected model…");
     try {
@@ -199,7 +182,6 @@ export function ModelPicker() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ password }),
       });
       const data = (await response.json()) as {
         error?: string;
@@ -208,7 +190,6 @@ export function ModelPicker() {
         elapsedMs?: number;
       };
       if (!response.ok) {
-        if (response.status === 401) rejectSudoPassword();
         setStatus(data.error ?? "The selected model did not answer.");
         return;
       }
@@ -298,7 +279,7 @@ export function ModelPicker() {
           </span>
         </div>
       )}
-      {state.publicExposure && state.provider === "codex" && (
+      {state.provider === "codex" && (
         <p className={styles.hint} role="note">
           Heads up: codex runs with a read-only sandbox that can still read
           library data if a malicious paper prompt-injects a turn. On a public

@@ -45,8 +45,6 @@ jobs:
             --publish 127.0.0.1:3000:3000 \
             --env AI_PROVIDER=openai \
             --env OPENAI_API_KEY=test-only \
-            --env PUBLIC_EXPOSURE=true \
-            --env PAPERNOOK_PUBLIC_HOST=127.0.0.1 \
             --env PAPERNOOK_PASSWORD=ci-access-password-unique \
             --env SESSION_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
             papernook:ci

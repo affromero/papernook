@@ -59,6 +59,28 @@ const nextConfig: NextConfig = {
           { key: "Access-Control-Allow-Origin", value: "*" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           {
+            // The scene code running here is AI-authored and therefore
+            // steerable by a malicious paper. The opaque origin stops it
+            // reading the app, but says nothing about what it may SEND, so
+            // every outbound channel is closed: no fetch/XHR/WebSocket
+            // (connect-src), no remote image beacon (img-src), no form post.
+            // 'unsafe-inline' is unavoidable — the scene arrives as inline
+            // module text — and is harmless once nothing can leave.
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'none'",
+              "script-src 'self' 'unsafe-inline'",
+              "style-src 'unsafe-inline'",
+              "img-src 'self' data: blob:",
+              "font-src data:",
+              "connect-src 'none'",
+              "worker-src 'none'",
+              "form-action 'none'",
+              "base-uri 'none'",
+              "frame-ancestors 'self'",
+            ].join("; "),
+          },
+          {
             key: "Cache-Control",
             value: "public, max-age=86400, stale-while-revalidate=604800",
           },

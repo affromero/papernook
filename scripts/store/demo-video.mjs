@@ -28,7 +28,6 @@ const env = {
   PAPERNOOK_DATA_DIR: join(ROOT, ".playwright-data"),
   SESSION_SECRET:
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-  PUBLIC_EXPOSURE: "true",
   PAPERNOOK_PUBLIC_HOST: "127.0.0.1",
   PAPERNOOK_PUBLIC_REQUEST_LIMIT: "1000",
   PAPERNOOK_PASSWORD: "admin-created-password",
@@ -115,8 +114,6 @@ await setup
   .fill("admin-created-password");
 await setup.getByRole("button", { name: "Enter" }).click();
 await setup.getByRole("button", { name: "Switch to Maya" }).click();
-await setup.getByLabel("Profile password").fill("maya-profile-password");
-await setup.getByRole("button", { name: "Sign in" }).click();
 await setup.waitForURL(`${BASE}/`);
 let [worker] = ctx.serviceWorkers();
 worker ??= await ctx.waitForEvent("serviceworker");

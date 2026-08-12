@@ -24,9 +24,7 @@ afterEach(() => {
 
 async function routeAs(role: "admin" | "member" | "anonymous") {
   const users = await import("@/lib/auth/users");
-  const admin =
-    users.getProfile("admin") ??
-    users.createProfile("Admin", undefined, "correct-password");
+  const admin = users.getProfile("admin") ?? users.createProfile("Admin");
   const member = users.getProfile("member") ?? users.createProfile("Member");
   vi.doMock("@/lib/auth/session", () => ({
     activeProfile: async () =>
@@ -48,7 +46,7 @@ function request(password?: string): NextRequest {
 }
 
 describe("selected model test route", () => {
-  it("requires a signed-in admin with the profile password", async () => {
+  it("requires a signed-in admin", async () => {
     const anonymous = await routeAs("anonymous");
     expect((await anonymous.POST(request())).status).toBe(401);
 
@@ -56,15 +54,12 @@ describe("selected model test route", () => {
     const member = await routeAs("member");
     expect((await member.POST(request())).status).toBe(403);
 
-    vi.resetModules();
-    const admin = await routeAs("admin");
-    expect((await admin.POST(request("wrong"))).status).toBe(401);
     expect(execute).not.toHaveBeenCalled();
   });
 
   it("tests only the selected provider with a bounded non-web prompt", async () => {
     const route = await routeAs("admin");
-    const response = await route.POST(request("correct-password"));
+    const response = await route.POST(request());
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");

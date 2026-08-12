@@ -31,9 +31,7 @@ afterEach(() => {
 
 async function routeAs(role: "admin" | "member" | "anonymous") {
   const users = await import("@/lib/auth/users");
-  const admin =
-    users.getProfile("admin") ??
-    users.createProfile("Admin", undefined, "correct-password");
+  const admin = users.getProfile("admin") ?? users.createProfile("Admin");
   const member = users.getProfile("member") ?? users.createProfile("Member");
   vi.doMock("@/lib/auth/session", () => ({
     activeProfile: async () =>
@@ -72,17 +70,10 @@ describe("credential reload settings route", () => {
     expect(reloadProviderCredentials).not.toHaveBeenCalled();
   });
 
-  it("requires the admin profile password", async () => {
-    const route = await routeAs("admin");
-
-    expect((await route.POST(request("wrong-password"))).status).toBe(401);
-    expect(reloadProviderCredentials).not.toHaveBeenCalled();
-  });
-
   it("rejects providers whose credentials are not local", async () => {
     reloadAvailable = false;
     const route = await routeAs("admin");
-    const response = await route.POST(request("correct-password"));
+    const response = await route.POST(request());
 
     expect(response.status).toBe(409);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -91,7 +82,7 @@ describe("credential reload settings route", () => {
 
   it("reloads credentials and reports provider readiness", async () => {
     const route = await routeAs("admin");
-    const response = await route.POST(request("correct-password"));
+    const response = await route.POST(request());
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");

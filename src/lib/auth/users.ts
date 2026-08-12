@@ -10,10 +10,13 @@ import { isAnimalSlug, animalForSeed } from "./avatars";
 
 /**
  * Profiles on disk: data/users/<username>/profile.json. The shared library is
- * common to everyone; chats and capture tokens are per-profile. Private
- * requests may use an open picker. Public requests require both the instance
- * access gate and a per-profile password so one reader cannot impersonate
- * another.
+ * common to everyone; chats and capture tokens are per-profile.
+ *
+ * One credential guards the instance: PAPERNOOK_PASSWORD, checked at the
+ * access gate. Past the gate, picking a profile is a choice, not an
+ * authentication step — profiles separate whose chats are whose, the way a
+ * streaming service separates viewers, and are deliberately not a security
+ * boundary between people who share the instance password.
  */
 
 export interface ZoteroLibraryTarget {
@@ -42,8 +45,6 @@ export interface Profile {
   captureToken: string;
   /** Revokes every signed session when the profile is deleted and recreated. */
   sessionEpoch?: string;
-  /** Scrypt password verifier. Null is allowed only for trusted private mode. */
-  passwordHash: string | null;
   /** True once the per-profile onboarding wizard has been completed. */
   wizardDone?: boolean;
   /** Connected Zotero library for pull-only sync. */
@@ -79,18 +80,43 @@ function readProfile(username: string): Profile | null {
   if (!USERNAME_RE.test(username)) return null;
   try {
     const raw = fs.readFileSync(profilePath(username), "utf8");
-    return JSON.parse(raw) as Profile;
+    const parsed = JSON.parse(raw) as Profile & { passwordHash?: string };
+    // The name inside the file must match the directory it was read from.
+    // Otherwise a session for "ana" would carry username "ben", and every
+    // later write — capture token, Zotero config, wizard state, deletion —
+    // would land in Ben's storage.
+    if (parsed.username !== username) return null;
+    // A profile written before per-profile passwords were removed still
+    // carries its scrypt verifier. Drop it on read so it is never handed
+    // around or written back, and erase it from disk.
+    if (parsed.passwordHash !== undefined) {
+      delete parsed.passwordHash;
+      try {
+        writeProfileAt(username, parsed);
+      } catch {
+        // A read-only data dir must not break sign-in; the field is already
+        // gone from the object callers see.
+      }
+    }
+    return parsed;
   } catch {
     return null;
   }
 }
 
 function writeProfile(profile: Profile): void {
-  const dir = path.dirname(profilePath(profile.username));
+  writeProfileAt(profile.username, profile);
+}
+
+function writeProfileAt(username: string, profile: Profile): void {
+  // Any stray verifier from an older release dies here too, so a profile
+  // touched by any normal update stops carrying one.
+  delete (profile as Profile & { passwordHash?: string }).passwordHash;
+  const dir = path.dirname(profilePath(username));
   fs.mkdirSync(dir, { recursive: true });
   const tmp = path.join(dir, `.profile.${process.pid}.tmp`);
   fs.writeFileSync(tmp, JSON.stringify(profile, null, 2), { mode: 0o600 });
-  fs.renameSync(tmp, profilePath(profile.username));
+  fs.renameSync(tmp, profilePath(username));
 }
 
 export function listProfiles(): Profile[] {
@@ -120,119 +146,9 @@ export function toPublicProfile(profile: Profile): PublicProfile {
 
 export class ProfileError extends Error {}
 
-const PASSWORD_MIN_LENGTH = 12;
-const SCRYPT_KEY_LENGTH = 32;
-const SCRYPT_COST = 16_384;
-const SCRYPT_BLOCK_SIZE = 8;
-const SCRYPT_PARALLELIZATION = 1;
-const SCRYPT_MAX_MEMORY = 64 * 1024 * 1024;
-
-export function validateProfilePassword(password: string): void {
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    throw new ProfileError(
-      `Profile password must be at least ${PASSWORD_MIN_LENGTH} characters.`,
-    );
-  }
-  if (password.length > 200) {
-    throw new ProfileError("Profile password must be at most 200 characters.");
-  }
-}
-
-export function hashProfilePassword(password: string): string {
-  validateProfilePassword(password);
-  const salt = crypto.randomBytes(16);
-  const derived = crypto.scryptSync(password, salt, SCRYPT_KEY_LENGTH, {
-    N: SCRYPT_COST,
-    r: SCRYPT_BLOCK_SIZE,
-    p: SCRYPT_PARALLELIZATION,
-    maxmem: SCRYPT_MAX_MEMORY,
-  });
-  return [
-    "scrypt",
-    SCRYPT_COST,
-    SCRYPT_BLOCK_SIZE,
-    SCRYPT_PARALLELIZATION,
-    salt.toString("base64url"),
-    derived.toString("base64url"),
-  ].join("$");
-}
-
-function scrypt(
-  password: string,
-  salt: Buffer,
-  length: number,
-): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(
-      password,
-      salt,
-      length,
-      {
-        N: SCRYPT_COST,
-        r: SCRYPT_BLOCK_SIZE,
-        p: SCRYPT_PARALLELIZATION,
-        maxmem: SCRYPT_MAX_MEMORY,
-      },
-      (error, derived) => {
-        if (error) reject(error);
-        else resolve(derived);
-      },
-    );
-  });
-}
-
-const DUMMY_PASSWORD_HASH = hashProfilePassword(
-  "papernook-dummy-password-never-valid",
-);
-
-export async function verifyProfilePassword(
-  profile: Profile | null,
-  password: string,
-): Promise<boolean> {
-  const encoded = profile?.passwordHash ?? DUMMY_PASSWORD_HASH;
-  const [algorithm, nRaw, rRaw, pRaw, saltRaw, hashRaw] = encoded.split("$");
-  if (
-    algorithm !== "scrypt" ||
-    !nRaw ||
-    !rRaw ||
-    !pRaw ||
-    !saltRaw ||
-    !hashRaw
-  ) {
-    return false;
-  }
-  const N = Number(nRaw);
-  const r = Number(rRaw);
-  const p = Number(pRaw);
-  if (
-    N !== SCRYPT_COST ||
-    r !== SCRYPT_BLOCK_SIZE ||
-    p !== SCRYPT_PARALLELIZATION
-  ) {
-    return false;
-  }
-  try {
-    const expected = Buffer.from(hashRaw, "base64url");
-    const actual = await scrypt(
-      password,
-      Buffer.from(saltRaw, "base64url"),
-      expected.length,
-    );
-    return Boolean(
-      profile?.passwordHash &&
-      password &&
-      actual.length === expected.length &&
-      crypto.timingSafeEqual(actual, expected),
-    );
-  } catch {
-    return false;
-  }
-}
-
 export function createProfile(
   displayName: string,
   avatarSlug?: string,
-  password?: string,
 ): Profile {
   ensureDataDirs();
   const username = normalizeUsername(displayName);
@@ -254,21 +170,8 @@ export function createProfile(
     role: isFirst ? "admin" : "member",
     captureToken: crypto.randomBytes(24).toString("hex"),
     sessionEpoch: crypto.randomBytes(16).toString("hex"),
-    passwordHash: password ? hashProfilePassword(password) : null,
     createdAt: new Date().toISOString(),
   };
-  writeProfile(profile);
-  return profile;
-}
-
-export function setProfilePassword(
-  username: string,
-  password: string,
-): Profile {
-  const profile = readProfile(username);
-  if (!profile) throw new ProfileError("Unknown profile.");
-  profile.passwordHash = hashProfilePassword(password);
-  profile.sessionEpoch = crypto.randomBytes(16).toString("hex");
   writeProfile(profile);
   return profile;
 }

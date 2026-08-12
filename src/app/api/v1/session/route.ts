@@ -5,7 +5,6 @@ import {
   toPublicProfile,
   instancePasswordConfigured,
   verifyInstancePassword,
-  verifyProfilePassword,
 } from "@/lib/auth/users";
 import {
   createSessionToken,
@@ -14,7 +13,6 @@ import {
   activeProfile,
 } from "@/lib/auth/session";
 import { gatePassed, GATE_COOKIE, gateCookieOptions } from "@/lib/auth/gate";
-import { requestIsPublic } from "@/lib/auth/exposure";
 import {
   recordFailure,
   recordSuccess,
@@ -22,16 +20,14 @@ import {
 } from "@/lib/auth/rate-limit";
 import {
   authenticationFailureDelay,
-  clientIp,
+  lockoutKey,
   rejectCrossSiteMutation,
 } from "@/lib/auth/request-security";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 const loginSchema = z.object({
   username: z.string().min(2).max(31),
-  /** Per-profile credential. Required on public deployments. */
-  password: z.string().max(200).optional(),
-  /** Direct API clients may prove the outer gate without a gate cookie. */
+  /** Direct API clients may prove the gate without a gate cookie. */
   accessPassword: z.string().max(200).optional(),
 });
 
@@ -49,52 +45,47 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!body.success) {
     return NextResponse.json({ error: "Invalid login." }, { status: 400 });
   }
-  const { username, password, accessPassword } = body.data;
+  const { username, accessPassword } = body.data;
 
-  if (await requestIsPublic()) {
-    if (!instancePasswordConfigured()) {
-      return NextResponse.json(
-        {
-          error:
-            "Public access is not configured. The admin must set PAPERNOOK_PASSWORD.",
-        },
-        { status: 503 },
-      );
-    }
-    const ipKey = `ip:${clientIp(request)}`;
-    const accountKey = `user:${username}`;
-    const wait = Math.max(retryAfterMs(ipKey), retryAfterMs(accountKey));
-    if (wait > 0) {
-      return NextResponse.json(
-        { error: "Too many attempts. Try again later." },
-        {
-          status: 429,
-          headers: { "Retry-After": String(Math.ceil(wait / 1000)) },
-        },
-      );
-    }
-
-    // The instance gate and profile credential are separate boundaries.
-    if (!(await gatePassed())) {
-      if (!accessPassword || !verifyInstancePassword(accessPassword)) {
-        recordFailure(ipKey);
-        recordFailure(accountKey);
-        await authenticationFailureDelay();
-        return NextResponse.json({ error: "Invalid login." }, { status: 401 });
-      }
-    }
-    const candidate = getProfile(username);
-    const passwordValid = await verifyProfilePassword(
-      candidate,
-      password ?? "",
+  // The instance password is the only credential, so it is checked on every
+  // login — there is no mode in which a session is issued without it.
+  if (!instancePasswordConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          "Access is not configured. The admin must set PAPERNOOK_PASSWORD.",
+      },
+      { status: 503 },
     );
-    if (!candidate || !passwordValid) {
-      recordFailure(ipKey);
-      recordFailure(accountKey);
+  }
+  // Throttle instance-password guessing per client. A per-username lockout
+  // would guard nothing (profiles have no credential) while letting an
+  // unauthenticated caller disable a named profile for everyone.
+  //
+  // Only clients we can actually identify get a lockout bucket. Without a
+  // trusted proxy every caller resolves to "unknown", and locking that shared
+  // bucket would let one attacker shut the whole instance out. Guessing is
+  // still bounded there by the per-request failure delay and the global
+  // request limit in the proxy.
+  const ipKey = lockoutKey(request, "ip");
+  const wait = ipKey ? retryAfterMs(ipKey) : 0;
+  if (wait > 0) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil(wait / 1000)) },
+      },
+    );
+  }
+
+  if (!(await gatePassed())) {
+    if (!accessPassword || !verifyInstancePassword(accessPassword)) {
+      if (ipKey) recordFailure(ipKey);
       await authenticationFailureDelay();
       return NextResponse.json({ error: "Invalid login." }, { status: 401 });
     }
-    recordSuccess(accountKey);
+    if (ipKey) recordSuccess(ipKey);
   }
 
   const profile = getProfile(username);
