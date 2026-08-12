@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
-import { isPublicExposure } from "@/lib/data-dir";
-import { isAdmin, verifyProfilePassword } from "@/lib/auth/users";
+import { isAdmin } from "@/lib/auth/users";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import {
   AGENT_EFFORTS,
@@ -86,7 +85,6 @@ async function snapshot(admin: boolean, probe: boolean) {
     liveList: offered.live,
     available: probe && provider ? statuses[provider] === "ready" : undefined,
     admin,
-    publicExposure: isPublicExposure(),
     webAccess: webAccessEnabled(),
     webCapable: provider ? getProvider(provider).capabilities.web : false,
     credentialReloadAvailable: provider
@@ -126,7 +124,6 @@ const schema = z.object({
   effort: z.enum(AGENT_EFFORTS).nullable().optional(),
   baseUrl: baseUrlSchema.nullable().optional(),
   webAccess: z.boolean().optional(),
-  password: z.string().max(200).optional(),
 });
 
 export async function PUT(request: NextRequest): Promise<NextResponse> {
@@ -139,15 +136,6 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   const body = schema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
     return NextResponse.json({ error: "Invalid selection." }, { status: 400 });
-  }
-  if (
-    me.passwordHash &&
-    !(await verifyProfilePassword(me, body.data.password ?? ""))
-  ) {
-    return NextResponse.json(
-      { error: "Your profile password is required." },
-      { status: 401 },
-    );
   }
   const targetProvider = body.data.provider ?? configuredProviderId();
   if (

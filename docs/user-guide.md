@@ -29,7 +29,7 @@ Open a library card to put the PDF and its chat side by side. Ask a starter
 question, continue an earlier conversation, or paste a marked-up screenshot
 and ask what it means.
 
-![A paper open beside its private conversation](images/product/paper-and-chat.png)
+![A paper open beside its per-profile conversation](images/product/paper-and-chat.png)
 
 On desktop, select **Focus reading** to give the PDF the full workspace and
 **Show chat** to restore it. On a tablet, use the persistent **Reading** and
@@ -61,6 +61,9 @@ Select **Share** on a paper, then **Create link & copy**. The link is
 view-only and revocable. The current annotated PDF is included; conversation
 snapshots stay off unless you select them.
 
+No login is required to open the link. Its unguessable share id is the
+capability to read that one shared paper.
+
 ![Share dialog showing its view-only boundary](images/product/share-reading.png)
 
 ## Invite a friend
@@ -75,9 +78,13 @@ First choose the route that matches your server:
 The result is the same in both cases:
 
 - **Shared:** papers, folders, tags, annotations, and exercises.
-- **Private to each profile:** chats, capture token, and Zotero connection.
-- **Two boundaries on public deployments:** an admin-owned server password
-  plus a distinct profile password for each reader.
+- **Organized by profile:** chats, capture token, and Zotero connection.
+- **One credential:** the admin-owned `PAPERNOOK_PASSWORD` instance access
+  password.
+
+Profiles are a courtesy boundary, like viewer profiles on a streaming service.
+They are not a security boundary. Anyone with the instance password can select
+any profile and read its chats.
 
 ### Option A: custom domain
 
@@ -87,19 +94,18 @@ Before inviting anyone, the owner should finish
 
 1. Open Papernook through its public URL, such as
    `https://papernook.example.com`.
-2. Send the public URL and share the server access password through a separate,
+2. Open **Settings → Invite a friend** and send the signed invite link or QR.
+   It opens the access gate for seven days without revealing the instance
+   password. Alternatively, share the instance password through a separate,
    secure channel.
-3. Your friend enters the server password, selects **Add profile**, chooses a
-   name and animal, and creates a unique profile password.
+3. Your friend opens the invite, selects **Add profile**, and chooses a name
+   and animal.
 4. They follow the welcome screen.
 
 ![Domain invite card with a QR code and numbered next steps](images/setup/invite-domain.png)
 
-Signed invite links are intentionally disabled in public mode: no link bypasses
-the server access password.
-
 > **Expected result:** the new profile opens its own welcome flow with a
-> personal capture token and reader setup. No existing chat is visible.
+> personal capture token and reader setup.
 
 ### Option B: Tailscale
 
@@ -124,8 +130,9 @@ instead of sending raw port `3000`:
    Papernook.
 4. Send the HTTPS app address from `tailscale serve status`, such as
    `https://papernook-server.example-tailnet.ts.net`.
-5. They open the address, select **Add profile**, choose a name and animal,
-   and follow the welcome screen.
+5. Send an invite link from **Settings → Invite a friend**, or share the
+   instance password securely. They open the address, pass the gate, select
+   **Add profile**, choose a name and animal, and follow the welcome screen.
 6. For iPad annotation, use
    `http://papernook-server.example-tailnet.ts.net:8080` as the WebDAV address
    and share the common `WEBDAV_USER` and `WEBDAV_PASS` securely.
@@ -141,17 +148,17 @@ them; see Tailscale's
 [inviting-versus-sharing guide](https://tailscale.com/docs/reference/inviting-vs-sharing)
 and [machine-sharing steps](https://tailscale.com/docs/features/sharing).
 
-> **Using a domain and Tailscale together?** Set
-> `PUBLIC_EXPOSURE=true` gates both the public hostname and the Tailscale Serve
-> hostname. Host headers never select a passwordless mode.
+> **Using a domain and Tailscale together?** Authentication is identical on
+> the public hostname and the Tailscale Serve hostname. Host headers never
+> select a passwordless route.
 
 ### If a friend cannot connect
 
 1. Confirm they can open the app URL before setting up WebDAV.
 2. For Tailscale, confirm the shared machine appears online in their Machines
    list and try its Tailscale IP.
-3. For a domain, verify they have the current server access password and their
-   own profile password.
+3. Verify their invite link is valid or they have the current instance access
+   password.
 4. For Tailscale, run `tailscale serve status` and open the listed HTTPS URL.
    For a domain, confirm HTTPS reaches Caddy.
 5. Test WebDAV separately with the URL for the same route and verify the
@@ -159,7 +166,7 @@ and [machine-sharing steps](https://tailscale.com/docs/features/sharing).
 
 View or rotate your personal capture token at any time in **Settings**.
 
-## Delete a profile and its private data
+## Delete a profile and its per-profile data
 
 Every reader can open **Settings → Delete my profile**, type their username,
 and erase their own personal data. An admin can use **Settings → Members** to

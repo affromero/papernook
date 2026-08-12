@@ -15,8 +15,6 @@ import { optionalWebdavUrl } from "@/lib/webdav-url";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
 import { CanvasLicenseCard } from "@/components/canvas/CanvasLicenseCard";
 import { captureBookmarklet } from "@/lib/capture/browser/submit";
-import { ProfilePassword } from "@/components/profiles/ProfilePassword";
-import { isPublicExposure } from "@/lib/data-dir";
 import styles from "./settings.module.css";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +26,6 @@ export default async function SettingsPage() {
   const profile = await activeProfile();
   if (!profile) redirect("/login");
   const admin = isAdmin(profile);
-  const publicExposure = isPublicExposure();
 
   const headerStore = await headers();
   const host = headerStore.get("host") ?? "localhost:3000";
@@ -254,17 +251,15 @@ export default async function SettingsPage() {
 
               <div className={styles.subsection}>
                 <h3>Invite someone</h3>
-                {admin && !publicExposure && instancePasswordConfigured() && (
+                {admin && instancePasswordConfigured() && (
                   <InviteQr
                     inviteUrl={`${base}/invite?t=${createInviteToken()}`}
                   />
                 )}
                 <p>
                   {admin
-                    ? publicExposure
-                      ? "Share the server access password separately. Each reader creates a distinct profile password."
-                      : "Share the invite link or QR. Their private setup wizard starts when they add a profile."
-                    : "Ask the admin for access. Never share your profile password."}
+                    ? "Share the invite link or QR — it opens the gate for seven days without revealing the access password. Their setup wizard starts when they add a profile."
+                    : "Ask the admin for an invite link or the access password."}
                 </p>
               </div>
             </section>
@@ -330,17 +325,6 @@ export default async function SettingsPage() {
                   <h2>My profile</h2>
                   <p>Manage personal data for {profile.displayName}.</p>
                 </div>
-              </div>
-              <div className={styles.subsection}>
-                <h3>Profile password</h3>
-                <p>
-                  Public deployments require this in addition to the server
-                  access password. Changing it signs out your other devices.
-                </p>
-                <ProfilePassword
-                  username={profile.username}
-                  configured={Boolean(profile.passwordHash)}
-                />
               </div>
               <div className={`${styles.subsection} ${styles.dangerZone}`}>
                 <h3>Delete profile</h3>

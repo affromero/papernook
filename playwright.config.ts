@@ -27,7 +27,6 @@ export default defineConfig({
       `node tests/e2e/seed.mjs && ` +
       `PAPERNOOK_DATA_DIR="${dataDir}" ` +
       `SESSION_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ` +
-      `PUBLIC_EXPOSURE=true PAPERNOOK_PUBLIC_HOST=127.0.0.1 ` +
       `PAPERNOOK_PUBLIC_REQUEST_LIMIT=1000 ` +
       `PAPERNOOK_PASSWORD=admin-created-password ` +
       `PATH="${process.cwd()}/tests/e2e/bin:$PATH" AI_PROVIDER=codex ` +

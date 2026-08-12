@@ -16,17 +16,17 @@ library.
 | WebDAV: `https://dav-papernook.example.com`                                                                             | WebDAV: `http://papernook-server:8080`                                                                               |
 | [Harden a public domain →](public-exposure.md)                                                                          | [Invite over Tailscale →](user-guide.md#option-b-tailscale)                                                          |
 
-On a public domain, the admin sets an instance password and each reader creates
-a separate profile password. Both are required: the outer password hides the
-server and profile list, while the profile password protects that reader's
-chats, tokens, and integrations.
+Papernook always requires one instance access password before showing the
+profile picker. After passing the gate, a visitor may choose any profile.
+Profiles organize chats, capture tokens, and Zotero connections by reader, but
+they are not a security boundary. Anyone with the instance password can switch
+profiles and read any profile's chats.
 
-![Public access gate shown before profile names](images/setup/access-gate.png)
+![Access gate shown before profile names](images/setup/access-gate.png)
 
 Tailscale Serve supplies the HTTPS address the app needs for secure sessions.
-When `PUBLIC_EXPOSURE=true`, every hostname is gated. This fail-closed behavior
-prevents a spoofed Host header or accidentally exposed raw port from selecting
-a passwordless route.
+Authentication is identical for every hostname. Host headers cannot select a
+passwordless route.
 
 ## Start here
 
@@ -51,8 +51,8 @@ For backup, restore, upgrades, rollback, and deployment checks, see
 ![Profile picker with two readers and an Add profile action](images/setup/profile-picker.png)
 
 Each person chooses a profile. Papers, folders, tags, annotations, and exercises
-are shared. Chats, capture tokens, and Zotero connections remain
-per-profile.
+are shared. Chats, capture tokens, and Zotero connections remain per-profile
+for organization, not access control.
 
 ### A setup screen that fills itself in
 
@@ -126,22 +126,22 @@ is optional compatibility for external PDF apps.
   logout. See `.env.example` for `CODEX_AUTH_DIR` and `CLAUDE_AUTH_DIR`.
   Configure both directories only when both local CLIs should be selectable.
 - Use a long, unique `WEBDAV_PASS`.
-- For a custom domain, set `PUBLIC_EXPOSURE`, `PAPERNOOK_PUBLIC_HOST`,
-  `PAPERNOOK_PASSWORD`, `SESSION_SECRET`, and loopback port bindings before
-  exposing the proxy.
+- Set the required `PAPERNOOK_PASSWORD` for every installation. For a custom
+  domain, also set `PAPERNOOK_PUBLIC_HOST` and `PAPERNOOK_WEBDAV_URL`, then keep
+  the default loopback port bindings behind Caddy.
 - Generate friend links from **Settings → Invite a friend** while visiting the
   URL the friend will use.
 - Rotate a capture token in Settings if it appears anywhere it should not.
-- Readers can erase their own private data from Settings; admins can remove
+- Readers can erase their own per-profile data from Settings; admins can remove
   members completely. Shared confirmed papers remain with anonymized
   attribution.
 
 ## Screenshot contract
 
 The images in this guide are browser snapshots of seeded, synthetic data—never
-a private library. The Playwright journey verifies the public gate, profile
-password-protected profile creation, local CLI detection, reading focus mode,
-sharing, graph, setup cards, and tablet layouts.
+a real library. The Playwright journey verifies the access gate, profile
+creation, local CLI detection, reading focus mode, sharing, graph, setup cards,
+and tablet layouts.
 
 ```bash
 npx playwright install chromium  # once per development machine

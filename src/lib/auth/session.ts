@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { sessionSecret } from "../data-dir";
-import { isPublicExposure } from "../data-dir";
 import { getProfile, type Profile } from "./users";
 
 /**
@@ -10,11 +9,10 @@ import { getProfile, type Profile } from "./users";
  */
 
 export const SESSION_COOKIE = "papernook_session";
-const PRIVATE_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 90;
-const PUBLIC_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 function sessionTtlMs(): number {
-  return isPublicExposure() ? PUBLIC_SESSION_TTL_MS : PRIVATE_SESSION_TTL_MS;
+  return SESSION_TTL_MS;
 }
 
 function sign(payload: string): string {

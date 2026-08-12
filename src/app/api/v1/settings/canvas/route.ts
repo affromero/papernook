@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
-import { isAdmin, verifyProfilePassword } from "@/lib/auth/users";
+import { isAdmin } from "@/lib/auth/users";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import {
   CanvasConfigError,
@@ -14,7 +14,6 @@ export const dynamic = "force-dynamic";
 
 const schema = z.object({
   licenseKey: z.string().trim().min(1).max(10_000).nullable(),
-  password: z.string().max(200).optional(),
 });
 
 function licenseRequired(request: NextRequest): boolean {
@@ -87,15 +86,6 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       { error: "Enter a valid tldraw license key." },
       { status: 400, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-  if (
-    profile.passwordHash &&
-    !(await verifyProfilePassword(profile, body.data.password ?? ""))
-  ) {
-    return NextResponse.json(
-      { error: "Your profile password is required." },
-      { status: 401, headers: { "Cache-Control": "no-store" } },
     );
   }
   try {

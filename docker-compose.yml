@@ -5,12 +5,15 @@
 # Required env (put them in .env next to this file):
 #   AI_PROVIDER=claude-code|codex|anthropic|openai|ollama|llamacpp|vllm
 #   WEBDAV_USER / WEBDAV_PASS      credentials for PDF Expert
+#   PAPERNOOK_PASSWORD             the instance access password (only credential)
 # Optional:
-#   PUBLIC_EXPOSURE=true           hardens public-host authentication
-#   PAPERNOOK_PUBLIC_HOST          domain that receives the public gate
-#   PAPERNOOK_WEBDAV_URL           required public WebDAV HTTPS endpoint
-#   PAPERNOOK_PASSWORD             shared instance access password
-#   APP_HOST / WEBDAV_HOST         use 127.0.0.1 behind a public TLS proxy
+#   PAPERNOOK_WEBDAV_URL           public WebDAV HTTPS endpoint
+#   APP_HOST / WEBDAV_HOST         both default to 127.0.0.1. Caddy terminates
+#                                  TLS in front (see Caddyfile.example). Set
+#                                  either to 0.0.0.0 only on a network you
+#                                  trust: WebDAV speaks plaintext HTTP, so its
+#                                  password is readable on the wire.
+#   TRUSTED_PROXY_HOPS             proxies in front; 0 when exposed directly
 #   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST, ANTHROPIC_API_KEY, OPENAI_API_KEY
 #   CLAUDE_AUTH_DIR / CODEX_AUTH_DIR override the Compose user's CLI homes
 #   OLLAMA_HOST / LLAMACPP_BASE_URL / VLLM_BASE_URL (models live in Settings)
@@ -28,11 +31,12 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "${APP_HOST:-0.0.0.0}:${APP_PORT:-3000}:3000"
+      - "${APP_HOST:-127.0.0.1}:${APP_PORT:-3000}:3000"
     env_file: .env
     environment:
       HOSTNAME: 0.0.0.0
       PAPERNOOK_VERSION: ${PAPERNOOK_VERSION:-dev}
+      PAPERNOOK_PASSWORD: ${PAPERNOOK_PASSWORD:?PAPERNOOK_PASSWORD is required}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       LLAMACPP_BASE_URL: ${LLAMACPP_BASE_URL:-http://host.docker.internal:8080}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-http://host.docker.internal:8000}
@@ -122,7 +126,7 @@ services:
         "writes",
       ]
     ports:
-      - "${WEBDAV_HOST:-0.0.0.0}:${WEBDAV_PORT:-8080}:8080"
+      - "${WEBDAV_HOST:-127.0.0.1}:${WEBDAV_PORT:-8080}:8080"
     volumes:
       - ./data/papers:/data/papers
     healthcheck:

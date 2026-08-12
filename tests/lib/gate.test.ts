@@ -35,25 +35,6 @@ describe("access gate token", () => {
   });
 });
 
-describe("host-based exposure", () => {
-  it("public host and its dav sibling are public; other hosts are private", async () => {
-    const { hostIsPublic } = await import("@/lib/auth/exposure");
-    const pub = "papernook.example.com";
-    expect(hostIsPublic("papernook.example.com", pub)).toBe(true);
-    expect(hostIsPublic("papernook.example.com:443", pub)).toBe(true);
-    expect(hostIsPublic("dav-papernook.example.com", pub)).toBe(true);
-    expect(hostIsPublic("localhost:3020", pub)).toBe(false);
-    expect(hostIsPublic("100.101.102.103:3020", pub)).toBe(false);
-    expect(hostIsPublic("server.tailnet-name.ts.net", pub)).toBe(false);
-  });
-
-  it("without a configured public host, every request counts as public", async () => {
-    const { hostIsPublic } = await import("@/lib/auth/exposure");
-    expect(hostIsPublic("anything.example.com", undefined)).toBe(true);
-    expect(hostIsPublic(null, "papernook.example.com")).toBe(true);
-  });
-});
-
 describe("invite tokens", () => {
   it("round-trips, is distinct from gate tokens, and expires", async () => {
     const g = await import("@/lib/auth/gate");

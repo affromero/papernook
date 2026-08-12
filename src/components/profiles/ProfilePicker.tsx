@@ -15,22 +15,19 @@ export interface PickerProfile {
 
 interface ProfilePickerProps {
   profiles: PickerProfile[];
-  publicMode: boolean;
 }
 
-type Editor =
-  { mode: "create" } | { mode: "login"; profile: PickerProfile } | null;
+type Editor = { mode: "create" } | null;
 
-export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
+export function ProfilePicker({ profiles }: ProfilePickerProps) {
   const router = useRouter();
   const [editor, setEditor] = useState<Editor>(null);
   const [name, setName] = useState("");
   const [avatarSlug, setAvatarSlug] = useState(ANIMAL_AVATARS[0].slug);
-  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function login(username: string, profilePassword = ""): Promise<void> {
+  async function login(username: string): Promise<void> {
     setBusy(true);
     setError(null);
     try {
@@ -38,7 +35,7 @@ export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ username, password: profilePassword }),
+        body: JSON.stringify({ username }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -54,12 +51,8 @@ export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
 
   function pick(profile: PickerProfile): void {
     if (busy) return;
-    if (publicMode) {
-      setPassword("");
-      setError(null);
-      setEditor({ mode: "login", profile });
-      return;
-    }
+    // Past the access gate everyone is a trusted member of the household, so
+    // picking a profile signs straight in — no second credential.
     void login(profile.username);
   }
 
@@ -74,7 +67,6 @@ export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
         body: JSON.stringify({
           displayName: name.trim(),
           avatarSlug,
-          profilePassword: publicMode ? password : undefined,
         }),
       });
       const body = (await res.json().catch(() => ({}))) as {
@@ -84,7 +76,7 @@ export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
       if (!res.ok || !body.profile)
         throw new Error(body.error ?? "Could not create the profile.");
       setBusy(false);
-      await login(body.profile.username, password);
+      await login(body.profile.username);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not create the profile.",
@@ -96,65 +88,6 @@ export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
   function closeEditor(): void {
     setEditor(null);
     setError(null);
-  }
-
-  if (editor?.mode === "login") {
-    return (
-      <div className={styles.root}>
-        <div className={styles.brand}>papernook</div>
-        <div
-          className={styles.panel}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Sign in as ${editor.profile.displayName}`}
-        >
-          <h1 className={styles.panelTitle}>
-            Sign in as {editor.profile.displayName}
-          </h1>
-          <label className={styles.fieldLabel} htmlFor="profile-password">
-            Profile password
-          </label>
-          <input
-            id="profile-password"
-            className={styles.nameInput}
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            maxLength={200}
-            autoFocus
-            autoComplete="current-password"
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && password.length > 0) {
-                void login(editor.profile.username, password);
-              }
-            }}
-          />
-          {error && (
-            <p className={styles.error} role="alert">
-              {error}
-            </p>
-          )}
-          <div className={styles.panelActions}>
-            <button
-              type="button"
-              className={styles.ghostBtn}
-              onClick={closeEditor}
-              disabled={busy}
-            >
-              <X size={16} aria-hidden="true" /> Cancel
-            </button>
-            <button
-              type="button"
-              className={styles.primaryBtn}
-              onClick={() => void login(editor.profile.username, password)}
-              disabled={busy || password.length === 0}
-            >
-              Sign in
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   if (editor?.mode === "create") {
@@ -180,30 +113,6 @@ export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
             placeholder="e.g. Andres"
             autoFocus
           />
-          {publicMode && (
-            <>
-              <label
-                className={styles.fieldLabel}
-                htmlFor="new-profile-password"
-              >
-                Profile password
-              </label>
-              <input
-                id="new-profile-password"
-                className={styles.nameInput}
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                minLength={12}
-                maxLength={200}
-                autoComplete="new-password"
-              />
-              <p className={styles.gateHint}>
-                Use at least 12 characters. This protects your private chats
-                from other people who know the server access password.
-              </p>
-            </>
-          )}
           <span className={styles.fieldLabel}>Avatar</span>
           <div
             className={styles.animalGrid}
@@ -250,11 +159,7 @@ export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
               type="button"
               className={styles.primaryBtn}
               onClick={() => void saveCreate()}
-              disabled={
-                busy ||
-                name.trim().length < 2 ||
-                (publicMode && password.length < 12)
-              }
+              disabled={busy || name.trim().length < 2}
             >
               <Check size={16} aria-hidden="true" /> Create
             </button>
@@ -299,7 +204,6 @@ export function ProfilePicker({ profiles, publicMode }: ProfilePickerProps) {
           onClick={() => {
             setName("");
             setAvatarSlug(ANIMAL_AVATARS[0].slug);
-            setPassword("");
             setError(null);
             setEditor({ mode: "create" });
           }}
