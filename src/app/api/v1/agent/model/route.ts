@@ -27,6 +27,7 @@ import {
   isLocalProvider,
   type ProviderId,
 } from "@/lib/agent/types";
+import { credentialReloadAvailable } from "@/lib/agent/credentials";
 
 /**
  * Admin agent controls: which provider answers and with which model.
@@ -88,6 +89,9 @@ async function snapshot(admin: boolean, probe: boolean) {
     publicExposure: isPublicExposure(),
     webAccess: webAccessEnabled(),
     webCapable: provider ? getProvider(provider).capabilities.web : false,
+    credentialReloadAvailable: provider
+      ? credentialReloadAvailable(provider)
+      : false,
   };
 }
 

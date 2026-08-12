@@ -46,6 +46,7 @@ interface AgentState {
   publicExposure: boolean;
   webAccess: boolean;
   webCapable: boolean;
+  credentialReloadAvailable: boolean;
 }
 
 export function ModelPicker() {
@@ -116,24 +117,110 @@ export function ModelPicker() {
     requestVersion.current = version;
     setBusy(true);
     setStatus(null);
-    const res = await fetch("/api/v1/agent/model", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ ...body, password }),
-    });
-    const data = (await res.json()) as AgentState & { error?: string };
-    setBusy(false);
-    if (!res.ok) {
-      if (res.status === 401) rejectSudoPassword();
-      setStatus(data.error ?? "Could not save.");
+    try {
+      const res = await fetch("/api/v1/agent/model", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ...body, password }),
+      });
+      const data = (await res.json()) as AgentState & { error?: string };
+      if (!res.ok) {
+        if (res.status === 401) rejectSudoPassword();
+        setStatus(data.error ?? "Could not save.");
+        return;
+      }
+      setState(data);
+      setValue(data.model ?? "");
+      setBaseUrl(data.baseUrl ?? "");
+      setStatus("Saved. Checking provider availability…");
+      void refreshDetails(version, true);
+    } catch {
+      setStatus("Could not save. Check the server connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reloadCredentials(): Promise<void> {
+    if (
+      !window.confirm(
+        "Reload the latest CLI login from this server? Active chats are not interrupted.",
+      )
+    ) {
       return;
     }
-    setState(data);
-    setValue(data.model ?? "");
-    setBaseUrl(data.baseUrl ?? "");
-    setStatus("Saved. Checking provider availability…");
-    void refreshDetails(version, true);
+    const password = promptSudoPassword(
+      "Enter your profile password to authorize this system change.",
+    );
+    if (password === null) return;
+    setBusy(true);
+    setStatus("Reloading CLI login…");
+    try {
+      const response = await fetch("/api/v1/settings/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password }),
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        readiness?: Readiness;
+      };
+      if (!response.ok) {
+        if (response.status === 401) rejectSudoPassword();
+        setStatus(data.error ?? "Could not reload CLI login.");
+        return;
+      }
+      const version = requestVersion.current + 1;
+      requestVersion.current = version;
+      setStatus(
+        data.readiness === "ready"
+          ? "CLI login reloaded. The provider is ready."
+          : "CLI login reloaded, but the provider still needs login.",
+      );
+      await refreshDetails(version, false);
+    } catch {
+      setStatus("Could not reload CLI login. Check the server connection.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function testModel(): Promise<void> {
+    const password = promptSudoPassword(
+      "Enter your profile password to authorize this model test.",
+    );
+    if (password === null) return;
+    setBusy(true);
+    setStatus("Testing the selected model…");
+    try {
+      const response = await fetch("/api/v1/agent/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password }),
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        provider?: string;
+        reply?: string;
+        elapsedMs?: number;
+      };
+      if (!response.ok) {
+        if (response.status === 401) rejectSudoPassword();
+        setStatus(data.error ?? "The selected model did not answer.");
+        return;
+      }
+      const seconds = ((data.elapsedMs ?? 0) / 1000).toFixed(1);
+      setStatus(
+        `${data.provider} answered in ${seconds}s: ${data.reply ?? "(empty response)"}`,
+      );
+    } catch {
+      setStatus("Could not test the model. Check the server connection.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -147,6 +234,21 @@ export function ModelPicker() {
           {state.provider && state.effort && <code>{state.effort} effort</code>}
         </span>
       </div>
+      {state.provider && (
+        <div className={styles.reloadRow}>
+          <button
+            type="button"
+            className={styles.secondaryAction}
+            disabled={busy}
+            onClick={() => void testModel()}
+          >
+            Test selected model
+          </button>
+          <span className={styles.hint}>
+            Sends one short prompt without web access or chat history.
+          </span>
+        </div>
+      )}
       <p className={styles.line}>Provider</p>
       <div className={styles.controls}>
         {Object.entries(state.statuses).map(([p, readiness]) => (
@@ -181,6 +283,21 @@ export function ModelPicker() {
           </button>
         ))}
       </div>
+      {state.credentialReloadAvailable && (
+        <div className={styles.reloadRow}>
+          <button
+            type="button"
+            className={styles.secondaryAction}
+            disabled={busy}
+            onClick={() => void reloadCredentials()}
+          >
+            Reload CLI login
+          </button>
+          <span className={styles.hint}>
+            Use after signing in or out with the CLI on this server.
+          </span>
+        </div>
+      )}
       {state.publicExposure && state.provider === "codex" && (
         <p className={styles.hint} role="note">
           Heads up: codex runs with a read-only sandbox that can still read
@@ -192,15 +309,23 @@ export function ModelPicker() {
       {state.webCapable && (
         <>
           <p className={styles.line}>Web access</p>
-          <div className={styles.controls}>
+          <div className={styles.switchRow}>
             <button
               type="button"
-              className={state.webAccess ? styles.chipActive : styles.chip}
+              className={styles.switch}
+              role="switch"
+              aria-checked={state.webAccess}
+              aria-label="Allow chats to search the web"
               disabled={busy}
-              aria-pressed={state.webAccess}
               onClick={() => void save({ webAccess: !state.webAccess })}
             >
-              {state.webAccess ? "On" : "Off"} — chats may search the web
+              <span className={styles.switchTrack} aria-hidden="true">
+                <span className={styles.switchThumb} />
+              </span>
+              <span className={styles.switchText}>
+                <strong>{state.webAccess ? "On" : "Off"}</strong>
+                <span>Chats may search the web</span>
+              </span>
             </button>
           </div>
           <p className={styles.hint}>

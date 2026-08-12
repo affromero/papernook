@@ -83,13 +83,13 @@ case "$CHOICE" in
   1)
     read -r -p "Claude model [opus/sonnet/haiku, empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=claude-code'
-    [ -f "${HOME}/.claude/.credentials.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_AUTH_FILE=${HOME}/.claude/.credentials.json"
+    [ -f "${HOME}/.claude/.credentials.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_AUTH_DIR=${HOME}/.claude"
 
     ;;
   2)
     read -r -p "Codex model [empty = CLI default]: " M < /dev/tty
     AI_BLOCK='AI_PROVIDER=codex'
-    [ -f "${HOME}/.codex/auth.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_AUTH_FILE=${HOME}/.codex/auth.json"
+    [ -f "${HOME}/.codex/auth.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_AUTH_DIR=${HOME}/.codex"
 
     ;;
   3)

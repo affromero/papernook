@@ -42,6 +42,10 @@ export interface AgentTurn {
    */
   allowWeb?: boolean;
   timeoutMs?: number;
+  /** Native token ceiling for API-backed providers. */
+  maxOutputTokens?: number;
+  /** Streaming character guard for CLI-backed providers. */
+  maxOutputChars?: number;
 }
 
 /** What a provider can do beyond text-in/text-out. */

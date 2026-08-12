@@ -158,6 +158,8 @@ flowchart LR
 
     safari["Safari extension<br/>extension/<br/>PDF navigations → /viewer"]
     dav["rclone WebDAV sidecar<br/>docker-compose.yml<br/>serves data/papers ONLY"]
+    authsync["credential-sync sidecar<br/>networkless · auth JSON only"]
+    hostauth["host CLI homes<br/>read-only"]
     ipad["iPad browser<br/>Pencil ink + chat"]
     sidedoor["thesidedoor<br/>PWA + QR reach"]
 
@@ -170,6 +172,7 @@ flowchart LR
     pipe --> registry
     chatpanel --> registry
     registry --> claude & codex & api
+    hostauth --> authsync --> claude & codex
     claude & codex & api --> attach
     papers --> index
     scanner --> index
@@ -278,12 +281,17 @@ Local models must support OpenAI-compatible function calling; llama.cpp and
 vLLM also need their tool-call parser/template enabled for the selected model.
 
 The installer prefers an authenticated local Codex CLI, then Claude Code. In
-Docker, Compose mounts only the selected CLI credential file read-only and the
-entrypoint copies that file into a writable container home. It does not mount
-CLI history, sessions, or project configuration. An installed but logged-out
-CLI is shown as needing login, not ready. macOS keeps Claude credentials in
-Keychain, which containers cannot read; run `claude setup-token` and set
-`CLAUDE_CODE_OAUTH_TOKEN` in `.env` when using Claude Code through Docker.
+Docker, Compose gives a networkless sidecar read-only access to the selected
+CLI credential directory and copies only its auth JSON into a private volume.
+Use **Reload CLI login** in Settings after signing in or out; active chats are
+not interrupted. CLI history, sessions, and project configuration stay
+unmounted. An installed but logged-out CLI is shown as needing login, not
+ready. macOS keeps Claude credentials in Keychain, which containers cannot
+read; run `claude setup-token` and set `CLAUDE_CODE_OAUTH_TOKEN` in `.env` when
+using Claude Code through Docker.
+
+Configure both `CODEX_AUTH_DIR` and `CLAUDE_AUTH_DIR` only when both local CLIs
+should be selectable.
 
 </details>
 
@@ -359,9 +367,10 @@ active search, topic, and tag filters.
 
 ## Self-host
 
-Docker Compose runs the Next.js app and an rclone WebDAV sidecar. The web
-reader is the primary annotation surface on desktop and iPad. WebDAV remains
-an optional compatibility route for external PDF apps when fully configured.
+Docker Compose runs the Next.js app, a networkless CLI credential-sync
+sidecar, and an rclone WebDAV sidecar. The web reader is the primary annotation
+surface on desktop and iPad. WebDAV remains an optional compatibility route
+for external PDF apps when fully configured.
 
 The WebDAV sidecar serves **`data/papers` only**; chats, crops, canvases, and
 unconfirmed captures stay private. Connect through

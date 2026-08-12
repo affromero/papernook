@@ -17,8 +17,19 @@ copy_auth_file() {
   fi
 }
 
-copy_auth_file /run/host-auth/codex-auth.json /home/node/.codex/auth.json "Codex"
-copy_auth_file /run/host-auth/claude-credentials.json /home/node/.claude/.credentials.json "Claude Code"
+sync_auth_file() {
+  source_file="$1"
+  target_file="$2"
+  label="$3"
+  if [ -f "$source_file" ] && [ -s "$source_file" ]; then
+    copy_auth_file "$source_file" "$target_file" "$label"
+  else
+    rm -f "$target_file"
+  fi
+}
+
+sync_auth_file /run/cli-credentials/codex-auth.json /home/node/.codex/auth.json "Codex"
+sync_auth_file /run/cli-credentials/claude-credentials.json /home/node/.claude/.credentials.json "Claude Code"
 copy_auth_file /run/host-auth/ssh-key /home/node/.ssh/id_papernook "SSH key"
 copy_auth_file /run/host-auth/known-hosts /home/node/.ssh/known_hosts "SSH known_hosts"
 
