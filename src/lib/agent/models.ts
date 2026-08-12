@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { codexEnvironment } from "./codex";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import {
@@ -113,6 +114,7 @@ function codexModels(): Promise<Omit<OfferedModels, "live">> {
   return new Promise((resolve, reject) => {
     const child = spawn(invocation.command, invocation.args, {
       stdio: ["pipe", "pipe", "pipe"],
+      env: codexEnvironment(),
     });
     let settled = false;
     let buffer = "";

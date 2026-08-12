@@ -4,6 +4,45 @@
  * argv is single-quoted and wrapped in `ssh -o BatchMode=yes -T <host> ...`.
  */
 
+/**
+ * Variables a spawned CLI needs to run at all: find its binary, locate its own
+ * credential file, talk to an SSH agent, write temp files.
+ */
+const BASE_ENV_KEYS = [
+  "PATH",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "TERM",
+  "TMPDIR",
+  "USER",
+  "LOGNAME",
+  "SHELL",
+  "SSH_AUTH_SOCK",
+];
+
+/**
+ * The environment a CLI provider is spawned with. Inheriting the app's own
+ * environment would put WEBDAV_PASS, PAPERNOOK_PASSWORD, SESSION_SECRET and
+ * every other provider's API key inside a process that a prompt-injected
+ * paper can steer, so the child gets an allowlist instead: the base variables
+ * above plus the provider's own namespace. Anything not named here is simply
+ * absent from the child rather than merely discouraged.
+ */
+export function minimalAgentEnvironment(
+  allowedPrefixes: string[],
+): NodeJS.ProcessEnv {
+  const env: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    const allowed =
+      BASE_ENV_KEYS.includes(key) ||
+      allowedPrefixes.some((prefix) => key.startsWith(prefix));
+    if (allowed) env[key] = value;
+  }
+  return env as NodeJS.ProcessEnv;
+}
+
 function sshOptions(): string[] {
   const options = ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes"];
   const key = process.env.PAPERNOOK_SSH_KEY_PATH;

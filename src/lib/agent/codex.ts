@@ -1,6 +1,10 @@
 import { spawn } from "node:child_process";
 import { configuredEffort, configuredModel } from "./config";
-import { buildAgentInvocation, getCodexSshHost } from "./invocation";
+import {
+  buildAgentInvocation,
+  getCodexSshHost,
+  minimalAgentEnvironment,
+} from "./invocation";
 import { stageImagesOverSsh, imagePromptPreamble } from "./attachments";
 import {
   DEFAULT_TIMEOUT_MS,
@@ -12,7 +16,16 @@ import {
  * Codex CLI provider (`codex exec`). Keyless: uses the CLI's own auth,
  * locally or over SSH (CODEX_SSH_HOST). Prompt via stdin; images via `-i`
  * locally, or scp + path preamble over SSH (codex -i needs local files).
+ *
+ * `-s read-only` stops writes, not reads, and paper text steers this turn —
+ * so the child is spawned with an allowlisted environment (CODEX_* only) and
+ * never sees the app's secrets. It can still read files it has access to;
+ * Settings warns about that.
  */
+
+export function codexEnvironment(): NodeJS.ProcessEnv {
+  return minimalAgentEnvironment(["CODEX_"]);
+}
 
 function buildBase(turn: AgentTurn): string[] {
   const args = [
@@ -73,6 +86,7 @@ function runCodex(
   return new Promise((resolve, reject) => {
     const child = spawn(command, spawnArgs, {
       stdio: ["pipe", "pipe", "pipe"],
+      env: codexEnvironment(),
     });
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
