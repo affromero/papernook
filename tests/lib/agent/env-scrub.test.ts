@@ -65,4 +65,29 @@ describe("CLI provider environment", () => {
     expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-key");
     expect(env.PATH).toBe("/usr/bin");
   });
+
+  it("preserves the container's credential path for claude-code", async () => {
+    // How production actually authenticates: docker-entrypoint.sh copies the
+    // host credentials to /home/node/.claude/.credentials.json and the CLI
+    // finds them through HOME. Stripping HOME would silently break every
+    // chat with a "needs login" that looks like an expired token.
+    vi.stubEnv("HOME", "/home/node");
+    const { claudeCodeEnvironment } = await import("@/lib/agent/claude-code");
+
+    expect(claudeCodeEnvironment().HOME).toBe("/home/node");
+  });
+
+  it("materializes inline credentials without forwarding them", async () => {
+    // The macOS-Docker path: the raw OAuth JSON arrives in the environment,
+    // gets written to a private runtime dir, and HOME is pointed at it. The
+    // credential itself must not continue into the child.
+    vi.stubEnv("CLAUDE_CODE_CREDENTIALS_JSON", '{"token":"oauth-secret"}');
+    const { claudeCodeEnvironment } = await import("@/lib/agent/claude-code");
+
+    const env = claudeCodeEnvironment();
+
+    expect(env.CLAUDE_CODE_CREDENTIALS_JSON).toBeUndefined();
+    expect(Object.values(env)).not.toContain('{"token":"oauth-secret"}');
+    expect(env.HOME).toBe("/tmp/claude-runtime");
+  });
 });
