@@ -227,9 +227,74 @@
 }
 
 .status {
-  margin: 0;
-  font-size: 0.82rem;
-  opacity: 0.8;
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.8rem;
+  margin: 0.25rem 0 0.35rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in oklab, currentColor 28%, transparent);
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: color-mix(in oklab, currentColor 5%, transparent);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.05);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.status[data-tone="error"] {
+  border-color: color-mix(in oklab, #a42e2b 58%, transparent);
+  background: color-mix(in oklab, #a42e2b 9%, transparent);
+  color: #8f2926;
+}
+
+.status[data-tone="success"] {
+  border-color: color-mix(in oklab, #1f7a50 52%, transparent);
+  background: color-mix(in oklab, #1f7a50 8%, transparent);
+  color: #176341;
+}
+
+.status[data-tone="info"] {
+  border-color: color-mix(
+    in oklab,
+    var(--settings-accent, #8a612f) 48%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--settings-accent, #8a612f) 8%,
+    transparent
+  );
+}
+
+.statusMark {
+  display: inline-flex;
+  width: 2.1rem;
+  height: 2.1rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.statusCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.16rem;
+}
+
+.statusCopy strong {
+  font-size: 0.96rem;
+}
+
+.statusCopy > span {
+  color: color-mix(in oklab, currentColor 82%, transparent);
+  overflow-wrap: anywhere;
 }
 
 .draftNote {
@@ -310,4 +375,12 @@
   .switchThumb {
     transition: none;
   }
+}
+
+:global([data-theme="dark"]) .status[data-tone="error"] {
+  color: #f08a80;
+}
+
+:global([data-theme="dark"]) .status[data-tone="success"] {
+  color: #70d3a4;
 }

@@ -54,6 +54,21 @@ describe("profiles on disk", () => {
     expect(u.getProfile("a/../../b")).toBeNull();
   });
 
+  it("updates only the selected profile avatar on disk", async () => {
+    const u = await users();
+    const created = u.createProfile("Ana", "jaguar");
+    const updated = u.updateProfileAvatar("ana", "toucan");
+
+    expect(updated).toEqual({ ...created, avatarSlug: "toucan" });
+    expect(u.getProfile("ana")).toEqual(updated);
+    expect(() => u.updateProfileAvatar("ana", "unknown")).toThrow(
+      "Choose a valid avatar.",
+    );
+    expect(() => u.updateProfileAvatar("missing", "toucan")).toThrow(
+      'No profile named "missing".',
+    );
+  });
+
   it("keeps no per-profile credential and never leaks internals publicly", async () => {
     const u = await users();
     const created = u.createProfile("Ana", "jaguar");

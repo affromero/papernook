@@ -47,11 +47,17 @@ interface AgentState {
   credentialReloadAvailable: boolean;
 }
 
+interface Feedback {
+  tone: "info" | "success" | "error";
+  label: string;
+  message: string;
+}
+
 export function ModelPicker() {
   const [state, setState] = useState<AgentState | null>(null);
   const [value, setValue] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState(false);
   const requestVersion = useRef(0);
 
@@ -68,15 +74,27 @@ export function ModelPicker() {
       if (version !== requestVersion.current) return;
       setState(data);
       if (announce) {
-        setStatus(
+        setFeedback(
           data.available
-            ? `${data.provider} answers with ${data.model ?? "its default model"} at ${data.effort ?? data.defaultEffort ?? "default"} effort.`
-            : `Saved, but ${data.provider} is not answering. It may need its CLI, key, or SSH host on the server.`,
+            ? {
+                tone: "success",
+                label: "Provider ready",
+                message: `${data.provider} answers with ${data.model ?? "its default model"} at ${data.effort ?? data.defaultEffort ?? "default"} effort.`,
+              }
+            : {
+                tone: "error",
+                label: "Provider unavailable",
+                message: `Saved, but ${data.provider} is not answering. It may need its CLI, key, or SSH host on the server.`,
+              },
         );
       }
     } catch {
       if (announce && version === requestVersion.current) {
-        setStatus("Saved. Could not refresh provider availability.");
+        setFeedback({
+          tone: "error",
+          label: "Availability check failed",
+          message: "Saved. Could not refresh provider availability.",
+        });
       }
     }
   }
@@ -110,7 +128,7 @@ export function ModelPicker() {
     const version = requestVersion.current + 1;
     requestVersion.current = version;
     setBusy(true);
-    setStatus(null);
+    setFeedback(null);
     try {
       const res = await fetch("/api/v1/agent/model", {
         method: "PUT",
@@ -120,16 +138,28 @@ export function ModelPicker() {
       });
       const data = (await res.json()) as AgentState & { error?: string };
       if (!res.ok) {
-        setStatus(data.error ?? "Could not save.");
+        setFeedback({
+          tone: "error",
+          label: "Settings not saved",
+          message: data.error ?? "Could not save.",
+        });
         return;
       }
       setState(data);
       setValue(data.model ?? "");
       setBaseUrl(data.baseUrl ?? "");
-      setStatus("Saved. Checking provider availability…");
+      setFeedback({
+        tone: "info",
+        label: "Settings saved",
+        message: "Checking provider availability…",
+      });
       void refreshDetails(version, true);
     } catch {
-      setStatus("Could not save. Check the server connection and try again.");
+      setFeedback({
+        tone: "error",
+        label: "Settings not saved",
+        message: "Could not save. Check the server connection and try again.",
+      });
     } finally {
       setBusy(false);
     }
@@ -144,7 +174,11 @@ export function ModelPicker() {
       return;
     }
     setBusy(true);
-    setStatus("Reloading CLI login…");
+    setFeedback({
+      tone: "info",
+      label: "Reloading CLI login",
+      message: "Reading the latest credentials from this server…",
+    });
     try {
       const response = await fetch("/api/v1/settings/credentials", {
         method: "POST",
@@ -156,19 +190,36 @@ export function ModelPicker() {
         readiness?: Readiness;
       };
       if (!response.ok) {
-        setStatus(data.error ?? "Could not reload CLI login.");
+        setFeedback({
+          tone: "error",
+          label: "CLI login not reloaded",
+          message: data.error ?? "Could not reload CLI login.",
+        });
         return;
       }
       const version = requestVersion.current + 1;
       requestVersion.current = version;
-      setStatus(
+      setFeedback(
         data.readiness === "ready"
-          ? "CLI login reloaded. The provider is ready."
-          : "CLI login reloaded, but the provider still needs login.",
+          ? {
+              tone: "success",
+              label: "CLI login reloaded",
+              message: "The provider is ready.",
+            }
+          : {
+              tone: "error",
+              label: "Provider still unavailable",
+              message:
+                "CLI login reloaded, but the provider still needs login.",
+            },
       );
       await refreshDetails(version, false);
     } catch {
-      setStatus("Could not reload CLI login. Check the server connection.");
+      setFeedback({
+        tone: "error",
+        label: "CLI login not reloaded",
+        message: "Could not reload CLI login. Check the server connection.",
+      });
     } finally {
       setBusy(false);
     }
@@ -176,12 +227,17 @@ export function ModelPicker() {
 
   async function testModel(): Promise<void> {
     setBusy(true);
-    setStatus("Testing the selected model…");
+    setFeedback({
+      tone: "info",
+      label: "Testing selected model",
+      message: "Waiting for one short response…",
+    });
     try {
       const response = await fetch("/api/v1/agent/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({}),
       });
       const data = (await response.json()) as {
         error?: string;
@@ -190,15 +246,25 @@ export function ModelPicker() {
         elapsedMs?: number;
       };
       if (!response.ok) {
-        setStatus(data.error ?? "The selected model did not answer.");
+        setFeedback({
+          tone: "error",
+          label: "Model test failed",
+          message: data.error ?? "The selected model did not answer.",
+        });
         return;
       }
       const seconds = ((data.elapsedMs ?? 0) / 1000).toFixed(1);
-      setStatus(
-        `${data.provider} answered in ${seconds}s: ${data.reply ?? "(empty response)"}`,
-      );
+      setFeedback({
+        tone: "success",
+        label: "Model test passed",
+        message: `${data.provider} answered in ${seconds}s: ${data.reply ?? "(empty response)"}`,
+      });
     } catch {
-      setStatus("Could not test the model. Check the server connection.");
+      setFeedback({
+        tone: "error",
+        label: "Model test failed",
+        message: "Could not test the model. Check the server connection.",
+      });
     } finally {
       setBusy(false);
     }
@@ -227,6 +293,26 @@ export function ModelPicker() {
           </button>
           <span className={styles.hint}>
             Sends one short prompt without web access or chat history.
+          </span>
+        </div>
+      )}
+      {feedback && (
+        <div
+          className={styles.status}
+          data-tone={feedback.tone}
+          role={feedback.tone === "error" ? "alert" : "status"}
+          aria-atomic="true"
+        >
+          <span className={styles.statusMark} aria-hidden="true">
+            {feedback.tone === "error"
+              ? "!"
+              : feedback.tone === "success"
+                ? "✓"
+                : "…"}
+          </span>
+          <span className={styles.statusCopy}>
+            <strong>{feedback.label}</strong>
+            <span>{feedback.message}</span>
           </span>
         </div>
       )}
@@ -436,11 +522,6 @@ export function ModelPicker() {
             ))}
           </div>
         </>
-      )}
-      {status && (
-        <p className={styles.status} role="status" aria-live="polite">
-          {status}
-        </p>
       )}
     </div>
   );

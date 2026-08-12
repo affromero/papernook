@@ -45,7 +45,11 @@ export function AdminMembers({ members }: { members: Member[] }) {
         {visible.map((m) => (
           <li key={m.username} className={styles.row}>
             <span>
-              {m.displayName} <code>{m.username}</code>{" "}
+              {m.displayName}{" "}
+              {m.displayName.trim().toLocaleLowerCase() !==
+                m.username.toLocaleLowerCase() && (
+                <code>{m.username}</code>
+              )}{" "}
               {m.isAdmin && <strong>(admin)</strong>}
             </span>
             {!m.isAdmin && (

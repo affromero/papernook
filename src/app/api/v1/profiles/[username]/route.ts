@@ -7,16 +7,64 @@ import {
 } from "@/lib/auth/session";
 import { GATE_COOKIE, gateCookieOptions } from "@/lib/auth/gate";
 import { forgetAccountRateLimit } from "@/lib/auth/rate-limit";
-import { deleteProfile, isAdmin, ProfileError } from "@/lib/auth/users";
+import {
+  deleteProfile,
+  isAdmin,
+  ProfileError,
+  toPublicProfile,
+  updateProfileAvatar,
+} from "@/lib/auth/users";
+import { ANIMAL_AVATARS } from "@/lib/auth/avatars";
 import { beginProfileErasure } from "@/lib/auth/profile-activity";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
+import { rejectCrossSiteMutation } from "@/lib/auth/request-security";
 
-/** Complete self-erasure or admin-managed member erasure. */
+/** Self-service profile appearance and complete profile erasure. */
 
 export const dynamic = "force-dynamic";
 
 interface Params {
   params: Promise<{ username: string }>;
+}
+
+const avatarSchema = z.object({
+  avatarSlug: z.enum(
+    ANIMAL_AVATARS.map((avatar) => avatar.slug) as [string, ...string[]],
+  ),
+});
+
+export async function PATCH(request: NextRequest, { params }: Params) {
+  const crossSite = rejectCrossSiteMutation(request);
+  if (crossSite) return crossSite;
+  const me = await activeProfile();
+  if (!me)
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const { username } = await params;
+  if (me.username !== username) {
+    return NextResponse.json(
+      { error: "You can edit only your own profile." },
+      { status: 403 },
+    );
+  }
+  const body = avatarSchema.safeParse(await readBoundedJsonOrNull(request));
+  if (!body.success) {
+    return NextResponse.json(
+      { error: "Choose a valid avatar." },
+      { status: 400 },
+    );
+  }
+  try {
+    return NextResponse.json({
+      profile: toPublicProfile(
+        updateProfileAvatar(username, body.data.avatarSlug),
+      ),
+    });
+  } catch (error) {
+    if (error instanceof ProfileError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {

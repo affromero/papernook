@@ -494,7 +494,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     expect(created.ok()).toBe(true);
     await page.reload();
     page.on("dialog", (dialog) => dialog.accept());
-    const casey = page.getByRole("listitem").filter({ hasText: "Casey casey" });
+    const casey = page.getByRole("listitem").filter({ hasText: "Casey" });
     await casey.getByRole("button", { name: "Remove completely" }).click();
     await expect(casey).not.toBeVisible();
   });

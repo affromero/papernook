@@ -4,6 +4,7 @@ import Link from "next/link";
 import { activeProfile } from "@/lib/auth/session";
 import { isAdmin, listProfiles, toPublicProfile } from "@/lib/auth/users";
 import { AccountBar } from "@/components/profiles/AccountBar";
+import { AvatarPicker } from "@/components/profiles/AvatarPicker";
 import { AdminMembers } from "@/components/profiles/AdminMembers";
 import { DeleteProfile } from "@/components/profiles/DeleteProfile";
 import { InviteQr } from "@/components/profiles/InviteQr";
@@ -325,6 +326,14 @@ export default async function SettingsPage() {
                   <h2>My profile</h2>
                   <p>Manage personal data for {profile.displayName}.</p>
                 </div>
+              </div>
+              <div className={styles.subsection}>
+                <h3>Avatar</h3>
+                <p>Choose how your profile appears across papernook.</p>
+                <AvatarPicker
+                  username={profile.username}
+                  avatarSlug={profile.avatarSlug}
+                />
               </div>
               <div className={`${styles.subsection} ${styles.dangerZone}`}>
                 <h3>Delete profile</h3>

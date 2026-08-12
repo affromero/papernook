@@ -176,6 +176,20 @@ export function createProfile(
   return profile;
 }
 
+export function updateProfileAvatar(
+  username: string,
+  avatarSlug: string,
+): Profile {
+  const profile = readProfile(username);
+  if (!profile) throw new ProfileError(`No profile named "${username}".`);
+  if (!isAnimalSlug(avatarSlug)) {
+    throw new ProfileError("Choose a valid avatar.");
+  }
+  const updated = { ...profile, avatarSlug };
+  writeProfile(updated);
+  return updated;
+}
+
 /**
  * Admin-owned instance access password (`PAPERNOOK_PASSWORD`). It is the only
  * application password in public mode: visitors pass the gate once, then
