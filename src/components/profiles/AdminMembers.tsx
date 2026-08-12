@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import styles from "./AdminMembers.module.css";
+import { promptSudoPassword, rejectSudoPassword } from "../sudoPassword";
 
 /** Admin-only member list with complete profile erasure. */
 
@@ -23,7 +24,7 @@ export function AdminMembers({ members }: { members: Member[] }) {
     ) {
       return;
     }
-    const password = window.prompt(
+    const password = promptSudoPassword(
       "Enter your profile password to authorize this deletion.",
     );
     if (password === null) return;
@@ -37,6 +38,7 @@ export function AdminMembers({ members }: { members: Member[] }) {
     if (res.ok) {
       setGone((g) => [...g, username]);
     } else {
+      if (res.status === 401) rejectSudoPassword();
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       setError(body.error ?? "Could not remove the profile.");
     }

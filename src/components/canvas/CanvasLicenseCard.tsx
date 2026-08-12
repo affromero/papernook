@@ -3,6 +3,7 @@
 import dynamicImport from "next/dynamic";
 import { useEffect, useState } from "react";
 import styles from "./CanvasLicenseCard.module.css";
+import { promptSudoPassword, rejectSudoPassword } from "../sudoPassword";
 
 const CanvasLicenseProbe = dynamicImport(
   () =>
@@ -50,7 +51,7 @@ export function CanvasLicenseCard() {
   }, []);
 
   async function save(nextLicenseKey: string | null): Promise<void> {
-    const password = window.prompt(
+    const password = promptSudoPassword(
       "Enter your profile password to authorize this system change.",
     );
     if (password === null) return;
@@ -65,6 +66,7 @@ export function CanvasLicenseCard() {
       });
       const data = (await response.json()) as LicenseState;
       if (!response.ok) {
+        if (response.status === 401) rejectSudoPassword();
         throw new Error(data.error ?? "The license key could not be saved.");
       }
       setState(data);

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./ModelPicker.module.css";
+import { promptSudoPassword, rejectSudoPassword } from "../sudoPassword";
 
 /**
  * Admin control: which provider answers (claude-code, codex, or an API key)
@@ -107,7 +108,7 @@ export function ModelPicker() {
     baseUrl?: string | null;
     webAccess?: boolean;
   }): Promise<void> {
-    const password = window.prompt(
+    const password = promptSudoPassword(
       "Enter your profile password to authorize this system change.",
     );
     if (password === null) return;
@@ -124,6 +125,7 @@ export function ModelPicker() {
     const data = (await res.json()) as AgentState & { error?: string };
     setBusy(false);
     if (!res.ok) {
+      if (res.status === 401) rejectSudoPassword();
       setStatus(data.error ?? "Could not save.");
       return;
     }
