@@ -65,7 +65,10 @@ document.getElementById("add-host").addEventListener("click", async () => {
     granted = false;
   }
   if (!granted) {
-    flash("Safari did not grant access — use the toolbar button there.", false);
+    flash(
+      "The browser did not grant access — use the toolbar button there.",
+      false,
+    );
     return;
   }
   const { extraHosts = [] } = await api.storage.sync.get({ extraHosts: [] });
@@ -94,7 +97,7 @@ document.getElementById("save").addEventListener("click", () => {
     .then((result) => {
       if (result && result.ok === false) {
         flash(
-          "Saved, but Safari refused the redirect rules — turn off automatic opening and use the toolbar button.",
+          "Saved, but the browser refused the redirect rules — turn off automatic opening and use the toolbar button.",
           false,
         );
         return;

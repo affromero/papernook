@@ -1,7 +1,7 @@
-# Notes for App Store reviewers
+# Notes for browser-store reviewers
 
-papernook is a self-hosted paper library; this extension is its Safari
-companion. It requires a papernook server, which reviewers will not have, so
+papernook is a self-hosted paper library; this extension is its Chrome and
+Safari companion. It requires a papernook server, which reviewers will not have, so
 provide one of the following in the App Review notes before submitting:
 
 1. **Demo server (recommended):** a temporary papernook instance reachable
@@ -17,7 +17,7 @@ Review-notes text to paste:
 > source: https://github.com/affromero/papernook). For review, use:
 > Server URL: <demo server URL> — set it in the extension's preferences.
 > Demo profile: <name> / <password>.
-> Test: open https://arxiv.org/pdf/1706.03762 — Safari redirects into the
+> Test: open https://arxiv.org/pdf/1706.03762 — the browser redirects into the
 > papernook reader; hover a bracketed citation like [4] to see the reference
 > preview; press "+ Add to library" and confirm to file the paper.
 

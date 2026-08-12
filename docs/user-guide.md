@@ -12,8 +12,10 @@
 - **From Safari on iPhone, iPad, or Mac:** Share →
   **Add to Papernook**. Install it once from **Get the Shortcut**; see the
   [Shortcut guide](shortcut.md).
-- **From Chrome on desktop:** select **📚 Add to Papernook** in the bookmarks
-  bar. Drag it there once from Settings.
+- **From Chrome on desktop:** install the
+  [browser extension](../extension/README.md#chrome) to redirect supported PDFs
+  automatically or use its toolbar button anywhere. Settings retains a
+  bookmarklet fallback for managed browsers that cannot install extensions.
 
 Papernook opens a confirmation page with the proposed topic, tags, summary,
 related papers, and starter questions. Review it and select

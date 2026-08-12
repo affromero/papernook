@@ -1,27 +1,28 @@
-# papernook Safari extension, store listing copy
+# papernook browser extension, store listing copy
 
-Ready-to-paste text for the Mac App Store (Safari). Keep the wording truthful:
-the extension collects no data and talks only to the server the user
-configures plus the PDF pages they visit.
+Ready-to-paste text for the Chrome Web Store and Mac App Store (Safari). Keep
+the wording truthful: the developer collects no data, and the extension sends
+page URLs only to the self-hosted server the user configures.
 
 ---
 
 ## Shared facts
 
-- **Name:** Papernook for Safari ("Papernook" alone is taken on the App
+- **Chrome name:** papernook
+- **Mac name:** Papernook for Safari ("Papernook" alone is taken on the App
   Store; the binary and extension still display as "papernook")
-- **Category:** Education
+- **Mac category:** Education
 - **Price:** Free
 - **Copyright:** © 2026 Andrés Romero
 - **License:** MIT (see repository LICENSE)
 - **Privacy policy URL:** https://github.com/affromero/papernook/blob/main/PRIVACY.md
-- **App Privacy questionnaire:** answer "Data Not Collected" — see the data
-  collection facts below.
+- **Mac App Privacy questionnaire:** answer "Data Not Collected" — the
+  developer receives no extension data.
 - **Age rating:** 4+ (no objectionable content).
-- **Data collection:** None. No analytics, no telemetry, no accounts on any
-  third-party server. The extension only redirects PDF navigations to the
-  papernook server the user configures (their own self-hosted instance) and
-  stores that server URL in extension storage.
+- **Developer data collection:** None. No analytics, no telemetry, no accounts
+  on any third-party server. The extension handles page URLs only to redirect
+  PDF navigations to the papernook server the user configures (their own
+  self-hosted instance) and stores that server URL in extension storage.
 - **Permissions and why each is needed:**
   - Host access is an explicit research-site allowlist (arxiv.org,
     openreview.net, biorxiv.org, medrxiv.org, aclanthology.org,
@@ -35,6 +36,88 @@ configures plus the PDF pages they visit.
   - `activeTab` — the toolbar button reads the current tab's URL on click to
     open it in the papernook reader; no standing access to other sites.
 - **Support / homepage URL:** https://github.com/affromero/papernook
+
+## Chrome Web Store
+
+**Summary (132 characters max):**
+
+> Open research PDFs in your self-hosted papernook reader for citation previews, annotation, capture, and AI-assisted reading.
+
+**Description:**
+
+papernook connects the papers you browse to the research library you run.
+
+- Open supported arXiv and direct PDF links automatically in the papernook
+  reader.
+- Send any other HTTP or HTTPS page from the toolbar with one click.
+- Preview cited references, annotate the PDF, capture it into your library, and
+  continue reading beside a paper-grounded AI chat.
+- Add research sites individually when you want automatic PDF opening beyond
+  the built-in allowlist.
+
+The extension requires your own papernook server. It has no hosted service,
+analytics, advertising, or developer-operated data collection. The current
+page URL is sent only when needed to the server URL you configure.
+
+papernook is open source under the MIT License.
+
+**Single purpose (Privacy practices):**
+
+> Open research-paper pages and PDFs in the user's self-hosted papernook reader.
+
+**Permission justifications (Privacy practices):**
+
+- `declarativeNetRequestWithHostAccess`: redirects matching PDF navigations on
+  the declared research-site allowlist into the configured papernook reader;
+  extension code does not inspect the response body.
+- Built-in host access: limits automatic opening to the research sites named in
+  Shared facts above.
+- Optional host access: lets a user opt in one additional research domain at a
+  time from extension options.
+- `storage`: saves the configured papernook URL, automatic-opening preference,
+  and user-added domains.
+- `activeTab`: reads the current tab URL only after the user presses the toolbar
+  button, then opens that URL through the user's own papernook server.
+
+**User-data disclosure:** The extension handles web-browsing activity in the
+form of the current page URL. Automatic rules pass a matching PDF URL to the
+configured server; the toolbar does so only on click. The developer does not
+receive, retain, sell, or use this information, and no page content, cookies,
+or authentication data are read. Link the dashboard to `PRIVACY.md` and certify
+Limited Use.
+
+**Category:** Productivity
+
+**Required assets:**
+
+- Store icon: `extension/icons/icon-128.png` (128×128 PNG).
+- Screenshots: upload one to five full-bleed 1280×800 images from
+  `build/screenshots/`; regenerate them with
+  `node scripts/store/screenshots.mjs`.
+- Small promo tile: create a 440×280 PNG or JPEG using the paper-and-ink mark
+  and the same warm neutral palette as the app.
+- Optional marquee tile: 1400×560 PNG or JPEG.
+- Optional YouTube video: upload the output of
+  `node scripts/store/demo-video.mjs`.
+
+**First submission:**
+
+```bash
+npm run test:chrome
+# Upload build/papernook-chrome.zip as a new item in the Chrome Developer Dashboard.
+```
+
+Complete Store Listing, Privacy practices, Distribution, and Test instructions
+using this file and `store/REVIEWERS.md`. The first submission is manual. Once
+Google assigns an item ID and OAuth credentials are exported as documented in
+`.env.example`, later versions can be published with:
+
+```bash
+npm run release:chrome
+```
+
+Increment `package.json`, `package-lock.json`, and `extension/manifest.json`
+together before uploading a version that the store has not seen.
 
 ## Mac App Store
 

@@ -54,7 +54,8 @@
 }
 
 .dashboardLink,
-.primaryAction {
+.primaryAction,
+.secondaryAction {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -82,6 +83,7 @@
 
 .dashboardLink:focus-visible,
 .primaryAction:focus-visible,
+.secondaryAction:focus-visible,
 .sectionNav a:focus-visible,
 .manualSetup summary:focus-visible,
 .secretPanel summary:focus-visible,
@@ -239,6 +241,24 @@
 .primaryAction:hover {
   transform: translateY(-1px);
   background: color-mix(in oklab, var(--settings-accent) 88%, #000);
+}
+
+.setupActions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.secondaryAction {
+  min-height: 36px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+}
+
+.secondaryAction:hover {
+  border-color: color-mix(in oklab, var(--settings-accent) 58%, transparent);
+  background: var(--settings-accent-soft);
 }
 
 .serverHint {

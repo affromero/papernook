@@ -32,8 +32,8 @@ a passwordless route.
 
 1. **Open your library:** create or choose a profile.
 2. **Add a paper:** paste a link into the library, install the
-   [Safari/iOS Shortcut](shortcut.md), or use the Chrome bookmarklet from
-   Settings.
+   [Safari/iOS Shortcut](shortcut.md), or use the
+   [Chrome extension](../extension/README.md#chrome).
 3. **Write on the PDF:** open the paper in Papernook on desktop or iPad; see
    the [iPad guide](ipad-annotation.md).
 4. **Bring in another reader:** follow the

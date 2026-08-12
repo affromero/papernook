@@ -8,6 +8,9 @@ import { CanvasLicenseCard } from "@/components/canvas/CanvasLicenseCard";
 import { ModelPicker } from "@/components/profiles/ModelPicker";
 import styles from "./welcome.module.css";
 
+const chromeExtensionGuide =
+  "https://github.com/affromero/papernook/blob/main/extension/README.md#chrome";
+
 /**
  * One-screen onboarding. Everything the instance knows from its environment
  * renders as a finished value with a Copy button; the only actions
@@ -154,10 +157,17 @@ export function WelcomeFlow({
               </span>
             </a>
           )}
-          <a className={styles.action} href={bookmarklet}>
-            <span className={styles.actionTitle}>📚 Add to papernook</span>
+          <a className={styles.action} href={chromeExtensionGuide}>
+            <span className={styles.actionTitle}>Chrome extension</span>
             <span className={styles.actionSub}>
-              Chrome: drag this to the bookmarks bar.
+              Open supported PDFs automatically or use the toolbar from any
+              page.
+            </span>
+          </a>
+          <a className={styles.action} href={bookmarklet}>
+            <span className={styles.actionTitle}>Bookmarklet fallback</span>
+            <span className={styles.actionSub}>
+              Drag this to the bookmarks bar when extensions are unavailable.
             </span>
           </a>
           <CopyRow label="Server" value={baseUrl} />
