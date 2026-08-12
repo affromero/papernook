@@ -90,6 +90,39 @@
   background: var(--paper-surface);
 }
 
+.sourceButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.sourceButton svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.sourceButton[data-state="copied"] {
+  color: var(--paper-accent);
+  border-color: color-mix(in srgb, var(--paper-accent) 58%, transparent);
+  background: var(--paper-surface);
+}
+
+.sourceButton[data-state="error"] {
+  color: #a43e34;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .back:focus-visible,
 .viewToggle a:focus-visible,
 .actions > button:focus-visible,

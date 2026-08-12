@@ -64,6 +64,21 @@ test("highlighted code copies exact indentation and punctuation", async ({
     .toBe(highlightedCode);
 });
 
+test("paper header copies the original source link", async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await login(page);
+  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+
+  await page.getByRole("button", { name: "Copy original paper link" }).click();
+  await expect(page.getByText("Copied", { exact: true })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe("https://arxiv.org/abs/1706.03762");
+});
+
 test("code copy reports when clipboard access fails", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {

@@ -3,6 +3,7 @@ import { CitationActions } from "@/components/citations/CitationActions";
 import { ShareButton } from "@/components/share/ShareButton";
 import { ThemeToggle } from "@/components/profiles/ThemeToggle";
 import type { PaperMeta } from "@/lib/library/papers";
+import { CopySourceLinkButton } from "./CopySourceLinkButton";
 import styles from "./PaperHeader.module.css";
 
 interface PaperHeaderProps {
@@ -36,6 +37,7 @@ export function PaperHeader({ topic, slug, meta, view }: PaperHeaderProps) {
           </Link>
         </nav>
         <nav className={styles.actions} aria-label="Paper actions">
+          <CopySourceLinkButton sourceUrl={meta.sourceUrl} />
           <span className={styles.theme}>
             <ThemeToggle />
           </span>
