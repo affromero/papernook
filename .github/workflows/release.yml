@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:chrome
+      - name: Publish Chrome package on the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PAPERNOOK_RELEASE_VERSION="$VERSION" npm run build:chrome
+          NOTES="$(awk "/^## \[$VERSION\]/{f=1;next} /^## \[/{if(f)exit} f" CHANGELOG.md)"
+          ASSET="build/papernook-chrome.zip"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$ASSET" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$ASSET" \
+              --title "papernook $GITHUB_REF_NAME" \
+              --notes "${NOTES:-Release $GITHUB_REF_NAME}"
+          fi

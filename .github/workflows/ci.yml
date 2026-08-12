@@ -30,6 +30,7 @@ jobs:
       - run: npm run build
       - run: node scripts/assert-standalone-safe.mjs
       - run: npx playwright install --with-deps chromium
+      - run: npm run test:chrome
       - run: npm run test:e2e
 
   container:

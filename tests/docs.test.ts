@@ -6,7 +6,11 @@ const root = path.resolve(import.meta.dirname, "..");
 const docsDir = path.join(root, "docs");
 const markdownFiles = [
   path.join(root, "README.md"),
+  path.join(root, "PRIVACY.md"),
   path.join(root, "SECURITY.md"),
+  path.join(root, "extension", "README.md"),
+  path.join(root, "store", "listings.md"),
+  path.join(root, "store", "REVIEWERS.md"),
   ...fs
     .readdirSync(docsDir)
     .filter((name) => name.endsWith(".md"))
@@ -167,5 +171,31 @@ describe("documentation", () => {
       .map((file) => path.relative(path.join(docsDir, "images"), file));
 
     expect(asserted).toEqual(new Set(screenshots));
+  });
+
+  it("documents Chrome packaging without claiming a live store listing", () => {
+    const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
+    const extensionGuide = fs.readFileSync(
+      path.join(root, "extension", "README.md"),
+      "utf8",
+    );
+    const listing = fs.readFileSync(
+      path.join(root, "store", "listings.md"),
+      "utf8",
+    );
+    const settings = fs.readFileSync(
+      path.join(root, "src", "app", "settings", "page.tsx"),
+      "utf8",
+    );
+
+    expect(readme).toContain("logo=googlechrome");
+    expect(readme).toContain("manifest-v3");
+    expect(readme).not.toContain("chromewebstore.google.com/detail/papernook");
+    expect(extensionGuide).toContain("npm run test:chrome");
+    expect(extensionGuide).toContain("The first submission is manual");
+    expect(listing).toContain("## Chrome Web Store");
+    expect(listing).toContain("web-browsing activity");
+    expect(settings).toContain("Set up extension");
+    expect(settings).toContain("Bookmarklet fallback");
   });
 });

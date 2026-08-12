@@ -21,6 +21,9 @@ import styles from "./settings.module.css";
 
 export const dynamic = "force-dynamic";
 
+const chromeExtensionGuide =
+  "https://github.com/affromero/papernook/blob/main/extension/README.md#chrome";
+
 export default async function SettingsPage() {
   const profile = await activeProfile();
   if (!profile) redirect("/login");
@@ -99,16 +102,24 @@ export default async function SettingsPage() {
                     </span>
                     <div>
                       <h3 className={styles.platformName}>Chrome</h3>
-                      <p>Desktop bookmarklet</p>
+                      <p>Desktop extension</p>
                     </div>
                   </div>
                   <p className={styles.setupCopy}>
-                    Drag the button to your bookmarks bar, then use it from any
-                    paper page.
+                    Install the Manifest V3 extension to open supported PDFs
+                    automatically or send any page from the toolbar.
                   </p>
-                  <a className={styles.primaryAction} href={bookmarklet}>
-                    <span aria-hidden="true">＋</span> Add to papernook
-                  </a>
+                  <div className={styles.setupActions}>
+                    <a
+                      className={styles.primaryAction}
+                      href={chromeExtensionGuide}
+                    >
+                      Set up extension <span aria-hidden="true">↗</span>
+                    </a>
+                    <a className={styles.secondaryAction} href={bookmarklet}>
+                      Bookmarklet fallback
+                    </a>
+                  </div>
                 </article>
 
                 <article className={styles.setupItem}>

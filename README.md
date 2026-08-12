@@ -21,6 +21,9 @@ Ask your own AI grounded questions, then share a revocable, view-only reading.
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/affromero/papernook/codeql.yml?branch=main&label=CodeQL)](.github/workflows/codeql.yml)
 [![gitleaks](https://img.shields.io/github/actions/workflow/status/affromero/papernook/gitleaks.yml?branch=main&label=gitleaks)](.github/workflows/gitleaks.yml)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot&logoColor=white)](.github/dependabot.yml)
+[![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)](extension/README.md#chrome)
+[![Safari](https://img.shields.io/badge/Safari-Web_Extension-006CFF?logo=safari&logoColor=white)](extension/README.md#safari)
+[![Manifest v3](https://img.shields.io/badge/manifest-v3-8250df)](extension/manifest.json)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-FTS5-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/fts5.html)
@@ -156,13 +159,13 @@ flowchart LR
       citeui["CitationActions + export routes"]
     end
 
-    safari["Safari extension<br/>extension/<br/>PDF navigations → /viewer"]
+    browserext["Safari + Chrome extension<br/>extension/<br/>PDF navigations → /viewer"]
     dav["rclone WebDAV sidecar<br/>docker-compose.yml<br/>serves data/papers ONLY"]
     ipad["iPad browser<br/>Pencil ink + chat"]
     sidedoor["thesidedoor<br/>PWA + QR reach"]
 
     add --> pipe --> papers
-    safari --> viewer
+    browserext --> viewer
     viewer --> pdfreader
     viewer --> capi --> pipe
     zotero --> zcatalog
@@ -382,6 +385,7 @@ Start with the **[visual documentation home](docs/README.md)**.
 | ------------------------------------- | ----------------------------------------------------- |
 | Learn the everyday workflow           | [User guide](docs/user-guide.md)                      |
 | Invite someone by domain or Tailscale | [Invite a friend](docs/user-guide.md#invite-a-friend) |
+| Capture from Chrome or Safari desktop | [Browser extension](extension/README.md)              |
 | Capture from Safari or iOS            | [Shortcut setup](docs/shortcut.md)                    |
 | Annotate from an iPad                 | [iPad annotation guide](docs/ipad-annotation.md)      |
 | Expose a custom domain safely         | [Public hardening](docs/public-exposure.md)           |
@@ -391,6 +395,8 @@ Start with the **[visual documentation home](docs/README.md)**.
 ```bash
 npm install          # postinstall copies the sidedoor service worker
 npm run dev
+npm run build:chrome # Web Store-ready zip in build/
+npm run test:chrome  # packaged extension in real Chromium
 npm run ci           # lint + typecheck + vitest + build (pre-push runs this too)
 npm run test:e2e     # Playwright journeys against committed docs screenshots
 npm run screenshots # intentionally refresh docs/images

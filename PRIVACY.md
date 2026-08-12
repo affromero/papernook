@@ -1,13 +1,16 @@
-# Privacy policy — papernook Safari extension
+# Privacy policy — papernook browser extension
 
-The papernook extension collects no data.
+The developer does not collect or receive extension data. The extension handles
+the current page URL only to open it on the self-hosted papernook server that
+the user configures.
 
 - **No analytics, no telemetry, no third-party servers.** The extension makes
   no network request of its own to anyone except the papernook server URL you
   configure — your own self-hosted instance.
 - **What it stores:** your papernook server URL, the auto-intercept toggle,
-  and any extra sites you add for automatic opening, in Safari extension
-  storage on your device (synced by Safari if you enable extension syncing).
+  and any extra sites you add for automatic opening, in browser extension
+  storage on your device (synced if you enable extension syncing in Chrome or
+  Safari).
 - **What it does:** rewrites PDF navigations to your papernook server's
   `/viewer` page via declarativeNetRequest rules (the browser applies these;
   the extension never sees page content), and the toolbar button opens the
