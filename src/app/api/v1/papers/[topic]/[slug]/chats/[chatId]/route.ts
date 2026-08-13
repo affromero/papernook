@@ -80,6 +80,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_MESSAGE_BODY_BYTES = 15 * 1024 * 1024;
 const MAX_DATA_URL_CHARS = Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 64;
+const STREAM_KEEPALIVE_MS = 25_000;
 
 const messageSchema = z.object({
   content: z.string().min(1).max(20_000),
@@ -234,6 +235,13 @@ export async function POST(request: NextRequest, { params }: Params) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let full = "";
+      const keepAlive = setInterval(() => {
+        controller.enqueue(encoder.encode("\n"));
+      }, STREAM_KEEPALIVE_MS);
+      // Flush response headers immediately and keep slow web/tool turns below
+      // reverse-proxy idle limits. Leading newlines are harmless Markdown and
+      // deliberately stay out of the persisted assistant message.
+      controller.enqueue(encoder.encode("\n"));
       try {
         for await (const chunk of provider.stream({
           system,
@@ -241,6 +249,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           images: images.absolute.length ? images.absolute : undefined,
           allowWeb,
         })) {
+          clearInterval(keepAlive);
           full += chunk;
           controller.enqueue(encoder.encode(chunk));
         }
@@ -253,6 +262,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         const message = err instanceof Error ? err.message : "Agent failed.";
         controller.enqueue(encoder.encode(`\n\n[error: ${message}]`));
       } finally {
+        clearInterval(keepAlive);
         controller.close();
       }
     },
