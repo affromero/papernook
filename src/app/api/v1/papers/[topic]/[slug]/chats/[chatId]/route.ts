@@ -9,6 +9,7 @@ import {
   readChat,
   appendMessage,
   appendUserMessage,
+  deleteChat,
   deleteMessage,
 } from "@/lib/library/chats";
 import { buildChatSystem, buildChatPrompt } from "@/lib/library/chat-context";
@@ -33,12 +34,17 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json({ chat });
 }
 
-const deleteSchema = z.object({
-  index: z.number().int().min(0).max(100_000),
-  at: z.string().min(1).max(64),
-});
+const deleteSchema = z.union([
+  z
+    .object({
+      index: z.number().int().min(0).max(100_000),
+      at: z.string().min(1).max(64),
+    })
+    .strict(),
+  z.object({ entire: z.literal(true) }).strict(),
+]);
 
-/** Delete one message from the caller's own chat, matched by index + at. */
+/** Delete one message or the caller's entire conversation. */
 export async function DELETE(request: NextRequest, { params }: Params) {
   const profile = await activeProfile();
   if (!profile)
@@ -59,6 +65,13 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const body = deleteSchema.safeParse(raw);
   if (!body.success) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  if ("entire" in body.data) {
+    const removed = deleteChat(topic, slug, profile.username, chatId);
+    if (!removed) {
+      return NextResponse.json({ error: "Chat not found." }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
   }
   const removed = deleteMessage(
     topic,
@@ -155,6 +168,16 @@ function persistImages(
   return { absolute, relative };
 }
 
+function discardImages(files: string[], companion: string): void {
+  for (const file of files) fs.rmSync(file, { force: true });
+  const crops = path.join(companion, "crops");
+  try {
+    if (fs.readdirSync(crops).length === 0) fs.rmdirSync(crops);
+  } catch {
+    // Missing/non-empty crops directory: nothing else to remove.
+  }
+}
+
 /**
  * Send a message: appends the user turn, streams the assistant reply as
  * plain text chunks, and appends the full reply once the stream ends.
@@ -214,12 +237,23 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
     throw error;
   }
-  appendUserMessage(topic, slug, profile.username, chatId, {
-    role: "user",
-    content: body.data.content,
-    images: images.relative.length ? images.relative : undefined,
-    at: new Date().toISOString(),
-  });
+  try {
+    appendUserMessage(topic, slug, profile.username, chatId, {
+      role: "user",
+      content: body.data.content,
+      images: images.relative.length ? images.relative : undefined,
+      at: new Date().toISOString(),
+    });
+  } catch (error) {
+    discardImages(images.absolute, paper.companionDir);
+    if (!readChat(topic, slug, profile.username, chatId)) {
+      return NextResponse.json(
+        { error: "Chat was deleted before the message was saved." },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
 
   const allowWeb = webAccessEnabled() && Boolean(provider.capabilities?.web);
   const system = await buildChatSystem(
@@ -253,11 +287,18 @@ export async function POST(request: NextRequest, { params }: Params) {
           full += chunk;
           controller.enqueue(encoder.encode(chunk));
         }
-        appendMessage(topic, slug, profile.username, chatId, {
-          role: "assistant",
-          content: full,
-          at: new Date().toISOString(),
-        });
+        try {
+          appendMessage(topic, slug, profile.username, chatId, {
+            role: "assistant",
+            content: full,
+            at: new Date().toISOString(),
+          });
+        } catch (error) {
+          // Another tab may delete the chat while the provider is working.
+          // The answer was already delivered, but deletion must win on disk.
+          if (!readChat(topic, slug, profile.username, chatId)) return;
+          throw error;
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Agent failed.";
         controller.enqueue(encoder.encode(`\n\n[error: ${message}]`));

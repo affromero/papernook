@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
+import { Trash2 } from "lucide-react";
 import {
   BIBLIOGRAPHY_EVENT,
   PAPER_REF_EVENT,
@@ -56,6 +57,7 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [pastedImages, setPastedImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [deletingChat, setDeletingChat] = useState(false);
   const [vanishing, setVanishing] = useState<ReadonlySet<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [bibliography, setBibliography] = useState<Bibliography | null>(null);
@@ -381,6 +383,57 @@ export function ChatPanel({
     return null;
   }
 
+  async function deleteCurrentChat(): Promise<void> {
+    const chatId = activeId;
+    const chatIndex = chats.findIndex((chat) => chat.id === chatId);
+    const chat = chats[chatIndex];
+    if (!chatId || !chat || busy || deletingChat) return;
+    if (
+      !window.confirm(
+        `Delete “${chat.title}”? This permanently deletes the conversation and its attached images.`,
+      )
+    ) {
+      return;
+    }
+
+    setDeletingChat(true);
+    setError(null);
+    try {
+      const response = await fetch(`${base}/chats/${chatId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ entire: true }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not delete the conversation.");
+      }
+
+      ++openRequestRef.current;
+      const remaining = chats.filter((candidate) => candidate.id !== chatId);
+      const nextChat = remaining[Math.min(chatIndex, remaining.length - 1)];
+      setChats(remaining);
+      setActiveId(null);
+      setMessages([]);
+      setInput("");
+      setPastedImages([]);
+      setVanishing(new Set());
+      resetHistory();
+      if (nextChat) await openChat(nextChat.id);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not delete the conversation.",
+      );
+    } finally {
+      setDeletingChat(false);
+    }
+  }
+
   function onPaste(event: React.ClipboardEvent): void {
     if (!visionAvailable) return;
     for (const item of event.clipboardData.items) {
@@ -463,6 +516,7 @@ export function ChatPanel({
           value={activeId ?? ""}
           onChange={(e) => void openChat(e.target.value)}
           aria-label="Previous conversations"
+          disabled={deletingChat}
         >
           {chats.length === 0 && <option value="">No conversations yet</option>}
           {chats.map((c) => (
@@ -473,8 +527,18 @@ export function ChatPanel({
         </select>
         <button
           type="button"
+          className={styles.deleteChatBtn}
+          disabled={!activeId || busy || deletingChat}
+          onClick={() => void deleteCurrentChat()}
+          aria-label="Delete conversation"
+          title="Delete conversation"
+        >
+          <Trash2 size={18} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
           className={styles.newBtn}
-          disabled={!aiAvailable}
+          disabled={!aiAvailable || deletingChat}
           onClick={() => void newChat()}
         >
           + New

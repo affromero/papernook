@@ -105,10 +105,16 @@ export function appendMessage(
   chatId: string,
   message: ChatMessage,
 ): void {
-  fs.appendFileSync(
-    chatPath(topic, slug, username, chatId),
-    `${JSON.stringify(message)}\n`,
+  const file = chatPath(topic, slug, username, chatId);
+  const descriptor = fs.openSync(
+    file,
+    fs.constants.O_WRONLY | fs.constants.O_APPEND,
   );
+  try {
+    fs.writeSync(descriptor, `${JSON.stringify(message)}\n`);
+  } finally {
+    fs.closeSync(descriptor);
+  }
 }
 
 /**
@@ -221,6 +227,49 @@ export function deleteMessage(
     if (/^crops\/[a-zA-Z0-9._-]+$/.test(image)) {
       fs.rmSync(path.join(companion, image), { force: true });
     }
+  }
+  return true;
+}
+
+/**
+ * Delete one caller-owned conversation and the crop files referenced only by
+ * its messages. Opening existing chat files is required for later appends, so
+ * an assistant finishing after this unlink cannot recreate the conversation.
+ */
+export function deleteChat(
+  topic: string | null,
+  slug: string,
+  username: string,
+  chatId: string,
+): boolean {
+  const chat = readChat(topic, slug, username, chatId);
+  if (!chat) return false;
+
+  const file = chatPath(topic, slug, username, chatId);
+  try {
+    fs.rmSync(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+
+  const companion = companionDir(topic, slug);
+  const images = new Set(
+    chat.messages.flatMap((message) =>
+      (message.images ?? []).filter((image) =>
+        /^crops\/[a-zA-Z0-9._-]+$/.test(image),
+      ),
+    ),
+  );
+  for (const image of images) {
+    fs.rmSync(path.join(companion, image), { force: true });
+  }
+
+  const crops = path.join(companion, "crops");
+  try {
+    if (fs.readdirSync(crops).length === 0) fs.rmdirSync(crops);
+  } catch {
+    // Missing/non-empty crops directory: nothing else to remove.
   }
   return true;
 }

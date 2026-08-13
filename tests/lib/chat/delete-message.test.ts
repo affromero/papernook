@@ -146,6 +146,69 @@ describe("deleteMessage", () => {
   });
 });
 
+describe("deleteChat", () => {
+  it("removes the conversation and only its referenced crops", async () => {
+    const { chats, chatId } = await seedChat();
+    const papers = await import("@/lib/library/papers");
+    const crops = path.join(papers.companionDir("ml", "paper"), "crops");
+    fs.mkdirSync(crops, { recursive: true });
+    fs.writeFileSync(path.join(crops, "attached.png"), "png");
+    fs.writeFileSync(path.join(crops, "unrelated.png"), "png");
+    chats.appendMessage("ml", "paper", "andres", chatId, {
+      role: "user",
+      content: "question with an image",
+      images: ["crops/attached.png"],
+      at: "2026-08-10T10:01:00.000Z",
+    });
+
+    expect(chats.deleteChat("ml", "paper", "andres", chatId)).toBe(true);
+    expect(chats.readChat("ml", "paper", "andres", chatId)).toBeNull();
+    expect(fs.existsSync(path.join(crops, "attached.png"))).toBe(false);
+    expect(fs.existsSync(path.join(crops, "unrelated.png"))).toBe(true);
+  });
+
+  it("cannot delete another profile's chat", async () => {
+    const chats = await import("@/lib/library/chats");
+    const other = chats.createChat("ml", "paper", "someone-else", "Private");
+
+    expect(chats.deleteChat("ml", "paper", "andres", other.id)).toBe(false);
+    expect(
+      chats.readChat("ml", "paper", "someone-else", other.id),
+    ).not.toBeNull();
+  });
+
+  it("removes the crops directory when its last attachment is deleted", async () => {
+    const { chats, chatId } = await seedChat();
+    const papers = await import("@/lib/library/papers");
+    const crops = path.join(papers.companionDir("ml", "paper"), "crops");
+    fs.mkdirSync(crops, { recursive: true });
+    fs.writeFileSync(path.join(crops, "only.png"), "png");
+    chats.appendMessage("ml", "paper", "andres", chatId, {
+      role: "user",
+      content: "the only attachment",
+      images: ["crops/only.png"],
+      at: "2026-08-10T10:01:00.000Z",
+    });
+
+    expect(chats.deleteChat("ml", "paper", "andres", chatId)).toBe(true);
+    expect(fs.existsSync(crops)).toBe(false);
+  });
+
+  it("does not let a late assistant append recreate a deleted chat", async () => {
+    const { chats, chatId } = await seedChat();
+    expect(chats.deleteChat("ml", "paper", "andres", chatId)).toBe(true);
+
+    expect(() =>
+      chats.appendMessage("ml", "paper", "andres", chatId, {
+        role: "assistant",
+        content: "late answer",
+        at: "2026-08-10T10:02:00.000Z",
+      }),
+    ).toThrow();
+    expect(chats.listChats("ml", "paper", "andres")).toEqual([]);
+  });
+});
+
 describe("DELETE /chats/[chatId]", () => {
   async function callDelete(chatId: string, body: unknown) {
     const route =
@@ -169,6 +232,30 @@ describe("DELETE /chats/[chatId]", () => {
     expect(response.status).toBe(200);
     const stored = chats.readChat("ml", "paper", "andres", chatId);
     expect(stored?.messages.map((m) => m.content)).toEqual(["first question"]);
+  });
+
+  it("deletes the caller's entire conversation", async () => {
+    const { chats, chatId } = await seedChat();
+    const response = await callDelete(chatId, { entire: true });
+
+    expect(response.status).toBe(200);
+    expect(chats.readChat("ml", "paper", "andres", chatId)).toBeNull();
+  });
+
+  it("responds 404 when an entire conversation is absent", async () => {
+    const response = await callDelete("0123456789abcdef", { entire: true });
+    expect(response.status).toBe(404);
+  });
+
+  it("cannot delete another profile's entire conversation", async () => {
+    const chats = await import("@/lib/library/chats");
+    const other = chats.createChat("ml", "paper", "someone-else", "Private");
+    const response = await callDelete(other.id, { entire: true });
+
+    expect(response.status).toBe(404);
+    expect(
+      chats.readChat("ml", "paper", "someone-else", other.id),
+    ).not.toBeNull();
   });
 
   it("responds 409 on a stale index/timestamp so the client resyncs", async () => {

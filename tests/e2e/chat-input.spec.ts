@@ -77,19 +77,46 @@ const historyChats = [
   },
 ];
 
-async function showHistoryFixture(page: Page): Promise<void> {
+async function showHistoryFixture(
+  page: Page,
+  options: { deleteFails?: boolean } = {},
+): Promise<void> {
+  let fixtureChats = historyChats.map((chat) => ({
+    ...chat,
+    messages: chat.messages.map((message) => ({ ...message })),
+  }));
   await page.route("**/api/v1/papers/**/chats**", async (route) => {
-    if (route.request().method() !== "GET") {
+    const method = route.request().method();
+    const pathname = new URL(route.request().url()).pathname;
+    if (method === "DELETE") {
+      if (options.deleteFails) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Deliberate delete failure." }),
+        });
+        return;
+      }
+      fixtureChats = fixtureChats.filter(
+        ({ id }) => !pathname.endsWith(`/chats/${id}`),
+      );
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+      return;
+    }
+    if (method !== "GET") {
       await route.continue();
       return;
     }
-    const pathname = new URL(route.request().url()).pathname;
     if (pathname.endsWith("/chats")) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          chats: historyChats.map(({ id, title, createdAt }) => ({
+          chats: fixtureChats.map(({ id, title, createdAt }) => ({
             id,
             title,
             createdAt,
@@ -98,7 +125,7 @@ async function showHistoryFixture(page: Page): Promise<void> {
       });
       return;
     }
-    const chat = historyChats.find(({ id }) =>
+    const chat = fixtureChats.find(({ id }) =>
       pathname.endsWith(`/chats/${id}`),
     );
     if (!chat) {
@@ -389,4 +416,62 @@ test("Ctrl+R searches only the active chat and Escape preserves the draft", asyn
   ).toBeVisible();
   await search.press("Escape");
   await expect(input).toHaveValue("Empty-chat draft.");
+});
+
+test("deleting conversations confirms, selects the next chat, and handles the last chat", async ({
+  page,
+}) => {
+  await login(page);
+  await showHistoryFixture(page);
+
+  const select = page.getByRole("combobox", { name: "Previous conversations" });
+  const deleteButton = page.getByRole("button", {
+    name: "Delete conversation",
+  });
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("History controls");
+    await dialog.dismiss();
+  });
+  await deleteButton.click();
+  await expect(select).toHaveValue("1111111111111111");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await deleteButton.click();
+  await expect(select).toHaveValue("2222222222222222");
+  await expect(
+    page
+      .getByRole("paragraph")
+      .filter({ hasText: /^Only this other chat message\.$/ }),
+  ).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await deleteButton.click();
+  await expect(select).toHaveValue("3333333333333333");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await deleteButton.click();
+  await expect(select).toHaveValue("");
+  await expect(deleteButton).toBeDisabled();
+  await expect(select.locator("option")).toHaveText("No conversations yet");
+});
+
+test("a failed conversation deletion preserves the active chat", async ({
+  page,
+}) => {
+  await login(page);
+  await showHistoryFixture(page, { deleteFails: true });
+
+  const select = page.getByRole("combobox", { name: "Previous conversations" });
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete conversation" }).click();
+
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Deliberate delete failure." }),
+  ).toHaveText("Deliberate delete failure.");
+  await expect(select).toHaveValue("1111111111111111");
+  await expect(
+    page
+      .getByRole("paragraph")
+      .filter({ hasText: /^The most recent question about recurrence\.$/ }),
+  ).toBeVisible();
 });
