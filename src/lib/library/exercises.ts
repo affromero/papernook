@@ -4,8 +4,8 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { companionDir, exercisesPdfPath } from "./papers";
 
 /**
- * Exercises: the agent (or the user, via "save as exercise") writes markdown
- * into the companion folder; we render all of them into one
+ * Exercises: callers write markdown into the companion folder; we render all
+ * of them into one
  * <slug>.exercises.pdf in the papers tree so they reach the iPad
  * Pencil-annotatable over WebDAV. The renderer handles the markdown subset
  * chat output actually uses: headings, bullets, numbered lists, paragraphs,
@@ -47,7 +47,7 @@ interface Line {
 /**
  * Helvetica is WinAnsi-only; pdf-lib throws on anything outside it. Chat
  * markdown now carries math and code, so transliterate common symbols and
- * blank out the rest rather than 500 on "save as exercise".
+ * blank out the rest rather than failing PDF generation.
  */
 function sanitizeForWinAnsi(s: string): string {
   return s

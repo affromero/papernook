@@ -453,15 +453,6 @@ export function ChatPanel({
     }
   }
 
-  async function saveAsExercise(markdown: string): Promise<void> {
-    await fetch(`${base}/exercises`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ markdown }),
-    });
-  }
-
   return (
     <section className={styles.root} aria-label="Paper chat">
       <header className={styles.header}>
@@ -498,6 +489,12 @@ export function ChatPanel({
         {messages.map((message, i) => (
           <div
             key={i}
+            data-message-role={message.role}
+            hidden={
+              message.role === "assistant" &&
+              !message.content.trim() &&
+              !(busy && i === messages.length - 1)
+            }
             className={[
               message.role === "user" ? styles.userMsg : styles.assistantMsg,
               vanishing.has(i) ? styles.vanish : "",
@@ -524,7 +521,7 @@ export function ChatPanel({
               />
             ))}
             {message.role === "assistant" ? (
-              message.content ? (
+              message.content.trim() ? (
                 <Markdown
                   content={message.content}
                   renderThree={!(busy && i === messages.length - 1)}
@@ -546,16 +543,6 @@ export function ChatPanel({
               ) : null
             ) : (
               <p>{message.content}</p>
-            )}
-            {message.role === "assistant" && message.content && (
-              <button
-                type="button"
-                className={styles.exerciseBtn}
-                onClick={() => void saveAsExercise(message.content)}
-                title="Save as a Pencil-annotatable exercise PDF"
-              >
-                Save as exercise
-              </button>
             )}
           </div>
         ))}

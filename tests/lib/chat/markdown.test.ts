@@ -31,6 +31,20 @@ describe("chat markdown code blocks", () => {
     expect(html).not.toContain('aria-label="Copy code"');
   });
 
+  it("renders precise GitHub code permalinks inline with their claims", () => {
+    const permalink =
+      "https://github.com/example/research/blob/0123456789abcdef0123456789abcdef01234567/src/train.py#L10-L24";
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: `The optimizer is initialized in [src/train.py#L10-L24](${permalink}).`,
+      }),
+    );
+
+    expect(html).toContain(
+      `The optimizer is initialized in <a href="${permalink}">src/train.py#L10-L24</a>.`,
+    );
+  });
+
   it("can defer syntax highlighting while a response is streaming", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {

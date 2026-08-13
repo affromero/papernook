@@ -226,6 +226,53 @@ test("PDF text can be copied and the chat draft stays editable while answering",
   await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
 });
 
+test("keepalive-only responses do not create blank assistant cards", async ({
+  page,
+}) => {
+  await login(page);
+  let sent = false;
+  let releaseReload: (() => void) | undefined;
+  const waitForReload = new Promise<void>((resolve) => {
+    releaseReload = resolve;
+  });
+  let markReloadStarted: (() => void) | undefined;
+  const reloadStarted = new Promise<void>((resolve) => {
+    markReloadStarted = resolve;
+  });
+  await page.route("**/api/v1/papers/**/chats/*", async (route) => {
+    if (route.request().method() === "POST") {
+      sent = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/plain",
+        body: "\n",
+      });
+      return;
+    }
+    if (sent && route.request().method() === "GET") {
+      markReloadStarted?.();
+      await waitForReload;
+    }
+    await route.continue();
+  });
+  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+
+  const assistantCards = page.locator(
+    '[data-message-role="assistant"]:visible',
+  );
+  const completedAnswers = await assistantCards.count();
+  await expect(
+    page.getByRole("button", { name: "Save as exercise" }),
+  ).toHaveCount(0);
+  const input = page.getByPlaceholder(/Ask about the paper/);
+  await input.fill("Slow research question");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await reloadStarted;
+  await expect(assistantCards).toHaveCount(completedAnswers);
+  releaseReload?.();
+});
+
 test("arrow keys recall sent messages and restore the unsent draft", async ({
   page,
 }) => {

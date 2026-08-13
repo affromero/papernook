@@ -275,7 +275,6 @@ describe("public share boundaries", () => {
     expect(html).not.toContain('aria-label="Save annotations in PDF"');
     expect(html).not.toContain("<form");
     expect(html).not.toContain("<textarea");
-    expect(html).not.toContain("Save as exercise");
     expect(html).not.toContain("Create share");
     expect(html).not.toContain("Revoke");
   });

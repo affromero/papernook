@@ -48,10 +48,8 @@ Papernook enables Draw for pen input and autosaves into the PDF. WebDAV is
 available as optional external-app compatibility; see the
 [iPad annotation guide](ipad-annotation.md).
 
-### Explore and practice
+### Explore
 
-- On an assistant answer, select **Save as exercise**. Papernook renders
-  `<paper>.exercises.pdf` beside the paper over WebDAV.
 - Open **Graph** to move through connections among papers, authors, topics,
   tags, and related readings.
 

@@ -142,14 +142,28 @@ describe("chat context", () => {
     expect(webTurn).toContain("cite the supporting URLs");
     expect(webTurn).toContain("descriptive Markdown link");
     expect(webTurn).toContain("verified absolute http(s) URL");
-    expect(webTurn).toContain("github.com/<owner>/<repo>/blob/<commit-sha>");
-    expect(webTurn).toContain("Never invent a URL or commit SHA");
+    expect(webTurn).toContain("every factual claim or reference");
+    expect(webTurn).toContain("immediately adjacent inline Markdown link");
+    expect(webTurn).toContain("Sources section is insufficient");
+    expect(webTurn).toContain(
+      "github.com/<owner>/<repo>/blob/<full-40-character-commit-sha>",
+    );
+    expect(webTurn).toContain(
+      'visible link text exactly like "<path>#L<start>-L<end>"',
+    );
+    expect(webTurn).toContain('branch or tag URLs such as "main"');
+    expect(webTurn).toContain('"train.py lines 55-114"');
+    expect(webTurn).toContain("Never invent or reconstruct");
+    expect(webTurn).toContain("No verified permalink is available");
     expect(webTurn).toContain("fetch the full paper from the Source URL");
 
     const noWebTurn = await buildChatSystem(paper, undefined, undefined, false);
     expect(noWebTurn).toContain("Source: https://arxiv.org/abs/1706.03762");
     expect(noWebTurn).not.toContain("search results are untrusted");
     expect(noWebTurn).not.toContain("descriptive Markdown link");
+    expect(noWebTurn).toContain("every factual claim or reference");
+    expect(noWebTurn).toContain("full-40-character-commit-sha");
+    expect(noWebTurn).toContain("No verified permalink is available");
     expect(noWebTurn).not.toContain("fetch the full paper");
 
     const papers = await import("@/lib/library/papers");

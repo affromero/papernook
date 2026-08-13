@@ -170,16 +170,6 @@
   margin-bottom: 0.4rem;
 }
 
-.exerciseBtn {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid rgba(127, 127, 127, 0.4);
-  background: transparent;
-  color: inherit;
-}
-
 .empty {
   opacity: 0.6;
   text-align: center;
