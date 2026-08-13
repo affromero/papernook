@@ -93,4 +93,36 @@ describe("chat response streaming", () => {
       expect.objectContaining({ role: "assistant", content: "answer" }),
     ]);
   });
+
+  it("does not recreate a chat deleted while the provider is responding", async () => {
+    const chats = await import("@/lib/library/chats");
+    const chat = chats.createChat("ml", "paper", "andres", "Slow chat");
+    const route =
+      await import("@/app/api/v1/papers/[topic]/[slug]/chats/[chatId]/route");
+    const response = await route.POST(
+      new NextRequest("http://localhost/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "research this" }),
+      }),
+      {
+        params: Promise.resolve({
+          topic: "ml",
+          slug: "paper",
+          chatId: chat.id,
+        }),
+      },
+    );
+
+    const reader = response.body!.getReader();
+    await reader.read();
+    expect(chats.deleteChat("ml", "paper", "andres", chat.id)).toBe(true);
+    releaseProvider();
+    while (!(await reader.read()).done) {
+      // Drain the streamed answer so assistant persistence runs.
+    }
+
+    expect(chats.readChat("ml", "paper", "andres", chat.id)).toBeNull();
+    expect(chats.listChats("ml", "paper", "andres")).toEqual([]);
+  });
 });

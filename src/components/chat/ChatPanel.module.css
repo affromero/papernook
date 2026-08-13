@@ -17,6 +17,7 @@
 
 .chatSelect {
   flex: 1;
+  min-width: 0;
   min-height: 44px;
   border-radius: 8px;
   border: 1px solid rgba(127, 127, 127, 0.3);
@@ -33,6 +34,29 @@
   background: rgba(63, 79, 176, 0.1);
   color: inherit;
   font-weight: 600;
+}
+
+.deleteChatBtn {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border: 1px solid rgba(164, 46, 43, 0.45);
+  border-radius: 8px;
+  background: rgba(164, 46, 43, 0.08);
+  color: #a42e2b;
+}
+
+.deleteChatBtn:hover:not(:disabled) {
+  background: rgba(164, 46, 43, 0.15);
+}
+
+.deleteChatBtn:disabled,
+.newBtn:disabled,
+.chatSelect:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .messages {
