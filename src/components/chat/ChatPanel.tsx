@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import {
   BIBLIOGRAPHY_EVENT,
   PAPER_REF_EVENT,
@@ -50,9 +57,30 @@ export function ChatPanel({
   const [vanishing, setVanishing] = useState<ReadonlySet<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [bibliography, setBibliography] = useState<Bibliography | null>(null);
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historySelection, setHistorySelection] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const historyDialogRef = useRef<HTMLDialogElement>(null);
+  const historySearchRef = useRef<HTMLInputElement>(null);
+  const historyResultsRef = useRef<HTMLDivElement>(null);
+  const historyDraftRef = useRef("");
+  const pickerDraftRef = useRef("");
   const refHoverTimerRef = useRef<number | null>(null);
   const openRequestRef = useRef(0);
+  const historyTitleId = useId();
+
+  const sentHistory = messages.reduce<string[]>((history, message) => {
+    if (message.role === "user") history.unshift(message.content);
+    return history;
+  }, []);
+  const normalizedHistoryQuery = historyQuery.trim().toLocaleLowerCase();
+  const filteredHistory = normalizedHistoryQuery
+    ? sentHistory.filter((message) =>
+        message.toLocaleLowerCase().includes(normalizedHistoryQuery),
+      )
+    : sentHistory;
 
   useEffect(() => {
     void fetch(`${base}/chats`, { credentials: "include" })
@@ -67,6 +95,13 @@ export function ChatPanel({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
+
+  useEffect(() => {
+    if (!historyDialogRef.current?.open) return;
+    historyResultsRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [historyQuery, historySelection]);
 
   // Canvas "Explain selection" hands crops over via this window event.
   useEffect(() => {
@@ -141,9 +176,148 @@ export function ChatPanel({
     dispatchRef(event.target, "goto");
   }
 
+  function focusComposerAtEnd(): void {
+    window.requestAnimationFrame(() => {
+      const textarea = inputRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    });
+  }
+
+  function resetHistoryNavigation(): void {
+    setHistoryIndex(null);
+    historyDraftRef.current = "";
+  }
+
+  function closeHistorySearch(restoreDraft: boolean): void {
+    if (restoreDraft) setInput(pickerDraftRef.current);
+    historyDialogRef.current?.close();
+    setHistoryQuery("");
+    setHistorySelection(0);
+    pickerDraftRef.current = "";
+    focusComposerAtEnd();
+  }
+
+  function resetHistory(): void {
+    resetHistoryNavigation();
+    if (historyDialogRef.current?.open) historyDialogRef.current.close();
+    setHistoryQuery("");
+    setHistorySelection(0);
+    pickerDraftRef.current = "";
+  }
+
+  function recallHistory(index: number): void {
+    const message = sentHistory[index];
+    if (message === undefined) return;
+    setHistoryIndex(index);
+    setInput(message);
+    focusComposerAtEnd();
+  }
+
+  function navigateHistory(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
+    if (
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      (event.key !== "ArrowUp" && event.key !== "ArrowDown")
+    ) {
+      return false;
+    }
+
+    if (historyIndex === null) {
+      if (event.key === "ArrowDown" || sentHistory.length === 0) return false;
+      const textarea = event.currentTarget;
+      const selectionIsCollapsed =
+        textarea.selectionStart === textarea.selectionEnd;
+      const isAtHistoryBoundary =
+        input.length === 0 ||
+        (selectionIsCollapsed && textarea.selectionStart === 0);
+      if (!isAtHistoryBoundary) return false;
+      historyDraftRef.current = input;
+      recallHistory(0);
+      return true;
+    }
+
+    if (event.key === "ArrowUp") {
+      recallHistory(Math.min(historyIndex + 1, sentHistory.length - 1));
+      return true;
+    }
+
+    if (historyIndex > 0) {
+      recallHistory(historyIndex - 1);
+    } else {
+      setHistoryIndex(null);
+      setInput(historyDraftRef.current);
+      focusComposerAtEnd();
+    }
+    return true;
+  }
+
+  function openHistorySearch(): void {
+    const dialog = historyDialogRef.current;
+    if (!dialog || dialog.open) return;
+    pickerDraftRef.current = input;
+    setHistoryQuery("");
+    setHistorySelection(0);
+    dialog.showModal();
+    window.requestAnimationFrame(() => historySearchRef.current?.focus());
+  }
+
+  function selectHistoryMessage(message: string): void {
+    resetHistoryNavigation();
+    setInput(message);
+    closeHistorySearch(false);
+  }
+
+  function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (
+      event.key.toLocaleLowerCase() === "r" &&
+      event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey
+    ) {
+      event.preventDefault();
+      openHistorySearch();
+      return;
+    }
+    if (navigateHistory(event)) {
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void send();
+    }
+  }
+
+  function onHistorySearchKeyDown(
+    event: KeyboardEvent<HTMLInputElement>,
+  ): void {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeHistorySearch(true);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setHistorySelection((index) =>
+        Math.min(index + 1, Math.max(filteredHistory.length - 1, 0)),
+      );
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setHistorySelection((index) => Math.max(index - 1, 0));
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const message = filteredHistory[historySelection];
+      if (message !== undefined) selectHistoryMessage(message);
+    }
+  }
+
   async function openChat(id: string): Promise<void> {
     const request = ++openRequestRef.current;
+    resetHistory();
     setActiveId(id);
+    setMessages([]);
     const res = await fetch(`${base}/chats/${id}`, { credentials: "include" });
     const data = (await res.json()) as {
       chat?: { header: ChatHeader; messages: ChatMessage[] };
@@ -176,6 +350,7 @@ export function ChatPanel({
         setVanishing(new Set());
         if (res?.ok) {
           setMessages((m) => m.filter((_, i) => i !== index));
+          resetHistory();
         } else {
           // ponytail: stale index (e.g. two rapid deletes) → resync from disk.
           setError("Delete failed.");
@@ -195,6 +370,7 @@ export function ChatPanel({
     const data = (await res.json()) as { chat?: ChatHeader };
     if (data.chat) {
       ++openRequestRef.current;
+      resetHistory();
       setChats((c) => [data.chat as ChatHeader, ...c]);
       setActiveId(data.chat.id);
       setMessages([]);
@@ -232,6 +408,7 @@ export function ChatPanel({
     setBusy(true);
     setError(null);
     setInput("");
+    resetHistory();
     const images = pastedImages;
     setPastedImages([]);
     setMessages((m) => [
@@ -417,16 +594,15 @@ export function ChatPanel({
       {aiAvailable ? (
         <div className={styles.inputRow}>
           <textarea
+            ref={inputRef}
             className={styles.input}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onPaste={onPaste}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
+            onChange={(e) => {
+              setInput(e.target.value);
+              resetHistoryNavigation();
             }}
+            onPaste={onPaste}
+            onKeyDown={onComposerKeyDown}
             placeholder={
               visionAvailable
                 ? "Ask about the paper… (paste screenshots here)"
@@ -449,6 +625,88 @@ export function ChatPanel({
           works without it.
         </p>
       )}
+
+      <dialog
+        ref={historyDialogRef}
+        className={styles.historyDialog}
+        aria-labelledby={historyTitleId}
+        onCancel={(event) => {
+          event.preventDefault();
+          closeHistorySearch(true);
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) closeHistorySearch(true);
+        }}
+      >
+        <div className={styles.historyDialogInner}>
+          <header className={styles.historyHeader}>
+            <div>
+              <p className={styles.historyShortcut}>Ctrl R</p>
+              <h2 id={historyTitleId}>Search sent messages</h2>
+            </div>
+            <button
+              type="button"
+              className={styles.historyClose}
+              aria-label="Close message history"
+              onClick={() => closeHistorySearch(true)}
+            >
+              ×
+            </button>
+          </header>
+          <input
+            ref={historySearchRef}
+            className={styles.historySearch}
+            type="search"
+            value={historyQuery}
+            onChange={(event) => {
+              setHistoryQuery(event.target.value);
+              setHistorySelection(0);
+            }}
+            onKeyDown={onHistorySearchKeyDown}
+            placeholder="Type to filter this chat…"
+            aria-label="Filter sent messages"
+            aria-controls={`${historyTitleId}-results`}
+            aria-activedescendant={
+              filteredHistory.length > 0
+                ? `${historyTitleId}-result-${historySelection}`
+                : undefined
+            }
+          />
+          <div
+            ref={historyResultsRef}
+            id={`${historyTitleId}-results`}
+            className={styles.historyResults}
+            role="listbox"
+            aria-label="Sent messages"
+          >
+            {filteredHistory.length > 0 ? (
+              filteredHistory.map((message, index) => (
+                <button
+                  type="button"
+                  className={`${styles.historyResult} ${index === historySelection ? styles.historyResultSelected : ""}`}
+                  id={`${historyTitleId}-result-${index}`}
+                  key={`${index}-${message}`}
+                  role="option"
+                  aria-selected={index === historySelection}
+                  onMouseEnter={() => setHistorySelection(index)}
+                  onClick={() => selectHistoryMessage(message)}
+                >
+                  {message}
+                </button>
+              ))
+            ) : (
+              <p className={styles.historyEmpty}>
+                {sentHistory.length === 0
+                  ? "No sent messages in this chat yet."
+                  : "No sent messages match that search."}
+              </p>
+            )}
+          </div>
+          <p className={styles.historyHint}>
+            ↑↓ choose · Enter restore · Esc cancel
+          </p>
+        </div>
+      </dialog>
     </section>
   );
 }
