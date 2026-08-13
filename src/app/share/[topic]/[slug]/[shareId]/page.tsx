@@ -143,6 +143,7 @@ export default async function SharePage({ params }: SharePageProps) {
                           <Markdown
                             content={message.content}
                             currentOrigin={currentOrigin}
+                            paperSourceUrl={meta.sourceUrl ?? undefined}
                           />
                         ) : (
                           <p className={styles.messageText}>

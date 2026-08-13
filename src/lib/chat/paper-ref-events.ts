@@ -35,7 +35,7 @@ const KINDS: readonly PaperRefKind[] = [
   "corollary",
 ];
 
-const LABEL_SHAPE = /^(?:\d+(?:\.\d+)*|[A-Z](?:\.\d+)*)$/;
+const LABEL_SHAPE = /^(?:\d+(?:\.\d+)*|[A-Z](?:(?:\.\d+)+|\d*)?)$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

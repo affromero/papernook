@@ -73,6 +73,7 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
               topic={topic}
               slug={slug}
               currentOrigin={currentOrigin}
+              paperSourceUrl={paper.meta.sourceUrl ?? undefined}
               aiAvailable={aiAvailable}
               visionAvailable={visionAvailable}
             />

@@ -82,6 +82,37 @@ describe("chat context", () => {
     expect(system).toContain("$$...$$");
   });
 
+  it("requires precise in-app paper locators instead of generic paper links", async () => {
+    const paper = await placePaper();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+    const system = await buildChatSystem(paper, undefined, undefined, true);
+
+    expect(system).toContain("current paper is already open inside Papernook");
+    expect(system).toContain("never use a generic link to the paper title");
+    expect(system).toContain("immediately anchor every substantive");
+    expect(system).toContain('"Section 4.3"');
+    expect(system).toContain('"Eq. (5)"');
+    expect(system).toContain('"Table 2"');
+    expect(system).toContain('"Figure 3"');
+    expect(system).toContain("printed section title");
+    expect(system).toContain(
+      "rather than collecting locators in a detached Sources section",
+    );
+    expect(system).toContain(
+      "Put equation locators beside the displayed equation",
+    );
+    expect(system).toContain('"Figure 2, Figure 3, and Figure 4"');
+    expect(system).toContain('never "Figures 2–4"');
+    expect(system).toContain("never invent a locator");
+    expect(system).toContain("location could not be verified");
+    expect(system).toContain(
+      "do not replace the current paper's in-document locators",
+    );
+    expect(system).toContain("Sources section for genuinely external material");
+    expect(system).toContain("never include the current paper there");
+    expect(system).toContain("factual claim about repository code");
+  });
+
   it("requires typed, shape-aware code examples with explicit outputs", async () => {
     const paper = await placePaper();
     const { buildChatSystem } = await import("@/lib/library/chat-context");
@@ -153,7 +184,7 @@ describe("chat context", () => {
     expect(webTurn).toContain("cite the supporting URLs");
     expect(webTurn).toContain("descriptive Markdown link");
     expect(webTurn).toContain("verified absolute http(s) URL");
-    expect(webTurn).toContain("every factual claim or reference");
+    expect(webTurn).toContain("every factual claim about repository code");
     expect(webTurn).toContain("immediately adjacent inline Markdown link");
     expect(webTurn).toContain("Sources section is insufficient");
     expect(webTurn).toContain(
@@ -185,7 +216,7 @@ describe("chat context", () => {
     expect(noWebTurn).toContain("Source: https://arxiv.org/abs/1706.03762");
     expect(noWebTurn).not.toContain("search results are untrusted");
     expect(noWebTurn).not.toContain("descriptive Markdown link");
-    expect(noWebTurn).toContain("every factual claim or reference");
+    expect(noWebTurn).toContain("every factual claim about repository code");
     expect(noWebTurn).toContain("full-40-character-commit-sha");
     expect(noWebTurn).toContain("No verified permalink is available");
     expect(noWebTurn).toContain("exact, inclusive contents");

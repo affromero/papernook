@@ -4,6 +4,63 @@ import { describe, expect, it } from "vitest";
 import { Markdown } from "@/components/chat/Markdown";
 
 describe("chat markdown code blocks", () => {
+  it("renders precise paper locators as in-app navigation controls", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content:
+          "Section 4.3 (Training Schedule), Eq. (5), Table 2, Figure 3, Algorithm 1, Appendix B.2, Eq. (A.1), Figure S1, and Table S2.",
+        decorateRefs: true,
+      }),
+    );
+
+    expect(html).toContain(
+      'data-paper-ref="{&quot;kind&quot;:&quot;section&quot;,&quot;label&quot;:&quot;4.3&quot;}"',
+    );
+    expect(html).toContain(
+      'data-paper-ref="{&quot;kind&quot;:&quot;equation&quot;,&quot;label&quot;:&quot;5&quot;}"',
+    );
+    expect(html).toContain(
+      'data-paper-ref="{&quot;kind&quot;:&quot;table&quot;,&quot;label&quot;:&quot;2&quot;}"',
+    );
+    expect(html).toContain(
+      'data-paper-ref="{&quot;kind&quot;:&quot;figure&quot;,&quot;label&quot;:&quot;3&quot;}"',
+    );
+    expect(html).toContain(
+      'data-paper-ref="{&quot;kind&quot;:&quot;algorithm&quot;,&quot;label&quot;:&quot;1&quot;}"',
+    );
+    expect(html).toContain(
+      'data-paper-ref="{&quot;kind&quot;:&quot;appendix&quot;,&quot;label&quot;:&quot;B.2&quot;}"',
+    );
+    expect(html).toContain(
+      'data-paper-ref="{&quot;kind&quot;:&quot;equation&quot;,&quot;label&quot;:&quot;A.1&quot;}"',
+    );
+    expect(html).toContain(
+      'data-paper-ref="{&quot;kind&quot;:&quot;figure&quot;,&quot;label&quot;:&quot;S1&quot;}"',
+    );
+    expect(html).toContain(
+      'data-paper-ref="{&quot;kind&quot;:&quot;table&quot;,&quot;label&quot;:&quot;S2&quot;}"',
+    );
+    expect(html).toContain("Section 4.3</button> (Training Schedule)");
+    expect(html).not.toContain("href=");
+  });
+
+  it("removes links back to the open paper while retaining external links", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content:
+          "[MeshSplatting](https://arxiv.org/pdf/2512.06818.pdf) [Repository](https://github.com/org/repo)",
+        paperSourceUrl: "https://arxiv.org/abs/2512.06818",
+        currentOrigin: "https://papernook.example",
+      }),
+    );
+
+    expect(html).toContain("<span>MeshSplatting</span>");
+    expect(html).not.toContain("arxiv.org");
+    expect(html).toContain(
+      '<a href="https://github.com/org/repo" target="_blank" rel="noopener noreferrer nofollow">Repository</a>',
+    );
+  });
+
   it("highlights fenced source code and labels its language", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {

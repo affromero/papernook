@@ -57,6 +57,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
               topic={topic}
               slug={slug}
               currentOrigin={currentOrigin}
+              paperSourceUrl={meta.sourceUrl ?? undefined}
               aiAvailable={aiAvailable}
               visionAvailable={visionAvailable}
             />

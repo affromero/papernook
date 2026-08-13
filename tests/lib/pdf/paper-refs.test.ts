@@ -42,6 +42,17 @@ describe("findPaperRefs", () => {
     ]);
   });
 
+  it("finds appendix and supplement-style locators", () => {
+    expect(
+      refs("Eq. (A.1), Figure S1, and Table S2 support Appendix B."),
+    ).toEqual([
+      ["equation", "A.1"],
+      ["figure", "S1"],
+      ["table", "S2"],
+      ["appendix", "B"],
+    ]);
+  });
+
   it("reports match offsets that cover the whole reference", () => {
     const text = "see Eq. (12) here";
     const [ref] = findPaperRefs(text);
@@ -54,8 +65,8 @@ describe("findPaperRefs", () => {
     expect(refs("Figure 3 in the appendix")).toEqual([["figure", "3"]]);
   });
 
-  it("skips words without labels and letter labels on number-only kinds", () => {
-    expect(refs("the figure below and Table A are unrelated")).toEqual([]);
+  it("skips words without labels and numeric appendix labels", () => {
+    expect(refs("the figure below has no printed locator")).toEqual([]);
     expect(refs("Appendix 3 is not a thing either")).toEqual([]);
   });
 
@@ -96,6 +107,12 @@ describe("destinationCandidates", () => {
     expect(destinationCandidates({ kind: "equation", label: "4.5" })).toEqual([
       "equation.4.5",
     ]);
+    expect(destinationCandidates({ kind: "equation", label: "A.1" })).toEqual([
+      "equation.A.1",
+    ]);
+    expect(destinationCandidates({ kind: "figure", label: "S1" })).toEqual([
+      "figure.S1",
+    ]);
   });
 
   it("lists common theorem-environment abbreviations", () => {
@@ -116,6 +133,11 @@ describe("captionPattern", () => {
     expect(pattern.test("Fig. 3. Overview of the pipeline")).toBe(true);
     expect(pattern.test("Figure 30: a different figure")).toBe(false);
     expect(pattern.test("see Figure 3: mid-line mention")).toBe(false);
+    expect(
+      captionPattern({ kind: "figure", label: "S1" })!.test(
+        "Figure S1: Supplementary overview",
+      ),
+    ).toBe(true);
   });
 
   it("matches section headings without matching prose", () => {

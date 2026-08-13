@@ -32,8 +32,8 @@ export interface PaperRef {
   label: string;
 }
 
-/** "4", "4.1", "B", "B.2" — a counter path of numbers, or letter-led. */
-const LABEL = "(?:\\d+(?:\\.\\d+)*|[A-Z](?:\\.\\d+)*)";
+/** "4", "4.1", "B", "B.2", "S1" — numeric or supplement-led. */
+const LABEL = "(?:\\d+(?:\\.\\d+)*|[A-Z](?:(?:\\.\\d+)+|\\d*)?)";
 
 const WORDS: [PaperRefKind, string][] = [
   ["figure", "Figures?|Fig\\.?"],
@@ -75,8 +75,8 @@ function kindOf(word: string): PaperRefKind | null {
 
 /**
  * Find everything reference-shaped in `text`, sorted by position. A section
- * label may be letter-led ("Sec. B.2"); other kinds require a leading digit
- * except appendix, which is letter-led ("Appendix B").
+ * label may be letter-led ("Sec. B.2", "Eq. (A.1)", "Figure S1"); appendix
+ * labels must be letter-led ("Appendix B").
  */
 export function findPaperRefs(text: string): PaperRef[] {
   const refs: PaperRef[] = [];
@@ -88,7 +88,6 @@ export function findPaperRefs(text: string): PaperRef[] {
     const kind = kindOf(word);
     if (!kind) continue;
     const letterLed = /^[A-Z]/.test(label);
-    if (letterLed && kind !== "appendix" && kind !== "section") continue;
     if (!letterLed && kind === "appendix") continue;
     if (OTHER_PAPER.test(text.slice(match.index + match[0].length))) continue;
     refs.push({

@@ -40,6 +40,33 @@ function codeText(children: ReactNode): string {
   return codeText((children.props as { children?: ReactNode }).children);
 }
 
+function normalizedPaperIdentity(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "arxiv.org") {
+      const match = url.pathname.match(
+        /^\/(?:abs|pdf)\/([^/]+?)(?:\.pdf)?\/?$/i,
+      );
+      if (match?.[1]) return `arxiv:${match[1].toLowerCase()}`;
+    }
+    const path = url.pathname.replace(/\/+$/, "") || "/";
+    return `${host}${path}`;
+  } catch {
+    return null;
+  }
+}
+
+function linksToCurrentPaper(href: string, paperSourceUrl?: string): boolean {
+  if (!paperSourceUrl) return false;
+  const hrefIdentity = normalizedPaperIdentity(href);
+  return (
+    hrefIdentity !== null &&
+    hrefIdentity === normalizedPaperIdentity(paperSourceUrl)
+  );
+}
+
 function CodeFrame({
   children,
   copyCode,
@@ -80,6 +107,7 @@ export function Markdown({
   decorateRefs = false,
   bibliography = null,
   currentOrigin,
+  paperSourceUrl,
 }: {
   content: string;
   renderThree?: boolean;
@@ -88,6 +116,7 @@ export function Markdown({
   decorateRefs?: boolean;
   bibliography?: Bibliography | null;
   currentOrigin?: string;
+  paperSourceUrl?: string;
 }) {
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
@@ -112,6 +141,9 @@ export function Markdown({
             void node;
             const href =
               typeof anchorProps.href === "string" ? anchorProps.href : "";
+            if (linksToCurrentPaper(href, paperSourceUrl)) {
+              return <span>{anchorProps.children}</span>;
+            }
             return (
               <a
                 {...anchorProps}

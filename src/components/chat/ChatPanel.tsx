@@ -37,6 +37,7 @@ interface ChatPanelProps {
   topic: string;
   slug: string;
   currentOrigin: string;
+  paperSourceUrl?: string;
   /** Server-computed hasConfiguredProvider(); false renders a setup hint. */
   aiAvailable: boolean;
   /** Provider capabilities.vision; false disables image attachments. */
@@ -47,6 +48,7 @@ export function ChatPanel({
   topic,
   slug,
   currentOrigin,
+  paperSourceUrl,
   aiAvailable,
   visionAvailable,
 }: ChatPanelProps) {
@@ -596,6 +598,7 @@ export function ChatPanel({
                   decorateRefs={!(busy && i === messages.length - 1)}
                   bibliography={bibliography}
                   currentOrigin={currentOrigin}
+                  paperSourceUrl={paperSourceUrl}
                 />
               ) : busy && i === messages.length - 1 ? (
                 <span
