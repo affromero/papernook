@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
 import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
@@ -28,6 +29,10 @@ export default async function PaperPage({ params }: PaperPageProps) {
   if (!paper) notFound();
 
   const meta = paper.meta;
+  const headerStore = await headers();
+  const protocol = headerStore.get("x-forwarded-proto") ?? "http";
+  const hostname = headerStore.get("host") ?? "localhost";
+  const currentOrigin = `${protocol}://${hostname}`;
   const aiAvailable = hasConfiguredProvider();
   const visionAvailable = aiAvailable && getProvider().capabilities.vision;
   return (
@@ -51,6 +56,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
             <ChatPanel
               topic={topic}
               slug={slug}
+              currentOrigin={currentOrigin}
               aiAvailable={aiAvailable}
               visionAvailable={visionAvailable}
             />

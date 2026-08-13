@@ -737,7 +737,11 @@ function LicenseNotice({ title, detail }: { title: string; detail: string }) {
       <p>{detail}</p>
       <div>
         <a href="/settings#canvas">Open Canvas settings</a>
-        <a href="https://tldraw.dev/pricing" target="_blank" rel="noreferrer">
+        <a
+          href="https://tldraw.dev/pricing"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Get a key <span aria-hidden="true">↗</span>
         </a>
       </div>

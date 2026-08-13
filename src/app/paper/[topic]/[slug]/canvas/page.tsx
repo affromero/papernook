@@ -29,6 +29,7 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
   const headerStore = await headers();
   const protocol = headerStore.get("x-forwarded-proto") ?? "http";
   const hostname = headerStore.get("host") ?? "localhost";
+  const currentOrigin = `${protocol}://${hostname}`;
   const aiAvailable = hasConfiguredProvider();
   const visionAvailable = aiAvailable && getProvider().capabilities.vision;
   let licenseKey: string | null = null;
@@ -71,6 +72,7 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
             <ChatPanel
               topic={topic}
               slug={slug}
+              currentOrigin={currentOrigin}
               aiAvailable={aiAvailable}
               visionAvailable={visionAvailable}
             />

@@ -16,6 +16,7 @@ import { optionalWebdavUrl } from "@/lib/webdav-url";
 import { DevicePanel } from "@/components/pwa/DevicePanel";
 import { CanvasLicenseCard } from "@/components/canvas/CanvasLicenseCard";
 import { captureBookmarklet } from "@/lib/capture/browser/submit";
+import { externalLinkProps } from "@/lib/external-link";
 import styles from "./settings.module.css";
 
 export const dynamic = "force-dynamic";
@@ -111,6 +112,7 @@ export default async function SettingsPage() {
                     <a
                       className={styles.primaryAction}
                       href={chromeExtensionGuide}
+                      {...externalLinkProps(chromeExtensionGuide, base)}
                     >
                       Set up extension <span aria-hidden="true">↗</span>
                     </a>
@@ -135,7 +137,11 @@ export default async function SettingsPage() {
                     capture from the Share Sheet.
                   </p>
                   {shortcutShareUrl && (
-                    <a className={styles.primaryAction} href={shortcutShareUrl}>
+                    <a
+                      className={styles.primaryAction}
+                      href={shortcutShareUrl}
+                      {...externalLinkProps(shortcutShareUrl, base)}
+                    >
                       Get the Shortcut <span aria-hidden="true">↗</span>
                     </a>
                   )}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { Markdown } from "@/components/chat/Markdown";
 import { PdfReader } from "@/components/pdf/PdfReader";
 import { getPaper } from "@/lib/library/papers";
@@ -30,6 +31,16 @@ export default async function SharePage({ params }: SharePageProps) {
   if (!share || !paper) notFound();
 
   const meta = paper.meta;
+  let currentOrigin: string | undefined;
+  try {
+    const headerStore = await headers();
+    const protocol = headerStore.get("x-forwarded-proto") ?? "http";
+    const hostname = headerStore.get("host") ?? "localhost";
+    currentOrigin = `${protocol}://${hostname}`;
+  } catch {
+    // Direct server-component tests have no request store. Relative links
+    // still classify as internal; absolute web links safely open separately.
+  }
   return (
     <main className={styles.root}>
       <header className={styles.masthead}>
@@ -129,7 +140,10 @@ export default async function SharePage({ params }: SharePageProps) {
                           ) : null;
                         })}
                         {message.role === "assistant" ? (
-                          <Markdown content={message.content} />
+                          <Markdown
+                            content={message.content}
+                            currentOrigin={currentOrigin}
+                          />
                         ) : (
                           <p className={styles.messageText}>
                             {message.content}

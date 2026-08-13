@@ -6,6 +6,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { rehypePaperRefs } from "@/lib/chat/ref-decorations";
+import { externalLinkProps } from "@/lib/external-link";
 import type { Bibliography } from "@/lib/pdf/bibliography";
 import { CopyCodeButton } from "./CopyCodeButton";
 import { ThreeSandbox } from "./ThreeSandbox";
@@ -78,6 +79,7 @@ export function Markdown({
   copyCode = true,
   decorateRefs = false,
   bibliography = null,
+  currentOrigin,
 }: {
   content: string;
   renderThree?: boolean;
@@ -85,6 +87,7 @@ export function Markdown({
   copyCode?: boolean;
   decorateRefs?: boolean;
   bibliography?: Bibliography | null;
+  currentOrigin?: string;
 }) {
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
@@ -104,6 +107,18 @@ export function Markdown({
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={rehypePlugins}
         components={{
+          a(props) {
+            const { node, ...anchorProps } = props;
+            void node;
+            const href =
+              typeof anchorProps.href === "string" ? anchorProps.href : "";
+            return (
+              <a
+                {...anchorProps}
+                {...externalLinkProps(href, currentOrigin, true)}
+              />
+            );
+          },
           pre(props) {
             const code = renderThree ? threeCode(props.children) : null;
             return code ? (

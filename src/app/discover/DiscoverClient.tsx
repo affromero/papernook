@@ -107,7 +107,7 @@ export function DiscoverClient({ captureToken, topics }: DiscoverClientProps) {
                   className={styles.sourceLink}
                   href={s.url}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                 >
                   Source ↗
                 </a>

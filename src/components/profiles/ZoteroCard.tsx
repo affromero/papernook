@@ -321,7 +321,7 @@ export function ZoteroCard() {
           <a
             href="https://www.zotero.org/settings/keys/new"
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
           >
             zotero.org/settings/keys
           </a>

@@ -109,7 +109,7 @@ export function CanvasLicenseCard() {
             className={styles.link}
             href="https://tldraw.dev/pricing"
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
           >
             About tldraw licenses <span aria-hidden="true">↗</span>
           </a>
@@ -153,7 +153,7 @@ export function CanvasLicenseCard() {
         className={styles.link}
         href="https://tldraw.dev/pricing"
         target="_blank"
-        rel="noreferrer"
+        rel="noopener noreferrer"
       >
         Get a tldraw key <span aria-hidden="true">↗</span>
       </a>

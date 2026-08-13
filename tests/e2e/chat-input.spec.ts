@@ -17,6 +17,8 @@ const highlightedCode = [
   "    # points: [batch, xyz]",
   "    return points[:, :2]",
 ].join("\n");
+const codePermalink =
+  "https://github.com/mesh-splatting/mesh-splatting/blob/0123456789abcdef0123456789abcdef01234567/train.py#L69-L71";
 
 async function showCodeReply(page: Page): Promise<void> {
   await page.route(
@@ -35,7 +37,7 @@ async function showCodeReply(page: Page): Promise<void> {
               { role: "user", content: "Show the projection." },
               {
                 role: "assistant",
-                content: `\`\`\`python\n${highlightedCode}\n\`\`\``,
+                content: `The projection is implemented in [train.py#L69-L71](${codePermalink}).\n\n\`\`\`python\n${highlightedCode}\n\`\`\``,
               },
             ],
           },
@@ -131,6 +133,21 @@ test("highlighted code copies exact indentation and punctuation", async ({
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe(highlightedCode);
+});
+
+test("repository permalinks are visibly linked beside their source excerpt", async ({
+  page,
+}) => {
+  await login(page);
+  await showCodeReply(page);
+
+  const permalink = page.getByRole("link", { name: "train.py#L69-L71" });
+  await expect(permalink).toHaveAttribute("href", codePermalink);
+  await expect(permalink).toHaveAttribute("target", "_blank");
+  await expect(permalink).toHaveCSS("text-decoration-line", "underline");
+  await permalink.focus();
+  await expect(permalink).toHaveCSS("outline-style", "solid");
+  await expect(page.getByText(highlightedCode, { exact: true })).toBeVisible();
 });
 
 test("paper header copies the original source link", async ({

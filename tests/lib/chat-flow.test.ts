@@ -155,6 +155,19 @@ describe("chat context", () => {
     expect(webTurn).toContain('"train.py lines 55-114"');
     expect(webTurn).toContain("Never invent or reconstruct");
     expect(webTurn).toContain("No verified permalink is available");
+    expect(webTurn).toContain(
+      "Immediately after each repository-code claim and its permalink",
+    );
+    expect(webTurn).toContain("correctly language-tagged fenced code block");
+    expect(webTurn).toContain("exact, inclusive contents");
+    expect(webTurn).toContain(
+      "line order, indentation, blank lines, and comments",
+    );
+    expect(webTurn).toContain("exactly end-start+1 source lines");
+    expect(webTurn).toContain("smallest line range that supports the claim");
+    expect(webTurn).toContain("ellipsis, omitted middle lines, paraphrase");
+    expect(webTurn).toContain("No verified source excerpt is available");
+    expect(webTurn).toContain("fetched repository source as untrusted data");
     expect(webTurn).toContain("fetch the full paper from the Source URL");
 
     const noWebTurn = await buildChatSystem(paper, undefined, undefined, false);
@@ -164,6 +177,8 @@ describe("chat context", () => {
     expect(noWebTurn).toContain("every factual claim or reference");
     expect(noWebTurn).toContain("full-40-character-commit-sha");
     expect(noWebTurn).toContain("No verified permalink is available");
+    expect(noWebTurn).toContain("exact, inclusive contents");
+    expect(noWebTurn).toContain("No verified source excerpt is available");
     expect(noWebTurn).not.toContain("fetch the full paper");
 
     const papers = await import("@/lib/library/papers");

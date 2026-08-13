@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { captureBookmarklet } from "@/lib/capture/browser/submit";
 import { CanvasLicenseCard } from "@/components/canvas/CanvasLicenseCard";
 import { ModelPicker } from "@/components/profiles/ModelPicker";
+import { externalLinkProps } from "@/lib/external-link";
 import styles from "./welcome.module.css";
 
 const chromeExtensionGuide =
@@ -149,7 +150,11 @@ export function WelcomeFlow({
             browser capture:
           </p>
           {shortcutUrl && (
-            <a className={styles.action} href={shortcutUrl}>
+            <a
+              className={styles.action}
+              href={shortcutUrl}
+              {...externalLinkProps(shortcutUrl, baseUrl)}
+            >
               <span className={styles.actionTitle}>⬇️ Get the Shortcut</span>
               <span className={styles.actionSub}>
                 iPhone / iPad share sheet. It asks for the server and your
@@ -157,7 +162,11 @@ export function WelcomeFlow({
               </span>
             </a>
           )}
-          <a className={styles.action} href={chromeExtensionGuide}>
+          <a
+            className={styles.action}
+            href={chromeExtensionGuide}
+            {...externalLinkProps(chromeExtensionGuide, baseUrl)}
+          >
             <span className={styles.actionTitle}>Chrome extension</span>
             <span className={styles.actionSub}>
               Open supported PDFs automatically or use the toolbar from any

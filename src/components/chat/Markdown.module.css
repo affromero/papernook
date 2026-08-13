@@ -11,6 +11,23 @@
   margin-bottom: 0;
 }
 
+.root a {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.root a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.root a:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
 .root p,
 .root ul,
 .root ol,

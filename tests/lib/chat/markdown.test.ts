@@ -37,12 +37,55 @@ describe("chat markdown code blocks", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {
         content: `The optimizer is initialized in [src/train.py#L10-L24](${permalink}).`,
+        currentOrigin: "https://papernook.example",
       }),
     );
 
     expect(html).toContain(
-      `The optimizer is initialized in <a href="${permalink}">src/train.py#L10-L24</a>.`,
+      `The optimizer is initialized in <a href="${permalink}" target="_blank" rel="noopener noreferrer nofollow">src/train.py#L10-L24</a>.`,
     );
+  });
+
+  it("renders an exact source excerpt after its permalink as inert code", () => {
+    const permalink =
+      "https://github.com/example/research/blob/0123456789abcdef0123456789abcdef01234567/src/train.py#L10-L12";
+    const source = [
+      "def render(value: str) -> str:",
+      '    literal = "<script>alert(1)</script>"',
+      "    return literal + value",
+    ].join("\n");
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: `The renderer preserves the input [src/train.py#L10-L12](${permalink}).\n\n\`\`\`python\n${source}\n\`\`\``,
+        currentOrigin: "https://papernook.example",
+        highlightCode: false,
+      }),
+    );
+
+    const linkPosition = html.indexOf("src/train.py#L10-L12</a>");
+    const sourcePosition = html.indexOf("def render(value: str) -&gt; str:");
+    expect(linkPosition).toBeGreaterThan(-1);
+    expect(sourcePosition).toBeGreaterThan(linkPosition);
+    expect(html).toContain(
+      `<a href="${permalink}" target="_blank" rel="noopener noreferrer nofollow">src/train.py#L10-L12</a>`,
+    );
+    expect(html).toContain(
+      "literal = &quot;&lt;script&gt;alert(1)&lt;/script&gt;&quot;",
+    );
+    expect(html).not.toContain("<script>");
+  });
+
+  it("keeps internal Markdown links in place", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content:
+          "[Paper](/paper/ml/attention) [Section](#details) [Absolute](https://papernook.example/paper/ml/attention)",
+        currentOrigin: "https://papernook.example",
+      }),
+    );
+
+    expect(html.match(/target=/g)).toBeNull();
+    expect(html.match(/rel=/g)).toBeNull();
   });
 
   it("can defer syntax highlighting while a response is streaming", () => {

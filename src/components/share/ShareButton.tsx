@@ -265,7 +265,11 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                           >
                             {copiedId === share.id ? "Copied" : "Copy"}
                           </button>
-                          <a href={share.href} target="_blank" rel="noreferrer">
+                          <a
+                            href={share.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
                             Open
                           </a>
                           <button
