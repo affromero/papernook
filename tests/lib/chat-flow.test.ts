@@ -93,6 +93,17 @@ describe("chat context", () => {
     expect(system).toContain("output type, shape, and meaning");
   });
 
+  it("honors explicit requests for comprehensive coverage", async () => {
+    const paper = await placePaper();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+    const system = await buildChatSystem(paper);
+
+    expect(system).toContain("Honor the user's requested depth and scope");
+    expect(system).toContain("cover the entire requested scope systematically");
+    expect(system).toContain("perform a completeness pass");
+    expect(system).toContain("do not silently reduce the request");
+  });
+
   it("documents the threejs fenced-block contract", async () => {
     const paper = await placePaper();
     const { buildChatSystem } = await import("@/lib/library/chat-context");
@@ -191,6 +202,42 @@ describe("chat context", () => {
       true,
     );
     expect(shortTurn).not.toContain("fetch the full paper");
+  });
+
+  it("requires exhaustive analysis when a complete verified source is present", async () => {
+    const paper = await placePaper();
+    const { buildChatSystem } = await import("@/lib/library/chat-context");
+    const system = await buildChatSystem(
+      paper,
+      undefined,
+      "explain training",
+      false,
+      true,
+      {
+        owner: "org",
+        repo: "repo",
+        sha: "2a810a6c353215685307da3d4cc6ebd73b1c387b",
+        path: "train.py",
+        canonicalUrl:
+          "https://github.com/org/repo/blob/2a810a6c353215685307da3d4cc6ebd73b1c387b/train.py",
+        lines: ["first", "", "last"],
+      },
+    );
+
+    expect(system).toContain("authoritative repository snapshot");
+    expect(system).toContain("Read every provided line from top to bottom");
+    expect(system).toContain("full control and data flow");
+    expect(system).toContain("every stage transition");
+    expect(system).toContain(
+      "preconditions, triggering iteration or condition",
+    );
+    expect(system).toContain("reconcile the paper's equations");
+    expect(system).toContain(
+      "Before concluding that a stage or feature is absent",
+    );
+    expect(system).toContain('"line":1,"text":"first"');
+    expect(system).toContain('"line":2,"text":""');
+    expect(system).toContain('"line":3,"text":"last"');
   });
 
   it("flattens history into a resumable prompt", async () => {

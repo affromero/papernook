@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { libraryRoot } from "../data-dir";
 import { companionDir } from "./papers";
 import { assertSlug } from "./slug";
+import type { RepositorySourceIdentity } from "../github-source";
 
 /**
  * Per-paper, per-account conversations as jsonl files:
@@ -24,6 +25,8 @@ export interface ChatMessage {
   content: string;
   /** Paths (relative to the companion dir) of attached crop images. */
   images?: string[];
+  /** Immutable source identity verified before a repository-analysis turn. */
+  repositorySource?: RepositorySourceIdentity;
   at: string;
 }
 

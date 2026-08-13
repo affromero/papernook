@@ -16,6 +16,12 @@ import { buildChatSystem, buildChatPrompt } from "@/lib/library/chat-context";
 import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { webAccessEnabled } from "@/lib/agent/config";
 import { readBoundedJson, RequestBodyError } from "@/lib/bounded-request";
+import {
+  fetchVerifiedGitHubSource,
+  githubBlobUrlFromMessage,
+  GitHubSourceError,
+  type RepositorySourceIdentity,
+} from "@/lib/github-source";
 
 export const dynamic = "force-dynamic";
 
@@ -225,6 +231,32 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
 
+  let repositorySource;
+  let requestedRepositoryUrl: string | null;
+  try {
+    requestedRepositoryUrl = githubBlobUrlFromMessage(body.data.content);
+    const inherited = [...chat.messages]
+      .reverse()
+      .find(
+        (message) => message.role === "user" && message.repositorySource,
+      )?.repositorySource;
+    if (requestedRepositoryUrl) {
+      repositorySource = await fetchVerifiedGitHubSource(
+        requestedRepositoryUrl,
+      );
+    } else if (inherited) {
+      repositorySource = await fetchVerifiedGitHubSource(inherited);
+    }
+  } catch (error) {
+    if (error instanceof GitHubSourceError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
+    }
+    throw error;
+  }
+
   let images: ReturnType<typeof persistImages>;
   try {
     images = persistImages(paper.companionDir, body.data.images ?? []);
@@ -242,6 +274,14 @@ export async function POST(request: NextRequest, { params }: Params) {
       role: "user",
       content: body.data.content,
       images: images.relative.length ? images.relative : undefined,
+      repositorySource: repositorySource
+        ? ({
+            owner: repositorySource.owner,
+            repo: repositorySource.repo,
+            sha: repositorySource.sha,
+            path: repositorySource.path,
+          } satisfies RepositorySourceIdentity)
+        : undefined,
       at: new Date().toISOString(),
     });
   } catch (error) {
@@ -262,6 +302,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     body.data.content,
     allowWeb,
     Boolean(provider.capabilities?.unboundedContext),
+    repositorySource,
   );
   const prompt = buildChatPrompt(chat.messages, body.data.content);
 
