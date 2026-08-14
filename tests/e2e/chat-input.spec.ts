@@ -189,6 +189,51 @@ test("conversation titles can be manually renamed", async ({ page }) => {
   ).toContainText("Attention mechanisms");
 });
 
+test("the selected conversation survives a page refresh", async ({ page }) => {
+  await login(page);
+  await showHistoryFixture(page);
+
+  const select = page.getByRole("combobox", { name: "Previous conversations" });
+  await select.selectOption("2222222222222222");
+  await expect(
+    page
+      .getByRole("paragraph")
+      .filter({ hasText: /^Only this other chat message\.$/ }),
+  ).toBeVisible();
+
+  await page.reload();
+
+  await expect(select).toHaveValue("2222222222222222");
+  await expect(
+    page
+      .getByRole("paragraph")
+      .filter({ hasText: /^Only this other chat message\.$/ }),
+  ).toBeVisible();
+});
+
+test("a missing saved conversation falls back to the most recent chat", async ({
+  page,
+}) => {
+  await login(page);
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      "papernook:active-chat:machine-learning:attention-is-all-you-need",
+      "ffffffffffffffff",
+    );
+  });
+
+  await showHistoryFixture(page);
+
+  await expect(
+    page.getByRole("combobox", { name: "Previous conversations" }),
+  ).toHaveValue("1111111111111111");
+  await expect(
+    page
+      .getByRole("paragraph")
+      .filter({ hasText: /^The most recent question about recurrence\.$/ }),
+  ).toBeVisible();
+});
+
 test("highlighted code copies exact indentation and punctuation", async ({
   context,
   page,

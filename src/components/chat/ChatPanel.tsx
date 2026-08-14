@@ -44,6 +44,36 @@ interface ChatPanelProps {
   visionAvailable: boolean;
 }
 
+const ACTIVE_CHAT_STORAGE_PREFIX = "papernook:active-chat";
+
+function activeChatStorageKey(topic: string, slug: string): string {
+  return `${ACTIVE_CHAT_STORAGE_PREFIX}:${topic}:${slug}`;
+}
+
+function readActiveChat(topic: string, slug: string): string | null {
+  try {
+    return window.localStorage.getItem(activeChatStorageKey(topic, slug));
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveChat(topic: string, slug: string, chatId: string): void {
+  try {
+    window.localStorage.setItem(activeChatStorageKey(topic, slug), chatId);
+  } catch {
+    // Chat remains usable when browser storage is unavailable.
+  }
+}
+
+function clearActiveChat(topic: string, slug: string): void {
+  try {
+    window.localStorage.removeItem(activeChatStorageKey(topic, slug));
+  } catch {
+    // Chat remains usable when browser storage is unavailable.
+  }
+}
+
 export function ChatPanel({
   topic,
   slug,
@@ -93,8 +123,12 @@ export function ChatPanel({
     void fetch(`${base}/chats`, { credentials: "include" })
       .then((r) => r.json())
       .then((d: { chats?: ChatHeader[] }) => {
-        setChats(d.chats ?? []);
-        if (d.chats?.[0]) void openChat(d.chats[0].id);
+        const nextChats = d.chats ?? [];
+        const savedChatId = readActiveChat(topic, slug);
+        const initialChat =
+          nextChats.find((chat) => chat.id === savedChatId) ?? nextChats[0];
+        setChats(nextChats);
+        if (initialChat) void openChat(initialChat.id);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic, slug]);
@@ -323,6 +357,7 @@ export function ChatPanel({
   async function openChat(id: string): Promise<void> {
     const request = ++openRequestRef.current;
     resetHistory();
+    saveActiveChat(topic, slug, id);
     setActiveId(id);
     setMessages([]);
     const res = await fetch(`${base}/chats/${id}`, { credentials: "include" });
@@ -379,6 +414,7 @@ export function ChatPanel({
       ++openRequestRef.current;
       resetHistory();
       setChats((c) => [data.chat as ChatHeader, ...c]);
+      saveActiveChat(topic, slug, data.chat.id);
       setActiveId(data.chat.id);
       setMessages([]);
       return data.chat.id;
@@ -425,7 +461,11 @@ export function ChatPanel({
       setPastedImages([]);
       setVanishing(new Set());
       resetHistory();
-      if (nextChat) await openChat(nextChat.id);
+      if (nextChat) {
+        await openChat(nextChat.id);
+      } else {
+        clearActiveChat(topic, slug);
+      }
     } catch (cause) {
       setError(
         cause instanceof Error
