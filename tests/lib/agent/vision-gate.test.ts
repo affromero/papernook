@@ -21,9 +21,7 @@ beforeEach(async () => {
     getProvider: () => ({
       id: "claude-code",
       capabilities: { web: false, vision: false },
-      execute: async () => {
-        throw new Error("execute must not run for a rejected image send");
-      },
+      execute: async () => "Figure explanation",
       stream: async function* () {
         throw new Error("stream must not run for a rejected image send");
       },
@@ -95,7 +93,7 @@ describe("chat image sends on a provider without vision", () => {
     expect(response.status).toBe(200);
     await response.text();
     expect(chats.readChat("ml", "paper", "andres", chatId)?.header.title).toBe(
-      "explain this figure",
+      "Figure explanation",
     );
   });
 });

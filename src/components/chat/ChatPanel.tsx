@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   BIBLIOGRAPHY_EVENT,
   PAPER_REF_EVENT,
@@ -60,6 +60,7 @@ export function ChatPanel({
   const [pastedImages, setPastedImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [deletingChat, setDeletingChat] = useState(false);
+  const [renamingChat, setRenamingChat] = useState(false);
   const [vanishing, setVanishing] = useState<ReadonlySet<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [bibliography, setBibliography] = useState<Bibliography | null>(null);
@@ -436,6 +437,46 @@ export function ChatPanel({
     }
   }
 
+  async function renameCurrentChat(): Promise<void> {
+    const chatId = activeId;
+    const chat = chats.find((candidate) => candidate.id === chatId);
+    if (!chatId || !chat || deletingChat || renamingChat) return;
+    const title = window.prompt("Rename conversation", chat.title);
+    if (title === null) return;
+
+    setRenamingChat(true);
+    setError(null);
+    try {
+      const response = await fetch(`${base}/chats/${chatId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        chat?: ChatHeader;
+        error?: string;
+      };
+      if (!response.ok || !payload.chat) {
+        throw new Error(payload.error ?? "Could not rename the conversation.");
+      }
+      const renamed = payload.chat;
+      setChats((current) =>
+        current.map((candidate) =>
+          candidate.id === renamed.id ? renamed : candidate,
+        ),
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not rename the conversation.",
+      );
+    } finally {
+      setRenamingChat(false);
+    }
+  }
+
   function onPaste(event: React.ClipboardEvent): void {
     if (!visionAvailable) return;
     for (const item of event.clipboardData.items) {
@@ -527,6 +568,16 @@ export function ChatPanel({
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          className={styles.renameChatBtn}
+          disabled={!activeId || deletingChat || renamingChat}
+          onClick={() => void renameCurrentChat()}
+          aria-label="Rename conversation"
+          title="Rename conversation"
+        >
+          <Pencil size={18} aria-hidden="true" />
+        </button>
         <button
           type="button"
           className={styles.deleteChatBtn}

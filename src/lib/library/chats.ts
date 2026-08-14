@@ -16,6 +16,8 @@ import type { RepositorySourceIdentity } from "../github-source";
 export interface ChatHeader {
   id: string;
   title: string;
+  /** Missing only on legacy chat files written before title provenance. */
+  titleSource?: "placeholder" | "generated" | "manual";
   username: string;
   createdAt: string;
 }
@@ -38,9 +40,10 @@ export interface Chat {
 const CHAT_ID_RE = /^[a-f0-9]{16}$/;
 export const NEW_CHAT_TITLE = "New chat";
 const MAX_CHAT_TITLE_LENGTH = 72;
+export const MAX_MANUAL_CHAT_TITLE_LENGTH = 120;
 
-/** Build a compact, stable conversation title without another AI request. */
-export function titleFromFirstQuery(query: string): string {
+/** Preserve readable titles for legacy date/placeholder chat files only. */
+function legacyTitleFromFirstQuery(query: string): string {
   const normalized = query.replace(/\s+/g, " ").trim();
   if (!normalized) return NEW_CHAT_TITLE;
   const characters = Array.from(normalized);
@@ -55,10 +58,45 @@ export function titleFromFirstQuery(query: string): string {
   return `${clipped.trimEnd()}…`;
 }
 
-function hasGeneratedTitle(title: string): boolean {
+function hasLegacyPlaceholderTitle(title: string): boolean {
   if (title === NEW_CHAT_TITLE) return true;
   const match = title.match(/^Chat\s+\d{1,4}([./-])\d{1,2}\1\d{1,4}$/);
   return Boolean(match);
+}
+
+function headerHasPlaceholderTitle(header: ChatHeader): boolean {
+  if (header.titleSource) return header.titleSource === "placeholder";
+  return hasLegacyPlaceholderTitle(header.title);
+}
+
+export function chatNeedsGeneratedTitle(chat: Chat): boolean {
+  return (
+    headerHasPlaceholderTitle(chat.header) &&
+    !chat.messages.some((message) => message.role === "user")
+  );
+}
+
+export function normalizeGeneratedChatTitle(value: string): string {
+  const normalized = value
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+    .trim();
+  if (!normalized) throw new Error("The AI provider returned an empty title.");
+  const characters = Array.from(normalized);
+  if (characters.length <= MAX_CHAT_TITLE_LENGTH) return normalized;
+  return `${characters.slice(0, MAX_CHAT_TITLE_LENGTH).join("").trimEnd()}…`;
+}
+
+export function normalizeManualChatTitle(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) throw new Error("Conversation title cannot be empty.");
+  if (Array.from(normalized).length > MAX_MANUAL_CHAT_TITLE_LENGTH) {
+    throw new Error(
+      `Conversation title cannot exceed ${MAX_MANUAL_CHAT_TITLE_LENGTH} characters.`,
+    );
+  }
+  return normalized;
 }
 
 function chatsDir(
@@ -88,7 +126,8 @@ export function createChat(
 ): ChatHeader {
   const header: ChatHeader = {
     id: crypto.randomBytes(8).toString("hex"),
-    title: title.slice(0, 120),
+    title: Array.from(title).slice(0, MAX_MANUAL_CHAT_TITLE_LENGTH).join(""),
+    titleSource: title === NEW_CHAT_TITLE ? "placeholder" : "manual",
     username,
     createdAt: new Date().toISOString(),
   };
@@ -130,6 +169,7 @@ export function appendUserMessage(
   username: string,
   chatId: string,
   message: ChatMessage,
+  generatedTitle: string | null,
 ): ChatHeader {
   if (message.role !== "user") {
     throw new Error("appendUserMessage requires a user message");
@@ -151,12 +191,19 @@ export function appendUserMessage(
         return false;
       }
     });
-  if (alreadyHasUser || !hasGeneratedTitle(header.title)) {
+  if (alreadyHasUser || !headerHasPlaceholderTitle(header)) {
     appendMessage(topic, slug, username, chatId, message);
     return header;
   }
 
-  const titled = { ...header, title: titleFromFirstQuery(message.content) };
+  if (generatedTitle === null) {
+    throw new Error("The first user message requires an AI-generated title.");
+  }
+  const titled: ChatHeader = {
+    ...header,
+    title: normalizeGeneratedChatTitle(generatedTitle),
+    titleSource: "generated",
+  };
   const tmp = `${file}.tmp-${crypto.randomUUID()}`;
   try {
     fs.writeFileSync(
@@ -188,16 +235,57 @@ export function readChat(
   try {
     let header = JSON.parse(lines[0]) as ChatHeader;
     const messages = lines.slice(1).map((l) => JSON.parse(l) as ChatMessage);
-    if (hasGeneratedTitle(header.title)) {
+    if (!header.titleSource && hasLegacyPlaceholderTitle(header.title)) {
       const firstQuery = messages.find((message) => message.role === "user");
       if (firstQuery) {
-        header = { ...header, title: titleFromFirstQuery(firstQuery.content) };
+        header = {
+          ...header,
+          title: legacyTitleFromFirstQuery(firstQuery.content),
+        };
       }
     }
     return { header, messages };
   } catch {
     return null;
   }
+}
+
+/** Replace a caller-owned chat title without touching its message bytes. */
+export function renameChat(
+  topic: string | null,
+  slug: string,
+  username: string,
+  chatId: string,
+  title: string,
+): ChatHeader | null {
+  const file = chatPath(topic, slug, username, chatId);
+  let raw: string;
+  try {
+    raw = fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  const firstNewline = raw.indexOf("\n");
+  if (firstNewline < 0) throw new Error("Invalid chat file");
+  const header = JSON.parse(raw.slice(0, firstNewline)) as ChatHeader;
+  const renamed: ChatHeader = {
+    ...header,
+    title: normalizeManualChatTitle(title),
+    titleSource: "manual",
+  };
+  const tmp = `${file}.tmp-${crypto.randomUUID()}`;
+  try {
+    fs.writeFileSync(
+      tmp,
+      `${JSON.stringify(renamed)}${raw.slice(firstNewline)}`,
+    );
+    fs.renameSync(tmp, file);
+  } catch (error) {
+    fs.rmSync(tmp, { force: true });
+    throw error;
+  }
+  return renamed;
 }
 
 /**

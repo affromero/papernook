@@ -48,11 +48,28 @@
   color: #a42e2b;
 }
 
+.renameChatBtn {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.08);
+  color: inherit;
+}
+
+.renameChatBtn:hover:not(:disabled) {
+  background: rgba(127, 127, 127, 0.15);
+}
+
 .deleteChatBtn:hover:not(:disabled) {
   background: rgba(164, 46, 43, 0.15);
 }
 
 .deleteChatBtn:disabled,
+.renameChatBtn:disabled,
 .newBtn:disabled,
 .chatSelect:disabled {
   cursor: not-allowed;

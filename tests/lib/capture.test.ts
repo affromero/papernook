@@ -418,41 +418,72 @@ describe("chat store round-trip", () => {
       chats.NEW_CHAT_TITLE,
     );
 
-    chats.appendUserMessage("nlp", "attention", "andres", header.id, {
-      role: "user",
-      content: "  How does\n multi-head attention improve the model?  ",
-      at: new Date().toISOString(),
-    });
-    chats.appendUserMessage("nlp", "attention", "andres", header.id, {
-      role: "user",
-      content: "A later question must not rename this conversation",
-      at: new Date().toISOString(),
-    });
+    chats.appendUserMessage(
+      "nlp",
+      "attention",
+      "andres",
+      header.id,
+      {
+        role: "user",
+        content: "  How does\n multi-head attention improve the model?  ",
+        at: new Date().toISOString(),
+      },
+      "Multi-head attention benefits",
+    );
+    chats.appendUserMessage(
+      "nlp",
+      "attention",
+      "andres",
+      header.id,
+      {
+        role: "user",
+        content: "A later question must not rename this conversation",
+        at: new Date().toISOString(),
+      },
+      null,
+    );
 
     expect(
       chats.readChat("nlp", "attention", "andres", header.id)?.header.title,
-    ).toBe("How does multi-head attention improve the model?");
+    ).toBe("Multi-head attention benefits");
   });
 
   it("keeps explicit chat titles and derives legacy date titles on read", async () => {
     const chats = await import("@/lib/library/chats");
+    const papers = await import("@/lib/library/papers");
     const starter = chats.createChat(
       "nlp",
       "attention",
       "andres",
       "Starter questions",
     );
-    chats.appendUserMessage("nlp", "attention", "andres", starter.id, {
-      role: "user",
-      content: "Do not replace the starter title",
-      at: new Date().toISOString(),
-    });
+    chats.appendUserMessage(
+      "nlp",
+      "attention",
+      "andres",
+      starter.id,
+      {
+        role: "user",
+        content: "Do not replace the starter title",
+        at: new Date().toISOString(),
+      },
+      null,
+    );
     const legacy = chats.createChat(
       "nlp",
       "attention",
       "andres",
       "Chat 12/08/2026",
     );
+    const legacyFile = path.join(
+      papers.companionDir("nlp", "attention"),
+      "chats",
+      "andres",
+      `${legacy.id}.jsonl`,
+    );
+    const legacyHeader = { ...legacy };
+    delete legacyHeader.titleSource;
+    fs.writeFileSync(legacyFile, `${JSON.stringify(legacyHeader)}\n`);
     chats.appendMessage("nlp", "attention", "andres", legacy.id, {
       role: "user",
       content: "Why are residual connections important?",
@@ -467,9 +498,33 @@ describe("chat store round-trip", () => {
     ).toBe("Why are residual connections important?");
   });
 
-  it("truncates long query titles without splitting Unicode characters", async () => {
+  it("keeps legacy long query titles Unicode-safe", async () => {
     const chats = await import("@/lib/library/chats");
-    const title = chats.titleFromFirstQuery(`Explain ${"🧠".repeat(100)}`);
+    const papers = await import("@/lib/library/papers");
+    const legacy = chats.createChat(
+      "nlp",
+      "attention",
+      "andres",
+      "Chat 12/08/2026",
+    );
+    const legacyFile = path.join(
+      papers.companionDir("nlp", "attention"),
+      "chats",
+      "andres",
+      `${legacy.id}.jsonl`,
+    );
+    const legacyHeader = { ...legacy };
+    delete legacyHeader.titleSource;
+    fs.writeFileSync(
+      legacyFile,
+      `${JSON.stringify(legacyHeader)}\n${JSON.stringify({
+        role: "user",
+        content: `Explain ${"🧠".repeat(100)}`,
+        at: new Date().toISOString(),
+      })}\n`,
+    );
+    const title = chats.readChat("nlp", "attention", "andres", legacy.id)!
+      .header.title;
 
     expect(Array.from(title)).toHaveLength(73);
     expect(title.endsWith("…")).toBe(true);

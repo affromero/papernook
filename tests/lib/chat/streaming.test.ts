@@ -7,13 +7,17 @@ import { NextRequest } from "next/server";
 let tmpDir: string;
 let releaseProvider: () => void;
 let providerCalls: number;
+let titleCalls: number;
 let capturedSystem: string | undefined;
+let capturedTitlePrompt: string | undefined;
 
 beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-chat-stream-"));
   process.env.PAPERNOOK_DATA_DIR = tmpDir;
   providerCalls = 0;
+  titleCalls = 0;
   capturedSystem = undefined;
+  capturedTitlePrompt = undefined;
   vi.resetModules();
   vi.doMock("@/lib/auth/session", () => ({
     activeProfile: async () => ({ username: "andres" }),
@@ -23,7 +27,11 @@ beforeEach(async () => {
     getProvider: () => ({
       id: "claude-code",
       capabilities: { web: true, vision: true, unboundedContext: true },
-      execute: async () => "answer",
+      execute: async (turn: { prompt: string }) => {
+        titleCalls += 1;
+        capturedTitlePrompt = turn.prompt;
+        return "Interpolated vertex optimization";
+      },
       stream: async function* (turn: { system?: string }) {
         providerCalls += 1;
         capturedSystem = turn.system;
@@ -64,6 +72,72 @@ afterEach(async () => {
 });
 
 describe("chat response streaming", () => {
+  it("generates a semantic title from the complete first message only", async () => {
+    const chats = await import("@/lib/library/chats");
+    const chat = chats.createChat("ml", "paper", "andres", "New chat");
+    const route =
+      await import("@/app/api/v1/papers/[topic]/[slug]/chats/[chatId]/route");
+    const completeMessage = `${"context ".repeat(2400)}main intent at the end`;
+
+    const firstResponse = await route.POST(
+      new NextRequest("http://localhost/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: completeMessage }),
+      }),
+      {
+        params: Promise.resolve({
+          topic: "ml",
+          slug: "paper",
+          chatId: chat.id,
+        }),
+      },
+    );
+    const firstReader = firstResponse.body!.getReader();
+    await firstReader.read();
+    releaseProvider();
+    while (!(await firstReader.read()).done) {
+      // Drain the first answer.
+    }
+
+    expect(titleCalls).toBe(1);
+    expect(capturedTitlePrompt).toBe(completeMessage);
+    expect(providerCalls).toBe(1);
+    expect(chats.readChat("ml", "paper", "andres", chat.id)?.header).toEqual(
+      expect.objectContaining({
+        title: "Interpolated vertex optimization",
+        titleSource: "generated",
+      }),
+    );
+
+    const secondResponse = await route.POST(
+      new NextRequest("http://localhost/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "A follow-up question" }),
+      }),
+      {
+        params: Promise.resolve({
+          topic: "ml",
+          slug: "paper",
+          chatId: chat.id,
+        }),
+      },
+    );
+    const secondReader = secondResponse.body!.getReader();
+    await secondReader.read();
+    releaseProvider();
+    while (!(await secondReader.read()).done) {
+      // Drain the follow-up answer.
+    }
+
+    expect(titleCalls).toBe(1);
+    expect(providerCalls).toBe(2);
+    expect(chats.readChat("ml", "paper", "andres", chat.id)?.header.title).toBe(
+      "Interpolated vertex optimization",
+    );
+  });
+
   it("sends a keepalive before a slow provider responds without persisting it", async () => {
     const chats = await import("@/lib/library/chats");
     const chat = chats.createChat("ml", "paper", "andres", "Slow chat");
@@ -142,9 +216,21 @@ describe("chat response streaming", () => {
         .mockResolvedValueOnce(new Response(JSON.stringify({ sha })))
         .mockResolvedValueOnce(
           new Response(
+            JSON.stringify({
+              truncated: false,
+              tree: [
+                { path: "train.py", type: "blob", size: 60 },
+                { path: "model.py", type: "blob", size: 28 },
+              ],
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
             "def stage_one():\n    pass\n\ndef stage_two():\n    pass\n",
           ),
-        ),
+        )
+        .mockResolvedValueOnce(new Response("class Model:\n    pass\n")),
     );
     const chats = await import("@/lib/library/chats");
     const chat = chats.createChat("ml", "paper", "andres", "New chat");
@@ -175,12 +261,12 @@ describe("chat response streaming", () => {
     }
 
     expect(providerCalls).toBe(1);
-    expect(capturedSystem).toContain(
-      "Read every provided line from top to bottom",
-    );
+    expect(capturedSystem).toContain("follow every local import");
     expect(capturedSystem).toContain("every stage transition");
+    expect(capturedSystem).toContain('"path":"train.py"');
     expect(capturedSystem).toContain('"line":1,"text":"def stage_one():"');
     expect(capturedSystem).toContain('"line":5,"text":"    pass"');
+    expect(capturedSystem).toContain('"path":"model.py"');
     expect(capturedSystem).toContain(
       `https://github.com/org/repo/blob/${sha}/train.py`,
     );
@@ -232,7 +318,15 @@ describe("chat response streaming", () => {
     const sha = "2a810a6c353215685307da3d4cc6ebd73b1c387b";
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(new Response("complete pinned source"));
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            truncated: false,
+            tree: [{ path: "train.py", type: "blob", size: 22 }],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response("complete pinned source"));
     vi.stubGlobal("fetch", fetchMock);
     const chats = await import("@/lib/library/chats");
     const chat = chats.createChat("ml", "paper", "andres", "Source chat");
@@ -265,9 +359,9 @@ describe("chat response streaming", () => {
       // Drain the answer.
     }
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0][0]).toBe(
-      `https://api.github.com/repos/org/repo/contents/train.py?ref=${sha}`,
+      `https://api.github.com/repos/org/repo/git/trees/${sha}?recursive=1`,
     );
     expect(capturedSystem).toContain("complete pinned source");
   });

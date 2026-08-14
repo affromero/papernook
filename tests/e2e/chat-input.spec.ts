@@ -79,7 +79,7 @@ const historyChats = [
 
 async function showHistoryFixture(
   page: Page,
-  options: { deleteFails?: boolean } = {},
+  options: { deleteFails?: boolean; renameFails?: boolean } = {},
 ): Promise<void> {
   let fixtureChats = historyChats.map((chat) => ({
     ...chat,
@@ -88,6 +88,31 @@ async function showHistoryFixture(
   await page.route("**/api/v1/papers/**/chats**", async (route) => {
     const method = route.request().method();
     const pathname = new URL(route.request().url()).pathname;
+    if (method === "PATCH") {
+      if (options.renameFails) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Deliberate rename failure." }),
+        });
+        return;
+      }
+      const chat = fixtureChats.find(({ id }) =>
+        pathname.endsWith(`/chats/${id}`),
+      );
+      const body = route.request().postDataJSON() as { title: string };
+      if (!chat) {
+        await route.fulfill({ status: 404 });
+        return;
+      }
+      chat.title = body.title.replace(/\s+/g, " ").trim();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ chat: chat }),
+      });
+      return;
+    }
     if (method === "DELETE") {
       if (options.deleteFails) {
         await route.fulfill({
@@ -146,6 +171,23 @@ async function showHistoryFixture(
       .filter({ hasText: /^The most recent question about recurrence\.$/ }),
   ).toBeVisible();
 }
+
+test("conversation titles can be manually renamed", async ({ page }) => {
+  await login(page);
+  await showHistoryFixture(page);
+  page.once("dialog", (dialog) => dialog.accept("  Attention mechanisms  "));
+
+  await page.getByRole("button", { name: "Rename conversation" }).click();
+
+  await expect(
+    page.getByRole("combobox", { name: "Previous conversations" }),
+  ).toHaveValue(historyChats[0].id);
+  await expect(
+    page
+      .getByRole("combobox", { name: "Previous conversations" })
+      .locator("option:checked"),
+  ).toContainText("Attention mechanisms");
+});
 
 test("highlighted code copies exact indentation and punctuation", async ({
   context,

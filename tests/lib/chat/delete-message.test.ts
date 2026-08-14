@@ -209,6 +209,42 @@ describe("deleteChat", () => {
   });
 });
 
+describe("renameChat", () => {
+  it("sets an authoritative title without changing messages", async () => {
+    const { chats, chatId } = await seedChat();
+    const before = chats.readChat("ml", "paper", "andres", chatId)?.messages;
+
+    const renamed = chats.renameChat(
+      "ml",
+      "paper",
+      "andres",
+      chatId,
+      "  Residual   connection theory  ",
+    );
+
+    expect(renamed).toEqual(
+      expect.objectContaining({
+        title: "Residual connection theory",
+        titleSource: "manual",
+      }),
+    );
+    expect(chats.readChat("ml", "paper", "andres", chatId)?.messages).toEqual(
+      before,
+    );
+  });
+
+  it("rejects invalid titles and cannot recreate a deleted chat", async () => {
+    const { chats, chatId } = await seedChat();
+    expect(() =>
+      chats.renameChat("ml", "paper", "andres", chatId, "   "),
+    ).toThrow(/cannot be empty/);
+    expect(chats.deleteChat("ml", "paper", "andres", chatId)).toBe(true);
+    expect(
+      chats.renameChat("ml", "paper", "andres", chatId, "Too late"),
+    ).toBeNull();
+  });
+});
+
 describe("DELETE /chats/[chatId]", () => {
   async function callDelete(chatId: string, body: unknown) {
     const route =
@@ -289,5 +325,50 @@ describe("DELETE /chats/[chatId]", () => {
     expect(
       chats.readChat("ml", "paper", "someone-else", other.id)?.messages,
     ).toHaveLength(1);
+  });
+});
+
+describe("PATCH /chats/[chatId]", () => {
+  async function callPatch(chatId: string, body: unknown) {
+    const route =
+      await import("@/app/api/v1/papers/[topic]/[slug]/chats/[chatId]/route");
+    return route.PATCH(
+      new NextRequest("http://localhost/chat", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ topic: "ml", slug: "paper", chatId }) },
+    );
+  }
+
+  it("renames the caller's conversation", async () => {
+    const { chats, chatId } = await seedChat();
+    const response = await callPatch(chatId, { title: "  Better   title " });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      chat: expect.objectContaining({
+        id: chatId,
+        title: "Better title",
+        titleSource: "manual",
+      }),
+    });
+    expect(chats.readChat("ml", "paper", "andres", chatId)?.header.title).toBe(
+      "Better title",
+    );
+  });
+
+  it("rejects blank and oversized titles", async () => {
+    const { chatId } = await seedChat();
+    expect((await callPatch(chatId, { title: "   " })).status).toBe(400);
+    expect((await callPatch(chatId, { title: "x".repeat(121) })).status).toBe(
+      400,
+    );
+  });
+
+  it("returns 404 for an absent conversation", async () => {
+    const response = await callPatch("0123456789abcdef", { title: "Gone" });
+    expect(response.status).toBe(404);
   });
 });
