@@ -136,6 +136,16 @@ test("a legacy module scene loads Three.js and creates its canvas", async ({
                   'const blockedBeacon = document.createElement("script");',
                   'blockedBeacon.src = "https://static.cloudflareinsights.com/blocked.js";',
                   "document.head.appendChild(blockedBeacon);",
+                  'const firstOverlay = document.createElement("div");',
+                  'firstOverlay.id = "first-overlay";',
+                  'firstOverlay.textContent = "Explanation";',
+                  'firstOverlay.style.cssText = "position:fixed;left:20px;top:20px;width:240px;height:80px";',
+                  "document.body.appendChild(firstOverlay);",
+                  'const secondOverlay = document.createElement("div");',
+                  'secondOverlay.id = "second-overlay";',
+                  'secondOverlay.textContent = "Comparison label";',
+                  'secondOverlay.style.cssText = "position:fixed;left:40px;top:30px;width:220px;height:40px";',
+                  "document.body.appendChild(secondOverlay);",
                   "const renderer = new THREE.WebGLRenderer({ antialias: false });",
                   "renderer.setSize(window.innerWidth, window.innerHeight);",
                   "document.body.appendChild(renderer.domElement);",
@@ -159,5 +169,32 @@ test("a legacy module scene loads Three.js and creates its canvas", async ({
   const sandbox = page.frameLocator('iframe[title="Interactive 3D scene"]');
   await expect(sandbox.locator("canvas")).toBeVisible();
   await expect(sandbox.getByRole("alert")).toBeHidden();
+  const overlayRects = await Promise.all(
+    ["#first-overlay", "#second-overlay"].map((selector) =>
+      sandbox.locator(selector).evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        };
+      }),
+    ),
+  );
+  expect(
+    overlayRects[0].bottom + 12 <= overlayRects[1].top ||
+      overlayRects[1].bottom + 12 <= overlayRects[0].top ||
+      overlayRects[0].right + 12 <= overlayRects[1].left ||
+      overlayRects[1].right + 12 <= overlayRects[0].left,
+  ).toBe(true);
+  for (const rect of overlayRects) {
+    expect(rect.left).toBeGreaterThanOrEqual(12);
+    expect(rect.top).toBeGreaterThanOrEqual(12);
+    expect(rect.right).toBeLessThanOrEqual(rect.viewportWidth - 12);
+    expect(rect.bottom).toBeLessThanOrEqual(rect.viewportHeight - 12);
+  }
   expect(diagnostics).toEqual([]);
 });

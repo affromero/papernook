@@ -140,6 +140,8 @@ describe("chat context", () => {
     const { buildChatSystem } = await import("@/lib/library/chat-context");
     const system = await buildChatSystem(paper);
     expect(system).toContain('fenced code block tagged "threejs"');
+    expect(system).toContain("explicit non-overlapping regions");
+    expect(system).toContain("inspect getBoundingClientRect()");
     expect(system).toContain("renderer.setAnimationLoop");
   });
 

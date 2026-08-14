@@ -597,6 +597,97 @@ void main() {
       }
 
       if (code !== undefined) {
+        const originalTranslations = new WeakMap();
+        let layoutFrame = 0;
+
+        function sceneOverlays() {
+          return Array.from(document.body.children).filter((element) => {
+            if (!(element instanceof HTMLElement)) return false;
+            if (
+              element.id === "sandbox-error" ||
+              element instanceof HTMLCanvasElement ||
+              element instanceof HTMLScriptElement
+            ) {
+              return false;
+            }
+            const style = getComputedStyle(element);
+            return (
+              (style.position === "fixed" || style.position === "absolute") &&
+              style.display !== "none" &&
+              style.visibility !== "hidden"
+            );
+          });
+        }
+
+        function overlaps(first, second, gap) {
+          return !(
+            first.right + gap <= second.left ||
+            second.right + gap <= first.left ||
+            first.bottom + gap <= second.top ||
+            second.bottom + gap <= first.top
+          );
+        }
+
+        function normalizeSceneOverlays() {
+          const margin = 12;
+          const gap = 12;
+          const placed = [];
+
+          for (const element of sceneOverlays()) {
+            if (!originalTranslations.has(element)) {
+              originalTranslations.set(element, element.style.translate);
+            }
+            element.style.translate = originalTranslations.get(element) || "";
+            element.style.boxSizing = "border-box";
+            element.style.maxWidth = `calc(100vw - ${margin * 2}px)`;
+            element.style.overflowWrap = "anywhere";
+
+            let rect = element.getBoundingClientRect();
+            let offsetX = Math.min(
+              Math.max(0, margin - rect.left),
+              Math.max(0, window.innerWidth - margin - rect.right),
+            );
+            if (rect.right + offsetX > window.innerWidth - margin) {
+              offsetX += window.innerWidth - margin - (rect.right + offsetX);
+            }
+            let offsetY = Math.min(
+              Math.max(0, margin - rect.top),
+              Math.max(0, window.innerHeight - margin - rect.bottom),
+            );
+            if (rect.bottom + offsetY > window.innerHeight - margin) {
+              offsetY += window.innerHeight - margin - (rect.bottom + offsetY);
+            }
+
+            element.style.translate = `${offsetX}px ${offsetY}px`;
+            rect = element.getBoundingClientRect();
+
+            for (const occupied of placed) {
+              if (!overlaps(rect, occupied, gap)) continue;
+              const moveBelow = occupied.bottom + gap - rect.top;
+              const moveAbove = occupied.top - gap - rect.bottom;
+              const fitsBelow = rect.bottom + moveBelow <= window.innerHeight - margin;
+              const fitsAbove = rect.top + moveAbove >= margin;
+              offsetY += fitsBelow || !fitsAbove ? moveBelow : moveAbove;
+              element.style.translate = `${offsetX}px ${offsetY}px`;
+              rect = element.getBoundingClientRect();
+            }
+            placed.push(rect);
+          }
+        }
+
+        function scheduleOverlayLayout() {
+          cancelAnimationFrame(layoutFrame);
+          layoutFrame = requestAnimationFrame(() => {
+            normalizeSceneOverlays();
+            layoutFrame = requestAnimationFrame(normalizeSceneOverlays);
+          });
+        }
+
+        new MutationObserver(scheduleOverlayLayout).observe(document.body, {
+          childList: true,
+        });
+        window.addEventListener("resize", scheduleOverlayLayout);
+
         function compatibleSceneCode(source) {
           const withoutThreeImport = source.replace(
             /import\s+\*\s+as\s+THREE\s+from\s+["']three["']\s*;?/g,
@@ -619,6 +710,7 @@ void main() {
             const script = document.createElement("script");
             script.textContent = compatibleSceneCode(code);
             document.body.appendChild(script);
+            scheduleOverlayLayout();
           } catch (error) {
             bridge.emit("module-evaluation-failed");
             bridge.showFailure(

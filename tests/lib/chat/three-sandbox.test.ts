@@ -15,7 +15,7 @@ describe("threejs sandbox", () => {
       "import * as THREE from 'three';\n" +
       'const s = "</script>#%&?"; // ε ≠ noise\n';
     const url = threeSandboxUrl(code);
-    expect(url.startsWith("/vendor/three-sandbox.html?v=6#")).toBe(true);
+    expect(url.startsWith("/vendor/three-sandbox.html?v=7#")).toBe(true);
     const [, fragment] = url.split("#");
     expect(decodeURIComponent(fragment)).toBe(code);
     // Nothing may leak unencoded past the fragment marker.
@@ -58,6 +58,7 @@ describe("threejs sandbox", () => {
     );
     expect(html).toContain("papernookThreeRuntimeReady");
     expect(html).toContain("WebGLRenderer");
+    expect(html).toContain("normalizeSceneOverlays");
     expect(html).not.toContain('type="module"');
     expect(html).not.toContain('src="./three-runtime.js');
     expect(html).not.toMatch(/<script[^>]+src=/);
