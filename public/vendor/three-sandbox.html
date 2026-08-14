@@ -85,6 +85,7 @@
           if (pathname.endsWith("/three.module.min.js")) return "three-module";
           if (pathname.endsWith("/three.core.min.js")) return "three-core";
           if (pathname.includes("/three/addons/")) return "three-addon";
+          if (pathname.endsWith("/three-runtime.js")) return "three-runtime";
           return pathname.startsWith("/vendor/") ? "other-vendor" : undefined;
         }
 
@@ -205,6 +206,7 @@
         }
       }
     </script>
+    <script type="module" src="./three-runtime.js?v=1"></script>
   </head>
   <body>
     <div id="sandbox-error" role="alert">
@@ -230,10 +232,44 @@
       }
 
       if (code !== undefined) {
-        const script = document.createElement("script");
-        script.type = "module";
-        script.textContent = code;
-        document.body.appendChild(script);
+        function compatibleSceneCode(source) {
+          const withoutThreeImport = source.replace(
+            /import\s+\*\s+as\s+THREE\s+from\s+["']three["']\s*;?/g,
+            "",
+          );
+          const withoutControlsImport = withoutThreeImport.replace(
+            /import\s*\{\s*OrbitControls\s*\}\s*from\s*["']three\/addons\/controls\/OrbitControls\.js["']\s*;?/g,
+            "",
+          );
+          if (/^\s*import\s/m.test(withoutControlsImport)) {
+            throw new Error(
+              "This scene imports a Three.js add-on that the viewer does not provide.",
+            );
+          }
+          return withoutControlsImport;
+        }
+
+        function startScene() {
+          try {
+            const script = document.createElement("script");
+            script.textContent = compatibleSceneCode(code);
+            document.body.appendChild(script);
+          } catch (error) {
+            bridge.emit("module-evaluation-failed");
+            bridge.showFailure(
+              "The 3D scene could not start.",
+              error instanceof Error
+                ? error.message
+                : "The generated scene stopped during initialization.",
+            );
+          }
+        }
+
+        if (window.papernookThreeRuntimeReady) startScene();
+        else
+          window.addEventListener("papernook-three-runtime-ready", startScene, {
+            once: true,
+          });
         window.setTimeout(() => {
           if (!document.querySelector("canvas")) {
             bridge.emit("canvas-missing");

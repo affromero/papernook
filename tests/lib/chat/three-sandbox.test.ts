@@ -15,7 +15,7 @@ describe("threejs sandbox", () => {
       "import * as THREE from 'three';\n" +
       'const s = "</script>#%&?"; // ε ≠ noise\n';
     const url = threeSandboxUrl(code);
-    expect(url.startsWith("/vendor/three-sandbox.html?v=2#")).toBe(true);
+    expect(url.startsWith("/vendor/three-sandbox.html?v=3#")).toBe(true);
     const [, fragment] = url.split("#");
     expect(decodeURIComponent(fragment)).toBe(code);
     // Nothing may leak unencoded past the fragment marker.
@@ -31,6 +31,7 @@ describe("threejs sandbox", () => {
         kind: "module-evaluation-failed",
         line: 4,
         column: 12,
+        resource: "three-runtime",
       }),
     ).toBe(true);
     expect(
@@ -75,6 +76,7 @@ describe("threejs sandbox", () => {
         path.join(vendorDir, "three/addons/controls/OrbitControls.js"),
       ),
     ).toBe(true);
+    expect(fs.existsSync(path.join(vendorDir, "three-runtime.js"))).toBe(true);
   });
 
   it("revalidates the sandbox host while retaining cached library assets", async () => {

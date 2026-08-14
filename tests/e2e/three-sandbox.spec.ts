@@ -80,3 +80,62 @@ test("an early scene failure stays visible and reports no scene text", async ({
   await page.waitForTimeout(100);
   expect(JSON.stringify(diagnostics)).not.toContain("FORGED");
 });
+
+test("a legacy module scene loads Three.js and creates its canvas", async ({
+  page,
+}) => {
+  const diagnostics: unknown[] = [];
+  await page.route("**/api/v1/client-logs", async (route) => {
+    diagnostics.push(route.request().postDataJSON());
+    await route.fulfill({ status: 204 });
+  });
+  await page.route(
+    "**/api/v1/papers/**/chats/0123456789abcdef",
+    async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          chat: {
+            header: {
+              id: "0123456789abcdef",
+              title: "Working visualization",
+              createdAt: "2026-08-14T00:00:00.000Z",
+            },
+            messages: [
+              { role: "user", content: "Show a visualization." },
+              {
+                role: "assistant",
+                content: [
+                  "```threejs",
+                  'import * as THREE from "three";',
+                  'import { OrbitControls } from "three/addons/controls/OrbitControls.js";',
+                  "const renderer = new THREE.WebGLRenderer({ antialias: false });",
+                  "renderer.setSize(window.innerWidth, window.innerHeight);",
+                  "document.body.appendChild(renderer.domElement);",
+                  "const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10);",
+                  "camera.position.z = 2;",
+                  "new OrbitControls(camera, renderer.domElement);",
+                  "renderer.render(new THREE.Scene(), camera);",
+                  "```",
+                ].join("\n"),
+              },
+            ],
+          },
+        }),
+      });
+    },
+  );
+
+  await login(page);
+  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+
+  const sandbox = page.frameLocator('iframe[title="Interactive 3D scene"]');
+  await expect(sandbox.locator("canvas")).toBeVisible();
+  await expect(sandbox.getByRole("alert")).toBeHidden();
+  expect(diagnostics).toEqual([]);
+});

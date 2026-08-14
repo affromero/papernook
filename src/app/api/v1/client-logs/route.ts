@@ -29,6 +29,7 @@ const diagnosticSchema = z
         "three-module",
         "three-core",
         "three-addon",
+        "three-runtime",
         "other-vendor",
       ])
       .optional(),
