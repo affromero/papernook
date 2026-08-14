@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import styles from "./ThreeSandbox.module.css";
 
-const SANDBOX_VERSION = 3;
+const SANDBOX_VERSION = 4;
 const DIAGNOSTIC_KINDS = new Set([
   "bootstrap-decode-failed",
   "module-evaluation-failed",

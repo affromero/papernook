@@ -128,6 +128,8 @@
         window.addEventListener(
           "error",
           (event) => {
+            const isScriptResourceError =
+              event.target instanceof HTMLScriptElement;
             const resource = resourceKind(event.target);
             if (resource) {
               emit("resource-load-failed", { resource });
@@ -137,6 +139,10 @@
               );
               return;
             }
+            // Cloudflare may inject its analytics beacon into this public
+            // static document. Our CSP intentionally blocks it; that is not
+            // a generated-scene failure and must not cover a valid canvas.
+            if (isScriptResourceError) return;
             const webglFailure = /webgl|graphics context/i.test(
               event.message || "",
             );
