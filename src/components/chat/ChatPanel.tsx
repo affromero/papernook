@@ -535,8 +535,8 @@ export function ChatPanel({
     }
   }
 
-  async function send(): Promise<void> {
-    const content = input.trim();
+  async function send(forcedContent?: string): Promise<void> {
+    const content = (forcedContent ?? input).trim();
     if (!content || busy) return;
     let chatId = activeId;
     if (!chatId) {
@@ -690,6 +690,11 @@ export function ChatPanel({
                   bibliography={bibliography}
                   currentOrigin={currentOrigin}
                   paperSourceUrl={paperSourceUrl}
+                  onRegenerateThree={() =>
+                    void send(
+                      "Regenerate the failed interactive 3D visualization from this answer. Preserve its explanatory intent, but produce a fresh threejs block using the provided global THREE and OrbitControls variables without import declarations.",
+                    )
+                  }
                 />
               ) : busy && i === messages.length - 1 ? (
                 <span

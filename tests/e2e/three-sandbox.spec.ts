@@ -14,6 +14,10 @@ test("an early scene failure stays visible and reports no scene text", async ({
   page,
 }) => {
   const diagnostics: unknown[] = [];
+  let resolveRegeneration: ((content: string) => void) | undefined;
+  const regeneration = new Promise<string>((resolve) => {
+    resolveRegeneration = resolve;
+  });
   await page.route("**/api/v1/client-logs", async (route) => {
     diagnostics.push(route.request().postDataJSON());
     await route.fulfill({ status: 204 });
@@ -22,7 +26,17 @@ test("an early scene failure stays visible and reports no scene text", async ({
     "**/api/v1/papers/**/chats/0123456789abcdef",
     async (route) => {
       if (route.request().method() !== "GET") {
-        await route.continue();
+        if (route.request().method() === "POST") {
+          const body = route.request().postDataJSON() as { content: string };
+          resolveRegeneration?.(body.content);
+          await route.fulfill({
+            status: 200,
+            contentType: "text/plain",
+            body: "Regenerated visualization.",
+          });
+        } else {
+          await route.continue();
+        }
         return;
       }
       await route.fulfill({
@@ -57,7 +71,7 @@ test("an early scene failure stays visible and reports no scene text", async ({
     "The 3D scene could not start.",
   );
   await expect(
-    sandbox.getByRole("button", { name: "Retry 3D scene" }),
+    page.getByRole("button", { name: "Regenerate in chat" }),
   ).toBeVisible();
   await expect.poll(() => diagnostics.length).toBeGreaterThanOrEqual(1);
   expect(JSON.stringify(diagnostics)).not.toContain("SECRET");
@@ -79,6 +93,11 @@ test("an early scene failure stays visible and reports no scene text", async ({
   });
   await page.waitForTimeout(100);
   expect(JSON.stringify(diagnostics)).not.toContain("FORGED");
+
+  await page.getByRole("button", { name: "Regenerate in chat" }).click();
+  await expect(regeneration).resolves.toContain(
+    "Regenerate the failed interactive 3D visualization",
+  );
 });
 
 test("a legacy module scene loads Three.js and creates its canvas", async ({

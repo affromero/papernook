@@ -15,7 +15,7 @@ describe("threejs sandbox", () => {
       "import * as THREE from 'three';\n" +
       'const s = "</script>#%&?"; // ε ≠ noise\n';
     const url = threeSandboxUrl(code);
-    expect(url.startsWith("/vendor/three-sandbox.html?v=4#")).toBe(true);
+    expect(url.startsWith("/vendor/three-sandbox.html?v=5#")).toBe(true);
     const [, fragment] = url.split("#");
     expect(decodeURIComponent(fragment)).toBe(code);
     // Nothing may leak unencoded past the fragment marker.

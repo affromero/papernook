@@ -1,9 +1,29 @@
+.wrapper {
+  margin: 0.6em 0;
+}
+
 .frame {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 10;
-  margin: 0.6em 0;
+  margin: 0;
   border: 1px solid rgba(127, 127, 127, 0.35);
   border-radius: 8px;
   background: #101014;
+}
+
+.regenerate {
+  display: block;
+  margin: 0.75rem auto 0;
+  border: 1px solid rgba(127, 127, 127, 0.55);
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  background: rgba(127, 127, 127, 0.12);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.regenerate:hover {
+  background: rgba(127, 127, 127, 0.2);
 }

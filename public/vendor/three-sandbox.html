@@ -40,16 +40,6 @@
         color: #bbb;
         overflow-wrap: anywhere;
       }
-      #sandbox-retry {
-        margin-top: 20px;
-        border: 1px solid #555;
-        border-radius: 8px;
-        padding: 9px 14px;
-        background: #24242a;
-        color: #eee;
-        font: inherit;
-        cursor: pointer;
-      }
     </style>
     <script>
       // This document has an opaque origin. Scene code can post arbitrary
@@ -195,13 +185,6 @@
         };
 
         window.papernookThreeSandbox = { emit, showFailure };
-        window.addEventListener("DOMContentLoaded", () => {
-          document
-            .getElementById("sandbox-retry")
-            .addEventListener("click", () => {
-              location.reload();
-            });
-        });
       })();
     </script>
     <script type="importmap">
@@ -212,14 +195,17 @@
         }
       }
     </script>
-    <script type="module" src="./three-runtime.js?v=1"></script>
+    <script
+      type="module"
+      src="./three-runtime.js?v=2"
+      crossorigin="anonymous"
+    ></script>
   </head>
   <body>
     <div id="sandbox-error" role="alert">
       <div>
         <strong>The 3D scene could not start.</strong>
         <div id="sandbox-error-detail">Reload the page and try again.</div>
-        <button id="sandbox-retry" type="button">Retry 3D scene</button>
       </div>
     </div>
     <script>

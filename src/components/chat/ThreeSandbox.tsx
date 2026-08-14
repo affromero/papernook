@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./ThreeSandbox.module.css";
 
-const SANDBOX_VERSION = 4;
+const SANDBOX_VERSION = 5;
 const DIAGNOSTIC_KINDS = new Set([
   "bootstrap-decode-failed",
   "module-evaluation-failed",
@@ -92,8 +92,16 @@ export function threeSandboxUrl(code: string): string {
  * AI-authored and thus influenced by web-downloaded paper text, so
  * opaque-origin isolation is the containment boundary.
  */
-export function ThreeSandbox({ code }: { code: string }) {
+export function ThreeSandbox({
+  code,
+  onRegenerate,
+}: {
+  code: string;
+  onRegenerate?: () => void;
+}) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [failureCode, setFailureCode] = useState<string | null>(null);
+  const failed = failureCode === code;
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -102,12 +110,9 @@ export function ThreeSandbox({ code }: { code: string }) {
     let deliveredCount = 0;
 
     const onMessage = (event: MessageEvent<unknown>) => {
-      if (
-        event.source !== iframe.contentWindow ||
-        !isThreeDiagnostic(event.data)
-      ) {
-        return;
-      }
+      if (event.source !== iframe.contentWindow) return;
+      if (!isThreeDiagnostic(event.data)) return;
+      if (event.data.kind !== "console-error") setFailureCode(code);
       const fingerprint = JSON.stringify(event.data);
       if (delivered.has(fingerprint) || deliveredCount >= 8) return;
       delivered.add(fingerprint);
@@ -137,13 +142,24 @@ export function ThreeSandbox({ code }: { code: string }) {
   }, [code]);
 
   return (
-    <iframe
-      ref={iframeRef}
-      className={styles.frame}
-      sandbox="allow-scripts"
-      src={threeSandboxUrl(code)}
-      title="Interactive 3D scene"
-      loading="lazy"
-    />
+    <div className={styles.wrapper}>
+      <iframe
+        ref={iframeRef}
+        className={styles.frame}
+        sandbox="allow-scripts"
+        src={threeSandboxUrl(code)}
+        title="Interactive 3D scene"
+        loading="lazy"
+      />
+      {failed && onRegenerate && (
+        <button
+          type="button"
+          className={styles.regenerate}
+          onClick={onRegenerate}
+        >
+          Regenerate in chat
+        </button>
+      )}
+    </div>
   );
 }

@@ -108,6 +108,7 @@ export function Markdown({
   bibliography = null,
   currentOrigin,
   paperSourceUrl,
+  onRegenerateThree,
 }: {
   content: string;
   renderThree?: boolean;
@@ -117,6 +118,7 @@ export function Markdown({
   bibliography?: Bibliography | null;
   currentOrigin?: string;
   paperSourceUrl?: string;
+  onRegenerateThree?: () => void;
 }) {
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
@@ -154,7 +156,7 @@ export function Markdown({
           pre(props) {
             const code = renderThree ? threeCode(props.children) : null;
             return code ? (
-              <ThreeSandbox code={code} />
+              <ThreeSandbox code={code} onRegenerate={onRegenerateThree} />
             ) : (
               <CodeFrame copyCode={copyCode}>{props.children}</CodeFrame>
             );
