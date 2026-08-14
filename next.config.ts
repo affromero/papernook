@@ -86,6 +86,17 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: "/vendor/three-sandbox.html",
+        headers: [
+          {
+            // The host page carries diagnostics and compatibility fixes. It
+            // must revalidate independently of long-lived Three.js assets.
+            key: "Cache-Control",
+            value: "no-cache, must-revalidate",
+          },
+        ],
+      },
     ];
   },
   turbopack: { root: projectRoot },

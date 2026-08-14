@@ -10,11 +10,193 @@
         height: 100%;
         overflow: hidden;
         background: #101014;
+        color: #eee;
+        font: 16px/1.5 system-ui, sans-serif;
       }
       canvas {
         display: block;
       }
+      #sandbox-error {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: none;
+        box-sizing: border-box;
+        place-content: center;
+        padding: 32px;
+        background: #101014;
+        text-align: center;
+      }
+      #sandbox-error.visible {
+        display: grid;
+      }
+      #sandbox-error strong {
+        display: block;
+        margin-bottom: 8px;
+        color: #ff8f87;
+      }
+      #sandbox-error-detail {
+        max-width: 680px;
+        color: #bbb;
+        overflow-wrap: anywhere;
+      }
+      #sandbox-retry {
+        margin-top: 20px;
+        border: 1px solid #555;
+        border-radius: 8px;
+        padding: 9px 14px;
+        background: #24242a;
+        color: #eee;
+        font: inherit;
+        cursor: pointer;
+      }
     </style>
+    <script>
+      // This document has an opaque origin. Scene code can post arbitrary
+      // messages to the parent, so the bridge deliberately carries fixed
+      // enums and numeric locations only, never error text or URLs.
+      (() => {
+        const protocol = 1;
+        const messageType = "papernook-three-diagnostic";
+        const allowedKinds = new Set([
+          "bootstrap-decode-failed",
+          "module-evaluation-failed",
+          "resource-load-failed",
+          "unhandled-rejection",
+          "console-error",
+          "webgl-unavailable",
+          "webgl-context-lost",
+          "canvas-missing",
+        ]);
+        const backlog = [];
+        const sent = new Set();
+        let parentReady = false;
+
+        function boundedLocation(value) {
+          return Number.isSafeInteger(value) && value >= 0 && value <= 10_000_000
+            ? value
+            : undefined;
+        }
+
+        function resourceKind(target) {
+          if (!(target instanceof HTMLScriptElement)) return undefined;
+          const pathname = new URL(target.src || location.href).pathname;
+          if (pathname.endsWith("/three-sandbox.html")) return "sandbox";
+          if (pathname.endsWith("/three.module.min.js")) return "three-module";
+          if (pathname.endsWith("/three.core.min.js")) return "three-core";
+          if (pathname.includes("/three/addons/")) return "three-addon";
+          return pathname.startsWith("/vendor/") ? "other-vendor" : undefined;
+        }
+
+        function emit(kind, details = {}) {
+          if (!allowedKinds.has(kind)) return;
+          const event = { protocol, type: messageType, kind };
+          const line = boundedLocation(details.line);
+          const column = boundedLocation(details.column);
+          if (line !== undefined) event.line = line;
+          if (column !== undefined) event.column = column;
+          if (details.resource) event.resource = details.resource;
+          const fingerprint = JSON.stringify(event);
+          if (sent.has(fingerprint) || sent.size >= 8) return;
+          sent.add(fingerprint);
+          if (parentReady) parent.postMessage(event, "*");
+          else backlog.push(event);
+        }
+
+        function showFailure(title, detail) {
+          const overlay = document.getElementById("sandbox-error");
+          if (!overlay) return;
+          overlay.querySelector("strong").textContent = title;
+          document.getElementById("sandbox-error-detail").textContent = detail;
+          overlay.classList.add("visible");
+        }
+
+        window.addEventListener("message", (event) => {
+          if (
+            event.source !== parent ||
+            event.data !== "papernook-three-diagnostics-ready"
+          ) {
+            return;
+          }
+          parentReady = true;
+          for (const diagnostic of backlog.splice(0)) {
+            parent.postMessage(diagnostic, "*");
+          }
+        });
+
+        window.addEventListener(
+          "error",
+          (event) => {
+            const resource = resourceKind(event.target);
+            if (resource) {
+              emit("resource-load-failed", { resource });
+              showFailure(
+                "The 3D viewer could not load.",
+                "A required local Three.js module failed to load. Reload the page and try again.",
+              );
+              return;
+            }
+            const webglFailure = /webgl|graphics context/i.test(
+              event.message || "",
+            );
+            emit(
+              webglFailure ? "webgl-unavailable" : "module-evaluation-failed",
+              {
+                line: event.lineno,
+                column: event.colno,
+              },
+            );
+            showFailure(
+              webglFailure
+                ? "3D graphics are unavailable in this browser."
+                : "The 3D scene could not start.",
+              webglFailure
+                ? "Enable WebGL, leave private browsing or low-power mode if it disables graphics, then reload the scene."
+                : event.message ||
+                    "The generated scene stopped during initialization.",
+            );
+          },
+          true,
+        );
+
+        window.addEventListener("unhandledrejection", (event) => {
+          emit("unhandled-rejection");
+          const detail =
+            event.reason instanceof Error
+              ? event.reason.message
+              : "The generated scene stopped unexpectedly.";
+          showFailure("The 3D scene could not continue.", detail);
+        });
+
+        document.addEventListener(
+          "webglcontextlost",
+          (event) => {
+            event.preventDefault();
+            emit("webgl-context-lost");
+            showFailure(
+              "The 3D graphics context was lost.",
+              "Reload the scene to ask the browser for a new graphics context.",
+            );
+          },
+          true,
+        );
+
+        const originalConsoleError = console.error;
+        console.error = (...args) => {
+          originalConsoleError.apply(console, args);
+          emit("console-error");
+        };
+
+        window.papernookThreeSandbox = { emit, showFailure };
+        window.addEventListener("DOMContentLoaded", () => {
+          document
+            .getElementById("sandbox-retry")
+            .addEventListener("click", () => {
+              location.reload();
+            });
+        });
+      })();
+    </script>
     <script type="importmap">
       {
         "imports": {
@@ -25,17 +207,43 @@
     </script>
   </head>
   <body>
+    <div id="sandbox-error" role="alert">
+      <div>
+        <strong>The 3D scene could not start.</strong>
+        <div id="sandbox-error-detail">Reload the page and try again.</div>
+        <button id="sandbox-retry" type="button">Retry 3D scene</button>
+      </div>
+    </div>
     <script>
       // Host page for AI-emitted ```threejs blocks. Always framed with
-      // sandbox="allow-scripts" (opaque origin — no cookies, no DOM
-      // access to the app); scene code arrives percent-encoded in the
-      // URL fragment (see ThreeSandbox.tsx). Served from /vendor/ so the
-      // app's nonce CSP and auth proxy don't apply.
-      const code = decodeURIComponent(location.hash.slice(1));
-      const script = document.createElement("script");
-      script.type = "module";
-      script.textContent = code;
-      document.body.appendChild(script);
+      // sandbox="allow-scripts" (opaque origin — no cookies or app DOM).
+      const bridge = window.papernookThreeSandbox;
+      let code;
+      try {
+        code = decodeURIComponent(location.hash.slice(1));
+      } catch {
+        bridge.emit("bootstrap-decode-failed");
+        bridge.showFailure(
+          "The 3D scene could not be decoded.",
+          "Reload the page to request a fresh copy of the scene.",
+        );
+      }
+
+      if (code !== undefined) {
+        const script = document.createElement("script");
+        script.type = "module";
+        script.textContent = code;
+        document.body.appendChild(script);
+        window.setTimeout(() => {
+          if (!document.querySelector("canvas")) {
+            bridge.emit("canvas-missing");
+            bridge.showFailure(
+              "The 3D scene did not create a canvas.",
+              "The generated visualization finished without a render surface.",
+            );
+          }
+        }, 4_000);
+      }
     </script>
   </body>
 </html>

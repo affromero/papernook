@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { threeSandboxUrl } from "@/components/chat/ThreeSandbox";
+import nextConfig from "../../../next.config";
+import {
+  isThreeDiagnostic,
+  threeSandboxUrl,
+} from "@/components/chat/ThreeSandbox";
 
 const vendorDir = path.join(process.cwd(), "public/vendor");
 
@@ -11,12 +15,39 @@ describe("threejs sandbox", () => {
       "import * as THREE from 'three';\n" +
       'const s = "</script>#%&?"; // ε ≠ noise\n';
     const url = threeSandboxUrl(code);
-    expect(url.startsWith("/vendor/three-sandbox.html#")).toBe(true);
+    expect(url.startsWith("/vendor/three-sandbox.html?v=2#")).toBe(true);
     const [, fragment] = url.split("#");
     expect(decodeURIComponent(fragment)).toBe(code);
     // Nothing may leak unencoded past the fragment marker.
     expect(fragment).not.toContain("<");
     expect(fragment).not.toContain("#");
+  });
+
+  it("accepts only data-free diagnostics from untrusted scene code", () => {
+    expect(
+      isThreeDiagnostic({
+        protocol: 1,
+        type: "papernook-three-diagnostic",
+        kind: "module-evaluation-failed",
+        line: 4,
+        column: 12,
+      }),
+    ).toBe(true);
+    expect(
+      isThreeDiagnostic({
+        protocol: 1,
+        type: "papernook-three-diagnostic",
+        kind: "module-evaluation-failed",
+        message: "SECRET PAPER TEXT",
+      }),
+    ).toBe(false);
+    expect(
+      isThreeDiagnostic({
+        protocol: 1,
+        type: "papernook-three-diagnostic",
+        kind: "invented-event",
+      }),
+    ).toBe(false);
   });
 
   it("ships a sandbox page whose importmap stays on relative vendor paths", () => {
@@ -44,5 +75,31 @@ describe("threejs sandbox", () => {
         path.join(vendorDir, "three/addons/controls/OrbitControls.js"),
       ),
     ).toBe(true);
+  });
+
+  it("revalidates the sandbox host while retaining cached library assets", async () => {
+    const configured = await nextConfig.headers?.();
+    expect(configured).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "/vendor/three-sandbox.html",
+          headers: expect.arrayContaining([
+            {
+              key: "Cache-Control",
+              value: "no-cache, must-revalidate",
+            },
+          ]),
+        }),
+        expect.objectContaining({
+          source: "/vendor/:path*",
+          headers: expect.arrayContaining([
+            {
+              key: "Cache-Control",
+              value: "public, max-age=86400, stale-while-revalidate=604800",
+            },
+          ]),
+        }),
+      ]),
+    );
   });
 });
