@@ -15,7 +15,7 @@ describe("threejs sandbox", () => {
       "import * as THREE from 'three';\n" +
       'const s = "</script>#%&?"; // ε ≠ noise\n';
     const url = threeSandboxUrl(code);
-    expect(url.startsWith("/vendor/three-sandbox.html?v=5#")).toBe(true);
+    expect(url.startsWith("/vendor/three-sandbox.html?v=6#")).toBe(true);
     const [, fragment] = url.split("#");
     expect(decodeURIComponent(fragment)).toBe(code);
     // Nothing may leak unencoded past the fragment marker.
@@ -51,17 +51,19 @@ describe("threejs sandbox", () => {
     ).toBe(false);
   });
 
-  it("ships a sandbox page whose importmap stays on relative vendor paths", () => {
+  it("ships a self-contained sandbox without remote runtime dependencies", () => {
     const html = fs.readFileSync(
       path.join(vendorDir, "three-sandbox.html"),
       "utf8",
     );
-    expect(html).toContain('"three": "./three/three.module.min.js"');
-    expect(html).toContain('"three/addons/": "./three/addons/"');
-    expect(html).not.toContain("https://");
+    expect(html).toContain("papernookThreeRuntimeReady");
+    expect(html).toContain("WebGLRenderer");
+    expect(html).not.toContain('type="module"');
+    expect(html).not.toContain('src="./three-runtime.js');
+    expect(html).not.toMatch(/<script[^>]+src=/);
   });
 
-  it("vendors the split three build the importmap points at", () => {
+  it("retains module assets for older cached sandbox pages", () => {
     const moduleSource = fs.readFileSync(
       path.join(vendorDir, "three/three.module.min.js"),
       "utf8",
