@@ -148,7 +148,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
     const readerUrl = page.url();
     await expect(
-      page.getByText("Why was removing recurrence such a big deal?"),
+      page
+        .getByRole("paragraph")
+        .filter({ hasText: /^Why was removing recurrence such a big deal\?$/ }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();
     await expect(page).toHaveScreenshot(["product", "paper-and-chat.png"], {
@@ -555,7 +557,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
       "true",
     );
     await expect(
-      page.getByText("Why was removing recurrence such a big deal?"),
+      page
+        .getByRole("paragraph")
+        .filter({ hasText: /^Why was removing recurrence such a big deal\?$/ }),
     ).not.toBeVisible();
     await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();
     const renderedPage = page
@@ -644,7 +648,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
 
     await page.getByRole("tab", { name: "Chat" }).click();
     await expect(
-      page.getByText("Why was removing recurrence such a big deal?"),
+      page
+        .getByRole("paragraph")
+        .filter({ hasText: /^Why was removing recurrence such a big deal\?$/ }),
     ).toBeVisible();
     await page.getByRole("tab", { name: "Chat" }).press("ArrowLeft");
     await expect(page.getByRole("tab", { name: "Reading" })).toBeFocused();
