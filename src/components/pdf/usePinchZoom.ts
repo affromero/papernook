@@ -77,4 +77,22 @@ export function usePinchZoom(
       stage.removeEventListener("touchcancel", endGesture, options);
     };
   }, [active, stageRef, viewerRef]);
+
+  // Desktop trackpad pinch arrives as a wheel event with ctrlKey set
+  // (never as touches), so it stays active regardless of pencil mode.
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      viewerRef.current?.updateScale({
+        drawingDelay: 180,
+        scaleFactor: Math.exp(-event.deltaY / 100),
+        origin: [event.clientX, event.clientY],
+      });
+    };
+    stage.addEventListener("wheel", onWheel, { passive: false });
+    return () => stage.removeEventListener("wheel", onWheel);
+  }, [stageRef, viewerRef]);
 }
