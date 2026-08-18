@@ -39,6 +39,11 @@ publishes, export `EXTENSION_ID`, `CLIENT_ID`, `CLIENT_SECRET`, and
 
 ## Safari
 
+Install [**Papernook for Safari**](https://apps.apple.com/app/id6799779482)
+from the Mac App Store (free), then enable it under Safari Settings →
+Extensions, grant site access, and set your papernook server URL in its
+preferences.
+
 For development, open Safari Settings → Developer, enable **Allow unsigned
 extensions**, select **Add Temporary Extension…**, and choose this `extension/`
 folder. Enable papernook under Settings → Extensions, grant site access, and set

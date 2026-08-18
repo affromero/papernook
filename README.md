@@ -16,6 +16,7 @@ Ask your own AI grounded questions, then share a revocable, view-only reading.
 [![Self-hostable](https://img.shields.io/badge/self--hostable-yes-1F8A5B)](#self-host)
 [![BYOA](https://img.shields.io/badge/bring%20your%20own-Claude%20Code%20%2F%20Codex-3F4FB0)](#bring-your-own-agent)
 [![Release](https://img.shields.io/github/v/release/affromero/papernook?display_name=tag&sort=semver)](https://github.com/affromero/papernook/releases/latest)
+[![Mac App Store](https://img.shields.io/badge/Safari%20extension-Mac%20App%20Store-0D96F6?logo=apple&logoColor=white)](https://apps.apple.com/app/id6799779482)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/affromero/papernook/ci.yml?branch=main&label=CI)](.github/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/affromero/papernook/codeql.yml?branch=main&label=CodeQL)](.github/workflows/codeql.yml)

@@ -11,6 +11,10 @@ page URLs only to the self-hosted server the user configures.
 - **Chrome name:** papernook
 - **Mac name:** Papernook for Safari ("Papernook" alone is taken on the App
   Store; the binary and extension still display as "papernook")
+- **Mac App Store listing (live since 2026-08-18):**
+  https://apps.apple.com/app/id6799779482 — Apple ID 6799779482, version
+  0.1.0 (build 162). Use as the "also available for Safari" link in the
+  Chrome listing.
 - **Mac category:** Education
 - **Price:** Free
 - **Copyright:** © 2026 Andrés Romero
