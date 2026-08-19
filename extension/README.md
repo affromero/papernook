@@ -59,20 +59,25 @@ infisical run --projectId d95f3446-3d13-477f-aa23-12d431759f09 \
 The Chrome Web Store API authenticates as _you_, so these steps need the
 publisher Google account in a browser:
 
-1. In [Google Cloud console](https://console.cloud.google.com), create a
-   project (any name) and enable the **Chrome Web Store API** under APIs &
-   Services → Library.
-2. Configure the OAuth consent screen as **External**, and add the publisher
-   account itself as a test user. The app stays unpublished; a test user can
-   still mint tokens.
-3. APIs & Services → Credentials → **Create credentials → OAuth client ID**,
-   application type **Desktop app**. Keep the client ID and secret.
-4. Run `npx chrome-webstore-upload-keys`. It walks through the consent flow
-   with that client and prints the refresh token. (By hand: request
-   `https://www.googleapis.com/auth/chromewebstore` with a loopback redirect,
-   then exchange the code at `https://oauth2.googleapis.com/token` with
-   `access_type=offline`.)
-5. Store the three values in Infisical, in the `papernook` project under
+1. In [Google Cloud console](https://console.cloud.google.com), pick or create
+   a project, then enable the
+   [Chrome Web Store API](https://console.cloud.google.com/apis/library/chromewebstore.googleapis.com).
+2. Open **Google Auth Platform** (what used to be the OAuth consent screen) and
+   press **Get started**: app name, the publisher account as support and
+   contact email, audience **External**.
+3. **Data access → Add or remove scopes**: the Chrome Web Store scope is not in
+   the picker, so paste `https://www.googleapis.com/auth/chromewebstore` into
+   the manual box and save.
+4. **Audience → Publish app.** A consent screen left in Testing expires every
+   refresh token it issues after seven days; this scope needs no verification
+   for a personal publisher account.
+5. **Clients → Create client**, application type **Desktop app**. Keep the
+   client ID and secret.
+6. Run `npx chrome-webstore-upload-keys`, paste that client ID and secret, and
+   approve in the browser — it prints the refresh token. (By hand: request the
+   scope above with a loopback redirect, then exchange the code at
+   `https://oauth2.googleapis.com/token` with `access_type=offline`.)
+7. Store the three values in Infisical, in the `papernook` project under
    `/chrome` in `prod` — the same shape as `/apple`, which holds the App Store
    Connect key for the Safari upload:
 
@@ -82,10 +87,9 @@ publisher Google account in a browser:
      CLIENT_ID=... CLIENT_SECRET=... REFRESH_TOKEN=... EXTENSION_ID=...
    ```
 
-Refresh tokens issued by an app still in _testing_ on the consent screen
-expire after seven days. Publishing the consent screen (no verification is
-required for a private, single-user app using this scope) makes them
-long-lived; otherwise expect to redo step 4 before each release.
+If a release fails with `invalid_grant`, the refresh token was revoked — redo
+the last step. The usual cause is a consent screen that slipped back to
+Testing.
 
 ## Safari
 
