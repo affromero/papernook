@@ -41,8 +41,8 @@ import {
  * Where the shared claude credentials live. Volume-mounted host credentials
  * are often root-owned and read-only, so inline credentials are materialized
  * into a private runtime dir first. Priority:
- * CLAUDE_CODE_CREDENTIALS_JSON -> CLAUDE_HOME. Cached for the container
- * lifetime.
+ * CLAUDE_CODE_CREDENTIALS_JSON -> CLAUDE_HOME -> HOME. Cached for the
+ * container lifetime.
  */
 let sharedCredentials: string | null | undefined;
 const MAX_FAILURE_DIAGNOSTIC_CHARS = 4_000;
@@ -85,7 +85,10 @@ function sharedCredentialsPath(): string | null {
       console.error("claude-code: failed to write credentials to /tmp", err);
     }
   }
-  const home = process.env.CLAUDE_HOME;
+  // CLAUDE_HOME is optional: the container entrypoint and the credential-sync
+  // sidecar both write to $HOME/.claude/.credentials.json when it is unset, so
+  // the same fallback credentials/index.ts uses applies here.
+  const home = process.env.CLAUDE_HOME || process.env.HOME;
   sharedCredentials = home ? join(home, ".claude", ".credentials.json") : null;
   return sharedCredentials;
 }

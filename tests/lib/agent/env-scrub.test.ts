@@ -140,6 +140,22 @@ describe("claude-code invocation isolation", () => {
     expect(existsSync(dirs[0] as string)).toBe(false);
   });
 
+  it("finds the credentials under HOME when CLAUDE_HOME is unset", async () => {
+    // Production: the entrypoint copies the host credentials to
+    // $HOME/.claude/.credentials.json and leaves CLAUDE_HOME empty, so keying
+    // isolation off CLAUDE_HOME alone would silently disable it there.
+    const home = seedClaudeHome('{"token":"from-home"}');
+    vi.stubEnv("HOME", home);
+    const { createClaudeInvocation } = await import("@/lib/agent/claude-code");
+
+    const invocation = createClaudeInvocation();
+    const dir = invocation.env.CLAUDE_CONFIG_DIR as string;
+    const seeded = readFileSync(join(dir, ".credentials.json"), "utf8");
+    invocation.release();
+
+    expect(seeded).toBe('{"token":"from-home"}');
+  });
+
   it("drops the Anthropic API key when OAuth credentials are present", async () => {
     // Otherwise an expired OAuth session silently falls back to API-key
     // billing and fails with "Credit balance is too low" instead of an auth
