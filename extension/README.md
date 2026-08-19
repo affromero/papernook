@@ -56,9 +56,10 @@ stale when git rewrites files. If resources stop resolving, uninstall and re-add
 the folder instead of pressing Reload. If a Safari DNR build rejects dynamic
 `regexSubstitution` rules, turn automatic opening off and use button-only mode.
 
-`scripts/build-safari.sh` regenerates the native wrapper, fills the required app
-icon slots, and archives a signed Release build. The command prints the exact
-App Store Connect export/upload command.
+`scripts/safari/build.sh` regenerates the native wrapper, fills the required app
+icon slots, and archives a signed Release build; `scripts/safari/upload.sh`
+exports that archive straight to App Store Connect. `npm run release:safari`
+runs both.
 
 ## Store assets and review
 

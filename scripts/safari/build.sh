@@ -3,7 +3,7 @@
 # App Store. build/safari/ is converter output — gitignored and disposable —
 # so team and signing settings live HERE, not in the generated pbxproj.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 TEAM_ID=2HVQQ4W769
 # Version comes from the manifest (single source of truth); the build number is
@@ -23,7 +23,7 @@ xcrun safari-web-extension-converter extension/ \
 # The converter leaves the app-icon slots empty, which App Store review
 # rejects. Fill them from src/app/icon.svg (regenerated wrapper, so every run).
 ICONSET="$(find build/safari -type d -name AppIcon.appiconset | head -1)"
-node scripts/appicon.mjs "$ICONSET"
+node scripts/safari/appicon.mjs "$ICONSET"
 
 xcodebuild -project build/safari/papernook/papernook.xcodeproj \
   -scheme papernook -configuration Release \
@@ -43,11 +43,4 @@ done
 
 echo "built version $VERSION (build $BUILD)"
 
-echo "archive at build/papernook.xcarchive — upload to App Store Connect with:"
-echo "  xcodebuild -exportArchive -archivePath build/papernook.xcarchive \\"
-echo "    -exportOptionsPlist scripts/export-appstore.plist -exportPath build/upload \\"
-echo "    -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_HKD4KW9CHB.p8 \\"
-echo "    -authenticationKeyID HKD4KW9CHB \\"
-echo "    -authenticationKeyIssuerID bc437eea-9a23-4fec-8a05-e85495c989ad"
-echo "(manual signing; certs + profiles issued 2026-08-09 via the ASC API,"
-echo " .p8 backup in Infisical papernook /apple — see scripts/export-appstore.plist)"
+echo "archive at build/papernook.xcarchive — upload it with npm run release:safari"

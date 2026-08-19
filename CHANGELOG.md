@@ -2,6 +2,44 @@
 
 All notable changes to Papernook are documented in this file.
 
+## [0.1.1] - 2026-08-18
+
+The browser extension reaches both stores, and per-paper conversations gain
+history, deletion, and verifiable sources.
+
+### Added
+
+- Browser extension for Safari and Chrome that redirects PDFs from research
+  hosts into the reader, with a toolbar fallback everywhere else, per-site
+  opt-in for additional hosts, and a connection test when the server URL is
+  saved.
+- Conversation management: sent-message history controls, deletion of complete
+  conversations, automatic naming from the first query, and selection that
+  survives a refresh.
+- Chat answers link to verified sources, render linked source excerpts, and
+  navigate to precise paper references.
+- Three.js scenes run in an inline sandbox, report rendering failures, and
+  regenerate in context when they fail.
+- Original source links on papers, tappable topic chips on the inbox review
+  page, and trackpad pinch zoom in the reader on desktop.
+- Settings surfaces model results and profile avatar editing.
+
+### Changed
+
+- The instance password is the only credential; per-profile passwords are gone
+  and the sudo prompt asks once per page load.
+- CLI AI providers reload their credentials from Settings without a restart.
+
+### Security
+
+- CLI providers spawn with an allowlisted environment and a pinned container
+  credential path, and `OPENAI_API_KEY` no longer reaches Settings endpoints.
+- Paper text is marked as untrusted source material and agent answers never
+  auto-load images.
+- `/add` gets its own lockout bucket, and the sandbox, extraction, and
+  proxy-trust holes found in three review passes are closed.
+- `html-to-text` is pinned to 9.0.5 to clear the `deepmerge-ts` advisory.
+
 ## [0.1.0] - 2026-07-20
 
 Papernook v0.1.0 is the first source release of the self-hosted paper library.
@@ -57,4 +95,5 @@ Papernook v0.1.0 is the first source release of the self-hosted paper library.
   `scripts/install.sh`. The one-line installer on `main` follows current
   development.
 
+[0.1.1]: https://github.com/affromero/papernook/releases/tag/v0.1.1
 [0.1.0]: https://github.com/affromero/papernook/releases/tag/v0.1.0
