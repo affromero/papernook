@@ -110,6 +110,7 @@ cd papernook
 | **3. Understand** | Chat with the paper beside the reader or switch between Reading and Chat on a tablet.                                    |
 | **4. Practice**   | Turn an answer into a Pencil-ready exercise PDF, add margins, or append blank pages without shifting existing ink.       |
 | **5. Share**      | Send a revocable annotated reading. Conversation snapshots are explicit, immutable, and off by default.                  |
+| **6. Explore**    | Discover proposes related work grounded in what you already hold, and the graph links papers, authors, topics, and tags. |
 
 Capture, end to end — the browser extension redirects an arXiv PDF into the
 reader, citations preview on hover, and two clicks file the paper into the
@@ -171,6 +172,8 @@ flowchart LR
       add["/add route<br/>src/app/add"]
       capi["/api/v1/capture<br/>session-authed"]
       pipe["capture pipeline<br/>src/lib/capture<br/>normalize · download · analyze"]
+      jobs["jobs/index.ts<br/>background capture · /inbox review"]
+      discover["discover.ts<br/>related work not yet in the library"]
       zotero["zotero.ts<br/>metadata-only refresh · personal/group"]
       zcatalog["zotero-catalog.json<br/>per-profile · compact · atomic"]
     end
@@ -192,6 +195,7 @@ flowchart LR
       pdffile["pdf/file.ts<br/>versioned · locked · atomic saves"]
       exercises["exercises.ts<br/>md → exercises.pdf"]
       shares["shares.ts<br/>revocable reading snapshots"]
+      graphlib["graph.ts<br/>papers · authors · topics · tags"]
       citations["citations/<br/>CSL · RIS · BibTeX · APA · Harvard · Vancouver"]
       libctx["context/<br/>related papers + reference→library matching"]
     end
@@ -205,7 +209,13 @@ flowchart LR
       wizard["WelcomeFlow"]
       shareview["ShareButton + /share<br/>view-only reading"]
       citeui["CitationActions + export routes"]
+      canvasui["CanvasBoard<br/>tldraw canvas per paper"]
+      graphui["LibraryGraph + /graph<br/>cytoscape-fcose"]
+      discoverui["DiscoverClient + /discover"]
+      inboxui["CaptureJobs + ReviewStrip<br/>/inbox, unconfirmed captures"]
     end
+
+    gate["Access gate (src/lib/auth)<br/>one instance password · invites · rate limits"]
 
     browserext["Safari + Chrome extension<br/>extension/<br/>PDF navigations → /viewer"]
     dav["rclone WebDAV sidecar<br/>docker-compose.yml<br/>serves data/papers ONLY"]
@@ -214,7 +224,11 @@ flowchart LR
     ipad["iPad browser<br/>Pencil ink + chat"]
     sidedoor["thesidedoor<br/>PWA + QR reach"]
 
+    gate --> ui
     add --> pipe --> papers
+    inboxui --> jobs --> pipe
+    discoverui --> discover --> registry
+    discover -->|"suggested url"| add
     browserext --> viewer
     viewer --> pdfreader
     viewer --> capi --> pipe
@@ -233,6 +247,8 @@ flowchart LR
     shareview --> shares
     citeui --> citations --> papers
     citations --> index
+    canvasui --> papers
+    graphui --> graphlib --> papers
     chatpanel --> libctx --> index
     pdfreader --> libctx
     expand --> pdffile --> papers
@@ -451,14 +467,16 @@ Start with the **[visual documentation home](docs/README.md)**.
 | Learn the everyday workflow           | [User guide](docs/user-guide.md)                      |
 | Invite someone by domain or Tailscale | [Invite a friend](docs/user-guide.md#invite-a-friend) |
 | Capture from Chrome or Safari desktop | [Browser extension](extension/README.md)              |
-| Capture from Safari or iOS            | [Shortcut setup](docs/shortcut.md)                    |
+| Capture from an iPhone or iPad        | [Add to papernook Shortcut](docs/shortcut.md)         |
 | Annotate from an iPad                 | [iPad annotation guide](docs/ipad-annotation.md)      |
-| Expose a custom domain safely         | [Public hardening](docs/public-exposure.md)           |
+| Serve the app on a custom domain      | [Custom domain setup](docs/public-exposure.md)        |
+| Back up, restore, or watch the server | [Operations](docs/operations.md)                      |
+| Understand the security model         | [Security policy](SECURITY.md)                        |
 
 ## Development
 
 ```bash
-npm install          # postinstall copies the sidedoor service worker
+npm install          # postinstall patches tldraw, copies the sidedoor service worker, vendors three
 npm run dev
 npm run build:chrome # Web Store-ready zip in build/
 npm run test:chrome  # packaged extension in real Chromium
