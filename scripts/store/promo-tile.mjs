@@ -1,6 +1,6 @@
 // Chrome Web Store small promo tile (440x280, required for the listing).
 // Renders the app mark on the same warm paper gradient as the macOS app icon
-// (scripts/appicon.mjs) so the store tile and the installed icon match.
+// (scripts/safari/appicon.mjs) so the store tile and the installed icon match.
 //
 //   node scripts/store/promo-tile.mjs
 //

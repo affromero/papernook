@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "papernook",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Open PDFs in your papernook reader: hover reference previews and one-tap capture into your library.",
   "icons": {
     "48": "icons/icon-48.png",

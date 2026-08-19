@@ -1,9 +1,9 @@
 // Populate the macOS AppIcon.appiconset in the (regenerated) Safari wrapper.
 // safari-web-extension-converter leaves the icon slots empty, which App Store
-// review rejects, so build-safari.sh calls this after the converter and before
-// the archive. Renders src/app/icon.svg on a warm paper tile at every required
-// size using the repo's Playwright Chromium.
-//   node scripts/appicon.mjs <path-to-AppIcon.appiconset>
+// review rejects, so scripts/safari/build.sh calls this after the converter
+// and before the archive. Renders src/app/icon.svg on a warm paper tile at
+// every required size using the repo's Playwright Chromium.
+//   node scripts/safari/appicon.mjs <path-to-AppIcon.appiconset>
 import { chromium } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
