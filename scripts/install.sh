@@ -166,19 +166,11 @@ read -r -p "Expose publicly through a custom domain? [y/N]: " PUBLIC < /dev/tty
 PUBLIC_BLOCK=""
 case "$PUBLIC" in
   y | Y)
-    read -r -p "Public hostname (for example papernook.example.com): " PUBLIC_HOST < /dev/tty
-    case "$PUBLIC_HOST" in
-      "" | *"://"* | *"/"* | *" "* | *":"*)
-        echo "Enter a hostname only, without a scheme, path, port, or spaces." >&2
-        exit 1
-        ;;
-    esac
     read -r -p \
       "Public WebDAV URL (for example https://dav-papernook.example.com): " \
       PUBLIC_WEBDAV_URL < /dev/tty
     validate_public_webdav_url "$PUBLIC_WEBDAV_URL" || exit 1
-    PUBLIC_BLOCK="PAPERNOOK_PUBLIC_HOST=${PUBLIC_HOST}"$'\n'
-    PUBLIC_BLOCK+="PAPERNOOK_WEBDAV_URL=$(dotenv_quote "$PUBLIC_WEBDAV_URL")"
+    PUBLIC_BLOCK="PAPERNOOK_WEBDAV_URL=$(dotenv_quote "$PUBLIC_WEBDAV_URL")"
     ;;
 esac
 
@@ -208,7 +200,7 @@ echo "  webdav: http://localhost:8080  (PDF Expert → WebDAV, user ${WEBDAV_USE
 case "$PUBLIC" in
   y | Y)
     echo
-    echo "Custom-domain settings are ready for ${PUBLIC_HOST}."
+    echo "Custom-domain settings are ready."
     echo "Configure HTTPS with Caddyfile.example before opening it publicly."
     ;;
 esac

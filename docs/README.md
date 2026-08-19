@@ -127,7 +127,7 @@ is optional compatibility for external PDF apps.
   Configure both directories only when both local CLIs should be selectable.
 - Use a long, unique `WEBDAV_PASS`.
 - Set the required `PAPERNOOK_PASSWORD` for every installation. For a custom
-  domain, also set `PAPERNOOK_PUBLIC_HOST` and `PAPERNOOK_WEBDAV_URL`, then keep
+  domain, also set `PAPERNOOK_WEBDAV_URL`, then keep
   the default loopback port bindings behind Caddy.
 - Generate friend links from **Settings → Invite a friend** while visiting the
   URL the friend will use.
