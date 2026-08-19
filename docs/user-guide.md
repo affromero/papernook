@@ -9,13 +9,13 @@
 - **From anywhere:** copy an arXiv/OpenReview URL, direct PDF URL, or publisher
   page that exposes a PDF link; paste it into **Add paper**, then select
   **Add paper**.
-- **From Safari on iPhone, iPad, or Mac:** Share →
-  **Add to Papernook**. Install it once from **Get the Shortcut**; see the
-  [Shortcut guide](shortcut.md).
-- **From Chrome on desktop:** install the
-  [browser extension](../extension/README.md#chrome) to redirect supported PDFs
+- **From Safari or Chrome on desktop:** install the
+  [browser extension](../extension/README.md) to redirect supported PDFs
   automatically or use its toolbar button anywhere. Settings retains a
   bookmarklet fallback for managed browsers that cannot install extensions.
+- **From an iPhone or iPad:** Share → **Add to papernook**. Install it once
+  from **Get the Shortcut**; see the [Shortcut guide](shortcut.md). The same
+  Shortcut works from Safari's Share menu on a Mac.
 
 Papernook opens a confirmation page with the proposed topic, tags, summary,
 related papers, and starter questions. Review it and select
@@ -52,6 +52,9 @@ available as optional external-app compatibility; see the
 
 - Open **Graph** to move through connections among papers, authors, topics,
   tags, and related readings.
+- Open **Discover** for AI suggestions of papers you do not have yet, grounded
+  in the library. Each suggestion carries its source link, so adding one runs
+  the same capture flow as any other paper.
 
 ### Share a reading
 

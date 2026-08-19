@@ -14,7 +14,7 @@ library.
 | Best when friends should open Papernook from any browser. HTTPS and an instance access password protect the public app. | Best when the library should stay off the public internet. Each device runs Tailscale before it can reach Papernook. |
 | App: `https://papernook.example.com`                                                                                    | App: `https://papernook-server.<tailnet>.ts.net`                                                                     |
 | WebDAV: `https://dav-papernook.example.com`                                                                             | WebDAV: `http://papernook-server:8080`                                                                               |
-| [Harden a public domain →](public-exposure.md)                                                                          | [Invite over Tailscale →](user-guide.md#option-b-tailscale)                                                          |
+| [Set up a custom domain →](public-exposure.md)                                                                          | [Invite over Tailscale →](user-guide.md#option-b-tailscale)                                                          |
 
 Papernook always requires one instance access password before showing the
 profile picker. After passing the gate, a visitor may choose any profile.
@@ -32,8 +32,8 @@ passwordless route.
 
 1. **Open your library:** create or choose a profile.
 2. **Add a paper:** paste a link into the library, install the
-   [Safari/iOS Shortcut](shortcut.md), or use the
-   [Chrome extension](../extension/README.md#chrome).
+   [browser extension](../extension/README.md) for Safari or Chrome, or add
+   the [iPhone/iPad Shortcut](shortcut.md).
 3. **Write on the PDF:** open the paper in Papernook on desktop or iPad; see
    the [iPad guide](ipad-annotation.md).
 4. **Bring in another reader:** follow the
@@ -80,11 +80,14 @@ expands the PDF; the preference persists until **Show chat** is selected.
 
 ![Full-width paper view with chat hidden](images/product/paper-focus.png)
 
-### A spatial view of the library
+### Two more ways to see the library
 
 ![Relationship graph connecting papers, authors, topics, and tags](images/product/relationship-graph.png)
 
-The graph connects papers to their authors, topics, tags, and related readings.
+**Graph** connects papers to their authors, topics, tags, and related
+readings. **Discover** asks the configured AI what to read next, grounded in
+what the library already holds; each suggestion carries a link that files
+through the normal capture flow.
 
 ### Explicit, revocable sharing
 
@@ -111,9 +114,10 @@ is optional compatibility for external PDF apps.
 | ----------------------------------------------------------- | ------------------------------------------------ |
 | Learn the everyday capture, reading, chat, and sharing flow | [User guide](user-guide.md)                      |
 | Invite a friend through a domain or Tailscale               | [Invite a friend](user-guide.md#invite-a-friend) |
-| Install or rebuild the Safari/iOS Shortcut                  | [Add to Papernook Shortcut](shortcut.md)         |
+| Install or rebuild the iPhone/iPad Shortcut                 | [Add to papernook Shortcut](shortcut.md)         |
 | Annotate the live PDF with Apple Pencil                     | [iPad annotation guide](ipad-annotation.md)      |
-| Put the app behind a public HTTPS domain safely             | [Public exposure hardening](public-exposure.md)  |
+| Put the app behind a public HTTPS domain safely             | [Custom domain setup](public-exposure.md)        |
+| Back up, restore, upgrade, or roll back the server          | [Operations](operations.md)                      |
 | Understand the security model or report a vulnerability     | [Security policy](../SECURITY.md)                |
 
 ## Owner checklist
