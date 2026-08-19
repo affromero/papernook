@@ -2,7 +2,7 @@
 
 All notable changes to Papernook are documented in this file.
 
-## [0.1.1] - 2026-08-18
+## [0.2.0] - 2026-08-18
 
 The reader learns to follow citations, conversations become durable and
 verifiable, capture stops blocking on slow downloads, and the browser extension
@@ -149,5 +149,5 @@ Papernook v0.1.0 is the first source release of the self-hosted paper library.
   `scripts/install.sh`. The one-line installer on `main` follows current
   development.
 
-[0.1.1]: https://github.com/affromero/papernook/releases/tag/v0.1.1
+[0.2.0]: https://github.com/affromero/papernook/releases/tag/v0.2.0
 [0.1.0]: https://github.com/affromero/papernook/releases/tag/v0.1.0
