@@ -8,7 +8,7 @@ import { chromium } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = new URL("../..", import.meta.url).pathname;
 const iconset = process.argv[2];
 if (!iconset) throw new Error("usage: appicon.mjs <AppIcon.appiconset dir>");
 
