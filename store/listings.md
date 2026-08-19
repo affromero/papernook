@@ -43,6 +43,12 @@ page URLs only to the self-hosted server the user configures.
 
 ## Chrome Web Store
 
+**Item:** `cglnjlhkdgahafajfimnaonnlapecpfh` (assigned by Google on first
+upload; this is `EXTENSION_ID` for `npm run release:chrome`). Dashboard:
+https://chrome.google.com/webstore/devconsole/40dd099c-7f0b-41fe-a6dc-7f43e6865e80/cglnjlhkdgahafajfimnaonnlapecpfh/edit
+
+**Language:** English (United States).
+
 **Summary (132 characters max):**
 
 > Open research PDFs in your self-hosted papernook reader for citation previews, annotation, capture, and AI-assisted reading.
@@ -62,6 +68,9 @@ papernook connects the papers you browse to the research library you run.
 The extension requires your own papernook server. It has no hosted service,
 analytics, advertising, or developer-operated data collection. The current
 page URL is sent only when needed to the server URL you configure.
+
+Also available for Safari on the Mac App Store:
+https://apps.apple.com/app/id6799779482
 
 papernook is open source under the MIT License.
 
@@ -83,6 +92,20 @@ papernook is open source under the MIT License.
 - `activeTab`: reads the current tab URL only after the user presses the toolbar
   button, then opens that URL through the user's own papernook server.
 
+**Remote code:** No — the extension executes no remotely hosted code. Every
+runtime file ships inside the package (`scripts/extension/build-chrome.mjs`
+verifies each manifest-referenced file exists before zipping).
+
+**Data types collected:** tick **Website content** only (the current page
+URL). Leave every other category — personally identifiable information,
+health, financial, authentication, personal communications, location, user
+activity — unticked.
+
+**Certifications:** all three apply — the data is not sold to third parties,
+is not used or transferred for purposes unrelated to the item's single
+purpose, and is not used or transferred to determine creditworthiness or for
+lending purposes.
+
 **User-data disclosure:** The extension handles web-browsing activity in the
 form of the current page URL. Automatic rules pass a matching PDF URL to the
 configured server; the toolbar does so only on click. The developer does not
@@ -91,6 +114,10 @@ or authentication data are read. Link the dashboard to `PRIVACY.md` and certify
 Limited Use.
 
 **Category:** Productivity
+
+**Distribution:** free, all regions, visibility Public. Expect Google's slower
+manual review: the eight-domain research allowlist means a human reads the
+permission justifications above.
 
 **Required assets:**
 
