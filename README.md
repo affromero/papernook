@@ -22,7 +22,7 @@ Ask your own AI grounded questions, then share a revocable, view-only reading.
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/affromero/papernook/codeql.yml?branch=main&label=CodeQL)](.github/workflows/codeql.yml)
 [![gitleaks](https://img.shields.io/github/actions/workflow/status/affromero/papernook/gitleaks.yml?branch=main&label=gitleaks)](.github/workflows/gitleaks.yml)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot&logoColor=white)](.github/dependabot.yml)
-[![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)](extension/README.md#chrome)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome-Web_Store-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/cglnjlhkdgahafajfimnaonnlapecpfh)
 [![Safari](https://img.shields.io/badge/Safari-Web_Extension-006CFF?logo=safari&logoColor=white)](extension/README.md#safari)
 [![Manifest v3](https://img.shields.io/badge/manifest-v3-8250df)](extension/manifest.json)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
