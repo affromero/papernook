@@ -1,6 +1,6 @@
 {
   "name": "papernook",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "A self-hosted paper library for capture, annotation, and AI-assisted reading.",
   "homepage": "https://github.com/affromero/papernook#readme",
