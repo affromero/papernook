@@ -44,8 +44,9 @@ page URLs only to the self-hosted server the user configures.
 ## Chrome Web Store
 
 **Item:** `cglnjlhkdgahafajfimnaonnlapecpfh` (assigned by Google on first
-upload; this is `EXTENSION_ID` for `npm run release:chrome`). Dashboard:
-https://chrome.google.com/webstore/devconsole/40dd099c-7f0b-41fe-a6dc-7f43e6865e80/cglnjlhkdgahafajfimnaonnlapecpfh/edit
+upload; this is `EXTENSION_ID` for `npm run release:chrome`). Reach the item
+from the Developer Dashboard — the dashboard URL embeds the private publisher
+account id, so it is deliberately not recorded here.
 
 **Language:** English (United States).
 
