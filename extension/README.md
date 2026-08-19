@@ -36,12 +36,56 @@ For development, run `npm run build:chrome` and load `build/chrome`. Verify the
 real packaged extension with `npm run test:chrome` after installing Playwright's
 Chromium (`npx playwright install chromium`).
 
-`npm run release:chrome` builds and uploads a new version to an existing
-Chrome Web Store item as a **draft** — publish it from the Developer Dashboard
-(add `--auto-publish` to the script to skip that step).
-The first submission was manual. Before later uploads, export `EXTENSION_ID`,
-`CLIENT_ID`, `CLIENT_SECRET`, and `REFRESH_TOKEN`; the manifest version must
-be new.
+### Releasing a new version
+
+`npm run release:chrome` builds the zip and uploads it as a draft; the item
+stays on its published version until `npm run release:chrome:publish` submits
+the draft. (The upstream CLI publishes when given no subcommand — both scripts
+name theirs explicitly so an upload can never go live by itself.) The manifest
+version must be higher than the published one.
+
+The first submission was manual. Every upload after it authenticates with an
+OAuth refresh token through four environment variables: `EXTENSION_ID` (public,
+in `.env.example`), `CLIENT_ID`, `CLIENT_SECRET`, and `REFRESH_TOKEN`. They
+live in Infisical, so a release reads them at run time:
+
+```bash
+infisical run --projectId d95f3446-3d13-477f-aa23-12d431759f09 \
+  --env prod --path /chrome -- npm run release:chrome
+```
+
+#### Minting the credentials (once)
+
+The Chrome Web Store API authenticates as _you_, so these steps need the
+publisher Google account in a browser:
+
+1. In [Google Cloud console](https://console.cloud.google.com), create a
+   project (any name) and enable the **Chrome Web Store API** under APIs &
+   Services → Library.
+2. Configure the OAuth consent screen as **External**, and add the publisher
+   account itself as a test user. The app stays unpublished; a test user can
+   still mint tokens.
+3. APIs & Services → Credentials → **Create credentials → OAuth client ID**,
+   application type **Desktop app**. Keep the client ID and secret.
+4. Run `npx chrome-webstore-upload-keys`. It walks through the consent flow
+   with that client and prints the refresh token. (By hand: request
+   `https://www.googleapis.com/auth/chromewebstore` with a loopback redirect,
+   then exchange the code at `https://oauth2.googleapis.com/token` with
+   `access_type=offline`.)
+5. Store the three values in Infisical, in the `papernook` project under
+   `/chrome` in `prod` — the same shape as `/apple`, which holds the App Store
+   Connect key for the Safari upload:
+
+   ```bash
+   infisical secrets set --projectId d95f3446-3d13-477f-aa23-12d431759f09 \
+     --env prod --path /chrome \
+     CLIENT_ID=... CLIENT_SECRET=... REFRESH_TOKEN=... EXTENSION_ID=...
+   ```
+
+Refresh tokens issued by an app still in _testing_ on the consent screen
+expire after seven days. Publishing the consent screen (no verification is
+required for a private, single-user app using this scope) makes them
+long-lived; otherwise expect to redo step 4 before each release.
 
 ## Safari
 
