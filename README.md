@@ -120,14 +120,14 @@ library:
 
 ### Where to get the extension
 
-| Browser                                                                                 | Install                                                             | Status                   |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------ |
-| ![Safari](https://img.shields.io/badge/Safari-006CFF?logo=safari&logoColor=white)       | [Mac App Store](https://apps.apple.com/app/id6799779482)            | live                     |
-| ![Chrome](https://img.shields.io/badge/Chrome-4285F4?logo=googlechrome&logoColor=white) | [`npm run build:chrome`](extension/README.md#chrome), load unpacked | Web Store review pending |
+| Browser                                                                                 | Install                                                                                       | Status |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------ |
+| ![Safari](https://img.shields.io/badge/Safari-006CFF?logo=safari&logoColor=white)       | [Mac App Store](https://apps.apple.com/app/id6799779482)                                      | live   |
+| ![Chrome](https://img.shields.io/badge/Chrome-4285F4?logo=googlechrome&logoColor=white) | [Chrome Web Store](https://chromewebstore.google.com/detail/cglnjlhkdgahafajfimnaonnlapecpfh) | live   |
 
-Both browsers run the same `extension/` source. Until the Chrome listing
-clears review, build the zip yourself or grab it from the
-[latest release](https://github.com/affromero/papernook/releases/latest).
+Both browsers run the same `extension/` source. To run an unreleased build,
+`npm run build:chrome` produces a loadable zip, and every
+[release](https://github.com/affromero/papernook/releases/latest) ships one.
 
 ## Why Papernook
 

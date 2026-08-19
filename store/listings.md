@@ -44,7 +44,9 @@ page URLs only to the self-hosted server the user configures.
 ## Chrome Web Store
 
 **Item:** `cglnjlhkdgahafajfimnaonnlapecpfh` (assigned by Google on first
-upload; this is `EXTENSION_ID` for `npm run release:chrome`). Reach the item
+upload; this is `EXTENSION_ID` for `npm run release:chrome`). The listing is
+live at https://chromewebstore.google.com/detail/cglnjlhkdgahafajfimnaonnlapecpfh, serving version 0.1.0 — later builds reach it through
+`npm run release:chrome` plus a publish from the dashboard. Reach the item
 from the Developer Dashboard — the dashboard URL embeds the private publisher
 account id, so it is deliberately not recorded here.
 

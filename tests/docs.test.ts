@@ -197,7 +197,7 @@ describe("documentation", () => {
     expect(storePolicy).toBe(rootPolicy);
   });
 
-  it("documents Chrome packaging without claiming a live store listing", () => {
+  it("points Chrome users at the live store item and keeps the build path", () => {
     const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
     const extensionGuide = fs.readFileSync(
       path.join(root, "extension", "README.md"),
@@ -214,9 +214,17 @@ describe("documentation", () => {
 
     expect(readme).toContain("logo=googlechrome");
     expect(readme).toContain("manifest-v3");
-    expect(readme).not.toContain("chromewebstore.google.com/detail/papernook");
+    // The listing is live: both guides must link the real item, not a guessed
+    // slug URL, and must keep the load-unpacked path for unreleased builds.
+    expect(readme).toContain(
+      "chromewebstore.google.com/detail/cglnjlhkdgahafajfimnaonnlapecpfh",
+    );
+    expect(extensionGuide).toContain(
+      "chromewebstore.google.com/detail/cglnjlhkdgahafajfimnaonnlapecpfh",
+    );
+    expect(extensionGuide).toContain("Load unpacked");
     expect(extensionGuide).toContain("npm run test:chrome");
-    expect(extensionGuide).toContain("The first submission is manual");
+    expect(extensionGuide).toContain("The first submission was manual");
     expect(listing).toContain("## Chrome Web Store");
     expect(listing).toContain("web-browsing activity");
     expect(settings).toContain("Set up extension");

@@ -17,7 +17,11 @@ papernook host is excluded to prevent redirect loops.
 
 ## Chrome
 
-Until the Chrome Web Store listing is live, install manually:
+Install [**papernook**](https://chromewebstore.google.com/detail/cglnjlhkdgahafajfimnaonnlapecpfh) from the Chrome Web Store, then open the
+extension's **Details → Extension options** and enter your papernook server
+URL.
+
+To run a build the store does not have yet, load it unpacked:
 
 1. Download and unzip the repository source. If a GitHub release includes
    `papernook-chrome.zip`, that smaller package works too.
@@ -35,7 +39,7 @@ Chromium (`npx playwright install chromium`).
 `npm run release:chrome` builds and uploads a new version to an existing
 Chrome Web Store item as a **draft** — publish it from the Developer Dashboard
 (add `--auto-publish` to the script to skip that step).
-The first submission is manual. Before later uploads, export `EXTENSION_ID`,
+The first submission was manual. Before later uploads, export `EXTENSION_ID`,
 `CLIENT_ID`, `CLIENT_SECRET`, and `REFRESH_TOKEN`; the manifest version must
 be new.
 
