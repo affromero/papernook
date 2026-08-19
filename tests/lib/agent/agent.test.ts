@@ -191,17 +191,17 @@ describe("provider registry", () => {
   it("checks Claude readiness with the same credential environment as turns", async () => {
     vi.stubEnv("CLAUDE_HOME", "/tmp/papernook-test-claude-home");
     vi.stubEnv("CLAUDECODE", "nested-session");
-    const homes: Array<string | undefined> = [];
+    const configDirs: Array<string | undefined> = [];
     vi.doMock("node:child_process", () => ({
       spawn: (
         _command: string,
         _args: string[],
         options: { env?: NodeJS.ProcessEnv },
       ) => {
-        homes.push(options.env?.HOME);
+        configDirs.push(options.env?.CLAUDE_CONFIG_DIR);
         const hasUsableEnv =
-          options.env?.HOME === "/tmp/papernook-test-claude-home" &&
-          options.env.CLAUDECODE === undefined;
+          Boolean(options.env?.CLAUDE_CONFIG_DIR) &&
+          options.env?.CLAUDECODE === undefined;
         return {
           kill: vi.fn(),
           on: (event: string, callback: (code?: number) => void) => {
@@ -215,10 +215,11 @@ describe("provider registry", () => {
     const { providerStatus } = await import("@/lib/agent/registry");
 
     expect(await providerStatus("claude-code")).toBe("ready");
-    expect(homes).toEqual([
-      "/tmp/papernook-test-claude-home",
-      "/tmp/papernook-test-claude-home",
-    ]);
+    // One isolated config dir for the whole probe, seeded from CLAUDE_HOME —
+    // the same shape a real turn gets, so readiness cannot pass while turns
+    // fail (or corrupt a concurrent turn's config).
+    expect(configDirs).toHaveLength(2);
+    expect(configDirs[0]).toBe(configDirs[1]);
     vi.doUnmock("node:child_process");
   });
 

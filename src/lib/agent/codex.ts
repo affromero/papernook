@@ -71,6 +71,27 @@ async function prepare(
   return { args, prompt, cleanup };
 }
 
+/**
+ * Turn a raw codex exit into something the reader can act on. The CLI prints
+ * a version banner and session header first, so the head of stderr is noise
+ * and the real error — a usage limit, an expired login — is at the tail.
+ */
+export function codexFailureMessage(
+  code: number | null,
+  stderr: string,
+): string {
+  if (/rate.?limit|usage.?limit|too many requests|quota|429/i.test(stderr)) {
+    const reset = stderr.match(/try again (?:at|in) ([^.\n]+)/i)?.[1];
+    return `Codex has hit its usage limit${
+      reset ? ` (available again ${reset.trim()})` : ""
+    }. Switch to another AI provider in Settings, or try again later.`;
+  }
+  if (/unauthorized|authentication|not logged in|401/i.test(stderr)) {
+    return "Codex is not authenticated. Re-connect it in Settings, or switch to another AI provider.";
+  }
+  return `codex: exited with code ${code}: ${stderr.trim().slice(-500)}`;
+}
+
 function runCodex(
   args: string[],
   prompt: string,
@@ -110,9 +131,7 @@ function runCodex(
     child.on("close", (code) => {
       clearTimeout(timer);
       if (code !== 0) {
-        reject(
-          new Error(`codex: exited with code ${code}: ${stderr.slice(0, 500)}`),
-        );
+        reject(new Error(codexFailureMessage(code, stderr)));
         return;
       }
       const content = stdout.trim();

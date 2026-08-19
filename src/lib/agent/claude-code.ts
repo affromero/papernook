@@ -1,5 +1,14 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readImageBase64 } from "./attachments";
 import { configuredEffort, configuredModel } from "./config";
@@ -29,12 +38,13 @@ import {
  */
 
 /**
- * Prepare a writable HOME for the claude subprocess. Volume-mounted host
- * credentials are often root-owned and read-only; the CLI needs a writable
- * ~/.claude for session data. Priority: CLAUDE_CODE_CREDENTIALS_JSON →
- * CLAUDE_HOME → process HOME. Cached for the container lifetime.
+ * Where the shared claude credentials live. Volume-mounted host credentials
+ * are often root-owned and read-only, so inline credentials are materialized
+ * into a private runtime dir first. Priority:
+ * CLAUDE_CODE_CREDENTIALS_JSON -> CLAUDE_HOME. Cached for the container
+ * lifetime.
  */
-let claudeHome: string | null | undefined;
+let sharedCredentials: string | null | undefined;
 const MAX_FAILURE_DIAGNOSTIC_CHARS = 4_000;
 
 function cleanDiagnostic(value: string): string {
@@ -60,38 +70,56 @@ function failureDiagnostic(stdout: string, stderr: string): string {
   return `${diagnostic.slice(0, head)}${marker}${diagnostic.slice(-tail)}`;
 }
 
-function ensureClaudeHome(): string | undefined {
-  if (claudeHome !== undefined) return claudeHome ?? undefined;
+function sharedCredentialsPath(): string | null {
+  if (sharedCredentials !== undefined) return sharedCredentials;
   const credsJson = process.env.CLAUDE_CODE_CREDENTIALS_JSON;
   if (credsJson) {
     try {
-      const runtimeDir = "/tmp/claude-runtime";
-      const claudeDir = join(runtimeDir, ".claude");
+      const claudeDir = "/tmp/claude-runtime/.claude";
       mkdirSync(claudeDir, { recursive: true });
-      writeFileSync(join(claudeDir, ".credentials.json"), credsJson, {
-        mode: 0o600,
-      });
-      claudeHome = runtimeDir;
-      return runtimeDir;
+      const credsPath = join(claudeDir, ".credentials.json");
+      writeFileSync(credsPath, credsJson, { mode: 0o600 });
+      sharedCredentials = credsPath;
+      return credsPath;
     } catch (err) {
       console.error("claude-code: failed to write credentials to /tmp", err);
     }
   }
-  claudeHome = process.env.CLAUDE_HOME ?? null;
-  return claudeHome ?? undefined;
+  const home = process.env.CLAUDE_HOME;
+  sharedCredentials = home ? join(home, ".claude", ".credentials.json") : null;
+  return sharedCredentials;
+}
+
+/** Test hook: forget the cached credentials path. */
+export function resetClaudeCredentialsCache(): void {
+  sharedCredentials = undefined;
+}
+
+export interface ClaudeInvocation {
+  env: NodeJS.ProcessEnv;
+  /** Persist a refreshed token and drop the per-invocation config dir. */
+  release: () => void;
 }
 
 /**
- * The process environment used by every local Claude CLI probe and turn.
- * Readiness must use this too, otherwise env-provided credentials work for
- * real prompts while Settings incorrectly reports that the CLI needs login.
+ * The environment for one Claude CLI probe or turn. Readiness must use this
+ * too, otherwise env-provided credentials work for real prompts while
+ * Settings incorrectly reports that the CLI needs login.
+ *
+ * Every invocation gets its OWN CLAUDE_CONFIG_DIR: the CLI rewrites its
+ * config on startup, so concurrent processes sharing one dir corrupt each
+ * other's writes (empty-stderr exit 1, "configuration file not found ... a
+ * backup file exists"). The dir is seeded from the shared credentials file;
+ * on release a token the CLI refreshed is written back through an atomic
+ * rename so OAuth refresh survives across invocations, then the dir is
+ * deleted. Callers MUST release.
  */
-export function claudeCodeEnvironment(): NodeJS.ProcessEnv {
+export function createClaudeInvocation(): ClaudeInvocation {
   // Allowlisted: the CLI's own namespace, never the app's other secrets.
-  // CLAUDE_CODE_CREDENTIALS_JSON is deliberately absent: ensureClaudeHome has
-  // already written it to disk, so forwarding it would put the raw OAuth
-  // credential in a process paper text can steer.
-  const baseEnv = minimalAgentEnvironment([
+  // CLAUDE_CODE_CREDENTIALS_JSON is deliberately absent: the credentials are
+  // already on disk, so forwarding it would put the raw OAuth credential in a
+  // process paper text can steer.
+  const env = minimalAgentEnvironment([
     "CLAUDE_HOME",
     "CLAUDE_CODE_OAUTH_TOKEN",
     "ANTHROPIC_API_KEY",
@@ -99,9 +127,58 @@ export function claudeCodeEnvironment(): NodeJS.ProcessEnv {
     "ANTHROPIC_AUTH_TOKEN",
   ]);
   // Strip CLAUDECODE to prevent "cannot launch inside another session".
-  delete baseEnv.CLAUDECODE;
-  const home = ensureClaudeHome();
-  return home ? { ...baseEnv, HOME: home } : baseEnv;
+  delete env.CLAUDECODE;
+
+  const shared = sharedCredentialsPath();
+  if (!shared) return { env, release: () => {} };
+
+  let dir: string;
+  let seeded: string | null = null;
+  try {
+    dir = mkdtempSync(join(tmpdir(), "claude-cfg-"));
+    try {
+      copyFileSync(shared, join(dir, ".credentials.json"));
+      seeded = readFileSync(join(dir, ".credentials.json"), "utf8");
+    } catch {
+      // No shared credentials file yet (CLAUDE_HOME without one) — the CLI
+      // may still authenticate through an env token.
+    }
+  } catch (err) {
+    console.error("claude-code: failed to create a config dir", err);
+    return { env, release: () => {} };
+  }
+
+  env.CLAUDE_CONFIG_DIR = dir;
+  // Subscription credentials exist: an Anthropic API key in the same env
+  // makes the CLI fall back to API billing when the OAuth session expires,
+  // so the failure reads "Credit balance is too low" instead of an auth
+  // error. Drop the keys and let subscription billing (and real auth
+  // errors) through.
+  if (seeded) {
+    delete env.ANTHROPIC_API_KEY;
+    delete env.ANTHROPIC_AUTH_TOKEN;
+  }
+
+  return {
+    env,
+    release: () => {
+      try {
+        const current = readFileSync(join(dir, ".credentials.json"), "utf8");
+        if (seeded !== null && current !== seeded) {
+          const temporary = `${shared}.${process.pid}.tmp`;
+          writeFileSync(temporary, current, { mode: 0o600 });
+          renameSync(temporary, shared);
+        }
+      } catch {
+        // Credentials unchanged or unreadable — nothing to persist.
+      }
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        // Best-effort cleanup.
+      }
+    },
+  };
 }
 
 async function buildArgs(
@@ -175,10 +252,11 @@ export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
     getClaudeSshHost(),
   );
 
+  const invocation = createClaudeInvocation();
   return new Promise((resolve, reject) => {
     const child = spawn(command, spawnArgs, {
       stdio: ["pipe", "pipe", "pipe"],
-      env: claudeCodeEnvironment(),
+      env: invocation.env,
     });
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
@@ -195,6 +273,7 @@ export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
     });
     child.on("close", (code) => {
       clearTimeout(timer);
+      invocation.release();
       if (code !== 0) {
         reject(
           new Error(
@@ -213,6 +292,7 @@ export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
     });
     child.on("error", (err) => {
       clearTimeout(timer);
+      invocation.release();
       reject(
         new Error(
           `claude-code: failed to spawn: ${err.message}. Is the 'claude' CLI installed?`,
@@ -278,9 +358,10 @@ export async function* streamClaudeCode(
     args,
     getClaudeSshHost(),
   );
+  const invocation = createClaudeInvocation();
   const child = spawn(command, spawnArgs, {
     stdio: ["pipe", "pipe", "pipe"],
-    env: claudeCodeEnvironment(),
+    env: invocation.env,
   });
   const timer = setTimeout(() => child.kill("SIGTERM"), timeoutMs);
 
@@ -291,6 +372,7 @@ export async function* streamClaudeCode(
   let exitCode: number | null = null;
   child.on("close", (code) => {
     exitCode = code;
+    invocation.release();
   });
   child.stdin.write(stdin);
   child.stdin.end();
