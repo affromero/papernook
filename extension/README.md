@@ -32,10 +32,12 @@ For development, run `npm run build:chrome` and load `build/chrome`. Verify the
 real packaged extension with `npm run test:chrome` after installing Playwright's
 Chromium (`npx playwright install chromium`).
 
-`npm run release:chrome` builds, uploads, and publishes a new version of an
-existing Chrome Web Store item. The first submission is manual. Before later
-publishes, export `EXTENSION_ID`, `CLIENT_ID`, `CLIENT_SECRET`, and
-`REFRESH_TOKEN`; the manifest version must be new.
+`npm run release:chrome` builds and uploads a new version to an existing
+Chrome Web Store item as a **draft** — publish it from the Developer
+Dashboard (add `--auto-publish` to the script to skip that step). The first
+submission is manual. Before later uploads, export `EXTENSION_ID`,
+`CLIENT_ID`, `CLIENT_SECRET`, and `REFRESH_TOKEN`; the manifest version must
+be new.
 
 ## Safari
 
