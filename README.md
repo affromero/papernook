@@ -81,6 +81,17 @@ library:
 
 ![Browser extension capturing an arXiv PDF: redirect into the reader, hover reference preview, and filing into the library](docs/images/product/extension-demo.gif)
 
+### Where to get the extension
+
+| Browser                                                                                 | Install                                                             | Status                   |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------ |
+| ![Safari](https://img.shields.io/badge/Safari-006CFF?logo=safari&logoColor=white)       | [Mac App Store](https://apps.apple.com/app/id6799779482)            | live                     |
+| ![Chrome](https://img.shields.io/badge/Chrome-4285F4?logo=googlechrome&logoColor=white) | [`npm run build:chrome`](extension/README.md#chrome), load unpacked | Web Store review pending |
+
+Both browsers run the same `extension/` source. Until the Chrome listing
+clears review, build the zip yourself or grab it from the
+[latest release](https://github.com/affromero/papernook/releases/latest).
+
 ## Why Papernook
 
 A paper you actually work through ends up in three places at once: the tablet
