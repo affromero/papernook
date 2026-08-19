@@ -35,9 +35,45 @@ Ask your own AI grounded questions, then share a revocable, view-only reading.
 
 ---
 
-[Quick start](#quick-start) · [Workflow](#the-reading-loop) ·
+[How it works](#how-it-works) · [Quick start](#quick-start) ·
+[Workflow](#the-reading-loop) ·
 [Highlights](#why-papernook) · [Integrations](#integrations) ·
 [Documentation](#documentation)
+
+## How it works
+
+One server on a machine you control, one folder of files, and whichever AI you
+already pay for.
+
+```mermaid
+flowchart LR
+    ext["Browser extension<br/>Safari · Chrome"]
+    ipad["iPad or phone<br/>Pencil ink"]
+    server["papernook<br/>Next.js, your machine"]
+    disk[("data/<br/>PDFs · metadata · chats<br/>plain files")]
+    index[("SQLite FTS5<br/>rebuildable index")]
+    ai["Your AI<br/>Claude Code · Codex<br/>API · local model"]
+
+    ext -->|"PDF navigation"| server
+    ipad --> server
+    server <--> disk
+    server <--> ai
+    disk --> index
+    index -->|"search"| server
+```
+
+1. **Capture.** Open a PDF on arXiv or a publisher page. The extension sends
+   the navigation to your server, which downloads the paper, asks your AI for a
+   topic, tags, and a summary, and files it.
+2. **Annotate.** Highlight and draw in the browser. The ink is written into the
+   PDF itself, so any reader on any device opens it later, with or without
+   Papernook.
+3. **Ask.** The chat sits beside the paper and answers from the paper. Its
+   conversations are JSONL files next to the PDF, not rows in someone's
+   database.
+
+Nothing leaves your machine except the requests you configure to an AI
+provider. Delete the SQLite index and the library rebuilds from the files.
 
 ## Quick start
 
@@ -115,7 +151,7 @@ dependency.
 | **The index stays disposable** | SQLite accelerates search, but the filesystem remains the source of truth and rebuilds the index. |
 
 <details>
-<summary><strong>Architecture and data flow</strong></summary>
+<summary><strong>Full module map and data flow</strong></summary>
 
 Every node is a real module in this repository.
 
