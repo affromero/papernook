@@ -45,9 +45,9 @@ name theirs explicitly so an upload can never go live by itself.) The manifest
 version must be higher than the published one.
 
 The first submission was manual. Every upload after it authenticates with an
-OAuth refresh token through four environment variables: `EXTENSION_ID` (public,
-in `.env.example`), `CLIENT_ID`, `CLIENT_SECRET`, and `REFRESH_TOKEN`. They
-live in Infisical, so a release reads them at run time:
+OAuth refresh token through five environment variables: `EXTENSION_ID` (public,
+in `.env.example`), `PUBLISHER_ID`, `CLIENT_ID`, `CLIENT_SECRET`, and
+`REFRESH_TOKEN`. They live in Infisical, so a release reads them at run time:
 
 ```bash
 infisical run --projectId d95f3446-3d13-477f-aa23-12d431759f09 \
@@ -77,14 +77,19 @@ publisher Google account in a browser:
    approve in the browser — it prints the refresh token. (By hand: request the
    scope above with a loopback redirect, then exchange the code at
    `https://oauth2.googleapis.com/token` with `access_type=offline`.)
-7. Store the three values in Infisical, in the `papernook` project under
+7. Take the **Publisher ID** from the Developer Dashboard's **Publisher →
+   Settings** page (it is also the path segment after `/devconsole/` in the
+   dashboard URL). Every v2 API path embeds it, and no API returns it — the
+   aliases `me` and `-` both 404.
+8. Store the four values in Infisical, in the `papernook` project under
    `/chrome` in `prod` — the same shape as `/apple`, which holds the App Store
    Connect key for the Safari upload:
 
    ```bash
    infisical secrets set --projectId d95f3446-3d13-477f-aa23-12d431759f09 \
      --env prod --path /chrome \
-     CLIENT_ID=... CLIENT_SECRET=... REFRESH_TOKEN=... EXTENSION_ID=...
+     PUBLISHER_ID=... CLIENT_ID=... CLIENT_SECRET=... REFRESH_TOKEN=... \
+     EXTENSION_ID=...
    ```
 
 If a release fails with `invalid_grant`, the refresh token was revoked — redo
