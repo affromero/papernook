@@ -4,7 +4,7 @@ import {
   getClaudeSshHost,
   getCodexSshHost,
 } from "./invocation";
-import { claudeCodeEnvironment, claudeCodeProvider } from "./claude-code";
+import { createClaudeInvocation, claudeCodeProvider } from "./claude-code";
 import { codexProvider } from "./codex";
 import {
   anthropicProvider,
@@ -171,13 +171,21 @@ export async function providerStatus(
       return process.env.OPENAI_API_KEY ? "ready" : "no_key";
     case "claude-code": {
       const ssh = getClaudeSshHost();
-      const env = ssh ? undefined : claudeCodeEnvironment();
-      if (!(await cliResponds("claude", ["--version"], ssh, env))) {
-        return ssh ? "unreachable" : "not_installed";
+      // The probe spawns the CLI too, so it needs the same isolated config
+      // dir a turn gets — a probe sharing one would corrupt a concurrent
+      // turn's config.
+      const invocation = ssh ? null : createClaudeInvocation();
+      try {
+        const env = invocation?.env;
+        if (!(await cliResponds("claude", ["--version"], ssh, env))) {
+          return ssh ? "unreachable" : "not_installed";
+        }
+        return (await cliResponds("claude", ["auth", "status"], ssh, env))
+          ? "ready"
+          : "not_authenticated";
+      } finally {
+        invocation?.release();
       }
-      return (await cliResponds("claude", ["auth", "status"], ssh, env))
-        ? "ready"
-        : "not_authenticated";
     }
     case "codex": {
       const ssh = getCodexSshHost();
