@@ -4,41 +4,95 @@ All notable changes to Papernook are documented in this file.
 
 ## [0.1.1] - 2026-08-18
 
-The browser extension reaches both stores, and per-paper conversations gain
-history, deletion, and verifiable sources.
+The reader learns to follow citations, conversations become durable and
+verifiable, capture stops blocking on slow downloads, and the browser extension
+reaches the Mac App Store and the Chrome Web Store.
 
 ### Added
 
-- Browser extension for Safari and Chrome that redirects PDFs from research
-  hosts into the reader, with a toolbar fallback everywhere else, per-site
-  opt-in for additional hosts, and a connection test when the server URL is
-  saved.
-- Conversation management: sent-message history controls, deletion of complete
-  conversations, automatic naming from the first query, and selection that
-  survives a refresh.
-- Chat answers link to verified sources, render linked source excerpts, and
-  navigate to precise paper references.
-- Three.js scenes run in an inline sandbox, report rendering failures, and
-  regenerate in context when they fail.
-- Original source links on papers, tappable topic chips on the inbox review
-  page, and trackpad pinch zoom in the reader on desktop.
-- Settings surfaces model results and profile avatar editing.
+#### Browser extension
+
+- Safari and Chrome extension that redirects PDFs from research hosts — arXiv,
+  OpenReview, bioRxiv, medRxiv, ACL Anthology, NeurIPS, PMLR, and CVF — into
+  the reader, with a toolbar button everywhere else that needs no site access
+  until clicked, and per-site opt-in for additional hosts.
+- The options page tests the connection when the server URL is saved and
+  reports permission, reachability, and redirect-rule failures separately.
+- Distribution pipeline for both stores: packaging, listing copy, reviewer
+  instructions, generated screenshots, a review demo video, and a promo tile.
+
+#### Reading and annotation
+
+- Citation following: inline citations are detected in page text, the
+  bibliography is indexed and matched to entries, and in-paper references
+  resolve through their hyperref destinations, with a caption text-search
+  fallback for papers that lack them.
+- Reference previews work on papers without embedded citation links, and
+  previewing is separated from editing so a hover no longer risks an edit.
+- Annotations can be edited after saving, remote saves are picked up silently
+  instead of demanding a reload, and truncated saves are rejected rather than
+  written.
+- Trackpad pinch zoom on desktop, and a draggable divider to resize the chat
+  panel against the page.
+
+#### Conversations
+
+- Assistant messages render as markdown with KaTeX math and highlighted code.
+- Conversations can be deleted whole or message by message, are named from the
+  first query, keep their selection across a refresh, and offer sent-message
+  history controls.
+- Answers cite verified source links, render linked source excerpts, and drive
+  the PDF pane when a paper reference or citation is clicked.
+- Three.js blocks run in a sandboxed viewer with an inline runtime, readable
+  overlays, reported failures, and in-context regeneration.
+- Providers gain web access, vision-gated image attachments, live streaming
+  deltas from the `claude-code` CLI, Codex model and effort discovery, and full
+  paper text for CLI providers, with web-capable providers fetching the source
+  when the extracted text is truncated.
+
+#### Capture and library
+
+- Capture is asynchronous end to end: `/add` returns a polling pending page,
+  on-disk job markers survive renames, the inbox shows job cards, and the
+  viewer captures inline with a spinner instead of navigating away.
+- Inbox cards can be deleted, the review page offers existing topics as
+  tappable chips, and papers link back to their original source.
+- Every capture failure is logged, with dead-connection errors explained
+  rather than surfaced raw.
+
+#### Settings
+
+- Model discovery results and profile avatar editing, with a clearer section
+  hierarchy and simpler transitions.
 
 ### Changed
 
 - The instance password is the only credential; per-profile passwords are gone
   and the sudo prompt asks once per page load.
 - CLI AI providers reload their credentials from Settings without a restart.
+- Tabs are titled by paper name.
+
+### Fixed
+
+- Mode toggles no longer phantom-save the document, and save versions compare
+  weak-insensitively so annotations survive proxies that rewrite ETags.
+- Long-running streams stay alive instead of timing out mid-answer.
 
 ### Security
 
 - CLI providers spawn with an allowlisted environment and a pinned container
   credential path, and `OPENAI_API_KEY` no longer reaches Settings endpoints.
-- Paper text is marked as untrusted source material and agent answers never
-  auto-load images.
+- Paper text is marked as untrusted source material, agent answers never
+  auto-load images, and chat requires verified source links.
 - `/add` gets its own lockout bucket, and the sandbox, extraction, and
   proxy-trust holes found in three review passes are closed.
 - `html-to-text` is pinned to 9.0.5 to clear the `deepmerge-ts` advisory.
+
+### Deployment notes
+
+- The extension version tracks the repository version; the Chrome package
+  refuses to build unless `package.json`, its lock, `extension/manifest.json`,
+  and the release tag agree.
 
 ## [0.1.0] - 2026-07-20
 
