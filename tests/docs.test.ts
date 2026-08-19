@@ -173,6 +173,19 @@ describe("documentation", () => {
     expect(asserted).toEqual(new Set(screenshots));
   });
 
+  it("serves the same privacy policy at both published URLs", () => {
+    // The live Mac App Store listing points at store/PRIVACY.md and the
+    // Chrome listing at the root copy; Apple locks the privacy URL until a
+    // new app version, so both paths must resolve until 0.1.1 repoints
+    // Apple at the root and this duplicate goes away.
+    const rootPolicy = fs.readFileSync(path.join(root, "PRIVACY.md"), "utf8");
+    const storePolicy = fs.readFileSync(
+      path.join(root, "store", "PRIVACY.md"),
+      "utf8",
+    );
+    expect(storePolicy).toBe(rootPolicy);
+  });
+
   it("documents Chrome packaging without claiming a live store listing", () => {
     const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
     const extensionGuide = fs.readFileSync(
