@@ -54,6 +54,7 @@ async function mockPipeline(opts?: {
     extractPdfText: async () => "extracted text",
     analyzePaper: async () => ANALYSIS,
     linearizePdf: async () => undefined,
+    compressPdf: async () => undefined,
   }));
 }
 

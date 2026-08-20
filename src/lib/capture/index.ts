@@ -23,6 +23,7 @@ import { downloadPdf } from "./download";
 import {
   extractPdfText,
   analyzePaper,
+  compressPdf,
   linearizePdf,
   type Analysis,
 } from "./analyze";
@@ -225,6 +226,9 @@ async function capturePdfLocked(
   const inboxPdf = pdfPath(null, provisional);
   fs.mkdirSync(path.dirname(inboxPdf), { recursive: true });
   fs.writeFileSync(inboxPdf, bytes);
+  // Compress first, linearize second: ghostscript writes its own file
+  // structure, which would undo the fast-web-view layout.
+  await compressPdf(inboxPdf);
   await linearizePdf(inboxPdf);
 
   let finalSlug = provisional;

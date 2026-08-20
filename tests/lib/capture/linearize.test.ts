@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PDFDocument } from "pdf-lib";
-import { linearizePdf } from "@/lib/capture/analyze";
+import { compressPdf, linearizePdf } from "@/lib/capture/analyze";
 
 let tmpDir: string;
 
@@ -45,6 +45,32 @@ describe("linearizePdf", () => {
   it("never leaves its temporary rewrite behind", async () => {
     const file = await writePdf(2);
     await linearizePdf(file);
+
+    expect(fs.readdirSync(tmpDir)).toEqual(["capture.pdf"]);
+  });
+});
+
+describe("compressPdf", () => {
+  it("leaves a small PDF alone rather than spending seconds on it", async () => {
+    const file = await writePdf(2);
+    const before = fs.readFileSync(file);
+    await compressPdf(file);
+
+    expect(fs.readFileSync(file).equals(before)).toBe(true);
+  });
+
+  it("leaves a file it cannot rewrite unchanged", async () => {
+    const file = path.join(tmpDir, "capture.pdf");
+    fs.writeFileSync(file, "x".repeat(3 * 1024 * 1024));
+    await compressPdf(file);
+
+    expect(fs.readFileSync(file, "utf8")).toBe("x".repeat(3 * 1024 * 1024));
+  });
+
+  it("never leaves its temporary rewrite behind", async () => {
+    const file = path.join(tmpDir, "capture.pdf");
+    fs.writeFileSync(file, "x".repeat(3 * 1024 * 1024));
+    await compressPdf(file);
 
     expect(fs.readdirSync(tmpDir)).toEqual(["capture.pdf"]);
   });

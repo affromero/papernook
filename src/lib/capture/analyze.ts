@@ -44,6 +44,92 @@ export function extractPdfText(pdfPath: string): Promise<string> {
   });
 }
 
+/** Papers below this gain little from a rewrite that costs seconds. */
+const COMPRESS_MIN_BYTES = 2 * 1024 * 1024;
+/** Well past any on-screen zoom; the size curve is flat above it. */
+const COMPRESS_DPI = 300;
+
+function pageCount(pdfPath: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const child = spawn("qpdf", ["--show-npages", pdfPath], {
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    let out = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      out += chunk.toString();
+    });
+    child.on("error", () => resolve(null));
+    child.on("close", (code) => {
+      const pages = Number.parseInt(out.trim(), 10);
+      resolve(code === 0 && Number.isInteger(pages) ? pages : null);
+    });
+  });
+}
+
+/**
+ * Downsample the raster images in a freshly captured PDF. Papers carry
+ * figures stored at 600-2000 ppi — far past what any zoom shows — which is
+ * where nearly all of a 40 MB download lives; text and vector art are
+ * untouched, so only the pixels lose anything.
+ *
+ * Lossy and irreversible, so it is accepted only when the rewrite is
+ * verifiably intact: same page count, and actually smaller. Any failure —
+ * missing ghostscript, a malformed or encrypted file, a timeout — leaves the
+ * download exactly as it arrived.
+ */
+export async function compressPdf(pdfPath: string): Promise<void> {
+  if (fs.statSync(pdfPath).size < COMPRESS_MIN_BYTES) return;
+  const before = await pageCount(pdfPath);
+  if (before === null) return;
+
+  const target = `${pdfPath}.compressing.tmp`;
+  const finished = await new Promise<boolean>((resolve) => {
+    const child = spawn(
+      "gs",
+      [
+        "-sDEVICE=pdfwrite",
+        "-dCompatibilityLevel=1.7",
+        "-dNOPAUSE",
+        "-dBATCH",
+        "-dQUIET",
+        // Papers are downloaded from the open web; never let one drive
+        // ghostscript's file or command operators.
+        "-dSAFER",
+        "-dDetectDuplicateImages=true",
+        "-dDownsampleColorImages=true",
+        "-dColorImageDownsampleType=/Bicubic",
+        `-dColorImageResolution=${COMPRESS_DPI}`,
+        "-dDownsampleGrayImages=true",
+        "-dGrayImageDownsampleType=/Bicubic",
+        `-dGrayImageResolution=${COMPRESS_DPI}`,
+        // Monochrome line art stays at full resolution: it is cheap to store
+        // and the first thing to look wrong when resampled.
+        "-dAutoFilterColorImages=false",
+        "-dColorImageFilter=/DCTEncode",
+        "-dJPEGQ=88",
+        `-sOutputFile=${target}`,
+        pdfPath,
+      ],
+      { stdio: "ignore" },
+    );
+    const timer = setTimeout(() => child.kill("SIGTERM"), 300_000);
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve(code === 0);
+    });
+  });
+
+  const discard = () => fs.rmSync(target, { force: true });
+  if (!finished || !fs.existsSync(target)) return discard();
+  if (fs.statSync(target).size >= fs.statSync(pdfPath).size) return discard();
+  if ((await pageCount(target)) !== before) return discard();
+  fs.renameSync(target, pdfPath);
+}
+
 /**
  * Rewrite a freshly captured PDF for fast web view, so the reader can render
  * page 1 from the front of the stream instead of waiting for the trailing
