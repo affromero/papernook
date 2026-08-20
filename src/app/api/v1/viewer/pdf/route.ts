@@ -12,6 +12,9 @@ export const dynamic = "force-dynamic";
  * server fetches through downloadPdf's SSRF guards and size caps instead.
  */
 
+/** Comfortably under a browser disk cache's per-entry ceiling. */
+const MAX_BROWSER_CACHEABLE_BYTES = 16 * 1024 * 1024;
+
 const srcSchema = z
   .string()
   .url()
@@ -43,13 +46,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
   try {
     const pdf = await downloadPdf(src.data);
-    return new NextResponse(new Uint8Array(pdf.bytes), {
+    const body = new Uint8Array(pdf.bytes);
+    return new NextResponse(body, {
       headers: {
         "content-type": "application/pdf",
         "content-disposition": "inline",
+        // Without this the body goes out chunked, leaving pdf.js unable to
+        // size its buffers or decide whether ranges are worth asking for.
+        "content-length": String(body.byteLength),
         // Let the browser keep external PDFs for the session: every viewer
-        // load otherwise re-runs a full polite server-side download.
-        "cache-control": "private, max-age=3600",
+        // load otherwise re-runs a full polite server-side download. Past
+        // the disk cache's per-entry ceiling the write fails instead
+        // (Chrome reports ERR_CACHE_WRITE_FAILURE) and can take the
+        // response down with it, so large papers are simply not offered.
+        "cache-control":
+          body.byteLength <= MAX_BROWSER_CACHEABLE_BYTES
+            ? "private, max-age=3600"
+            : "private, no-store",
       },
     });
   } catch (error) {

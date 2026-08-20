@@ -75,8 +75,24 @@ describe("viewer PDF proxy", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/pdf");
     expect(response.headers.get("cache-control")).toBe("private, max-age=3600");
+    expect(response.headers.get("content-length")).toBe(
+      String("%PDF-1.4 fake".length),
+    );
     expect(Buffer.from(await response.arrayBuffer()).toString()).toContain(
       "%PDF-1.4",
+    );
+  });
+
+  it("declines to have a huge paper written into the browser cache", async () => {
+    mockSession(true);
+    const bytes = Buffer.alloc(17 * 1024 * 1024, "a");
+    mockDownload(async () => ({ bytes }));
+    const route = await import("@/app/api/v1/viewer/pdf/route");
+    const response = await route.GET(get("https://example.com/huge.pdf"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("content-length")).toBe(
+      String(bytes.byteLength),
     );
   });
 });
