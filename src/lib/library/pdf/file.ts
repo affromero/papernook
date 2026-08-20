@@ -60,6 +60,33 @@ export async function readVersionedPdf(
   return readStableFile(paper.pdfPath);
 }
 
+/**
+ * Locate a paper's PDF and its save version without reading the bytes, so a
+ * range-served GET streams from disk instead of buffering 20+ MB per request.
+ * The sha256 is only recomputed when the file changed on disk.
+ */
+export async function readVersionedPdfFile(
+  topic: string,
+  slug: string,
+): Promise<{ path: string; size: number; etag: string } | null> {
+  const paper = getPaper(topic, slug);
+  if (!paper) return null;
+
+  const stat = await fs.stat(paper.pdfPath).catch(() => null);
+  if (!stat) return null;
+  const cached = versionCache.get(paper.pdfPath);
+  if (cached?.identity === statIdentity(stat)) {
+    return { path: paper.pdfPath, size: stat.size, etag: cached.etag };
+  }
+
+  const version = await readStableFile(paper.pdfPath);
+  return {
+    path: paper.pdfPath,
+    size: version.bytes.byteLength,
+    etag: version.etag,
+  };
+}
+
 export async function readStablePdfVersion(
   topic: string,
   slug: string,

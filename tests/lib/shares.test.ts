@@ -190,7 +190,7 @@ describe("view-only paper shares", () => {
 });
 
 describe("public share boundaries", () => {
-  it("serves the current annotated PDF with private no-store headers", async () => {
+  it("serves the current annotated PDF, never to a shared cache", async () => {
     const paper = await placePaper();
     const shares = await import("@/lib/library/shares");
     const share = shares.createShare("nlp", "attention", "ana", []);
@@ -211,7 +211,8 @@ describe("public share boundaries", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("newly annotated");
-    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(response.headers.get("cache-control")).toContain("private");
+    expect(response.headers.get("cache-control")).toContain("no-cache");
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
 
     shares.deleteShare("nlp", "attention", share.id, "ana");

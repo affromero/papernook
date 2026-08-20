@@ -300,24 +300,42 @@ export function PdfReader({
         eventBus.on("annotationeditoruimanager", onAnnotationEditorReady);
         eventBus.on("switchannotationeditormode", onSwitchAnnotationEditorMode);
 
-        const response = await fetch(src, {
-          // Editable PDFs must always see the latest saved version (etag
-          // flow); the read-only viewer lets the browser cache the bytes so
-          // reopening an external paper is not a full re-download.
-          cache: editable ? "no-store" : "default",
-          credentials: "same-origin",
-          signal: abortController.signal,
+        // The document is left to pdf.js so it can stream: awaiting a full
+        // arrayBuffer() here would hold the first page hostage to the last
+        // byte of a 20 MB paper. Only an editable PDF needs the save
+        // version up front, and one byte is enough to read it off the
+        // response headers. GET rather than HEAD, because HEAD applies a
+        // recent-write guard that answers 409 mid-save.
+        if (editable) {
+          const probe = await fetch(src, {
+            headers: { range: "bytes=0-0" },
+            cache: "no-store",
+            credentials: "same-origin",
+            signal: abortController.signal,
+          });
+          if (!probe.ok) {
+            throw new Error(`PDF request failed with ${probe.status}.`);
+          }
+          const etag = normalizeEtag(probe.headers.get("etag"));
+          if (!etag) {
+            throw new Error("The PDF did not include a save version.");
+          }
+          etagRef.current = etag;
+        }
+        // Auto-fetch stays on, so the rest of the file keeps streaming in
+        // the background and `saveDocument()` never stalls waiting for
+        // chunks. Page 1 arrives early because captured PDFs are linearized.
+        // ponytail: two knowingly-unpinned edges. The revision is not pinned
+        // across pdf.js's range requests, so a WebDAV overwrite mid-load can
+        // mix two revisions into one render — the 30s version poll remounts
+        // the document and if-match still guards every save; pin it with
+        // `?v=<etag>` + a 412 if that ever bites. And if a paper still paints
+        // late, `disableAutoFetch: true` narrows the fetch to the current
+        // view at the cost of a slower first save.
+        loadingTask = pdfjs.getDocument({
+          url: src,
+          withCredentials: true,
         });
-        if (!response.ok) {
-          throw new Error(`PDF request failed with ${response.status}.`);
-        }
-        const etag = normalizeEtag(response.headers.get("etag"));
-        if (editable && !etag) {
-          throw new Error("The PDF did not include a save version.");
-        }
-        const data = new Uint8Array(await response.arrayBuffer());
-        etagRef.current = etag;
-        loadingTask = pdfjs.getDocument({ data });
         const document = await loadingTask.promise;
         if (disposed) {
           await loadingTask.destroy();

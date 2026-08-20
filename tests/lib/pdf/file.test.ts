@@ -166,6 +166,60 @@ describe("authenticated PDF route", () => {
     expect(response.status).toBe(401);
   });
 
+  it("serves a byte range so the reader can render before the file lands", async () => {
+    await placePaper();
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    await signedInAs("andres");
+    const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
+    const params = {
+      params: Promise.resolve({ topic: "nlp", slug: "attention" }),
+    };
+
+    const whole = await route.GET(
+      new NextRequest("http://localhost/api/v1/papers/nlp/attention/pdf"),
+      params,
+    );
+    expect(whole.headers.get("accept-ranges")).toBe("bytes");
+    const body = await whole.text();
+
+    const head = await route.GET(
+      new NextRequest("http://localhost/api/v1/papers/nlp/attention/pdf", {
+        headers: { range: "bytes=0-7" },
+      }),
+      params,
+    );
+    expect(head.status).toBe(206);
+    expect(await head.text()).toBe(body.slice(0, 8));
+    expect(head.headers.get("etag")).toBe(whole.headers.get("etag"));
+  });
+
+  it("answers an unchanged PDF with a 304 instead of the bytes", async () => {
+    await placePaper();
+    const users = await import("@/lib/auth/users");
+    users.createProfile("Andres");
+    await signedInAs("andres");
+    const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
+    const params = {
+      params: Promise.resolve({ topic: "nlp", slug: "attention" }),
+    };
+
+    const opened = await route.GET(
+      new NextRequest("http://localhost/api/v1/papers/nlp/attention/pdf"),
+      params,
+    );
+    const etag = opened.headers.get("etag") ?? "";
+
+    const revalidated = await route.GET(
+      new NextRequest("http://localhost/api/v1/papers/nlp/attention/pdf", {
+        headers: { "if-none-match": etag },
+      }),
+      params,
+    );
+    expect(revalidated.status).toBe(304);
+    expect(await revalidated.text()).toBe("");
+  });
+
   it("round-trips a native PDF save and rejects the stale version", async () => {
     await placePaper();
     const users = await import("@/lib/auth/users");
@@ -183,7 +237,10 @@ describe("authenticated PDF route", () => {
     const etag = opened.headers.get("etag");
     expect(opened.status).toBe(200);
     expect(etag).toMatch(/^"[a-f0-9]{64}"$/);
-    expect(opened.headers.get("cache-control")).toContain("no-store");
+    // no-cache keeps every open revalidating against the save version;
+    // no-store would forbid the 304 that spares a 20 MB re-download.
+    expect(opened.headers.get("cache-control")).toContain("private");
+    expect(opened.headers.get("cache-control")).toContain("no-cache");
 
     const annotated = await makePdf("web annotation");
     const saved = await route.PUT(

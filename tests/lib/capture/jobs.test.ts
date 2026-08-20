@@ -53,6 +53,7 @@ async function mockPipeline(opts?: {
   vi.doMock("@/lib/capture/analyze", () => ({
     extractPdfText: async () => "extracted text",
     analyzePaper: async () => ANALYSIS,
+    linearizePdf: async () => undefined,
   }));
 }
 

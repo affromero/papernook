@@ -8,9 +8,10 @@ import {
   PdfFileError,
   PdfTooLargeError,
   readStablePdfVersion,
-  readVersionedPdf,
+  readVersionedPdfFile,
   replacePdf,
 } from "@/lib/library/pdf/file";
+import { fileResponse } from "@/lib/http/file-range";
 import { isValidSlug } from "@/lib/library/slug";
 import { MAX_PDF_BYTES } from "@/lib/pdf-limits";
 
@@ -65,7 +66,7 @@ async function readPdfBody(request: NextRequest): Promise<Uint8Array> {
   return bytes;
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, { params }: Params) {
   const profile = await activeProfile();
   if (!profile)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
@@ -74,16 +75,19 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invalid paper." }, { status: 400 });
   }
   const { topic, slug } = parsedParams.data;
-  const pdf = await readVersionedPdf(topic, slug);
+  const pdf = await readVersionedPdfFile(topic, slug);
   if (!pdf)
     return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
-  return new NextResponse(new Uint8Array(pdf.bytes).buffer, {
-    headers: {
-      "content-type": "application/pdf",
-      "content-disposition": `inline; filename="${slug}.pdf"`,
-      "cache-control": "private, no-store",
-      etag: pdf.etag,
-    },
+  // no-cache, not no-store: the reader must always confirm it holds the
+  // current save version, but a 304 saves re-sending tens of megabytes.
+  return fileResponse({
+    path: pdf.path,
+    size: pdf.size,
+    etag: pdf.etag,
+    headers: request.headers,
+    contentType: "application/pdf",
+    filename: `${slug}.pdf`,
+    cacheControl: "private, no-cache",
   });
 }
 

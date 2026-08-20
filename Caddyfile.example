@@ -5,8 +5,11 @@
 
 papernook.example.com {
 	encode gzip
+	# Must stay above MAX_PDF_BYTES (100 MB in src/lib/pdf-limits.ts) plus
+	# request overhead, or Caddy rejects an annotation save on a large paper
+	# before the app's own limit and error message can apply.
 	request_body {
-		max_size 55MB
+		max_size 105MB
 	}
 	header {
 		-Server
