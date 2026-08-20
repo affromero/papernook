@@ -20,7 +20,12 @@ import { createChat, appendMessage } from "../library/chats";
 import { hasConfiguredProvider } from "../agent/registry";
 import { rebuildIndex } from "../library/index-db";
 import { downloadPdf } from "./download";
-import { extractPdfText, analyzePaper, type Analysis } from "./analyze";
+import {
+  extractPdfText,
+  analyzePaper,
+  linearizePdf,
+  type Analysis,
+} from "./analyze";
 import {
   beginProfileActivity,
   type ProfileActivity,
@@ -220,6 +225,7 @@ async function capturePdfLocked(
   const inboxPdf = pdfPath(null, provisional);
   fs.mkdirSync(path.dirname(inboxPdf), { recursive: true });
   fs.writeFileSync(inboxPdf, bytes);
+  await linearizePdf(inboxPdf);
 
   let finalSlug = provisional;
   let proposedTopic: string | null = null;

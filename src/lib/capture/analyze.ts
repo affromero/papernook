@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { getProvider, hasConfiguredProvider } from "../agent/registry";
@@ -7,7 +8,8 @@ import { listTopics, listPapers } from "../library/papers";
 import { USER_AGENT } from "./download";
 
 /**
- * Post-download analysis: pdftotext extraction, then one agent call that
+ * Post-download analysis: linearization, pdftotext extraction, then one
+ * agent call that
  * files the paper: metadata + bibtex, a topic-folder proposal (existing
  * folders offered first), tags, a summary, related papers already in the
  * library, and starter questions for the seeded first chat.
@@ -38,6 +40,46 @@ export function extractPdfText(pdfPath: string): Promise<string> {
       // poppler missing; analysis degrades to metadata-from-agent only
       clearTimeout(timer);
       resolve("");
+    });
+  });
+}
+
+/**
+ * Rewrite a freshly captured PDF for fast web view, so the reader can render
+ * page 1 from the front of the stream instead of waiting for the trailing
+ * cross-reference table. Best effort in every failure mode — a missing qpdf,
+ * an encrypted or malformed file, or a timeout leaves the capture exactly as
+ * downloaded. Runs while the PDF is still in the inbox, never on a file
+ * WebDAV can see, and never on one that already carries annotations:
+ * annotation saves append incremental updates that undo the layout anyway.
+ */
+export function linearizePdf(pdfPath: string): Promise<void> {
+  return new Promise((resolve) => {
+    const target = `${pdfPath}.linearized.tmp`;
+    const discard = () => {
+      fs.rmSync(target, { force: true });
+      resolve();
+    };
+    const child = spawn("qpdf", ["--linearize", pdfPath, target], {
+      stdio: "ignore",
+    });
+    const timer = setTimeout(() => child.kill("SIGTERM"), 120_000);
+    // qpdf missing from the image: capture proceeds unlinearized.
+    child.on("error", () => {
+      clearTimeout(timer);
+      discard();
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      // 0 clean, 3 warnings with the output still written; anything else
+      // (2 = error, null = killed) leaves the original in place.
+      if (code !== 0 && code !== 3) return discard();
+      try {
+        fs.renameSync(target, pdfPath);
+      } catch {
+        return discard();
+      }
+      resolve();
     });
   });
 }
