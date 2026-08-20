@@ -20,6 +20,14 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: "**/safari-reader.spec.ts",
+    },
+    {
+      // Safari-only smoke test for the reader; the screenshot journeys stay
+      // on chromium because their snapshots are engine-specific.
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+      testMatch: "**/safari-reader.spec.ts",
     },
   ],
   webServer: {

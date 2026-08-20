@@ -314,13 +314,15 @@ export function useCitationHotspots({
           console.error("papernook: bibliography scan failed", error);
         });
     };
-    const scanHandle = window.requestIdleCallback(startScan, {
-      timeout: 3_000,
-    });
+    // A plain timeout, not requestIdleCallback: WebKit still does not
+    // implement it (TypeScript's DOM lib types it as always present, which
+    // is how it shipped and broke every Safari load), and the only thing
+    // this needs is to be off the first-render path.
+    const scanHandle = window.setTimeout(startScan, 500);
 
     return () => {
       disposed = true;
-      window.cancelIdleCallback(scanHandle);
+      window.clearTimeout(scanHandle);
       eventBus.off("textlayerrendered", onLayerRendered);
       eventBus.off("annotationlayerrendered", onLayerRendered);
       eventBus.off("scalechanging", onScaleChanging);
