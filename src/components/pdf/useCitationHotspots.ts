@@ -294,23 +294,33 @@ export function useCitationHotspots({
     eventBus.on("annotationlayerrendered", onLayerRendered);
     eventBus.on("scalechanging", onScaleChanging);
 
-    void scanBibliography(pdfDocument, () => disposed)
-      .then((scanned) => {
-        if (disposed || !scanned) return;
-        bibliography = scanned;
-        onBibliographyRef.current?.(scanned);
-        const layers = [...pendingLayers];
-        pendingLayers.clear();
-        for (const [pageNumber, layer] of layers) {
-          if (layer.isConnected) decorate(pageNumber, layer);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error("papernook: bibliography scan failed", error);
-      });
+    // Deferred to idle: the scan pulls text off up to 100 pages, which with
+    // a streaming document means competing with page 1 for both the worker
+    // and the bytes still in flight. Text layers rendered before it lands
+    // already queue in pendingLayers, so only the timing moves.
+    const startScan = () => {
+      void scanBibliography(pdfDocument, () => disposed)
+        .then((scanned) => {
+          if (disposed || !scanned) return;
+          bibliography = scanned;
+          onBibliographyRef.current?.(scanned);
+          const layers = [...pendingLayers];
+          pendingLayers.clear();
+          for (const [pageNumber, layer] of layers) {
+            if (layer.isConnected) decorate(pageNumber, layer);
+          }
+        })
+        .catch((error: unknown) => {
+          console.error("papernook: bibliography scan failed", error);
+        });
+    };
+    const scanHandle = window.requestIdleCallback(startScan, {
+      timeout: 3_000,
+    });
 
     return () => {
       disposed = true;
+      window.cancelIdleCallback(scanHandle);
       eventBus.off("textlayerrendered", onLayerRendered);
       eventBus.off("annotationlayerrendered", onLayerRendered);
       eventBus.off("scalechanging", onScaleChanging);
