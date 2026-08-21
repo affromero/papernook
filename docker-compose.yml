@@ -53,6 +53,12 @@ services:
       - ${SSH_KNOWN_HOSTS_FILE:-/dev/null}:/run/host-auth/known-hosts:ro
       # A networkless sidecar refreshes this volume after host CLI login/logout.
       - cli-credentials:/run/cli-credentials
+      # The CLIs rotate their refresh token in place and the previous one is
+      # retired server-side, so the rotated file has to outlive the container —
+      # and be the SAME file every other app on this host uses, or two copies of
+      # one login silently kill each other. Hence external, host-wide volumes.
+      - agent-claude-home:/home/node/.claude
+      - agent-codex-home:/home/node/.codex
     healthcheck:
       test:
         [
@@ -137,3 +143,10 @@ services:
 
 volumes:
   cli-credentials:
+  # Shared with every other app on this host that drives the same CLI login.
+  # Created by the deploy/install flow; `docker volume create agent-claude-home
+  # agent-codex-home` if you are bringing this up by hand.
+  agent-claude-home:
+    external: true
+  agent-codex-home:
+    external: true

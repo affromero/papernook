@@ -38,6 +38,7 @@ COPY --chown=node:node --from=build /app/.next/static ./.next/static
 COPY --chown=node:node --from=build /app/public ./public
 COPY --chown=node:node --from=build /app/assets ./assets
 COPY --chown=node:node --from=build /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
+COPY --chown=node:node --from=build /app/scripts/agent/seed-cli-credentials.mjs ./scripts/agent/seed-cli-credentials.mjs
 RUN chmod +x ./scripts/docker-entrypoint.sh \
   && mkdir -p /data /home/node/.codex /home/node/.claude /home/node/.ssh \
   && chown -R node:node /data /home/node /app
