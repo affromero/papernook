@@ -29,7 +29,9 @@ jobs:
       - run: npm run test
       - run: npm run build
       - run: node scripts/assert-standalone-safe.mjs
-      - run: npx playwright install --with-deps chromium
+      # webkit too: the reader ships to iPads and Macs, and the Safari-only
+      # smoke test in tests/e2e/safari-reader.spec.ts runs on that engine.
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:chrome
       - run: npm run test:e2e
 
