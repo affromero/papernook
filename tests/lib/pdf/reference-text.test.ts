@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { referenceTextAtPoint } from "@/lib/pdf/reference-text";
+import {
+  referenceEntryAtPoint,
+  referenceTextAtPoint,
+} from "@/lib/pdf/reference-text";
 
 const PAGE_WIDTH = 612;
 
@@ -30,6 +33,17 @@ describe("referenceTextAtPoint", () => {
     const text = referenceTextAtPoint(CHUNKS, { x: 200, y: 425 }, PAGE_WIDTH);
     expect(text).toContain("gaussian splatting");
     expect(text).not.toContain("nonconvex");
+  });
+
+  it("boxes every line of the entry, in reading order", () => {
+    const entry = referenceEntryAtPoint(CHUNKS, { x: 200, y: 456 }, PAGE_WIDTH);
+    expect(entry?.boxes).toHaveLength(2);
+    const [first, second] = entry?.boxes ?? [];
+    expect(first?.y).toBeGreaterThan(second?.y ?? 0);
+    expect(first?.width).toBeGreaterThan(0);
+    expect(first?.height).toBeGreaterThan(0);
+    // The marker column is covered too, so the highlight starts at [18].
+    expect(first?.x).toBeLessThanOrEqual(72);
   });
 
   it("ignores clicks above every marker and in other columns", () => {

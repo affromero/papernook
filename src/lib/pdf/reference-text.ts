@@ -17,11 +17,33 @@ import {
 
 const ENTRY_MARKER = /^\s*(?:\[\d+\]|\d{1,3}\.)\s*/;
 
+/** A highlightable box in PDF coordinates (origin bottom-left). */
+export interface EntryLineBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ReferenceEntry {
+  text: string;
+  /** One box per line of the entry, for highlighting it in a preview. */
+  boxes: EntryLineBox[];
+}
+
 export function referenceTextAtPoint(
   chunks: PdfTextChunk[],
   click: { x: number; y: number },
   pageWidth: number,
 ): string | null {
+  return referenceEntryAtPoint(chunks, click, pageWidth)?.text ?? null;
+}
+
+export function referenceEntryAtPoint(
+  chunks: PdfTextChunk[],
+  click: { x: number; y: number },
+  pageWidth: number,
+): ReferenceEntry | null {
   const lines = pageLines({ pageNumber: 1, pageWidth, chunks });
   if (lines.length === 0) return null;
   const style = detectStyle(lines);
@@ -60,7 +82,51 @@ export function referenceTextAtPoint(
     .replace(/\s+/g, " ")
     .replace(ENTRY_MARKER, "")
     .trim();
-  return text.length >= 12 ? text.slice(0, 300) : null;
+  if (text.length < 12) return null;
+  return {
+    text: text.slice(0, 300),
+    boxes: lineBoxes(entryLines, chunks, pageWidth),
+  };
+}
+
+/**
+ * Boxes covering each line of the entry. Line height comes from the entry's
+ * own pitch (font sizes are not in the line model) and the right edge from
+ * the chunks sitting on that line, so a ragged last line stays ragged.
+ */
+function lineBoxes(
+  entryLines: TextLine[],
+  chunks: PdfTextChunk[],
+  pageWidth: number,
+): EntryLineBox[] {
+  const gaps: number[] = [];
+  for (let i = 1; i < entryLines.length; i += 1) {
+    const previous = entryLines[i - 1];
+    const line = entryLines[i];
+    if (previous && line) gaps.push(previous.y - line.y);
+  }
+  const pitch = gaps.length ? Math.min(...gaps) : 11;
+  return entryLines.flatMap((line) => {
+    const onLine = chunks.filter(
+      (chunk) =>
+        Math.abs(chunk.y - line.y) <= 2.5 &&
+        chunk.x >= line.x - 1 &&
+        chunk.x - line.x < pageWidth * COLUMN_WIDTH_FACTOR &&
+        chunk.str.trim().length > 0,
+    );
+    if (onLine.length === 0) return [];
+    const right = Math.max(
+      ...onLine.map((chunk) => chunk.x + (chunk.width ?? chunk.str.length * 4)),
+    );
+    return [
+      {
+        x: line.x - 1,
+        y: line.y - pitch * 0.25,
+        width: right - line.x + 2,
+        height: pitch,
+      },
+    ];
+  });
 }
 
 function nextStartInColumn(

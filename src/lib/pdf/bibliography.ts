@@ -57,6 +57,8 @@ export interface TextLine {
 const X_TOLERANCE = 3;
 /** A text column spans at most this fraction of the page width. */
 export const COLUMN_WIDTH_FACTOR = 0.55;
+/** A hanging indent stays within this fraction of the page width. */
+const MAX_INDENT_FACTOR = 0.1;
 /**
  * Stored-entry-text bound. Generous because parsing must see past giant
  * author lists (the Wan 2025 entry's list alone exceeds 400 chars); callers
@@ -95,12 +97,15 @@ function clusterValues(values: number[], tolerance: number): Cluster[] {
  * unless separated by a real gutter. Every page has at least one column.
  */
 function columnBases(chunks: PdfTextChunk[], pageWidth: number): number[] {
+  // Blank chunks carry positions that no reader ever sees; letting them vote
+  // invents columns out of inter-word gaps.
+  const visible = chunks.filter((chunk) => chunk.str.trim());
   const clusters = clusterValues(
-    chunks.map((chunk) => chunk.x),
+    visible.map((chunk) => chunk.x),
     X_TOLERANCE,
   ).filter((cluster) => cluster.count >= 3);
   if (clusters.length === 0) {
-    return [Math.min(...chunks.map((chunk) => chunk.x), 0)];
+    return [Math.min(...visible.map((chunk) => chunk.x), 0)];
   }
   const byCount = [...clusters].sort((a, b) => b.count - a.count);
   const gutter = pageWidth * 0.3;
@@ -114,11 +119,14 @@ function columnBases(chunks: PdfTextChunk[], pageWidth: number): number[] {
   }
   representatives.sort((a, b) => a - b);
   // Indented sub-clusters merge into their column; the base is the column's
-  // leftmost frequent x, not its most frequent one.
+  // leftmost frequent x, not its most frequent one. The merge window is an
+  // indent, not half a page: italic runs (journal names, volumes) recur at
+  // mid-page x often enough to cluster, and merging one of those would drag
+  // the column base into the gutter and hide every entry in the column.
   return representatives.map((base) => {
     const merged = clusters.filter(
       (cluster) =>
-        Math.abs(cluster.value - base) < gutter &&
+        Math.abs(cluster.value - base) < pageWidth * MAX_INDENT_FACTOR &&
         representatives.every(
           (other) =>
             other === base ||
