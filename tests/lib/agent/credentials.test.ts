@@ -63,6 +63,65 @@ describe("CLI credential reload", () => {
     });
   });
 
+  it("refuses a host snapshot older than the rotated runtime token", async () => {
+    // The host mount is read-only, so it never receives rotations. Restoring it
+    // over a newer runtime file hands back a token the server already retired.
+    const runtime = path.join(runtimeHome, ".claude", ".credentials.json");
+    fs.mkdirSync(path.dirname(runtime), { recursive: true });
+    const rotated = JSON.stringify({
+      claudeAiOauth: { refreshToken: "rotated", refreshTokenExpiresAt: 2000 },
+    });
+    fs.writeFileSync(runtime, rotated);
+
+    const credentials = await import("@/lib/agent/credentials");
+    const reload = credentials.reloadProviderCredentials("claude-code");
+    await answerSync("claude-code", {
+      claudeAiOauth: { refreshToken: "retired", refreshTokenExpiresAt: 1000 },
+    });
+
+    expect(await reload).toBe("skipped");
+    expect(fs.readFileSync(runtime, "utf8")).toBe(rotated);
+  });
+
+  it("refuses a Codex snapshot older than the rotated runtime token", async () => {
+    const runtime = path.join(runtimeHome, ".codex", "auth.json");
+    fs.mkdirSync(path.dirname(runtime), { recursive: true });
+    const rotated = JSON.stringify({
+      tokens: { refresh_token: "rotated" },
+      last_refresh: "2026-08-20T00:00:00.000Z",
+    });
+    fs.writeFileSync(runtime, rotated);
+
+    const credentials = await import("@/lib/agent/credentials");
+    const reload = credentials.reloadProviderCredentials("codex");
+    await answerSync("codex", {
+      tokens: { refresh_token: "retired" },
+      last_refresh: "2026-08-12T00:00:00.000Z",
+    });
+
+    expect(await reload).toBe("skipped");
+    expect(fs.readFileSync(runtime, "utf8")).toBe(rotated);
+  });
+
+  it("reloads Codex into CODEX_HOME, the directory the CLI actually rotates", async () => {
+    // codex.ts hands CODEX_HOME to the CLI as its config directory. If reload
+    // wrote $HOME/.codex instead, a custom CODEX_HOME would split the file the
+    // CLI rotates from the one reload refreshes, and neither would stay valid.
+    const codexHome = path.join(tmpDir, "custom-codex");
+    vi.stubEnv("CODEX_HOME", codexHome);
+    const credentials = await import("@/lib/agent/credentials");
+    const reload = credentials.reloadProviderCredentials("codex");
+    await answerSync("codex", {
+      tokens: { refresh_token: "fresh" },
+      last_refresh: "2026-08-21T00:00:00.000Z",
+    });
+
+    expect(await reload).toBe("installed");
+    expect(
+      JSON.parse(fs.readFileSync(path.join(codexHome, "auth.json"), "utf8")),
+    ).toMatchObject({ tokens: { refresh_token: "fresh" } });
+  });
+
   it("removes runtime credentials when the host is logged out", async () => {
     const runtime = path.join(runtimeHome, ".claude", ".credentials.json");
     fs.mkdirSync(path.dirname(runtime), { recursive: true });

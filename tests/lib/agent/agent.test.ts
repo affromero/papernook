@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 beforeEach(() => {
@@ -189,7 +192,16 @@ describe("provider registry", () => {
   });
 
   it("checks Claude readiness with the same credential environment as turns", async () => {
-    vi.stubEnv("CLAUDE_HOME", "/tmp/papernook-test-claude-home");
+    // A real credentials file: an isolated config dir is only created when
+    // there is a login to seed it with, because an empty one authenticates as
+    // nobody. Without this the probe would fall back to the ambient config.
+    const claudeHome = mkdtempSync(join(tmpdir(), "papernook-claude-home-"));
+    mkdirSync(join(claudeHome, ".claude"), { recursive: true });
+    writeFileSync(
+      join(claudeHome, ".claude", ".credentials.json"),
+      '{"claudeAiOauth":{"refreshTokenExpiresAt":9999999999999}}',
+    );
+    vi.stubEnv("CLAUDE_HOME", claudeHome);
     vi.stubEnv("CLAUDECODE", "nested-session");
     const configDirs: Array<string | undefined> = [];
     vi.doMock("node:child_process", () => ({

@@ -6,7 +6,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -90,11 +90,15 @@ describe("CLI provider environment", () => {
     invocation.release();
   });
 
-  it("materializes inline credentials without forwarding them", async () => {
-    // The macOS-Docker path: the raw OAuth JSON arrives in the environment,
-    // gets written to a private runtime dir, and each invocation is seeded
-    // from it. The credential itself must not continue into the child.
-    vi.stubEnv("CLAUDE_CODE_CREDENTIALS_JSON", '{"token":"oauth-secret"}');
+  it("seeds inline credentials onto the durable path without forwarding them", async () => {
+    // The macOS-Docker path: the raw OAuth JSON arrives in the environment and
+    // seeds the credentials file each invocation is copied from. It lands under
+    // CLAUDE_HOME, which is a persistent volume in the container, so a rotation
+    // outlives the container. The credential must not continue into the child.
+    const home = mkdtempSync(join(tmpdir(), "papernook-claude-home-"));
+    vi.stubEnv("CLAUDE_HOME", home);
+    const seed = '{"claudeAiOauth":{"refreshTokenExpiresAt":1000}}';
+    vi.stubEnv("CLAUDE_CODE_CREDENTIALS_JSON", seed);
     const { createClaudeInvocation } = await import("@/lib/agent/claude-code");
 
     const invocation = createClaudeInvocation();
@@ -102,10 +106,31 @@ describe("CLI provider environment", () => {
     invocation.release();
 
     expect(env.CLAUDE_CODE_CREDENTIALS_JSON).toBeUndefined();
-    expect(Object.values(env)).not.toContain('{"token":"oauth-secret"}');
+    expect(Object.values(env)).not.toContain(seed);
     expect(
-      readFileSync("/tmp/claude-runtime/.claude/.credentials.json", "utf8"),
-    ).toBe('{"token":"oauth-secret"}');
+      readFileSync(join(home, ".claude", ".credentials.json"), "utf8"),
+    ).toBe(seed);
+  });
+
+  it("keeps a rotated token instead of reseeding from the configured secret", async () => {
+    // The CLI retires the previous refresh token when it rotates, so restoring
+    // the frozen secret over a newer file hands back a dead credential.
+    const home = mkdtempSync(join(tmpdir(), "papernook-claude-home-"));
+    const credentials = join(home, ".claude", ".credentials.json");
+    mkdirSync(dirname(credentials), { recursive: true });
+    const rotated = '{"claudeAiOauth":{"refreshTokenExpiresAt":2000}}';
+    writeFileSync(credentials, rotated);
+    vi.stubEnv("CLAUDE_HOME", home);
+    vi.stubEnv(
+      "CLAUDE_CODE_CREDENTIALS_JSON",
+      '{"claudeAiOauth":{"refreshTokenExpiresAt":1000}}',
+    );
+    const { createClaudeInvocation } = await import("@/lib/agent/claude-code");
+
+    const invocation = createClaudeInvocation();
+    invocation.release();
+
+    expect(readFileSync(credentials, "utf8")).toBe(rotated);
   });
 });
 

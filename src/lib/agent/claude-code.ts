@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   copyFileSync,
   mkdirSync,
@@ -9,9 +10,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { readImageBase64 } from "./attachments";
 import { configuredEffort, configuredModel } from "./config";
+import { supersedesCredentials } from "./credentials";
 import {
   buildAgentInvocation,
   getClaudeSshHost,
@@ -38,11 +40,10 @@ import {
  */
 
 /**
- * Where the shared claude credentials live. Volume-mounted host credentials
- * are often root-owned and read-only, so inline credentials are materialized
- * into a private runtime dir first. Priority:
- * CLAUDE_CODE_CREDENTIALS_JSON -> CLAUDE_HOME -> HOME. Cached for the
- * container lifetime.
+ * Where the shared claude credentials live: `(CLAUDE_HOME || HOME)/.claude`,
+ * which is a persistent volume in the container so a rotation outlives it.
+ * CLAUDE_CODE_CREDENTIALS_JSON is a bootstrap seed for that file, not the
+ * running state — see seedSharedCredentials. Cached for the container lifetime.
  */
 let sharedCredentials: string | null | undefined;
 const MAX_FAILURE_DIAGNOSTIC_CHARS = 4_000;
@@ -70,27 +71,40 @@ function failureDiagnostic(stdout: string, stderr: string): string {
   return `${diagnostic.slice(0, head)}${marker}${diagnostic.slice(-tail)}`;
 }
 
+/**
+ * The CLI rotates its refresh token on every OAuth refresh and the previous one
+ * is retired server-side, so writing the configured secret over the credentials
+ * file on every boot hands back a token the server already invalidated. Seed
+ * only when the secret is newer than what is on disk, which covers both a fresh
+ * volume and an operator pasting new credentials after the stored ones died.
+ */
+function seedSharedCredentials(credsPath: string, credsJson: string): void {
+  if (!supersedesCredentials("claude-code", credsPath, credsJson)) return;
+  mkdirSync(dirname(credsPath), { recursive: true });
+  writeFileSync(credsPath, credsJson, { mode: 0o600 });
+}
+
 function sharedCredentialsPath(): string | null {
   if (sharedCredentials !== undefined) return sharedCredentials;
-  const credsJson = process.env.CLAUDE_CODE_CREDENTIALS_JSON;
-  if (credsJson) {
-    try {
-      const claudeDir = "/tmp/claude-runtime/.claude";
-      mkdirSync(claudeDir, { recursive: true });
-      const credsPath = join(claudeDir, ".credentials.json");
-      writeFileSync(credsPath, credsJson, { mode: 0o600 });
-      sharedCredentials = credsPath;
-      return credsPath;
-    } catch (err) {
-      console.error("claude-code: failed to write credentials to /tmp", err);
-    }
-  }
   // CLAUDE_HOME is optional: the container entrypoint and the credential-sync
   // sidecar both write to $HOME/.claude/.credentials.json when it is unset, so
   // the same fallback credentials/index.ts uses applies here.
   const home = process.env.CLAUDE_HOME || process.env.HOME;
-  sharedCredentials = home ? join(home, ".claude", ".credentials.json") : null;
-  return sharedCredentials;
+  if (!home) {
+    sharedCredentials = null;
+    return null;
+  }
+  const credsPath = join(home, ".claude", ".credentials.json");
+  const credsJson = process.env.CLAUDE_CODE_CREDENTIALS_JSON;
+  if (credsJson) {
+    try {
+      seedSharedCredentials(credsPath, credsJson);
+    } catch (err) {
+      console.error("claude-code: failed to seed the credentials file", err);
+    }
+  }
+  sharedCredentials = credsPath;
+  return credsPath;
 }
 
 /** Test hook: forget the cached credentials path. */
@@ -151,24 +165,35 @@ export function createClaudeInvocation(): ClaudeInvocation {
     return { env, release: () => {} };
   }
 
+  if (!seeded) {
+    // A config dir with no credentials in it authenticates as nobody ("Not
+    // logged in · Please run /login"). Leave the ambient config alone so the
+    // CLI can use whatever login the container already has.
+    rmSync(dir, { recursive: true, force: true });
+    return { env, release: () => {} };
+  }
+
   env.CLAUDE_CONFIG_DIR = dir;
   // Subscription credentials exist: an Anthropic API key in the same env
   // makes the CLI fall back to API billing when the OAuth session expires,
   // so the failure reads "Credit balance is too low" instead of an auth
   // error. Drop the keys and let subscription billing (and real auth
   // errors) through.
-  if (seeded) {
-    delete env.ANTHROPIC_API_KEY;
-    delete env.ANTHROPIC_AUTH_TOKEN;
-  }
+  delete env.ANTHROPIC_API_KEY;
+  delete env.ANTHROPIC_AUTH_TOKEN;
 
   return {
     env,
     release: () => {
       try {
         const current = readFileSync(join(dir, ".credentials.json"), "utf8");
-        if (seeded !== null && current !== seeded) {
-          const temporary = `${shared}.${process.pid}.tmp`;
+        if (
+          current !== seeded &&
+          supersedesCredentials("claude-code", shared, current)
+        ) {
+          // PIDs repeat across the containers sharing this volume, so the
+          // temporary name has to be unique per write, not per process.
+          const temporary = `${shared}.${randomUUID()}.tmp`;
           writeFileSync(temporary, current, { mode: 0o600 });
           renameSync(temporary, shared);
         }

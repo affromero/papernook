@@ -187,6 +187,7 @@ export function ModelPicker() {
       });
       const data = (await response.json()) as {
         error?: string;
+        outcome?: "installed" | "skipped" | "removed";
         readiness?: Readiness;
       };
       if (!response.ok) {
@@ -199,18 +200,32 @@ export function ModelPicker() {
       }
       const version = requestVersion.current + 1;
       requestVersion.current = version;
+      // Say what actually happened. A refused older snapshot leaves the newer
+      // token in place, which is the right outcome but reads as a no-op, and
+      // "reloaded" would be a lie.
+      const outcomeMessage =
+        data.outcome === "skipped"
+          ? "This server already had a newer login than the host copy, so it was kept."
+          : data.outcome === "removed"
+            ? "The host is signed out, so the login here was removed too."
+            : "The provider is ready.";
       setFeedback(
         data.readiness === "ready"
           ? {
               tone: "success",
-              label: "CLI login reloaded",
-              message: "The provider is ready.",
+              label:
+                data.outcome === "skipped"
+                  ? "Kept the newer login"
+                  : "CLI login reloaded",
+              message: outcomeMessage,
             }
           : {
               tone: "error",
               label: "Provider still unavailable",
               message:
-                "CLI login reloaded, but the provider still needs login.",
+                data.outcome === "removed"
+                  ? "The host is signed out, so this server has no login."
+                  : "CLI login reloaded, but the provider still needs login.",
             },
       );
       await refreshDetails(version, false);

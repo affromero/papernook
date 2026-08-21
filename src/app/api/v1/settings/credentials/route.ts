@@ -38,9 +38,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         409,
       );
     }
-    await reloadProviderCredentials(provider);
+    const outcome = await reloadProviderCredentials(provider);
     resetProviderStatusCache();
-    return json({ provider, readiness: await providerStatus(provider) });
+    return json({
+      provider,
+      outcome,
+      readiness: await providerStatus(provider),
+    });
   } catch (error) {
     console.error(
       "CLI credential reload failed:",
