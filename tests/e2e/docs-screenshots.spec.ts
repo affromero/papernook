@@ -147,12 +147,18 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
     const readerUrl = page.url();
+    // The chat panel loads its history over two client fetches that compete
+    // with the PDF for the dev server, and the reader's tools only enable
+    // once pdf.js has the document. Neither is a five-second promise on a
+    // two-core CI runner.
     await expect(
       page
         .getByRole("paragraph")
         .filter({ hasText: /^Why was removing recurrence such a big deal\?$/ }),
-    ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled({
+      timeout: 20_000,
+    });
     await expect(page).toHaveScreenshot(["product", "paper-and-chat.png"], {
       animations: "disabled",
       maxDiffPixelRatio: 0.06,
