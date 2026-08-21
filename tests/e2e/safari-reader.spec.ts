@@ -10,8 +10,20 @@ const password = "admin-created-password";
 
 async function loginAsAdmin(page: Page): Promise<void> {
   await page.goto("/login");
-  await page.getByRole("textbox", { name: "Password" }).fill(password);
-  await page.getByRole("button", { name: "Enter" }).click();
+  const field = page.getByRole("textbox", { name: "Password" });
+  const enter = page.getByRole("button", { name: "Enter" });
+  // A fill() that lands before React hydrates sets the native value without
+  // the component ever seeing it, so the gate's Enter — disabled while its
+  // state holds an empty password — never enables. WebKit on CI loses that
+  // race often enough to matter; retry the fill until the button reacts.
+  await expect(async () => {
+    await field.fill(password);
+    await expect(enter).toBeEnabled({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await enter.click();
+  await expect(
+    page.getByRole("heading", { name: "Who’s reading?" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Switch to Maya" }).click();
   await expect(page).toHaveURL("/");
 }
