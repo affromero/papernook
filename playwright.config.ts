@@ -9,6 +9,13 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "line",
   snapshotPathTemplate: "{testDir}/../../docs/images/{arg}{ext}",
+  // These snapshots double as the documentation images in docs/images, so
+  // they are generated on macOS and carry its font metrics. Comparing them
+  // on another platform fails on 1px layout differences that say nothing
+  // about the app — and Playwright rejects a size mismatch outright, before
+  // any pixel threshold applies. Compare only where they were produced; the
+  // journeys still run everywhere, asserting behaviour rather than pixels.
+  ignoreSnapshots: process.platform !== "darwin",
   use: {
     baseURL: "http://127.0.0.1:3107",
     trace: "retain-on-failure",
