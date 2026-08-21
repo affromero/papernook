@@ -234,7 +234,7 @@
 .preview {
   position: absolute;
   z-index: 20;
-  width: min(560px, calc(100% - 2rem));
+  width: min(760px, calc(100% - 2rem));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -323,7 +323,7 @@
 
 .previewPage {
   position: relative;
-  height: 210px;
+  height: 285px;
   overflow: hidden;
   background: #ded9cd;
   border-top: 1px solid rgba(31, 40, 34, 0.14);
