@@ -150,7 +150,9 @@ function installSnapshot(
   }
   fs.mkdirSync(path.dirname(runtime), { recursive: true });
   const temporary = `${runtime}.${crypto.randomUUID()}.tmp`;
-  fs.writeFileSync(temporary, contents, { mode: 0o600 });
+  // 0660: the volume is shared with the other apps driving this login, which
+  // run as a different uid; its directory is setgid to their common group.
+  fs.writeFileSync(temporary, contents, { mode: 0o660 });
   fs.renameSync(temporary, runtime);
   return "installed";
 }

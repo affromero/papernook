@@ -81,7 +81,8 @@ function failureDiagnostic(stdout: string, stderr: string): string {
 function seedSharedCredentials(credsPath: string, credsJson: string): void {
   if (!supersedesCredentials("claude-code", credsPath, credsJson)) return;
   mkdirSync(dirname(credsPath), { recursive: true });
-  writeFileSync(credsPath, credsJson, { mode: 0o600 });
+  // 0660 — see credentials/index.ts: shared volume, different uids, setgid dir.
+  writeFileSync(credsPath, credsJson, { mode: 0o660 });
 }
 
 function sharedCredentialsPath(): string | null {
@@ -194,7 +195,7 @@ export function createClaudeInvocation(): ClaudeInvocation {
           // PIDs repeat across the containers sharing this volume, so the
           // temporary name has to be unique per write, not per process.
           const temporary = `${shared}.${randomUUID()}.tmp`;
-          writeFileSync(temporary, current, { mode: 0o600 });
+          writeFileSync(temporary, current, { mode: 0o660 });
           renameSync(temporary, shared);
         }
       } catch {

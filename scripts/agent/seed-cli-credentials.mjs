@@ -82,6 +82,6 @@ if (runtime !== null) {
 
 mkdirSync(dirname(runtimePath), { recursive: true });
 const temporary = `${runtimePath}.${randomUUID()}.tmp`;
-writeFileSync(temporary, snapshot, { mode: 0o600 });
+writeFileSync(temporary, snapshot, { mode: 0o660 });
 renameSync(temporary, runtimePath);
 console.log(`[setup] Seeded ${provider} credentials from the host`);
