@@ -38,8 +38,8 @@ interface LibraryMatch {
 }
 
 /** Preview canvas CSS box; the crop is rendered to exactly this aspect. */
-const PREVIEW_WIDTH = 560;
-const PREVIEW_HEIGHT = 210;
+const PREVIEW_WIDTH = 760;
+const PREVIEW_HEIGHT = 285;
 /** Fraction of the page width trimmed per side (past the text margins). */
 const PREVIEW_MARGIN_TRIM = 0.055;
 
