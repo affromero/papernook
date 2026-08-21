@@ -44,6 +44,27 @@ describe("pageLines", () => {
       true,
     );
   });
+
+  // Two columns at x=50/x=320 where blank chunks and recurring italic runs
+  // both sit mid-page. Either one, if allowed to define a column, pulls the
+  // right column's base into the gutter — every entry there then reads as a
+  // continuation line and the column yields no references at all.
+  it("keeps mid-page blanks and italic runs from inventing a column", () => {
+    const chunks = [];
+    for (let row = 0; row < 6; row += 1) {
+      const y = 700 - row * 12;
+      chunks.push({ str: `Left author ${row}. 2020. Title.`, x: 50, y });
+      // The left column's line tails reach past mid-page, each at its own x.
+      chunks.push({ str: "tail", x: 270 + row * 5, y });
+      chunks.push({ str: "  ", x: 275, y });
+      chunks.push({ str: "ACM Trans. Graph.", x: 195, y });
+      chunks.push({ str: `Right author ${row}. 2021. Title.`, x: 320, y });
+    }
+    const lines = pageLines({ pageNumber: 1, pageWidth: 612, chunks });
+    const right = lines.filter((line) => line.text.startsWith("Right author"));
+    expect(right).toHaveLength(6);
+    expect(right.every((line) => line.x === 320)).toBe(true);
+  });
 });
 
 describe("buildBibliography (author-year, AAAI)", () => {
