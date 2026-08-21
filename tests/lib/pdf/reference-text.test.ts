@@ -46,6 +46,33 @@ describe("referenceTextAtPoint", () => {
     expect(first?.x).toBeLessThanOrEqual(72);
   });
 
+  it("never widens a box across the gutter into the next column", () => {
+    // Two columns whose lines share y coordinates, as printed pages do.
+    const chunks = [];
+    for (let row = 0; row < 6; row += 1) {
+      const y = 500 - row * 12;
+      chunks.push({ str: `[${row + 1}]`, x: 72, y, width: 16 });
+      chunks.push({
+        str: `Left entry ${row}. ICML (2017)`,
+        x: 100,
+        y,
+        width: 150,
+      });
+      chunks.push({ str: `[${row + 7}]`, x: 340, y, width: 16 });
+      chunks.push({
+        str: `Right entry ${row}. ICML (2018)`,
+        x: 368,
+        y,
+        width: 150,
+      });
+    }
+    const entry = referenceEntryAtPoint(chunks, { x: 150, y: 476 }, PAGE_WIDTH);
+    expect(entry?.text).toContain("Left entry 2");
+    for (const box of entry?.boxes ?? []) {
+      expect(box.x + box.width).toBeLessThanOrEqual(340);
+    }
+  });
+
   it("ignores clicks above every marker and in other columns", () => {
     expect(
       referenceTextAtPoint(CHUNKS, { x: 200, y: 560 }, PAGE_WIDTH),
