@@ -4,7 +4,10 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { PDFDocumentProxy, PageViewport, RenderTask } from "pdfjs-dist";
 import type { ResolvedPdfDestination } from "@/lib/pdf/destinations";
 import type { PdfTextChunk } from "@/lib/pdf/bibliography";
-import { referenceTextAtPoint } from "@/lib/pdf/reference-text";
+import {
+  referenceEntryAtPoint,
+  referenceTextAtPoint,
+} from "@/lib/pdf/reference-text";
 import { pdfTextChunks, pdfTextItems } from "@/lib/pdf/text-items";
 import styles from "./PdfReader.module.css";
 
@@ -225,10 +228,28 @@ export function ReferencePreview({
           source.height,
           Math.round(PREVIEW_HEIGHT * pixelRatio),
         );
+        // Resolve the cited entry first: it drives both the highlight and
+        // where the crop sits, so a long entry is framed whole instead of
+        // hanging off the bottom.
+        const entry =
+          destination.left !== null && destination.top !== null
+            ? referenceEntryAtPoint(
+                await pageTextChunks(document, destination.pageNumber),
+                { x: destination.left + 15, y: destination.top - 6 },
+                base.width,
+              )
+            : null;
+        if (disposed) return;
         const point =
           destination.left !== null && destination.top !== null
             ? viewport.convertToViewportPoint(destination.left, destination.top)
             : [source.width / 2, Math.min(source.height / 2, cropHeight / 2)];
+        const entryHeight = entry
+          ? entry.boxes.reduce(
+              (total, box) => total + box.height * scale * pixelRatio,
+              0,
+            )
+          : 0;
         const sourceX = Math.max(
           0,
           Math.min(
@@ -238,7 +259,13 @@ export function ReferencePreview({
         );
         const sourceY = Math.max(
           0,
-          Math.min(source.height - cropHeight, point[1] - cropHeight / 3),
+          Math.min(
+            source.height - cropHeight,
+            // Center the entry when it fits; otherwise start at its top.
+            entryHeight > 0 && entryHeight < cropHeight
+              ? point[1] - (cropHeight - entryHeight) / 2
+              : point[1] - cropHeight / 3,
+          ),
         );
         canvas.width = cropWidth;
         canvas.height = cropHeight;
@@ -260,6 +287,28 @@ export function ReferencePreview({
           pageWidth: base.width,
         };
         setStatus("");
+
+        // Mark the cited entry inside the crop — a page of bibliography all
+        // looks alike, so without it the reader cannot tell which line the
+        // hovered citation points at.
+        if (entry) {
+          context.save();
+          context.globalCompositeOperation = "multiply";
+          context.fillStyle = "rgba(255, 226, 92, 0.55)";
+          for (const box of entry.boxes) {
+            const [x, y] = viewport.convertToViewportPoint(
+              box.x,
+              box.y + box.height,
+            );
+            context.fillRect(
+              x - sourceX,
+              y - sourceY,
+              box.width * scale * pixelRatio,
+              box.height * scale * pixelRatio,
+            );
+          }
+          context.restore();
+        }
 
         // Eagerly resolve the cited entry against the library so the header
         // can offer "In your library" (signed-in surfaces only).

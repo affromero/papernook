@@ -53,7 +53,7 @@ export function pdfTextChunks(items: unknown[]): PdfTextChunk[] {
     const x = item.transform[4];
     const y = item.transform[5];
     if (typeof x !== "number" || typeof y !== "number") continue;
-    chunks.push({ str: item.str, x, y });
+    chunks.push({ str: item.str, x, y, width: item.width });
   }
   return chunks;
 }
