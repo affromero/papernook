@@ -83,9 +83,21 @@ export function referenceEntryAtPoint(
     .replace(ENTRY_MARKER, "")
     .trim();
   if (text.length < 12) return null;
+  // The next column's left edge: chunks past it sit at the same y as the
+  // entry but belong to the neighbouring column, and letting them widen a
+  // box paints the highlight straight across the gutter.
+  const columnRight = Math.min(
+    ...lines
+      .filter(
+        (line) =>
+          line.pageNumber === start.pageNumber && line.column > start.column,
+      )
+      .map((line) => line.x),
+    Number.POSITIVE_INFINITY,
+  );
   return {
     text: text.slice(0, 300),
-    boxes: lineBoxes(entryLines, chunks, pageWidth),
+    boxes: lineBoxes(entryLines, chunks, columnRight),
   };
 }
 
@@ -97,7 +109,7 @@ export function referenceEntryAtPoint(
 function lineBoxes(
   entryLines: TextLine[],
   chunks: PdfTextChunk[],
-  pageWidth: number,
+  columnRight: number,
 ): EntryLineBox[] {
   const gaps: number[] = [];
   for (let i = 1; i < entryLines.length; i += 1) {
@@ -111,12 +123,14 @@ function lineBoxes(
       (chunk) =>
         Math.abs(chunk.y - line.y) <= 2.5 &&
         chunk.x >= line.x - 1 &&
-        chunk.x - line.x < pageWidth * COLUMN_WIDTH_FACTOR &&
+        chunk.x < columnRight &&
         chunk.str.trim().length > 0,
     );
     if (onLine.length === 0) return [];
     const right = Math.max(
-      ...onLine.map((chunk) => chunk.x + (chunk.width ?? chunk.str.length * 4)),
+      ...onLine.map((chunk) =>
+        Math.min(chunk.x + (chunk.width ?? chunk.str.length * 4), columnRight),
+      ),
     );
     return [
       {
