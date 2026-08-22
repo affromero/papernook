@@ -76,7 +76,7 @@ ahead_of_releases() {
 }
 
 cmd_status() {
-  git fetch --tags --prune origin >/dev/null 2>&1 ||
+  git fetch --tags --force --prune origin >/dev/null 2>&1 ||
     echo "papernook: could not reach origin; reporting local state only" >&2
   echo "clone:    $(pwd)"
   echo "checkout: $(current_ref) ($(git rev-parse --short HEAD))"
@@ -124,6 +124,19 @@ SHIM
   esac
 }
 
+# "<package version>+<short sha>", or the sha alone if package.json is
+# unreadable — the endpoint must always name something exact.
+stack_version() {
+  local version commit
+  commit=$(git rev-parse --short HEAD)
+  version=$(sed -n 's/^  "version": "\(.*\)",$/\1/p' package.json 2>/dev/null | head -1)
+  if [ -n "$version" ]; then
+    echo "${version}+${commit}"
+  else
+    echo "$commit"
+  fi
+}
+
 cmd_update() {
   git diff --quiet && git diff --cached --quiet || {
     echo "papernook: the clone has uncommitted changes; commit or discard them first" >&2
@@ -131,10 +144,12 @@ cmd_update() {
   }
   echo "Fetching…"
   # A --depth 1 install has no history to compare or move through.
+  # --force because releases are the remote's to define: a local tag left
+  # pointing at a retagged commit otherwise aborts every future update.
   if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
-    git fetch --unshallow --tags origin
+    git fetch --unshallow --tags --force origin
   else
-    git fetch --tags --prune origin
+    git fetch --tags --force --prune origin
   fi
 
   local target
@@ -175,10 +190,10 @@ cmd_update() {
   fi
 
   echo "Rebuilding…"
-  # The health endpoint reports this, so the running stack names the commit
-  # it was built from instead of "dev". Ports and every other setting come
-  # from .env, which compose interpolates on its own.
-  PAPERNOOK_VERSION=$(git rev-parse --short HEAD) docker compose up -d --build
+  # The health endpoint reports this. Between releases the package version
+  # alone is ambiguous, so it carries the commit too: 0.2.0+fc26c3f. Ports
+  # and every other setting come from .env, which compose interpolates.
+  PAPERNOOK_VERSION=$(stack_version) docker compose up -d --build
 
   printf 'Waiting for health'
   local response=""

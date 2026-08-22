@@ -33,6 +33,10 @@ beforeAll(() => {
   fs.copyFileSync(cli, path.join(origin, "scripts", "papernook"));
   fs.chmodSync(path.join(origin, "scripts", "papernook"), 0o755);
   fs.writeFileSync(path.join(origin, "docker-compose.yml"), "services:\n");
+  fs.writeFileSync(
+    path.join(origin, "package.json"),
+    '{\n  "name": "papernook",\n  "version": "1.2.3",\n  "private": true\n}\n',
+  );
   git(["init", "-q", "-b", "main"], origin);
   git(["add", "-A"], origin);
   git(
@@ -101,9 +105,9 @@ describe("papernook update", () => {
     expect(run(["update"])).toContain("Already on the newest release");
   });
 
-  it("labels the rebuilt stack with the commit it deployed", () => {
+  it("labels the rebuilt stack with the release and the commit", () => {
     expect(fs.readFileSync(composeLog, "utf8")).toBe(
-      git(["rev-parse", "--short", "HEAD"], clone).trim(),
+      `1.2.3+${git(["rev-parse", "--short", "HEAD"], clone).trim()}`,
     );
   });
 
@@ -116,6 +120,16 @@ describe("papernook update", () => {
     expect(run(["update"])).toMatch(/refusing to move backwards/);
     expect(git(["rev-parse", "HEAD"], clone).trim()).toBe(head);
     expect(run(["status"])).toContain("already runs newer code");
+  });
+
+  // Production hit this: a release tag retagged upstream makes a plain
+  // fetch abort with "would clobber existing tag", and every later update
+  // with it.
+  it("survives a release tag that moved upstream", () => {
+    git(["tag", "-f", "v0.1.0", "main"], path.join(workspace, "origin"));
+    expect(run(["update", "--main", "--no-backup"])).toContain(
+      "Already on the newest main",
+    );
   });
 
   it("installs a command that points back at the clone", () => {
