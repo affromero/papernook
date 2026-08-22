@@ -57,7 +57,7 @@
     "chokidar": "^5.0.0",
     "cytoscape": "^3.34.1",
     "cytoscape-fcose": "^2.2.0",
-    "html-to-text": "^10.0.0",
+    "html-to-text": "^9.0.5",
     "katex": "^0.18.4",
     "lucide-react": "^1.31.0",
     "next": "16.3.1",
