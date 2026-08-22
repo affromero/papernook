@@ -132,6 +132,15 @@ describe("papernook update", () => {
     );
   });
 
+  // The update rewrites this very script; bash reads a script lazily, so a
+  // body that is not one pre-parsed block resumes at an offset inside new
+  // code. Cheap structural check — the failure it prevents is unrepeatable.
+  it("parses its whole body before running any of it", () => {
+    const source = fs.readFileSync(cli, "utf8");
+    expect(source).toMatch(/\n\{\n/);
+    expect(source.trimEnd().endsWith("}")).toBe(true);
+  });
+
   it("installs a command that points back at the clone", () => {
     const binDir = path.join(workspace, "bin");
     run(["link", "--bin-dir", binDir]);

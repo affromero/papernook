@@ -5,6 +5,12 @@
 
 set -euo pipefail
 
+# Everything lives inside braces so bash parses the whole file before running
+# any of it. An update rewrites this script while it executes, and bash
+# otherwise resumes reading the file at a byte offset that now lands in the
+# middle of different code.
+{
+
 cd "$(dirname "$0")/.."
 [ -f docker-compose.yml ] || {
   echo "papernook: run this from inside the papernook clone" >&2
@@ -248,3 +254,5 @@ case "$command" in
     exit 1
     ;;
 esac
+
+}
