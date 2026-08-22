@@ -47,6 +47,13 @@ beforeAll(() => {
     origin,
   );
   git(["tag", "v0.9.0"], origin);
+  // Development continues past the release, as it does on a real main.
+  fs.appendFileSync(path.join(origin, "docker-compose.yml"), "  search: {}\n");
+  git(["add", "-A"], origin);
+  git(
+    ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "three"],
+    origin,
+  );
 
   clone = path.join(workspace, "clone");
   git(["clone", "-q", "--branch", "v0.1.0", origin, clone], workspace);
@@ -98,6 +105,17 @@ describe("papernook update", () => {
     expect(fs.readFileSync(composeLog, "utf8")).toBe(
       git(["rev-parse", "--short", "HEAD"], clone).trim(),
     );
+  });
+
+  // A clone that follows main sits ahead of the newest tag; a release
+  // "update" there would be a downgrade.
+  it("refuses to move a branch checkout back to an older release", () => {
+    git(["checkout", "-q", "main"], clone);
+    git(["merge", "-q", "--ff-only", "origin/main"], clone);
+    const head = git(["rev-parse", "HEAD"], clone).trim();
+    expect(run(["update"])).toMatch(/refusing to move backwards/);
+    expect(git(["rev-parse", "HEAD"], clone).trim()).toBe(head);
+    expect(run(["status"])).toContain("already runs newer code");
   });
 
   it("installs a command that points back at the clone", () => {
