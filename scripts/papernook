@@ -69,6 +69,12 @@ target_ref() {
   fi
 }
 
+# True when the checkout already contains the release, which is how a clone
+# that follows main looks: the newest tag is behind it, not ahead.
+ahead_of_releases() {
+  git merge-base --is-ancestor "$1" HEAD 2>/dev/null
+}
+
 cmd_status() {
   git fetch --tags --prune origin >/dev/null 2>&1 ||
     echo "papernook: could not reach origin; reporting local state only" >&2
@@ -76,10 +82,14 @@ cmd_status() {
   echo "checkout: $(current_ref) ($(git rev-parse --short HEAD))"
   local latest
   latest=$(latest_tag)
-  if [ -n "$latest" ] && [ "$(git rev-parse "$latest")" != "$(git rev-parse HEAD)" ]; then
-    echo "release:  ${latest} available — run 'papernook update'"
+  if [ -z "$latest" ]; then
+    echo "release:  none published"
+  elif [ "$(git rev-parse "$latest")" = "$(git rev-parse HEAD)" ]; then
+    echo "release:  ${latest} (current)"
+  elif ahead_of_releases "$latest"; then
+    echo "release:  ${latest} — this checkout already runs newer code"
   else
-    echo "release:  ${latest:-none} (current)"
+    echo "release:  ${latest} available — run 'papernook update'"
   fi
   local response
   if response=$(health); then
@@ -135,6 +145,11 @@ cmd_update() {
   }
   if [ "$(git rev-parse "$target")" = "$(git rev-parse HEAD)" ]; then
     echo "Already on the newest $([ "$TRACK_MAIN" = 1 ] && echo main || echo release) ($(current_ref))."
+    exit 0
+  fi
+  if [ "$TRACK_MAIN" != "1" ] && ahead_of_releases "$target"; then
+    echo "This checkout already runs newer code than ${target}; refusing to move backwards."
+    echo "It follows a branch — update it with 'papernook update --main'."
     exit 0
   fi
 
