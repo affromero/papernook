@@ -97,6 +97,23 @@ cd papernook
 ./scripts/install.sh
 ```
 
+## Updating
+
+The installer puts a `papernook` command in `~/.local/bin`, so updates are one
+word from anywhere:
+
+```bash
+papernook update          # newest release tag: back up, rebuild, check health
+papernook update --check  # what an update would move to, changing nothing
+papernook update --main   # follow the development branch instead of releases
+papernook status          # running version, newer release, health
+```
+
+An update refuses to run on a clone with uncommitted changes, backs the library
+up with `scripts/backup.sh` first (`--no-backup` skips it), and deepens a
+`--depth 1` install so releases stay comparable. In a clone
+installed before the command existed, run `./scripts/papernook link` once.
+
 ![Papernook library with topic navigation, search, and paper cards](docs/images/product/library.png)
 
 ## The reading loop

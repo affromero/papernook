@@ -34,6 +34,13 @@ Startup recovers an interrupted cross-topic move before rebuilding
 
 ## Upgrade and rollback
 
+Run `papernook update` in the clone (or `./scripts/papernook update` when the
+command is not on PATH). It refuses a dirty clone, backs up, moves to the
+newest `v*` tag, rebuilds, and waits for health. `papernook update --check`
+reports the target first; `--main` follows the development branch.
+
+By hand, or when moving to a specific release:
+
 1. Run a backup and record the current Git tag or commit.
 2. Read release notes for authentication or filesystem changes.
 3. Check out the intended release tag and run
