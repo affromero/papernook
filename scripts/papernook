@@ -5,6 +5,12 @@
 
 set -euo pipefail
 
+# Everything lives inside braces so bash parses the whole file before running
+# any of it. An update rewrites this script while it executes, and bash
+# otherwise resumes reading the file at a byte offset that now lands in the
+# middle of different code.
+{
+
 cd "$(dirname "$0")/.."
 [ -f docker-compose.yml ] || {
   echo "papernook: run this from inside the papernook clone" >&2
@@ -69,17 +75,27 @@ target_ref() {
   fi
 }
 
+# True when the checkout already contains the release, which is how a clone
+# that follows main looks: the newest tag is behind it, not ahead.
+ahead_of_releases() {
+  git merge-base --is-ancestor "$1" HEAD 2>/dev/null
+}
+
 cmd_status() {
-  git fetch --tags --prune origin >/dev/null 2>&1 ||
+  git fetch --tags --force --prune origin >/dev/null 2>&1 ||
     echo "papernook: could not reach origin; reporting local state only" >&2
   echo "clone:    $(pwd)"
   echo "checkout: $(current_ref) ($(git rev-parse --short HEAD))"
   local latest
   latest=$(latest_tag)
-  if [ -n "$latest" ] && [ "$(git rev-parse "$latest")" != "$(git rev-parse HEAD)" ]; then
-    echo "release:  ${latest} available — run 'papernook update'"
+  if [ -z "$latest" ]; then
+    echo "release:  none published"
+  elif [ "$(git rev-parse "$latest")" = "$(git rev-parse HEAD)" ]; then
+    echo "release:  ${latest} (current)"
+  elif ahead_of_releases "$latest"; then
+    echo "release:  ${latest} — this checkout already runs newer code"
   else
-    echo "release:  ${latest:-none} (current)"
+    echo "release:  ${latest} available — run 'papernook update'"
   fi
   local response
   if response=$(health); then
@@ -114,6 +130,19 @@ SHIM
   esac
 }
 
+# "<package version>+<short sha>", or the sha alone if package.json is
+# unreadable — the endpoint must always name something exact.
+stack_version() {
+  local version commit
+  commit=$(git rev-parse --short HEAD)
+  version=$(sed -n 's/^  "version": "\(.*\)",$/\1/p' package.json 2>/dev/null | head -1)
+  if [ -n "$version" ]; then
+    echo "${version}+${commit}"
+  else
+    echo "$commit"
+  fi
+}
+
 cmd_update() {
   git diff --quiet && git diff --cached --quiet || {
     echo "papernook: the clone has uncommitted changes; commit or discard them first" >&2
@@ -121,10 +150,12 @@ cmd_update() {
   }
   echo "Fetching…"
   # A --depth 1 install has no history to compare or move through.
+  # --force because releases are the remote's to define: a local tag left
+  # pointing at a retagged commit otherwise aborts every future update.
   if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
-    git fetch --unshallow --tags origin
+    git fetch --unshallow --tags --force origin
   else
-    git fetch --tags --prune origin
+    git fetch --tags --force --prune origin
   fi
 
   local target
@@ -135,6 +166,11 @@ cmd_update() {
   }
   if [ "$(git rev-parse "$target")" = "$(git rev-parse HEAD)" ]; then
     echo "Already on the newest $([ "$TRACK_MAIN" = 1 ] && echo main || echo release) ($(current_ref))."
+    exit 0
+  fi
+  if [ "$TRACK_MAIN" != "1" ] && ahead_of_releases "$target"; then
+    echo "This checkout already runs newer code than ${target}; refusing to move backwards."
+    echo "It follows a branch — update it with 'papernook update --main'."
     exit 0
   fi
 
@@ -160,10 +196,10 @@ cmd_update() {
   fi
 
   echo "Rebuilding…"
-  # The health endpoint reports this, so the running stack names the commit
-  # it was built from instead of "dev". Ports and every other setting come
-  # from .env, which compose interpolates on its own.
-  PAPERNOOK_VERSION=$(git rev-parse --short HEAD) docker compose up -d --build
+  # The health endpoint reports this. Between releases the package version
+  # alone is ambiguous, so it carries the commit too: 0.2.0+fc26c3f. Ports
+  # and every other setting come from .env, which compose interpolates.
+  PAPERNOOK_VERSION=$(stack_version) docker compose up -d --build
 
   printf 'Waiting for health'
   local response=""
@@ -218,3 +254,5 @@ case "$command" in
     exit 1
     ;;
 esac
+
+}
