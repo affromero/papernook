@@ -160,7 +160,10 @@ cmd_update() {
   fi
 
   echo "Rebuilding…"
-  docker compose up -d --build
+  # The health endpoint reports this, so the running stack names the commit
+  # it was built from instead of "dev". Ports and every other setting come
+  # from .env, which compose interpolates on its own.
+  PAPERNOOK_VERSION=$(git rev-parse --short HEAD) docker compose up -d --build
 
   printf 'Waiting for health'
   local response=""
