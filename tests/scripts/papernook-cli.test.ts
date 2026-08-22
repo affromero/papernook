@@ -11,17 +11,40 @@ let clone = "";
 let stubs = "";
 let composeLog = "";
 
+/**
+ * Git exports GIT_DIR, GIT_INDEX_FILE and friends to the hooks it runs, and
+ * this suite runs from the pre-push hook. Inheriting them aims every fixture
+ * git command at the real repository — `git init` in the fixture then marks
+ * the developer's clone bare and `git add -A` stages the whole tree as
+ * deleted. Dropping them, and the user's global config with them, keeps the
+ * fixture a fixture.
+ */
+function fixtureEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("GIT_")) delete env[key];
+  }
+  env.GIT_CONFIG_GLOBAL = "/dev/null";
+  env.GIT_CONFIG_SYSTEM = "/dev/null";
+  env.PATH = `${stubs}:${process.env.PATH ?? ""}`;
+  return env;
+}
+
 function run(args: string[], cwd = clone): string {
   return execFileSync("./scripts/papernook", args, {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, PATH: `${stubs}:${process.env.PATH ?? ""}` },
+    env: fixtureEnv(),
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
 function git(args: string[], cwd: string): string {
-  return execFileSync("git", args, { cwd, encoding: "utf8" });
+  return execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
+    cwd,
+    encoding: "utf8",
+    env: fixtureEnv(),
+  });
 }
 
 // A local origin with two releases, cloned at the older one: the shape a
