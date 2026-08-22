@@ -42,6 +42,7 @@ if [ "${1:-}" = "--from-infisical" ]; then
   chmod 600 .env
   echo "Wrote .env from Infisical. Starting the stack…"
   docker compose up -d --build
+  ./scripts/papernook link || true
   echo "papernook is up: http://localhost:3000"
   exit 0
 fi
@@ -193,6 +194,10 @@ fi
 echo
 echo "Wrote .env. Starting the stack…"
 docker compose up -d --build
+# The `papernook` command lives on PATH so updates are one word, not a
+# remembered path into the clone.
+./scripts/papernook link || true
+
 echo
 echo "papernook is up:"
 echo "  app:    http://localhost:3000  (open it and create your profile)"
