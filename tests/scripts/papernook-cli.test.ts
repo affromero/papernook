@@ -9,6 +9,7 @@ const cli = path.resolve(import.meta.dirname, "../../scripts/papernook");
 let workspace = "";
 let clone = "";
 let stubs = "";
+let composeLog = "";
 
 function run(args: string[], cwd = clone): string {
   return execFileSync("./scripts/papernook", args, {
@@ -53,9 +54,14 @@ beforeAll(() => {
   // Stand in for the pieces an update touches on a real host.
   stubs = path.join(workspace, "stubs");
   fs.mkdirSync(stubs);
-  fs.writeFileSync(path.join(stubs, "docker"), "#!/bin/sh\nexit 0\n", {
-    mode: 0o755,
-  });
+  // Records the version compose was handed, so the test can prove the
+  // running stack is labelled with the commit it was built from.
+  composeLog = path.join(workspace, "compose-version");
+  fs.writeFileSync(
+    path.join(stubs, "docker"),
+    `#!/bin/sh\nprintf '%s' "$PAPERNOOK_VERSION" > ${composeLog}\nexit 0\n`,
+    { mode: 0o755 },
+  );
   fs.writeFileSync(
     path.join(stubs, "curl"),
     '#!/bin/sh\necho \'{"status":"ok"}\'\n',
@@ -86,6 +92,12 @@ describe("papernook update", () => {
     expect(output).toContain('{"status":"ok"}');
     // Re-running is a no-op rather than a second rebuild.
     expect(run(["update"])).toContain("Already on the newest release");
+  });
+
+  it("labels the rebuilt stack with the commit it deployed", () => {
+    expect(fs.readFileSync(composeLog, "utf8")).toBe(
+      git(["rev-parse", "--short", "HEAD"], clone).trim(),
+    );
   });
 
   it("installs a command that points back at the clone", () => {
