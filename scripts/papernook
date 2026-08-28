@@ -38,13 +38,18 @@ papernook — self-hosted paper library
 USAGE
 }
 
+# Sourcing .env would leak every secret in it into this process, so read
+# single keys out of it instead.
+env_value() {
+  sed -n "s/^$1=//p" .env 2>/dev/null | tail -1 | tr -d '"'"'"''
+}
+
 # The health endpoint answers on the port compose published, which .env may
-# override. Sourcing the file would leak secrets into this process, so read
-# only the two keys that matter.
+# override.
 app_url() {
   local host port
-  host=$(sed -n 's/^APP_HOST=//p' .env 2>/dev/null | tail -1 | tr -d '"'"'"'')
-  port=$(sed -n 's/^APP_PORT=//p' .env 2>/dev/null | tail -1 | tr -d '"'"'"'')
+  host=$(env_value APP_HOST)
+  port=$(env_value APP_PORT)
   case "${host:-127.0.0.1}" in
     "" | 0.0.0.0) host=127.0.0.1 ;;
   esac
@@ -143,6 +148,60 @@ stack_version() {
   fi
 }
 
+# The version the CONTAINER reports, which is not the clone's version when a
+# deploy died between the git move and the restart.
+running_version() {
+  health | sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p'
+}
+
+# Bring the stack to this checkout. With PAPERNOOK_IMAGE set the image is
+# pulled and never built: that is what keeps a deploy target free of build
+# cache and intermediate layers. Without it — every self-host install — the
+# checkout builds locally exactly as before.
+deploy_stack() {
+  local version image tag
+  # The health endpoint reports this. Between releases the package version
+  # alone is ambiguous, so it carries the commit too: 0.2.0+fc26c3f. Ports
+  # and every other setting come from .env, which compose interpolates.
+  version=$(stack_version)
+  image=$(env_value PAPERNOOK_IMAGE)
+  if [ -n "$image" ]; then
+    tag=$(env_value PAPERNOOK_IMAGE_TAG)
+    # An unpinned tag follows the checkout, so the image and the version the
+    # health endpoint reports can never disagree.
+    [ -n "$tag" ] || tag=$(git rev-parse --short HEAD)
+    echo "Pulling ${image}:${tag}…"
+    PAPERNOOK_IMAGE_TAG="$tag" docker compose pull app || {
+      echo "papernook: ${image}:${tag} is not in the registry yet" >&2
+      echo "  (CI publishes it once the container job passes on main)" >&2
+      exit 1
+    }
+    # --no-build so a missing image fails loudly instead of quietly
+    # compiling one here.
+    PAPERNOOK_IMAGE_TAG="$tag" PAPERNOOK_VERSION="$version" \
+      docker compose up -d --no-build
+  else
+    echo "Rebuilding…"
+    PAPERNOOK_VERSION="$version" docker compose up -d --build
+  fi
+
+  printf 'Waiting for health'
+  local response=""
+  for _ in $(seq 1 30); do
+    if response=$(health); then break; fi
+    printf '.'
+    sleep 2
+  done
+  echo
+  if [ -n "$response" ]; then
+    echo "papernook is up on $(current_ref): ${response}"
+  else
+    echo "papernook: the stack did not report healthy at $(app_url)" >&2
+    echo "  docker compose logs --tail 50 app" >&2
+    exit 1
+  fi
+}
+
 cmd_update() {
   git diff --quiet && git diff --cached --quiet || {
     echo "papernook: the clone has uncommitted changes; commit or discard them first" >&2
@@ -165,7 +224,22 @@ cmd_update() {
     exit 1
   }
   if [ "$(git rev-parse "$target")" = "$(git rev-parse HEAD)" ]; then
-    echo "Already on the newest $([ "$TRACK_MAIN" = 1 ] && echo main || echo release) ($(current_ref))."
+    local newest running
+    newest="Already on the newest $([ "$TRACK_MAIN" = 1 ] && echo main || echo release) ($(current_ref))"
+    running=$(running_version)
+    if [ "$running" = "$(stack_version)" ]; then
+      echo "${newest}."
+      exit 0
+    fi
+    # The clone moved but the stack did not — a deploy that died between the
+    # two (the box ran out of disk mid-build) used to leave the retry with
+    # nothing to do, and the old container serving.
+    echo "${newest}, but the stack runs ${running:-nothing}; deploying it."
+    if [ "$CHECK_ONLY" = "1" ]; then
+      echo "(--check: nothing changed)"
+      exit 0
+    fi
+    deploy_stack
     exit 0
   fi
   if [ "$TRACK_MAIN" != "1" ] && ahead_of_releases "$target"; then
@@ -195,27 +269,7 @@ cmd_update() {
     git -c advice.detachedHead=false checkout --detach "$target"
   fi
 
-  echo "Rebuilding…"
-  # The health endpoint reports this. Between releases the package version
-  # alone is ambiguous, so it carries the commit too: 0.2.0+fc26c3f. Ports
-  # and every other setting come from .env, which compose interpolates.
-  PAPERNOOK_VERSION=$(stack_version) docker compose up -d --build
-
-  printf 'Waiting for health'
-  local response=""
-  for _ in $(seq 1 30); do
-    if response=$(health); then break; fi
-    printf '.'
-    sleep 2
-  done
-  echo
-  if [ -n "$response" ]; then
-    echo "papernook is up on $(current_ref): ${response}"
-  else
-    echo "papernook: the stack did not report healthy at $(app_url)" >&2
-    echo "  docker compose logs --tail 50 app" >&2
-    exit 1
-  fi
+  deploy_stack
 }
 
 CHECK_ONLY=0

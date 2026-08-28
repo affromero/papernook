@@ -19,10 +19,19 @@
 #   OLLAMA_HOST / LLAMACPP_BASE_URL / VLLM_BASE_URL (models live in Settings)
 #   WEB_SEARCH_BASE_URL            custom SearXNG endpoint (bundled by default)
 #   SESSION_SECRET                 pin sessions across container rebuilds
+#   PAPERNOOK_IMAGE / PAPERNOOK_IMAGE_TAG
+#                                  run a prebuilt image (e.g.
+#                                  ghcr.io/affromero/papernook) instead of
+#                                  building this checkout
 
 services:
   app:
     build: .
+    # Built from this checkout by default, which is what a self-host install
+    # does. Set PAPERNOOK_IMAGE (and the tag) to run a prebuilt image
+    # instead — `papernook update` then pulls rather than builds, so a
+    # server never spends disk on build cache and intermediate layers.
+    image: ${PAPERNOOK_IMAGE:-papernook-app}:${PAPERNOOK_IMAGE_TAG:-local}
     restart: unless-stopped
     init: true
     depends_on:
