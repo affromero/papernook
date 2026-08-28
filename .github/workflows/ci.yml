@@ -90,3 +90,15 @@ jobs:
           docker tag papernook:ci "$IMAGE:main"
           docker push "$IMAGE:$SHA"
           docker push "$IMAGE:main"
+
+      # An image per commit is what lets a deploy pin a sha and roll back to
+      # one, but main moves ~8 times a day: without this the version list
+      # grows without end. Ten covers every commit a rollback would
+      # realistically reach for.
+      - name: Prune old image versions
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/delete-package-versions@25ad4af5be03aef10e0b3376b248688b7a44c40b # v5
+        with:
+          package-name: papernook
+          package-type: container
+          min-versions-to-keep: 10
