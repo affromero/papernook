@@ -49,15 +49,29 @@ export function referenceEntryAtPoint(
   const style = detectStyle(lines);
   const starts = entryStartIndexes(lines, style);
 
-  // Nearest entry start above the click within the click's column.
+  // The line the point sits on: the first baseline at or below it in the
+  // point's own column. Anchoring on the line rather than on the nearest
+  // entry start above matters for hyperref GoTo destinations, which point at
+  // the TOP of an entry's first line — a point that falls in the gap under
+  // the PREVIOUS entry's last baseline and used to resolve one entry high.
+  let hit = -1;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line) continue;
+    if (line.y > click.y + 3) continue;
+    if (click.x < line.x - 10) continue;
+    if (click.x - line.x >= pageWidth * COLUMN_WIDTH_FACTOR) continue;
+    hit = index;
+    break;
+  }
+  if (hit < 0) return null;
+  // Points far below the last line of a column belong to no entry.
+  if (click.y - (lines[hit]?.y ?? 0) > 40) return null;
+
   let chosen = -1;
   for (let index = 0; index < starts.length; index += 1) {
     const startIndex = starts[index];
-    const line = startIndex === undefined ? undefined : lines[startIndex];
-    if (!line) continue;
-    if (click.x < line.x - 10) continue;
-    if (click.x - line.x >= pageWidth * COLUMN_WIDTH_FACTOR) continue;
-    if (line.y + 3 < click.y) continue;
+    if (startIndex === undefined || startIndex > hit) break;
     chosen = index;
   }
   if (chosen < 0) return null;
@@ -66,9 +80,6 @@ export function referenceEntryAtPoint(
   if (chosenIndex === undefined || !start) return null;
 
   const nextIndex = nextStartInColumn(lines, starts, chosen, start);
-  const nextStart = nextIndex === undefined ? undefined : lines[nextIndex];
-  const bottom = nextStart ? nextStart.y + 3 : start.y - 200;
-  if (click.y <= bottom) return null;
 
   const entryLines = lines
     .slice(chosenIndex, nextIndex ?? lines.length)

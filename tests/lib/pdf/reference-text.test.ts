@@ -3,6 +3,7 @@ import {
   referenceEntryAtPoint,
   referenceTextAtPoint,
 } from "@/lib/pdf/reference-text";
+import pixworldRefs from "./fixtures/pixworld-refs.json";
 
 const PAGE_WIDTH = 612;
 
@@ -129,5 +130,40 @@ describe("referenceTextAtPoint (author-year)", () => {
     );
     expect(text).toContain("VideoPhy");
     expect(text).not.toContain("VideoPainter");
+  });
+});
+
+// arXiv PixWorld, references page 11: two Gao entries back to back (Ruiqi
+// Gao 2024 at y=377.6, Sensen Gao 2026 at y=335.6). hyperref points its
+// GoTo destination at the TOP of the cited entry's first line — y=346.6 for
+// the Sensen entry — which sits in the gap below the previous entry's last
+// baseline (355.7), so "nearest start above the point" lands one entry high.
+describe("hyperref destinations", () => {
+  const PIXWORLD = pixworldRefs.find((page) => page.pageNumber === 11)! as {
+    pageNumber: number;
+    pageWidth: number;
+    chunks: { str: string; x: number; y: number; width?: number }[];
+  };
+
+  it("resolves the entry the destination points into, not the one above", () => {
+    const entry = referenceEntryAtPoint(
+      PIXWORLD.chunks,
+      // ReferencePreview probes at destination.left + 15, destination.top - 6.
+      { x: 83.093 + 15, y: 346.608 - 6 },
+      PIXWORLD.pageWidth,
+    );
+    expect(entry?.text).toContain("Sensen Gao");
+    expect(entry?.text).toContain("2026");
+    expect(entry?.text).not.toContain("Ruiqi Gao");
+  });
+
+  it("still resolves an entry probed at its own baseline", () => {
+    const entry = referenceEntryAtPoint(
+      PIXWORLD.chunks,
+      { x: 108 + 15, y: 377.6 + 2 },
+      PIXWORLD.pageWidth,
+    );
+    expect(entry?.text).toContain("Ruiqi Gao");
+    expect(entry?.text).toContain("Cat3d");
   });
 });

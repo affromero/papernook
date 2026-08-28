@@ -67,7 +67,12 @@ const MAX_INDENT_FACTOR = 0.1;
  */
 const ENTRY_TEXT_CAP = 1000;
 const NUMBERED_MARKER = /^\s*(?:\[(\d{1,3})\]|(\d{1,3})\.)\s/;
-const HEADING = /^(references|bibliography)\s*[.:]?\s*$/i;
+/**
+ * Section heading, matched against the line with its whitespace stripped:
+ * small-caps headings (the ICLR/NeurIPS templates) come out of the text
+ * layer as "R EFERENCES", one chunk per case change.
+ */
+const HEADING = /^(?:references|bibliography)[.:]?$/i;
 const ENTRY_HEAD = new RegExp(`^(?:${NAME_PATTERN})[,.]\\s`, "u");
 const YEAR_IN_TEXT = /(?:^|[\s([])((?:19|20)\d{2})([a-z])?(?![\p{L}\d])/u;
 const SURNAME_BEFORE_SEPARATOR = new RegExp(`(${NAME_PATTERN})(?=[,.])`, "gu");
@@ -361,7 +366,8 @@ export function buildBibliography(
   for (let index = 0; index < lines.length; index += 1) {
     // The LAST heading wins: body prose can mention "References" but the
     // real section heading is the one entries actually follow.
-    if (HEADING.test(lines[index]?.text ?? "")) headingIndex = index;
+    const text = (lines[index]?.text ?? "").replace(/\s+/gu, "");
+    if (HEADING.test(text)) headingIndex = index;
   }
   if (headingIndex < 0) return null;
   const sectionLines = lines.slice(headingIndex + 1);
