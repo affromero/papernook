@@ -38,6 +38,12 @@ jobs:
   container:
     needs: ci
     runs-on: ubuntu-latest
+    # Pushing the smoke-tested image to GHCR is what keeps the production
+    # server out of the build business entirely — it pulls this exact
+    # image instead of compiling one on a 75G disk.
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: docker build --tag papernook:ci .
@@ -65,3 +71,22 @@ jobs:
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/settings)" = "307"
           test -z "$(docker exec papernook-ci sh -c \
             'find /app -maxdepth 3 \( -name ".env*" -o -name src -o -name tests -o -name docs -o -name AGENTS.md -o -name CLAUDE.md \) -print')"
+
+      # Only after the smoke test above: an image that fails it never
+      # reaches the registry, so `pull` on the server can only ever land on
+      # a container that booted, ran as uid 1000, and served /api/v1/health.
+      # The runner is amd64, the same architecture as the server.
+      - name: Publish the verified image to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          IMAGE=ghcr.io/${{ github.repository_owner }}/papernook
+          SHA=$(git rev-parse --short HEAD)
+          printf '%s' "$GH_TOKEN" |
+            docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          # Deploys pin the sha tag; :main is the convenience pointer.
+          docker tag papernook:ci "$IMAGE:$SHA"
+          docker tag papernook:ci "$IMAGE:main"
+          docker push "$IMAGE:$SHA"
+          docker push "$IMAGE:main"

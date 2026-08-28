@@ -37,7 +37,26 @@ Startup recovers an interrupted cross-topic move before rebuilding
 Run `papernook update` in the clone (or `./scripts/papernook update` when the
 command is not on PATH). It refuses a dirty clone, backs up, moves to the
 newest `v*` tag, rebuilds, and waits for health. `papernook update --check`
-reports the target first; `--main` follows the development branch.
+reports the target first; `--main` follows the development branch. When the
+clone is already current but the stack runs an older version — a deploy that
+died between the two — it deploys instead of reporting nothing to do.
+
+### Running a prebuilt image
+
+Building on the machine that serves the app costs it a build cache and a
+layer of every intermediate image, which is the wrong trade on a small disk.
+Set `PAPERNOOK_IMAGE` (and optionally `PAPERNOOK_IMAGE_TAG`) in `.env` and
+`papernook update` pulls that image instead of building anything:
+
+```
+PAPERNOOK_IMAGE=ghcr.io/affromero/papernook
+```
+
+The tag defaults to the checked-out commit's short sha, so the image and the
+version `/api/v1/health` reports always name the same commit; pin
+`PAPERNOOK_IMAGE_TAG` to roll back to another published one. Images are
+published by CI for every commit on `main` that passes the container smoke
+test. Leave both unset — the default — and the checkout builds locally.
 
 By hand, or when moving to a specific release:
 
