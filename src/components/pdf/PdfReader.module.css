@@ -205,6 +205,9 @@
   position: absolute;
   inset: 0;
   overflow: auto;
+  /* pdf.js gives each annotation an inline z-index that grows per link;
+     isolate so they never stack above the reference preview. */
+  isolation: isolate;
 }
 
 .container :global(.pdfViewer) {
