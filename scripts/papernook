@@ -41,7 +41,10 @@ USAGE
 # Sourcing .env would leak every secret in it into this process, so read
 # single keys out of it instead.
 env_value() {
-  sed -n "s/^$1=//p" .env 2>/dev/null | tail -1 | tr -d '"'"'"''
+  # A clone with no .env yet is normal (install writes it); reading one key
+  # out of it must not be what stops an update under `set -e`.
+  [ -f .env ] || return 0
+  sed -n "s/^$1=//p" .env | tail -1 | tr -d '"'"'"''
 }
 
 # The health endpoint answers on the port compose published, which .env may
@@ -227,7 +230,10 @@ cmd_update() {
     local newest running
     newest="Already on the newest $([ "$TRACK_MAIN" = 1 ] && echo main || echo release) ($(current_ref))"
     running=$(running_version)
-    if [ "$running" = "$(stack_version)" ]; then
+    # No answer at all is not a contradiction — the stack may be stopped, or
+    # too old to report a version — so only a version that disagrees
+    # triggers a redeploy.
+    if [ -z "$running" ] || [ "$running" = "$(stack_version)" ]; then
       echo "${newest}."
       exit 0
     fi
