@@ -8,14 +8,19 @@ import {
 } from "@/lib/pdf/bibliography";
 import aaaiPages from "./fixtures/aaai-pages.json";
 import attentionPages from "./fixtures/attention-pages.json";
+import pixworldRefs from "./fixtures/pixworld-refs.json";
 
 // Real extracted text geometry (see fixtures/extract.mjs):
 // - aaai-pages: arXiv 2608.07463 — author-year, two columns, no hanging
 //   indent, no embedded cite links. Pages 1 (intro), 8-9 (references).
 // - attention-pages: arXiv 1706.03762 — numbered [n] bibliography with a
 //   hanging indent. Pages 2 (intro), 10-11 (references).
+// - pixworld-refs: ICLR template — small-caps "R EFERENCES" heading, single
+//   column with a hanging indent, two same-surname entries (Gao 2024/2026).
+//   Pages 10-11 (references).
 const AAAI = aaaiPages as BibliographyPage[];
 const ATTENTION = attentionPages as BibliographyPage[];
+const PIXWORLD = pixworldRefs as BibliographyPage[];
 
 function aaaiBibliography(): Bibliography {
   const bibliography = buildBibliography(
@@ -193,5 +198,32 @@ describe("buildBibliography guards", () => {
     const intro = AAAI.filter((page) => page.pageNumber === 1);
     expect(buildBibliography(intro)).toBeNull();
     expect(buildBibliography([])).toBeNull();
+  });
+});
+
+describe("small-caps headings", () => {
+  // The ICLR/NeurIPS templates set section heads in small caps, which the
+  // text layer emits as "R EFERENCES" — one chunk per case change. Missing
+  // it left the whole paper without a bibliography, so no citation in it
+  // could resolve at all.
+  it("finds the references section behind a small-caps heading", () => {
+    const bibliography = buildBibliography(PIXWORLD);
+    expect(bibliography?.style).toBe("author-year");
+    expect(bibliography?.entries.length).toBeGreaterThan(20);
+  });
+
+  it("disambiguates same-surname entries by year", () => {
+    const bibliography = buildBibliography(PIXWORLD)!;
+    const cite = (year: string) =>
+      matchCitation(bibliography, {
+        kind: "authorYear",
+        surname: "Gao",
+        year,
+        suffix: null,
+      })?.text;
+    expect(cite("2026")).toContain("Sensen Gao");
+    expect(cite("2026")).toContain("Oneworld");
+    expect(cite("2024")).toContain("Ruiqi Gao");
+    expect(cite("2024")).toContain("Cat3d");
   });
 });
