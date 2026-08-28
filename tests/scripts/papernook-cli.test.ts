@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const cli = path.resolve(import.meta.dirname, "../../scripts/papernook");
 
@@ -10,6 +10,8 @@ let workspace = "";
 let clone = "";
 let stubs = "";
 let composeLog = "";
+let dockerLog = "";
+let healthVersion = "";
 
 /**
  * Git exports GIT_DIR, GIT_INDEX_FILE and friends to the hooks it runs, and
@@ -91,14 +93,22 @@ beforeAll(() => {
   // Records the version compose was handed, so the test can prove the
   // running stack is labelled with the commit it was built from.
   composeLog = path.join(workspace, "compose-version");
+  // Every compose command, so a test can tell a pull from a build.
+  dockerLog = path.join(workspace, "docker-args");
   fs.writeFileSync(
     path.join(stubs, "docker"),
-    `#!/bin/sh\nprintf '%s' "$PAPERNOOK_VERSION" > ${composeLog}\nexit 0\n`,
+    `#!/bin/sh\nprintf '%s' "$PAPERNOOK_VERSION" > ${composeLog}\n` +
+      `echo "$*" >> ${dockerLog}\nexit 0\n`,
     { mode: 0o755 },
   );
+  // The version the "running" stack reports, which the tests below vary to
+  // stage a stack that lags its clone.
+  healthVersion = path.join(workspace, "health-version");
   fs.writeFileSync(
     path.join(stubs, "curl"),
-    '#!/bin/sh\necho \'{"status":"ok"}\'\n',
+    `#!/bin/sh\nif [ -f ${healthVersion} ]; then\n` +
+      `  printf '{"status":"ok","version":"%s"}\\n' "$(cat ${healthVersion})"\n` +
+      `else\n  echo '{"status":"ok"}'\nfi\n`,
     { mode: 0o755 },
   );
 });
@@ -174,5 +184,69 @@ describe("papernook update", () => {
         encoding: "utf8",
       }),
     ).toContain("papernook update");
+  });
+});
+
+// The production server has 75G for ten projects; a Next.js build there
+// costs a build cache and a layer of every intermediate image. With
+// PAPERNOOK_IMAGE set an update must pull the published image and never
+// build one here.
+describe("papernook update (prebuilt image)", () => {
+  function stackReports(version: string): void {
+    fs.writeFileSync(healthVersion, version);
+  }
+
+  function dockerCommands(): string[] {
+    const log = fs.existsSync(dockerLog)
+      ? fs.readFileSync(dockerLog, "utf8")
+      : "";
+    return log.split("\n").filter(Boolean);
+  }
+
+  beforeEach(() => {
+    fs.rmSync(dockerLog, { force: true });
+    fs.rmSync(healthVersion, { force: true });
+    fs.rmSync(path.join(clone, ".env"), { force: true });
+  });
+
+  function currentVersion(): string {
+    return `1.2.3+${git(["rev-parse", "--short", "HEAD"], clone).trim()}`;
+  }
+
+  it("deploys when the clone is current but the stack lags it", () => {
+    stackReports("1.2.3+deadbee");
+    const output = run(["update", "--main", "--no-backup"]);
+    expect(output).toContain("but the stack runs 1.2.3+deadbee");
+    expect(dockerCommands().join(" ")).toContain("up -d");
+  });
+
+  it("leaves a stack that already runs the checkout alone", () => {
+    stackReports(currentVersion());
+    expect(run(["update", "--main"])).toContain("Already on the newest main");
+    expect(dockerCommands()).toEqual([]);
+  });
+
+  it("pulls the published image instead of building one", () => {
+    fs.writeFileSync(
+      path.join(clone, ".env"),
+      "PAPERNOOK_IMAGE=registry.test/papernook\n",
+    );
+    stackReports("1.2.3+deadbee");
+    const output = run(["update", "--main", "--no-backup"]);
+    const commands = dockerCommands();
+    // The tag follows the checkout, so image and reported version agree.
+    const sha = git(["rev-parse", "--short", "HEAD"], clone).trim();
+    expect(output).toContain(`registry.test/papernook:${sha}`);
+    expect(commands).toContain("compose pull app");
+    expect(commands.join(" ")).toContain("--no-build");
+    expect(commands.join(" ")).not.toContain("--build ");
+  });
+
+  it("builds locally when no image is configured", () => {
+    stackReports("1.2.3+deadbee");
+    run(["update", "--main", "--no-backup"]);
+    const commands = dockerCommands().join(" ");
+    expect(commands).toContain("--build");
+    expect(commands).not.toContain("pull");
   });
 });
