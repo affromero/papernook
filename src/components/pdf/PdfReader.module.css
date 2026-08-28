@@ -256,14 +256,6 @@
   right: 1rem;
 }
 
-.previewTop {
-  top: 1rem;
-}
-
-.previewBottom {
-  bottom: 1rem;
-}
-
 .previewHeader {
   min-height: 40px;
   display: flex;

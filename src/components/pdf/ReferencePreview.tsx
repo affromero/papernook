@@ -17,7 +17,8 @@ export interface Preview {
    * citations derive it from the destination point instead. */
   entryText?: string;
   horizontal: "left" | "right";
-  vertical: "top" | "bottom";
+  /** Offset from the viewer's top edge, in px. */
+  top: number;
 }
 
 interface ReferencePreviewProps {
@@ -373,9 +374,8 @@ export function ReferencePreview({
     <aside
       className={`${styles.preview} ${
         preview.horizontal === "left" ? styles.previewLeft : styles.previewRight
-      } ${
-        preview.vertical === "top" ? styles.previewTop : styles.previewBottom
       }`}
+      style={{ top: preview.top }}
       data-reference-preview=""
       aria-label={`Reference preview, page ${destination.pageNumber}`}
     >

@@ -27,6 +27,7 @@ import {
 import "pdfjs-dist/web/pdf_viewer.css";
 import styles from "./PdfReader.module.css";
 import { ReferencePreview, type Preview } from "./ReferencePreview";
+import { PREVIEW_GAP, placePreview } from "./placePreview";
 import { BIBLIOGRAPHY_EVENT } from "@/lib/chat/paper-ref-events";
 import type { Bibliography } from "@/lib/pdf/bibliography";
 import {
@@ -106,10 +107,9 @@ export function PdfReader({
   const editorTypesRef = useRef<EditorTypes | null>(null);
   const autosaveRef = useRef<PdfAutosaveCoordinator | null>(null);
   const pendingPenRef = useRef(false);
-  const referenceAnchorRef = useRef<Pick<
-    Preview,
-    "horizontal" | "vertical"
-  > | null>(null);
+  const referenceAnchorRef = useRef<Pick<Preview, "horizontal" | "top"> | null>(
+    null,
+  );
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
   const restoreViewRef = useRef<{ page: number; scale: number } | null>(null);
@@ -565,13 +565,10 @@ export function PdfReader({
   function captureReferenceAnchor(event: PointerEvent<HTMLDivElement>): void {
     const target = event.target;
     if (!(target instanceof Element) || !target.closest("a")) return;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    referenceAnchorRef.current = {
-      horizontal:
-        event.clientX - bounds.left < bounds.width / 2 ? "left" : "right",
-      vertical:
-        event.clientY - bounds.top < bounds.height / 2 ? "top" : "bottom",
-    };
+    referenceAnchorRef.current = placePreview(
+      event,
+      event.currentTarget.getBoundingClientRect(),
+    );
   }
 
   function scheduleHoverPreview(event: PointerEvent<HTMLDivElement>): void {
@@ -585,13 +582,10 @@ export function PdfReader({
     if (link === hoverLinkRef.current) return;
     cancelHoverPreview();
     hoverLinkRef.current = link as HTMLAnchorElement;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const anchor: Pick<Preview, "horizontal" | "vertical"> = {
-      horizontal:
-        event.clientX - bounds.left < bounds.width / 2 ? "left" : "right",
-      vertical:
-        event.clientY - bounds.top < bounds.height / 2 ? "top" : "bottom",
-    };
+    const anchor = placePreview(
+      event,
+      event.currentTarget.getBoundingClientRect(),
+    );
     hoverTimerRef.current = window.setTimeout(() => {
       referenceAnchorRef.current = anchor;
       const link = hoverLinkRef.current;
@@ -689,16 +683,11 @@ export function PdfReader({
         };
       }
     }
-    const anchor: Pick<Preview, "horizontal" | "vertical"> = point
-      ? {
-          horizontal:
-            point.clientX - rect.left < rect.width / 2 ? "left" : "right",
-          vertical:
-            point.clientY - rect.top < rect.height / 2 ? "top" : "bottom",
-        }
+    const anchor: Pick<Preview, "horizontal" | "top"> = point
+      ? placePreview(point, rect)
       : (referenceAnchorRef.current ?? {
           horizontal: "right",
-          vertical: "bottom",
+          top: PREVIEW_GAP,
         });
     const nextPreview = {
       destination: target,
