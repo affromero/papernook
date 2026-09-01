@@ -1,0 +1,202 @@
+.root {
+  margin-top: 0.7rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(127, 127, 127, 0.22);
+}
+
+.eyebrow {
+  margin: 0 0 0.4rem;
+  opacity: 0.62;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.08em 0.4em;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.1);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badge[data-kind="arxiv"] {
+  border-color: rgba(178, 49, 49, 0.4);
+  background: rgba(178, 49, 49, 0.1);
+  color: #b23131;
+}
+
+.badge[data-kind="doi"] {
+  border-color: rgba(63, 79, 176, 0.45);
+  background: rgba(63, 79, 176, 0.1);
+  color: #3f4fb0;
+}
+
+.badge[data-kind="github"] {
+  border-color: rgba(127, 127, 127, 0.45);
+  background: rgba(127, 127, 127, 0.16);
+}
+
+.body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.45rem;
+  min-width: 0;
+}
+
+.title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.title:hover {
+  text-decoration-thickness: 2px;
+}
+
+.host {
+  opacity: 0.58;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.actionGroup {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  white-space: normal;
+}
+
+.checking {
+  opacity: 0.55;
+  font-size: 0.72rem;
+}
+
+.addBtn {
+  min-height: 26px;
+  padding: 0 0.55rem;
+  border: 1px solid rgba(63, 79, 176, 0.5);
+  border-radius: 6px;
+  background: rgba(63, 79, 176, 0.1);
+  color: inherit;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addBtn:hover {
+  background: rgba(63, 79, 176, 0.18);
+}
+
+.addBtn:focus-visible {
+  outline: 2px solid #3f4fb0;
+  outline-offset: 2px;
+}
+
+.adding {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0.75;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.spinner {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid rgba(127, 127, 127, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .spinner {
+    animation: sourcesSpin 0.7s linear infinite;
+  }
+}
+
+@keyframes sourcesSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.added,
+.inLibrary {
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.added {
+  color: #2f8a4c;
+}
+
+.inLibrary {
+  color: #3f4fb0;
+}
+
+.added:hover,
+.inLibrary:hover {
+  text-decoration: underline;
+}
+
+.failed {
+  max-width: 18rem;
+  overflow: hidden;
+  color: #a42e2b;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .action {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

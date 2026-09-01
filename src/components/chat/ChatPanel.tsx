@@ -10,8 +10,11 @@ import {
 import { Pencil, Trash2 } from "lucide-react";
 import {
   BIBLIOGRAPHY_EVENT,
+  CHAT_PROMPT_EVENT,
   PAPER_REF_EVENT,
   detailFromDataset,
+  parseChatPromptEvent,
+  type ChatPromptDetail,
   type PaperRefAction,
 } from "@/lib/chat/paper-ref-events";
 import type { Bibliography } from "@/lib/pdf/bibliography";
@@ -34,6 +37,8 @@ interface ChatPanelProps {
   aiAvailable: boolean;
   /** Provider capabilities.vision; false disables image attachments. */
   visionAvailable: boolean;
+  /** The page mounts an editable PdfReader that saves answers as notes. */
+  marginNotes?: boolean;
 }
 
 const ACTIVE_CHAT_STORAGE_PREFIX = "papernook:active-chat";
@@ -76,6 +81,7 @@ export function ChatPanel({
   paperSourceUrl,
   aiAvailable,
   visionAvailable,
+  marginNotes = false,
 }: ChatPanelProps) {
   const base = `/api/v1/papers/${topic}/${slug}`;
   const [chats, setChats] = useState<ChatHeader[]>([]);
@@ -105,6 +111,7 @@ export function ChatPanel({
   });
   const refHoverTimerRef = useRef<number | null>(null);
   const openRequestRef = useRef(0);
+  const applyPromptRef = useRef<(detail: ChatPromptDetail) => void>(() => {});
 
   useEffect(() => {
     void fetch(`${base}/chats`, { credentials: "include" })
@@ -157,6 +164,35 @@ export function ChatPanel({
       window.removeEventListener(BIBLIOGRAPHY_EVENT, onBibliography);
       clearRefHover();
     };
+  }, []);
+
+  // Other surfaces (a reference popover, a text selection) hand the composer
+  // a prompt. The handler closes over the current send(), so it is refreshed
+  // every render while the window listener itself is registered once.
+  useEffect(() => {
+    applyPromptRef.current = (detail) => {
+      if (detail.send && aiAvailable && !busy) {
+        void send(detail.text);
+        return;
+      }
+      setInput(detail.text);
+      history.resetNavigation();
+      // ReadingWorkspace reveals the chat in the same dispatch; React
+      // commits that after this handler returns, and focus() on a
+      // display:none textarea is a no-op — so focus one frame later.
+      window.requestAnimationFrame(() => inputRef.current?.focus());
+    };
+  });
+
+  useEffect(() => {
+    const onPrompt = (event: Event) => {
+      const detail = parseChatPromptEvent(
+        (event as CustomEvent<unknown>).detail,
+      );
+      if (detail) applyPromptRef.current(detail);
+    };
+    window.addEventListener(CHAT_PROMPT_EVENT, onPrompt);
+    return () => window.removeEventListener(CHAT_PROMPT_EVENT, onPrompt);
   }, []);
 
   function clearRefHover(): void {
@@ -507,6 +543,7 @@ export function ChatPanel({
           currentOrigin={currentOrigin}
           paperSourceUrl={paperSourceUrl}
           visionAvailable={visionAvailable}
+          marginNotes={marginNotes}
           onDelete={deleteMsg}
           onRegenerateThree={() => void send(REGENERATE_THREE_PROMPT)}
         />

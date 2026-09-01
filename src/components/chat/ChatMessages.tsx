@@ -1,7 +1,15 @@
 "use client";
 
+import { useMemo } from "react";
+import { StickyNote } from "lucide-react";
+import { firstLocator, marginNoteText, wrapNote } from "@/lib/chat/margin-note";
+import {
+  requestMarginNote,
+  type MarginNoteDetail,
+} from "@/lib/chat/paper-ref-events";
 import type { Bibliography } from "@/lib/pdf/bibliography";
 import { Markdown } from "./Markdown";
+import { MessageSources } from "./MessageSources";
 import styles from "./ChatPanel.module.css";
 
 export interface ChatMessage {
@@ -22,8 +30,38 @@ interface ChatMessagesProps {
   currentOrigin: string;
   paperSourceUrl?: string;
   visionAvailable: boolean;
+  /** An editable PdfReader is mounted to receive "Save as note"; without
+   * one the action would dispatch into the void. */
+  marginNotes: boolean;
   onDelete(index: number): void;
   onRegenerateThree(): void;
+}
+
+/** Null when nothing in the answer survives the WinAnsi note format. */
+function noteFor(markdown: string): MarginNoteDetail | null {
+  const text = wrapNote(marginNoteText(markdown)).join("\n");
+  return text ? { text, ref: firstLocator(markdown) } : null;
+}
+
+function NoteButton({ markdown }: { markdown: string }) {
+  // The whole panel re-renders per keystroke in the composer; the note
+  // pipeline only needs to run when the answer itself changes.
+  const note = useMemo(() => noteFor(markdown), [markdown]);
+  const label = note
+    ? "Save as a shared note in the PDF (visible to everyone with this paper)"
+    : "Nothing in this answer can be written as a PDF note";
+  return (
+    <button
+      type="button"
+      className={`${styles.deleteBtn} ${styles.noteBtn}`}
+      onClick={() => note && requestMarginNote(note)}
+      disabled={!note}
+      aria-label={label}
+      title={label}
+    >
+      <StickyNote aria-hidden="true" />
+    </button>
+  );
 }
 
 export function ChatMessages({
@@ -34,6 +72,7 @@ export function ChatMessages({
   currentOrigin,
   paperSourceUrl,
   visionAvailable,
+  marginNotes,
   onDelete,
   onRegenerateThree,
 }: ChatMessagesProps) {
@@ -64,6 +103,11 @@ export function ChatMessages({
               ×
             </button>
           )}
+          {marginNotes &&
+            message.at &&
+            !busy &&
+            message.role === "assistant" &&
+            message.content.trim() && <NoteButton markdown={message.content} />}
           {message.images?.map((src, j) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -75,17 +119,26 @@ export function ChatMessages({
           ))}
           {message.role === "assistant" ? (
             message.content.trim() ? (
-              <Markdown
-                content={message.content}
-                renderThree={!(busy && i === messages.length - 1)}
-                highlightCode={!(busy && i === messages.length - 1)}
-                copyCode={!(busy && i === messages.length - 1)}
-                decorateRefs={!(busy && i === messages.length - 1)}
-                bibliography={bibliography}
-                currentOrigin={currentOrigin}
-                paperSourceUrl={paperSourceUrl}
-                onRegenerateThree={onRegenerateThree}
-              />
+              <>
+                <Markdown
+                  content={message.content}
+                  renderThree={!(busy && i === messages.length - 1)}
+                  highlightCode={!(busy && i === messages.length - 1)}
+                  copyCode={!(busy && i === messages.length - 1)}
+                  decorateRefs={!(busy && i === messages.length - 1)}
+                  bibliography={bibliography}
+                  currentOrigin={currentOrigin}
+                  paperSourceUrl={paperSourceUrl}
+                  onRegenerateThree={onRegenerateThree}
+                />
+                {!(busy && i === messages.length - 1) && (
+                  <MessageSources
+                    content={message.content}
+                    currentOrigin={currentOrigin}
+                    paperSourceUrl={paperSourceUrl}
+                  />
+                )}
+              </>
             ) : busy && i === messages.length - 1 ? (
               <span
                 className={styles.typingIndicator}
