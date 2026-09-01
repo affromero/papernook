@@ -87,9 +87,10 @@ function citationDecorations(
 function decorateText(
   text: string,
   bibliography: Bibliography | null,
+  refs: boolean,
 ): HastNode[] | null {
   const all = [
-    ...refDecorations(text),
+    ...(refs ? refDecorations(text) : []),
     ...(bibliography ? citationDecorations(text, bibliography) : []),
   ].sort((a, b) => a.start - b.start || b.end - a.end);
   if (all.length === 0) return null;
@@ -117,29 +118,39 @@ function decorateText(
   return nodes;
 }
 
-function walk(node: HastNode, bibliography: Bibliography | null): void {
+function walk(
+  node: HastNode,
+  bibliography: Bibliography | null,
+  refs: boolean,
+): void {
   const children = node.children;
   if (!children) return;
   for (let index = children.length - 1; index >= 0; index -= 1) {
     const child = children[index];
     if (!child) continue;
     if (child.type === "element") {
-      if (!skippedElement(child)) walk(child, bibliography);
+      if (!skippedElement(child)) walk(child, bibliography, refs);
       continue;
     }
     if (child.type !== "text" || typeof child.value !== "string") continue;
-    const replacement = decorateText(child.value, bibliography);
+    const replacement = decorateText(child.value, bibliography, refs);
     if (replacement) children.splice(index, 1, ...replacement);
   }
 }
 
 /**
  * Plugin factory for react-markdown's rehypePlugins:
- * `[rehypePaperRefs, { bibliography }]`.
+ * `[rehypePaperRefs, { bibliography, refs }]`. `refs: false` skips
+ * in-paper locator decorations — surfaces without a mounted PdfReader
+ * (the canvas chat) would render them as dead buttons — while citations
+ * still decorate whenever a bibliography exists (the citation popover
+ * answers them locally).
  */
 export function rehypePaperRefs(options?: {
   bibliography?: Bibliography | null;
+  refs?: boolean;
 }): (tree: HastNode) => void {
   const bibliography = options?.bibliography ?? null;
-  return (tree) => walk(tree, bibliography);
+  const refs = options?.refs ?? true;
+  return (tree) => walk(tree, bibliography, refs);
 }

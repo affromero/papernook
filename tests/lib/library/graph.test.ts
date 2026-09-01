@@ -271,6 +271,64 @@ describe("library graph citation edges", () => {
     ]);
   });
 
+  it("prefers a reader-scanned bibliography.json over the text heuristic", async () => {
+    await placePaper(
+      "nlp",
+      "attention",
+      "Attention Is All You Need",
+      "Body.\n\nReferences\n\n[1] Nothing relevant.",
+    );
+    // The citing paper's text.txt bibliography names nothing; only the
+    // scanned bibliography.json carries the real entry.
+    await placePaper(
+      "nlp",
+      "citer",
+      "A Citing Paper",
+      "Body.\n\nReferences\n\n[1] Nothing relevant.",
+    );
+    const store = await import("@/lib/library/bibliography/store");
+    store.writeBibliography("nlp", "citer", {
+      style: "numbered",
+      entries: [
+        {
+          pageNumber: 9,
+          x: 40,
+          y: 700,
+          text: "[1] Vaswani, A., et al. Attention is all you need. NeurIPS 2017.",
+          surname: "Vaswani",
+          year: "2017",
+          suffix: null,
+          number: 1,
+        },
+      ],
+    });
+    const { buildLibraryGraph } = await import("@/lib/library/graph");
+    expect(citesEdges(buildLibraryGraph())).toEqual([
+      "paper:citer->paper:attention",
+    ]);
+  });
+
+  it("falls back to the text heuristic when bibliography.json is corrupt", async () => {
+    await placePaper(
+      "nlp",
+      "attention",
+      "Attention Is All You Need",
+      "Body.\n\nReferences\n\n[1] Nothing relevant.",
+    );
+    await placePaper(
+      "nlp",
+      "citer",
+      "A Citing Paper",
+      "Body.\n\nReferences\n\n[1] Vaswani, A. Attention is all you need. NeurIPS 2017.",
+    );
+    const store = await import("@/lib/library/bibliography/store");
+    fs.writeFileSync(store.bibliographyPath("nlp", "citer"), "{not json");
+    const { buildLibraryGraph } = await import("@/lib/library/graph");
+    expect(citesEdges(buildLibraryGraph())).toEqual([
+      "paper:citer->paper:attention",
+    ]);
+  });
+
   it("falls back to the tail of the text when no References heading exists", async () => {
     await placePaper("nlp", "attention", "Attention Is All You Need", "Body.");
     await placePaper(
@@ -289,7 +347,8 @@ describe("library graph citation edges", () => {
 
 describe("bibliographyEntries", () => {
   it("splits on blank lines and numbered markers", async () => {
-    const { bibliographyEntries } = await import("@/lib/library/graph");
+    const { bibliographyEntries } =
+      await import("@/lib/library/bibliography/entries");
     expect(
       bibliographyEntries(
         "\n[1] First entry\ncontinued.\n[2] Second entry.\n\nThird entry.\n12. Fourth entry.",
@@ -303,14 +362,15 @@ describe("bibliographyEntries", () => {
   });
 
   it("falls back to sliding line windows when no separator exists", async () => {
-    const { bibliographyEntries } = await import("@/lib/library/graph");
+    const { bibliographyEntries } =
+      await import("@/lib/library/bibliography/entries");
     expect(bibliographyEntries("a\nb\nc\nd")).toEqual(["a b c", "b c d"]);
     expect(bibliographyEntries("a\nb")).toEqual(["a b"]);
   });
 
   it("caps a runaway marker-less bibliography instead of windowing every line", async () => {
     const { bibliographyEntries, MAX_BIBLIOGRAPHY_ENTRIES } =
-      await import("@/lib/library/graph");
+      await import("@/lib/library/bibliography/entries");
     const lines = Array.from({ length: 20_000 }, (_, i) => `line ${i}`);
     const entries = bibliographyEntries(lines.join("\n"));
     expect(entries).toHaveLength(MAX_BIBLIOGRAPHY_ENTRIES);
@@ -322,7 +382,8 @@ describe("bibliographyEntries", () => {
   });
 
   it("windows each long marker-less chunk on its own, keeping marker entries whole", async () => {
-    const { bibliographyEntries } = await import("@/lib/library/graph");
+    const { bibliographyEntries } =
+      await import("@/lib/library/bibliography/entries");
     expect(
       bibliographyEntries("a\nb\nc\nd\n\f\ne\nf\n\n[1] g\nh\ni\nj"),
     ).toEqual(["a b c", "b c d", "e f", "[1] g\nh\ni\nj"]);
@@ -352,7 +413,8 @@ describe("graph route", () => {
 
 describe("bibliographyText", () => {
   it("slices from the first References heading in the second half", async () => {
-    const { bibliographyText } = await import("@/lib/library/graph");
+    const { bibliographyText } =
+      await import("@/lib/library/bibliography/entries");
     expect(
       bibliographyText(
         "intro\nReferences\nearly mention\n7 References\n[1] real",
@@ -366,7 +428,8 @@ describe("bibliographyText", () => {
   });
 
   it("falls back to the last heading when every heading is in the first half", async () => {
-    const { bibliographyText } = await import("@/lib/library/graph");
+    const { bibliographyText } =
+      await import("@/lib/library/bibliography/entries");
     expect(bibliographyText("Contents\nReferences\n" + "x".repeat(40))).toBe(
       "\n" + "x".repeat(40),
     );

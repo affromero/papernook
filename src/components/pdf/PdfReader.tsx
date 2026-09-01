@@ -17,6 +17,7 @@ import {
   type CSSProperties,
   type PointerEvent,
 } from "react";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { ResolvedPdfDestination } from "@/lib/pdf/destinations";
 import { resolvePdfDocumentTitle } from "@/lib/pdf/title";
 import { usePdfVersionPoll } from "./usePdfVersionPoll";
@@ -43,6 +44,12 @@ import { useSaveOnLeave } from "./useSaveOnLeave";
 
 export type { PdfReaderEditState } from "./usePdfDocument";
 
+/**
+ * The bibliography route reads at most 1MB of body; keep the cache PUT
+ * under that with headroom so it is never silently rejected.
+ */
+const BIBLIOGRAPHY_PUT_MAX_BYTES = 900 * 1024;
+
 interface PdfReaderProps {
   src: string;
   title: string;
@@ -62,6 +69,20 @@ interface PdfReaderProps {
    * (see `readingPositionKey`); omit to always open at the top.
    */
   positionKey?: string;
+  /**
+   * Session-authed per-profile position route
+   * (`/api/v1/papers/<topic>/<slug>/position`); with it the last page and
+   * zoom follow the reader across devices, newest copy winning. Only
+   * signed-in surfaces (paper page, canvas annotator) pass this.
+   */
+  positionEndpoint?: string;
+  /**
+   * PUT the scanned bibliography here once per document open
+   * (`/api/v1/papers/<topic>/<slug>/bibliography`), so readerless surfaces
+   * (the canvas chat) and the library graph can use it. Only the paper page
+   * passes this; viewer/share/canvas readers stay silent.
+   */
+  bibliographyEndpoint?: string;
 }
 
 export function PdfReader({
@@ -75,6 +96,8 @@ export function PdfReader({
   libraryLookup = false,
   chatPrompts = false,
   positionKey,
+  positionEndpoint,
+  bibliographyEndpoint,
 }: PdfReaderProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const referenceAnchorRef = useRef<Pick<Preview, "horizontal" | "top"> | null>(
@@ -84,6 +107,9 @@ export function PdfReader({
   const previewRef = useRef<Preview | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const hoverLinkRef = useRef<HTMLAnchorElement | null>(null);
+  // One PUT per loaded document: a reload (documentGeneration bump, new
+  // src) yields a new proxy and re-publishes; re-renders never re-PUT.
+  const bibliographyPutRef = useRef<PDFDocumentProxy | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const {
@@ -98,6 +124,7 @@ export function PdfReader({
     dirtyRef,
     savingRef,
     restoreViewRef,
+    noteUserMove,
     hoverPreviewRequestedRef,
     bibliographyRef,
     pdfDocument,
@@ -121,6 +148,7 @@ export function PdfReader({
     src,
     editable,
     positionKey,
+    positionEndpoint,
     onEditStateChange,
     onHoverPreview: (target) => showReferencePreview(target, null, null),
   });
@@ -382,6 +410,38 @@ export function PdfReader({
       window.dispatchEvent(
         new CustomEvent(BIBLIOGRAPHY_EVENT, { detail: bibliography }),
       );
+      if (
+        !bibliographyEndpoint ||
+        !pdfDocument ||
+        bibliographyPutRef.current === pdfDocument
+      ) {
+        return;
+      }
+      bibliographyPutRef.current = pdfDocument;
+      // Fire-and-forget cache write; the store schema bounds entry text
+      // and entry count tighter than the in-memory scan. The serialized
+      // body must also fit the route's bounded JSON reader (1MB) or the
+      // PUT 400s silently, so trim trailing entries until it fits.
+      let entries = bibliography.entries.slice(0, 2000).map((entry) => ({
+        ...entry,
+        text: entry.text.slice(0, 1000),
+        surname: entry.surname?.slice(0, 200) ?? null,
+      }));
+      let body = JSON.stringify({ style: bibliography.style, entries });
+      while (
+        entries.length > 0 &&
+        new TextEncoder().encode(body).length > BIBLIOGRAPHY_PUT_MAX_BYTES
+      ) {
+        entries = entries.slice(0, Math.floor(entries.length * 0.9));
+        body = JSON.stringify({ style: bibliography.style, entries });
+      }
+      if (entries.length === 0) return;
+      void fetch(bibliographyEndpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body,
+      }).catch(() => undefined);
     },
   });
 
@@ -456,7 +516,10 @@ export function PdfReader({
         <div className={styles.toolbarGroup}>
           <button
             type="button"
-            onClick={() => pdfViewerRef.current?.previousPage()}
+            onClick={() => {
+              noteUserMove();
+              pdfViewerRef.current?.previousPage();
+            }}
             disabled={pageNumber <= 1}
             aria-label="Previous page"
           >
@@ -468,7 +531,10 @@ export function PdfReader({
           </span>
           <button
             type="button"
-            onClick={() => pdfViewerRef.current?.nextPage()}
+            onClick={() => {
+              noteUserMove();
+              pdfViewerRef.current?.nextPage();
+            }}
             disabled={pageCount === 0 || pageNumber >= pageCount}
             aria-label="Next page"
           >
@@ -527,7 +593,10 @@ export function PdfReader({
         <div className={styles.toolbarGroup}>
           <button
             type="button"
-            onClick={() => pdfViewerRef.current?.decreaseScale()}
+            onClick={() => {
+              noteUserMove();
+              pdfViewerRef.current?.decreaseScale();
+            }}
             aria-label="Zoom out"
           >
             −
@@ -535,7 +604,10 @@ export function PdfReader({
           <span className={styles.zoom}>{zoom}%</span>
           <button
             type="button"
-            onClick={() => pdfViewerRef.current?.increaseScale()}
+            onClick={() => {
+              noteUserMove();
+              pdfViewerRef.current?.increaseScale();
+            }}
             aria-label="Zoom in"
           >
             +

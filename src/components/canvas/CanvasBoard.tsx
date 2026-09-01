@@ -10,6 +10,7 @@ import {
 } from "tldraw";
 import { reconcileStartupMigration } from "@/lib/canvas/startup";
 import { PdfReader, type PdfReaderEditState } from "@/components/pdf/PdfReader";
+import { readingPositionKey } from "@/lib/pdf/view/reading-position";
 import { focusFirstPdfPage, syncPdfPages } from "./pdf-pages";
 import "tldraw/tldraw.css";
 import styles from "./CanvasBoard.module.css";
@@ -18,6 +19,8 @@ export interface CanvasBoardProps {
   topic: string;
   slug: string;
   title: string;
+  /** Active profile; keys the per-profile local reading position. */
+  username: string;
   licenseKey: string | null;
   licenseRequired: boolean;
   licenseError: string | null;
@@ -245,6 +248,7 @@ export function CanvasBoard({
   topic,
   slug,
   title,
+  username,
   licenseKey,
   licenseRequired,
   licenseError,
@@ -711,6 +715,8 @@ export function CanvasBoard({
                 src={`${base}/pdf`}
                 title={title}
                 editable
+                positionKey={readingPositionKey(topic, slug, username)}
+                positionEndpoint={`${base}/position`}
                 onClose={closePdfAnnotator}
                 onEditStateChange={setPdfEditState}
               />

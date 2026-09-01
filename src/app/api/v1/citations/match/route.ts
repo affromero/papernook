@@ -1,21 +1,32 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
-import { consumeRequestLimit } from "@/lib/auth/rate-limit";
+import {
+  consumeRequestLimit,
+  consumeRequestLimitN,
+} from "@/lib/auth/rate-limit";
+import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { normalizeUrl } from "@/lib/capture/normalize";
 import { findPaperByReference } from "@/lib/library/context/reference-match";
-import { findPaperBySource } from "@/lib/library/papers";
+import {
+  findPaperBySource,
+  listInbox,
+  listPapers,
+  type Paper,
+} from "@/lib/library/papers";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Resolve a cited work to a confirmed paper in the library, so a reference
  * popover or a chat sources card can offer "in your library" instead of a
- * web search or a capture. Two lookups, exactly one per request:
+ * web search or a capture. GET takes exactly one lookup per request:
  *  - `q`: a bibliography entry extracted from a PDF's reference list.
  *  - `url`: an arXiv / DOI / publisher link the assistant cited.
- * Inbox papers never match — they are unconfirmed and private to whoever
- * captured them.
+ * POST takes up to twenty `urls` at once so a sources card scrolling into
+ * view costs one round trip instead of one per row; it draws on the same
+ * rate budget, charged per URL. Inbox papers never match — they are
+ * unconfirmed and private to whoever captured them.
  */
 
 const querySchema = z
@@ -33,14 +44,18 @@ interface Match {
   title: string;
 }
 
-function matchByUrl(url: string, username: string): Match | null {
+function matchByUrl(
+  url: string,
+  username: string,
+  pool?: Paper[],
+): Match | null {
   let arxivId: string | null = null;
   try {
     arxivId = normalizeUrl(url).arxivId;
   } catch {
     arxivId = null;
   }
-  const paper = findPaperBySource(url, arxivId, username);
+  const paper = findPaperBySource(url, arxivId, username, pool);
   if (!paper || paper.topic === null) return null;
   return { topic: paper.topic, slug: paper.slug, title: paper.meta.title };
 }
@@ -77,4 +92,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     match = matchByUrl(parsed.data.url ?? "", profile.username);
   }
   return NextResponse.json({ match });
+}
+
+const batchSchema = z
+  .object({
+    urls: z.array(z.string().url().max(2000)).min(1).max(20),
+  })
+  .strict();
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const profile = await activeProfile();
+  if (!profile)
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const parsed = batchSchema.safeParse(await readBoundedJsonOrNull(request));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid references." }, { status: 400 });
+  }
+  // Same key and budget as GET, charged once per URL — but all-or-nothing:
+  // a batch the remaining budget cannot cover is refused without consuming
+  // anything, so a 429 never burns tokens on work that was not performed.
+  const wait = consumeRequestLimitN(
+    `citation-match:${profile.username}`,
+    parsed.data.urls.length,
+    120,
+    10 * 60_000,
+  );
+  if (wait > 0) {
+    return NextResponse.json({ error: "Too many lookups." }, { status: 429 });
+  }
+  // One library walk for the whole batch instead of one per URL.
+  const pool = [...listPapers(), ...listInbox()];
+  const matches = parsed.data.urls.map((url) =>
+    matchByUrl(url, profile.username, pool),
+  );
+  return NextResponse.json({ matches });
 }

@@ -1,0 +1,88 @@
+/* Matches the reader's ReferencePreview: paper-cream card, mono eyebrow. */
+.popover {
+  position: fixed;
+  left: var(--citation-popover-left);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: var(--citation-popover-width);
+  padding: 0.6rem 0.75rem 0.7rem;
+  overflow: hidden;
+  color: #1f2822;
+  background: #f7f3e8;
+  border: 1px solid rgba(31, 40, 34, 0.25);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.34);
+}
+
+.popover:focus-visible {
+  outline: 2px solid #315f4c;
+  outline-offset: 2px;
+}
+
+.below {
+  top: var(--citation-popover-top);
+}
+
+.above {
+  bottom: var(--citation-popover-bottom);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.eyebrow {
+  color: #315f4c;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 1px solid rgba(31, 40, 34, 0.25);
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.entry {
+  margin: 0;
+  max-height: 9.5rem;
+  overflow-y: auto;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.action {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid rgba(31, 40, 34, 0.3);
+  border-radius: 999px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}

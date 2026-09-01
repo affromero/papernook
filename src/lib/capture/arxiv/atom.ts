@@ -9,6 +9,7 @@ import { USER_AGENT } from "../download";
  */
 
 const LOOKUP_TIMEOUT_MS = 10_000;
+const MAX_BODY_BYTES = 1024 * 1024;
 
 /** Thrown when the lookup did not complete: non-2xx, timeout, or network. */
 export class LookupFailedError extends Error {
@@ -31,7 +32,29 @@ export async function fetchText(url: string): Promise<string> {
     throw new LookupFailedError(url, error);
   }
   if (!response.ok) throw new LookupFailedError(url, response.status);
-  return response.text();
+  // Metadata lookups are a few KB; stream with a byte budget so a
+  // misbehaving upstream cannot pin request-handler memory with an
+  // arbitrarily large 200 body.
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    let part: ReadableStreamReadResult<Uint8Array>;
+    try {
+      part = await reader.read();
+    } catch (error) {
+      throw new LookupFailedError(url, error);
+    }
+    if (part.done) break;
+    total += part.value.byteLength;
+    if (total > MAX_BODY_BYTES) {
+      await reader.cancel();
+      throw new LookupFailedError(url, `body over ${MAX_BODY_BYTES} bytes`);
+    }
+    chunks.push(part.value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 export function tagText(xml: string, tag: string): string {

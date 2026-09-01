@@ -104,3 +104,11 @@ repos:
         stages: [pre-push]
         always_run: true
         pass_filenames: false
+
+      - id: test-e2e
+        name: playwright e2e
+        entry: npm run test:e2e
+        language: system
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false

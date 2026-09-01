@@ -17,8 +17,13 @@ import {
   type ChatPromptDetail,
   type PaperRefAction,
 } from "@/lib/chat/paper-ref-events";
-import type { Bibliography } from "@/lib/pdf/bibliography";
+import {
+  matchCitation,
+  type BibEntry,
+  type Bibliography,
+} from "@/lib/pdf/bibliography";
 import { ChatMessages, type ChatMessage } from "./ChatMessages";
+import { CitationPopover } from "./CitationPopover";
 import { HistorySearchDialog, useComposerHistory } from "./ComposerHistory";
 import styles from "./ChatPanel.module.css";
 
@@ -39,6 +44,19 @@ interface ChatPanelProps {
   visionAvailable: boolean;
   /** The page mounts an editable PdfReader that saves answers as notes. */
   marginNotes?: boolean;
+  /**
+   * GET-able server-side bibliography cache for this paper
+   * (`/api/v1/papers/<topic>/<slug>/bibliography`): seeds citation
+   * decorations before — or without — a PdfReader scan. A later
+   * BIBLIOGRAPHY_EVENT always overrides (fresher scan).
+   */
+  bibliographyEndpoint?: string;
+  /**
+   * A PdfReader listens to PAPER_REF_EVENT on this page. Without one,
+   * in-paper refs stay undecorated and citation activations open a local
+   * CitationPopover instead of dispatching into the void.
+   */
+  hasReader?: boolean;
 }
 
 const ACTIVE_CHAT_STORAGE_PREFIX = "papernook:active-chat";
@@ -82,6 +100,8 @@ export function ChatPanel({
   aiAvailable,
   visionAvailable,
   marginNotes = false,
+  bibliographyEndpoint,
+  hasReader = false,
 }: ChatPanelProps) {
   const base = `/api/v1/papers/${topic}/${slug}`;
   const [chats, setChats] = useState<ChatHeader[]>([]);
@@ -95,6 +115,11 @@ export function ChatPanel({
   const [vanishing, setVanishing] = useState<ReadonlySet<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [bibliography, setBibliography] = useState<Bibliography | null>(null);
+  const [citationPopover, setCitationPopover] = useState<{
+    entry: BibEntry;
+    anchor: { top: number; bottom: number; left: number; right: number };
+  } | null>(null);
+  const bibliographyFromEventRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const historyDialogRef = useRef<HTMLDialogElement>(null);
@@ -149,14 +174,9 @@ export function ChatPanel({
   useEffect(() => {
     const onBibliography = (event: Event) => {
       const detail = (event as CustomEvent<unknown>).detail;
-      if (
-        detail &&
-        typeof detail === "object" &&
-        "style" in detail &&
-        "entries" in detail &&
-        Array.isArray((detail as { entries: unknown }).entries)
-      ) {
-        setBibliography(detail as Bibliography);
+      if (isBibliographyShaped(detail)) {
+        bibliographyFromEventRef.current = true;
+        setBibliography(detail);
       }
     };
     window.addEventListener(BIBLIOGRAPHY_EVENT, onBibliography);
@@ -165,6 +185,30 @@ export function ChatPanel({
       clearRefHover();
     };
   }, []);
+
+  // Seed citation decorations from the server-side cache: on the canvas no
+  // reader ever scans, and on the paper page the scan lands seconds after
+  // mount. A scan that already arrived — or arrives later — wins.
+  useEffect(() => {
+    if (!bibliographyEndpoint) return;
+    const controller = new AbortController();
+    void fetch(bibliographyEndpoint, {
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: unknown) => {
+        const cached =
+          data && typeof data === "object" && "bibliography" in data
+            ? (data as { bibliography: unknown }).bibliography
+            : null;
+        if (isBibliographyShaped(cached) && !bibliographyFromEventRef.current) {
+          setBibliography((current) => current ?? cached);
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [bibliographyEndpoint]);
 
   // Other surfaces (a reference popover, a text selection) hand the composer
   // a prompt. The handler closes over the current send(), so it is refreshed
@@ -212,6 +256,27 @@ export function ChatPanel({
     if (!button) return false;
     const detail = detailFromDataset(button.dataset, action);
     if (!detail) return false;
+    // No PdfReader is listening on this page: answer citations locally with
+    // an anchored popover instead of dispatching into the void. Click-only:
+    // the popover is a focus-taking dialog, and opening it from the hover
+    // dwell would steal the caret from the composer mid-sentence.
+    if (!hasReader && "citation" in detail) {
+      if (action === "preview") return false;
+      if (!bibliography) return false;
+      const entry = matchCitation(bibliography, detail.citation);
+      if (!entry) return false;
+      const rect = button.getBoundingClientRect();
+      setCitationPopover({
+        entry,
+        anchor: {
+          top: rect.top,
+          bottom: rect.bottom,
+          left: rect.left,
+          right: rect.right,
+        },
+      });
+      return true;
+    }
     window.dispatchEvent(new CustomEvent(PAPER_REF_EVENT, { detail }));
     return true;
   }
@@ -219,6 +284,7 @@ export function ChatPanel({
   // Same interaction grammar as the PDF's own citation hotspots: mouse
   // dwell (180ms) previews, click commits — navigation for in-paper refs,
   // preview for citations (their click IS the preview, matching the PDF).
+  // Without a reader the dwell is inert; see the dispatchRef diversion.
   function onRefHover(event: PointerEvent<HTMLDivElement>): void {
     if (event.pointerType !== "mouse") return;
     const target = event.target;
@@ -540,6 +606,7 @@ export function ChatPanel({
           busy={busy}
           vanishing={vanishing}
           bibliography={bibliography}
+          paperRefs={hasReader}
           currentOrigin={currentOrigin}
           paperSourceUrl={paperSourceUrl}
           visionAvailable={visionAvailable}
@@ -607,6 +674,15 @@ export function ChatPanel({
         </p>
       )}
 
+      {citationPopover && (
+        <CitationPopover
+          entry={citationPopover.entry}
+          anchor={citationPopover.anchor}
+          chatPrompts={aiAvailable}
+          onClose={() => setCitationPopover(null)}
+        />
+      )}
+
       <HistorySearchDialog
         history={history}
         dialogRef={historyDialogRef}
@@ -614,5 +690,15 @@ export function ChatPanel({
         resultsRef={historyResultsRef}
       />
     </section>
+  );
+}
+
+function isBibliographyShaped(value: unknown): value is Bibliography {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "style" in value &&
+    "entries" in value &&
+    Array.isArray((value as { entries: unknown }).entries)
   );
 }

@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { externalLinkProps } from "@/lib/external-link";
 import {
   collectSources,
+  pendingLookupUrls,
   type Source,
   type SourceKind,
 } from "@/lib/chat/message-sources";
-import { captureInboxHref, useCapture } from "@/components/library/useCapture";
+import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
 import styles from "./MessageSources.module.css";
 
 /**
@@ -43,54 +44,101 @@ type Lookup =
 
 /**
  * Per-URL library lookups are shared by every card that mentions the URL.
- * Only a real answer stays cached: an unavailable result is evicted so the
- * next mount asks again instead of freezing the row for the session.
+ * Only a real answer stays cached: a failed batch evicts its URLs so the
+ * next card (or a remount) asks again instead of freezing the rows for the
+ * session.
  */
 const lookups = new Map<string, Promise<Lookup>>();
 
-function lookupLibrary(url: string): Promise<Lookup> {
-  let pending = lookups.get(url);
-  if (!pending) {
-    pending = fetch(`/api/v1/citations/match?url=${encodeURIComponent(url)}`, {
-      credentials: "same-origin",
-    })
-      .then(async (response): Promise<Lookup> => {
-        if (!response.ok) throw new Error(`lookup ${response.status}`);
-        const data = (await response.json()) as {
-          match?: LibraryMatch | null;
-        };
-        return data.match
-          ? { status: "found", match: data.match }
+/** The route caps a batch at twenty URLs; a longer card sends several. */
+const BATCH_LIMIT = 20;
+
+/**
+ * One POST answers every URL of the batch positionally. The batch promise
+ * is seeded into the cache up front so a second card mounting mid-flight
+ * awaits it instead of re-asking; a settled answer is pinned as resolved,
+ * a failure evicts so retry semantics survive.
+ */
+function batchLookup(urls: string[]): Promise<Map<string, Lookup>> {
+  const batch = fetch("/api/v1/citations/match", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ urls }),
+  })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`lookup ${response.status}`);
+      const data = (await response.json()) as {
+        matches?: (LibraryMatch | null)[];
+      };
+      const results = new Map<string, Lookup>();
+      urls.forEach((url, index) => {
+        const match = data.matches?.[index] ?? null;
+        const lookup: Lookup = match
+          ? { status: "found", match }
           : { status: "absent" };
-      })
-      .catch((): Lookup => {
-        lookups.delete(url);
-        return { status: "unavailable" };
+        results.set(url, lookup);
+        lookups.set(url, Promise.resolve(lookup));
       });
-    lookups.set(url, pending);
+      return results;
+    })
+    .catch(() => {
+      const results = new Map<string, Lookup>();
+      for (const url of urls) {
+        lookups.delete(url);
+        results.set(url, { status: "unavailable" });
+      }
+      return results;
+    });
+  for (const url of urls) {
+    lookups.set(
+      url,
+      batch.then((results) => results.get(url) ?? { status: "unavailable" }),
+    );
   }
-  return pending;
+  return batch;
 }
 
 /**
- * `undefined` until the card has scrolled into view and the lookup has
- * answered: a long chat with dozens of sourced answers would otherwise
- * spend the shared match budget on rows nobody has looked at yet. The row
- * is keyed by URL, so a different source mounts a fresh instance.
+ * `undefined` per URL until the card has scrolled into view and the batch
+ * has answered: a long chat with dozens of sourced answers would otherwise
+ * spend the shared match budget on rows nobody has looked at yet.
  */
-function useLibraryLookup(url: string, visible: boolean): Lookup | undefined {
-  const [lookup, setLookup] = useState<Lookup | undefined>(undefined);
+function useLibraryLookups(
+  sources: readonly Source[],
+  visible: boolean,
+): ReadonlyMap<string, Lookup> {
+  const [byUrl, setByUrl] = useState<ReadonlyMap<string, Lookup>>(
+    () => new Map(),
+  );
   useEffect(() => {
     if (!visible) return;
     let disposed = false;
-    lookupLibrary(url).then((found) => {
-      if (!disposed) setLookup(found);
-    });
+    const apply = (results: ReadonlyMap<string, Lookup>): void => {
+      if (disposed || results.size === 0) return;
+      setByUrl((previous) => {
+        const next = new Map(previous);
+        for (const [url, lookup] of results) next.set(url, lookup);
+        return next;
+      });
+    };
+    // Snapshot pending before touching the cache: everything already cached
+    // (settled or another card's in-flight batch) is awaited as-is.
+    const pending = pendingLookupUrls(sources, new Set(lookups.keys()));
+    for (const source of sources) {
+      const cached = lookups.get(source.url);
+      if (cached) {
+        void cached.then((lookup) => apply(new Map([[source.url, lookup]])));
+      }
+    }
+    for (let start = 0; start < pending.length; start += BATCH_LIMIT) {
+      void batchLookup(pending.slice(start, start + BATCH_LIMIT)).then(apply);
+    }
     return () => {
       disposed = true;
     };
-  }, [url, visible]);
-  return lookup;
+  }, [sources, visible]);
+  return byUrl;
 }
 
 /** True once the element has entered the viewport; stays true afterwards. */
@@ -112,40 +160,14 @@ function useSeen<T extends Element>(): [RefObject<T | null>, boolean] {
   return [ref, seen];
 }
 
-function AddToLibrary({ url }: { url: string }) {
-  const { state, start } = useCapture(url);
-  if (state.status === "added") {
-    return (
-      <a className={styles.added} href={captureInboxHref(state.finalSlug)}>
-        Added ✓ · review in Inbox
-      </a>
-    );
-  }
-  if (state.status === "adding") {
-    return (
-      <span className={styles.adding} role="status">
-        <span className={styles.spinner} aria-hidden="true" />
-        Adding…
-      </span>
-    );
-  }
-  return (
-    <span className={styles.actionGroup}>
-      <button type="button" className={styles.addBtn} onClick={start}>
-        {state.status === "failed" ? "Retry" : "+ Add to library"}
-      </button>
-      {state.status === "failed" && (
-        <span className={styles.failed} role="alert" title={state.error}>
-          Failed · {state.error}
-        </span>
-      )}
-    </span>
-  );
-}
-
 /** Papers only (arXiv / DOI): library membership, else a one-tap capture. */
-function LibraryAction({ url, visible }: { url: string; visible: boolean }) {
-  const lookup = useLibraryLookup(url, visible);
+function LibraryAction({
+  url,
+  lookup,
+}: {
+  url: string;
+  lookup: Lookup | undefined;
+}) {
   if (lookup === undefined) {
     return <span className={styles.checking}>Checking library…</span>;
   }
@@ -171,7 +193,7 @@ function LibraryAction({ url, visible }: { url: string; visible: boolean }) {
       </a>
     );
   }
-  return <AddToLibrary url={url} />;
+  return <AddToLibraryButton url={url} />;
 }
 
 function isPaperLink(source: Source): boolean {
@@ -195,6 +217,7 @@ export function MessageSources({
     [content, paperSourceUrl, currentOrigin],
   );
   const [rootRef, seen] = useSeen<HTMLElement>();
+  const lookupByUrl = useLibraryLookups(sources, seen);
   if (sources.length === 0) return null;
   return (
     <aside
@@ -221,7 +244,10 @@ export function MessageSources({
             </span>
             {isPaperLink(source) && (
               <span className={styles.action}>
-                <LibraryAction url={source.url} visible={seen} />
+                <LibraryAction
+                  url={source.url}
+                  lookup={lookupByUrl.get(source.url)}
+                />
               </span>
             )}
           </li>

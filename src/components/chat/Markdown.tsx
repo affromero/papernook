@@ -79,6 +79,7 @@ export function Markdown({
   highlightCode = true,
   copyCode = true,
   decorateRefs = false,
+  paperRefs = true,
   bibliography = null,
   currentOrigin,
   paperSourceUrl,
@@ -89,6 +90,9 @@ export function Markdown({
   highlightCode?: boolean;
   copyCode?: boolean;
   decorateRefs?: boolean;
+  /** Decorate in-paper locators ("Figure 3"); off where no PdfReader can
+   * answer them. Citations decorate whenever a bibliography exists. */
+  paperRefs?: boolean;
   bibliography?: Bibliography | null;
   currentOrigin?: string;
   paperSourceUrl?: string;
@@ -97,8 +101,8 @@ export function Markdown({
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
   const rehypePlugins: Options["rehypePlugins"] = [rehypeKatex];
-  if (decorateRefs) {
-    rehypePlugins.push([rehypePaperRefs, { bibliography }]);
+  if (decorateRefs && (paperRefs || bibliography)) {
+    rehypePlugins.push([rehypePaperRefs, { bibliography, refs: paperRefs }]);
   }
   if (highlightCode) {
     rehypePlugins.push([

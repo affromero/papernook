@@ -110,6 +110,17 @@ describe("rehypePaperRefs", () => {
     expect(buttons(tree)).toHaveLength(0);
   });
 
+  it("skips in-paper refs when refs is false but still decorates citations", () => {
+    const tree = paragraph("See Figure 3 and [20].");
+    rehypePaperRefs({ bibliography: numberedBibliography, refs: false })(tree);
+    const all = buttons(tree);
+    expect(all).toHaveLength(1);
+    expect(all[0]!.properties?.dataCitation).toBe(
+      JSON.stringify({ kind: "numeric", number: 20 }),
+    );
+    expect(textOf(tree)).toBe("See Figure 3 and [20].");
+  });
+
   it("never rewrites code or katex subtrees", () => {
     const tree: HastNode = {
       type: "root",

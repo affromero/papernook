@@ -1,17 +1,23 @@
-import { decodeXml, fetchText, tagText } from "@/lib/capture/arxiv/atom";
+import {
+  decodeXml,
+  fetchText,
+  LookupFailedError,
+  tagText,
+} from "@/lib/capture/arxiv/atom";
 import { referenceMentionsTitle, significantWords } from "./reference-match";
 
 /**
  * Turn a bibliography entry's text into a URL the capture pipeline can
  * ingest. Cheap and exact first — an arXiv id, a DOI, or a printed link in
- * the entry itself — then one arXiv title search whose hit must literally
- * contain the entry's title words (the same conservative rule that gates
- * "in your library"): a wrong paper landing in the inbox is worse than none.
+ * the entry itself — then one arXiv title search, then one Crossref
+ * bibliographic search; either hit must literally contain the entry's
+ * title words (the same conservative rule that gates "in your library"):
+ * a wrong paper landing in the inbox is worse than none.
  */
 
 export interface ResolvedReference {
   url: string;
-  /** Only known when the arXiv search supplied it; regex hits carry none. */
+  /** Only known when a title search supplied it; regex hits carry none. */
   title: string | null;
 }
 
@@ -91,6 +97,63 @@ async function searchArxivByTitle(
   return null;
 }
 
+async function searchCrossrefByTitle(
+  text: string,
+): Promise<ResolvedReference | null> {
+  const title = titleGuess(text);
+  if (!title) return null;
+  const url = `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(title)}&rows=3`;
+  const body = await fetchText(url);
+  let items: unknown;
+  try {
+    items = (JSON.parse(body) as { message?: { items?: unknown } }).message
+      ?.items;
+  } catch (error) {
+    // A 200 that is not JSON (proxy interstitial, CDN error page) is an
+    // incomplete lookup, not a miss: throwing keeps it out of the cache so
+    // the reader can retry once the real API answers again.
+    throw new LookupFailedError(url, error);
+  }
+  if (!Array.isArray(items)) return null;
+  for (const item of items) {
+    if (typeof item !== "object" || item === null) continue;
+    const { DOI: doi, title: titles } = item as {
+      DOI?: unknown;
+      title?: unknown;
+    };
+    const hitTitle = Array.isArray(titles) ? titles[0] : undefined;
+    if (typeof doi !== "string" || typeof hitTitle !== "string") continue;
+    if (!referenceMentionsTitle(text, hitTitle)) continue;
+    // Legacy DOIs may contain characters a URL cannot carry bare
+    // (SICI-style `<`, `>`, and even `#` or `?`): encode every path
+    // segment so the DOI survives intact into the capture pipeline.
+    const encoded = doi.split("/").map(encodeURIComponent).join("/");
+    return { url: `https://doi.org/${encoded}`, title: hitTitle };
+  }
+  return null;
+}
+
+/**
+ * arXiv first (its abs page feeds the capture pipeline a free PDF),
+ * Crossref second. A source's `LookupFailedError` is tolerated only when
+ * the other source finds the paper; any throw that may have hidden a hit
+ * — Crossref failing after an arXiv miss, arXiv failing with no Crossref
+ * hit, both failing — propagates so nothing gets cached as a miss.
+ */
+async function searchByTitle(text: string): Promise<ResolvedReference | null> {
+  let arxivFailure: unknown = null;
+  try {
+    const hit = await searchArxivByTitle(text);
+    if (hit) return hit;
+  } catch (error) {
+    arxivFailure = error;
+  }
+  const crossref = await searchCrossrefByTitle(text);
+  if (crossref) return crossref;
+  if (arxivFailure !== null) throw arxivFailure;
+  return null;
+}
+
 /**
  * Bounded memo of every settled outcome, genuine misses included: a reader
  * hovers the same few citations repeatedly, and arXiv asks for at most one
@@ -125,5 +188,5 @@ export async function resolveReferenceUrl(
   if (cached !== undefined) return cached;
   const direct = referenceUrlFromText(key);
   if (direct) return remember(key, { url: direct, title: null });
-  return remember(key, await searchArxivByTitle(key));
+  return remember(key, await searchByTitle(key));
 }

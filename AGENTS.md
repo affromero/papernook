@@ -44,23 +44,24 @@ Architecture diagram (code-accurate) in README.md.
 
 ## Layout
 
-| Where              | What                                                                                                                        |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/library/` | papers, chats, index-db, scanner, slug, exercises, expand, chat-context, graph, citations/, context/, pdf/                  |
-| `src/lib/agent/`   | provider registry, CLI/API/OpenAI-compatible local clients, attachments (images per transport), web/ tool loop              |
-| `src/lib/capture/` | normalize (URL matrix), download (polite fetch), analyze (agent filing), discover (related work), jobs/, zotero             |
-| `src/lib/auth/`    | users (profiles on disk), session (HMAC cookies), gate (instance password + invites), rate-limit, request-security, avatars |
-| `src/lib/canvas/`  | tldraw license config and startup checks for the per-paper canvas                                                           |
-| `src/app/add/`     | token-authed capture endpoint + logged-out HTML confirmation pages                                                          |
-| `src/app/api/v1/`  | session-authed JSON APIs (Zod-validated inputs)                                                                             |
-| `src/components/`  | CSS Modules only; no Tailwind, no inline styles                                                                             |
+| Where              | What                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/library/` | papers, chats, index-db, scanner, slug, exercises, expand, chat-context, graph, bibliography/, positions/, citations/, context/, pdf/ |
+| `src/lib/agent/`   | provider registry, CLI/API/OpenAI-compatible local clients, attachments (images per transport), web/ tool loop                        |
+| `src/lib/capture/` | normalize (URL matrix), download (polite fetch), analyze (agent filing), discover (related work), jobs/, zotero                       |
+| `src/lib/auth/`    | users (profiles on disk), session (HMAC cookies), gate (instance password + invites), rate-limit, request-security, avatars           |
+| `src/lib/canvas/`  | tldraw license config and startup checks for the per-paper canvas                                                                     |
+| `src/app/add/`     | token-authed capture endpoint + logged-out HTML confirmation pages                                                                    |
+| `src/app/api/v1/`  | session-authed JSON APIs (Zod-validated inputs)                                                                                       |
+| `src/components/`  | CSS Modules only; no Tailwind, no inline styles                                                                                       |
 
 ## Commands
 
 ```bash
 npm run dev            # local dev
 npm run ci             # lint + typecheck + vitest + build (run before every commit)
-pre-commit install --install-hooks   # two-tier gate (commit: hygiene+lint+tsc; push: test+build)
+pre-commit install --install-hooks   # two-tier gate (commit: hygiene+lint+tsc; push: test+build+e2e)
+npx playwright install --with-deps chromium webkit   # e2e prerequisite; the push gate adds ~1-2 min and needs port 3107 free
 ```
 
 ## Rules

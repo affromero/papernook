@@ -64,6 +64,7 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
             topic={topic}
             slug={slug}
             title={paper.meta.title}
+            username={profile.username}
             licenseKey={licenseKey}
             licenseRequired={tldrawLicenseRequired(protocol, hostname)}
             licenseError={licenseError}
@@ -80,6 +81,7 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
               paperSourceUrl={paper.meta.sourceUrl ?? undefined}
               aiAvailable={aiAvailable}
               visionAvailable={visionAvailable}
+              bibliographyEndpoint={`/api/v1/papers/${topic}/${slug}/bibliography`}
             />
           </div>
         }
