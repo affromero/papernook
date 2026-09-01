@@ -17,7 +17,7 @@ import type { Bibliography } from "@/lib/pdf/bibliography";
 const BIBLIOGRAPHY_FILE = "bibliography.json";
 
 /** Stored entry text is truncated client-side before the PUT. */
-export const MAX_STORED_ENTRY_TEXT = 400;
+export const MAX_STORED_ENTRY_TEXT = 1000;
 export const MAX_STORED_ENTRIES = 2000;
 
 const entrySchema = z

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { isValidSlug } from "@/lib/library/slug";
 import { activeProfile } from "@/lib/auth/session";
 import { consumeRequestLimit } from "@/lib/auth/rate-limit";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
@@ -22,8 +23,8 @@ export const dynamic = "force-dynamic";
 
 const paramsSchema = z
   .object({
-    topic: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
-    slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
+    topic: z.string().refine(isValidSlug),
+    slug: z.string().refine(isValidSlug),
   })
   .strict();
 
@@ -65,7 +66,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Too many writes." }, { status: 429 });
   }
   const body = bibliographySchema.safeParse(
-    await readBoundedJsonOrNull(request, 1024 * 1024),
+    await readBoundedJsonOrNull(request, 4 * 1024 * 1024),
   );
   if (!body.success) {
     return NextResponse.json(

@@ -424,7 +424,7 @@ export function PdfReader({
       // PUT 400s silently, so trim trailing entries until it fits.
       let entries = bibliography.entries.slice(0, 2000).map((entry) => ({
         ...entry,
-        text: entry.text.slice(0, 400),
+        text: entry.text.slice(0, 1000),
         surname: entry.surname?.slice(0, 200) ?? null,
       }));
       let body = JSON.stringify({ style: bibliography.style, entries });

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { isValidSlug } from "@/lib/library/slug";
 import { activeProfile } from "@/lib/auth/session";
 import { consumeRequestLimit } from "@/lib/auth/rate-limit";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
@@ -21,8 +22,8 @@ export const dynamic = "force-dynamic";
 
 const paramsSchema = z
   .object({
-    topic: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
-    slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
+    topic: z.string().refine(isValidSlug),
+    slug: z.string().refine(isValidSlug),
   })
   .strict();
 
