@@ -24,7 +24,14 @@ import {
   type PdfAutosaveCoordinator,
 } from "@/lib/pdf/autosave";
 import type { Bibliography } from "@/lib/pdf/bibliography";
+import {
+  parseReadingPosition,
+  serializeReadingPosition,
+  type ReadingPosition,
+} from "@/lib/pdf/view/reading-position";
 import type { ViewerEventBus } from "./useCitationHotspots";
+
+const READING_POSITION_WRITE_DELAY_MS = 500;
 
 export interface PdfReaderEditState {
   dirty: boolean;
@@ -62,6 +69,25 @@ function errorMessage(payload: unknown, fallback: string): string {
   return fallback;
 }
 
+// localStorage throws in private browsing on some engines and when site
+// data is blocked; a remembered position is a convenience, never worth a
+// broken reader, so both directions swallow storage failures.
+function readStoredReadingPosition(key: string): ReadingPosition | null {
+  try {
+    return parseReadingPosition(window.localStorage.getItem(key));
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredReadingPosition(key: string, position: ReadingPosition) {
+  try {
+    window.localStorage.setItem(key, serializeReadingPosition(position));
+  } catch {
+    // Nothing to recover: the next visit simply starts at page 1.
+  }
+}
+
 function uiManagerFromEvent(event: unknown): AnnotationEditorUIManager | null {
   if (
     event &&
@@ -78,6 +104,12 @@ function uiManagerFromEvent(event: unknown): AnnotationEditorUIManager | null {
 interface UsePdfDocumentOptions {
   src: string;
   editable: boolean;
+  /**
+   * localStorage key under which the last page and zoom are remembered and
+   * restored on the next open. Omitted on surfaces (share links, the
+   * viewer) that should always start from the top.
+   */
+  positionKey?: string;
   onEditStateChange?(state: PdfReaderEditState): void;
   /**
    * Receives the destination of an internal link clicked while
@@ -137,6 +169,7 @@ export interface PdfDocumentHandle {
 export function usePdfDocument({
   src,
   editable,
+  positionKey,
   onEditStateChange,
   onHoverPreview,
 }: UsePdfDocumentOptions): PdfDocumentHandle {
@@ -187,6 +220,7 @@ export function usePdfDocument({
     let disposed = false;
     let loadingTask: PDFDocumentLoadingTask | null = null;
     let viewerCleanup: (() => void) | null = null;
+    let positionWriteTimer: ReturnType<typeof setTimeout> | null = null;
     const abortController = new AbortController();
 
     void (async () => {
@@ -240,13 +274,41 @@ export function usePdfDocument({
         };
         setViewerBus(eventBus);
 
+        // Page and zoom are written together, so a stored position is
+        // always a pair the viewer actually showed. Debounced: the wheel and
+        // pinch fire scalechanging dozens of times a second.
+        const flushReadingPosition = () => {
+          positionWriteTimer = null;
+          if (!positionKey || pdfViewer.pagesCount === 0) return;
+          writeStoredReadingPosition(positionKey, {
+            page: pdfViewer.currentPageNumber,
+            scale: pdfViewer.currentScale,
+          });
+        };
+        const scheduleReadingPositionWrite = () => {
+          if (!positionKey) return;
+          if (positionWriteTimer !== null) clearTimeout(positionWriteTimer);
+          positionWriteTimer = setTimeout(
+            flushReadingPosition,
+            READING_POSITION_WRITE_DELAY_MS,
+          );
+        };
         const onPagesInit = () => {
           const restore = restoreViewRef.current;
           restoreViewRef.current = null;
+          const stored = positionKey
+            ? readStoredReadingPosition(positionKey)
+            : null;
           if (restore) {
             pdfViewer.currentScale = restore.scale;
             pdfViewer.currentPageNumber = Math.min(
               restore.page,
+              pdfViewer.pagesCount,
+            );
+          } else if (stored) {
+            pdfViewer.currentScale = stored.scale;
+            pdfViewer.currentPageNumber = Math.min(
+              stored.page,
               pdfViewer.pagesCount,
             );
           } else {
@@ -262,6 +324,7 @@ export function usePdfDocument({
             typeof event.pageNumber === "number"
           ) {
             setPageNumber(event.pageNumber);
+            scheduleReadingPositionWrite();
           }
         };
         const onScaleChanging = (event: unknown) => {
@@ -272,6 +335,7 @@ export function usePdfDocument({
             typeof event.scale === "number"
           ) {
             setZoom(Math.round(event.scale * 100));
+            scheduleReadingPositionWrite();
           }
         };
         const onAnnotationEditorReady = (event: unknown) => {
@@ -317,6 +381,18 @@ export function usePdfDocument({
         eventBus.on("scalechanging", onScaleChanging);
         eventBus.on("annotationeditoruimanager", onAnnotationEditorReady);
         eventBus.on("switchannotationeditormode", onSwitchAnnotationEditorMode);
+        // A hard reload, tab close, or bfcache eviction skips React's effect
+        // cleanup, so a move made inside the debounce window would be lost
+        // without this.
+        window.addEventListener(
+          "pagehide",
+          () => {
+            if (positionWriteTimer === null) return;
+            clearTimeout(positionWriteTimer);
+            flushReadingPosition();
+          },
+          { signal: abortController.signal },
+        );
 
         // The document is left to pdf.js so it can stream: awaiting a full
         // arrayBuffer() here would hold the first page hostage to the last
@@ -471,6 +547,12 @@ export function usePdfDocument({
         pdfViewer.setDocument(document);
 
         viewerCleanup = () => {
+          // Leaving within the debounce window (tap a page, hit back) must
+          // not lose the last move; write it now instead of never.
+          if (positionWriteTimer !== null) {
+            clearTimeout(positionWriteTimer);
+            flushReadingPosition();
+          }
           eventBus.off("pagesinit", onPagesInit);
           eventBus.off("pagechanging", onPageChanging);
           eventBus.off("scalechanging", onScaleChanging);
@@ -519,7 +601,7 @@ export function usePdfDocument({
       setEditorReady(false);
       void loadingTask?.destroy();
     };
-  }, [editable, src, documentGeneration]);
+  }, [editable, positionKey, src, documentGeneration]);
 
   return {
     containerRef,

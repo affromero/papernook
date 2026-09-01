@@ -10,7 +10,13 @@ import {
   Type as TypeIcon,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+} from "react";
 import type { ResolvedPdfDestination } from "@/lib/pdf/destinations";
 import { resolvePdfDocumentTitle } from "@/lib/pdf/title";
 import { usePdfVersionPoll } from "./usePdfVersionPoll";
@@ -18,7 +24,12 @@ import "pdfjs-dist/web/pdf_viewer.css";
 import styles from "./PdfReader.module.css";
 import { ReferencePreview, type Preview } from "./ReferencePreview";
 import { PREVIEW_GAP, placePreview } from "./placePreview";
-import { BIBLIOGRAPHY_EVENT } from "@/lib/chat/paper-ref-events";
+import {
+  BIBLIOGRAPHY_EVENT,
+  requestChatPrompt,
+} from "@/lib/chat/paper-ref-events";
+import { selectionPrompt } from "./selection/selectionAsk";
+import { useTextSelectionAsk } from "./selection/useTextSelectionAsk";
 import { useCitationHotspots } from "./useCitationHotspots";
 import { usePaperRefBridge } from "./usePaperRefBridge";
 import {
@@ -26,6 +37,7 @@ import {
   type EditMode,
   type PdfReaderEditState,
 } from "./usePdfDocument";
+import { useMarginNotes } from "./notes/useMarginNotes";
 import { usePinchZoom } from "./usePinchZoom";
 import { useSaveOnLeave } from "./useSaveOnLeave";
 
@@ -43,6 +55,13 @@ interface PdfReaderProps {
   onDocumentTitle?(title: string): void;
   /** Let reference previews query the library (signed-in surfaces only). */
   libraryLookup?: boolean;
+  /** Let reference previews hand prompts to a mounted chat composer. */
+  chatPrompts?: boolean;
+  /**
+   * localStorage key that remembers the last page and zoom for this paper
+   * (see `readingPositionKey`); omit to always open at the top.
+   */
+  positionKey?: string;
 }
 
 export function PdfReader({
@@ -54,6 +73,8 @@ export function PdfReader({
   onEditStateChange,
   onDocumentTitle,
   libraryLookup = false,
+  chatPrompts = false,
+  positionKey,
 }: PdfReaderProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const referenceAnchorRef = useRef<Pick<Preview, "horizontal" | "top"> | null>(
@@ -72,6 +93,7 @@ export function PdfReader({
     etagRef,
     editorTypesRef,
     autosaveRef,
+    uiManagerRef,
     pendingPenRef,
     dirtyRef,
     savingRef,
@@ -98,6 +120,7 @@ export function PdfReader({
   } = usePdfDocument({
     src,
     editable,
+    positionKey,
     onEditStateChange,
     onHoverPreview: (target) => showReferencePreview(target, null, null),
   });
@@ -125,7 +148,34 @@ export function PdfReader({
 
   useSaveOnLeave(editable, dirtyRef, autosaveRef);
 
+  useMarginNotes({
+    pdfDocument,
+    editable,
+    pdfViewerRef,
+    uiManagerRef,
+    autosaveRef,
+    restoreViewRef,
+    remoteUpdate,
+    setEditMode,
+    setSaveStatus,
+    setDocumentGeneration,
+  });
+
   usePinchZoom(stageRef, pdfViewerRef, pencilMode);
+
+  // Read-only readers have no edit mode, yet their text layer is just as
+  // selectable; only the ink/highlight tools of an editable reader hide it.
+  const { selection, clear: clearSelectionAsk } = useTextSelectionAsk(
+    stageRef,
+    chatPrompts && (!editable || editMode === "select"),
+  );
+
+  function askAboutSelection(): void {
+    if (!selection) return;
+    requestChatPrompt(selectionPrompt(selection.text, selection.page));
+    window.getSelection()?.removeAllRanges();
+    clearSelectionAsk();
+  }
 
   usePdfVersionPoll({
     enabled: editable && !!pdfDocument && !remoteUpdate,
@@ -285,6 +335,7 @@ export function PdfReader({
     target: ResolvedPdfDestination,
     entryText: string | null,
     at: { clientX: number; clientY: number } | null,
+    ref?: Preview["ref"],
   ): void {
     const container = containerRef.current;
     if (!container) return;
@@ -313,6 +364,7 @@ export function PdfReader({
     const nextPreview = {
       destination: target,
       ...(entryText === null ? {} : { entryText }),
+      ...(ref ? { ref } : {}),
       ...anchor,
     };
     previewRef.current = nextPreview;
@@ -349,13 +401,14 @@ export function PdfReader({
           : {}),
       });
     },
-    onPreview: (target, entryText) => {
+    onPreview: (target, entryText, ref) => {
       // Chat events have no pointer position; use the chat-adjacent corner.
       const stage = stageRef.current?.getBoundingClientRect();
       showReferencePreview(
         target,
         entryText,
         stage ? { clientX: stage.right, clientY: stage.bottom } : null,
+        ref ?? undefined,
       );
     },
   });
@@ -557,11 +610,31 @@ export function PdfReader({
             </p>
           )}
         </div>
+        {selection && (
+          <button
+            data-selection-ask
+            className={styles.selectionAsk}
+            style={
+              {
+                "--ask-top": `${selection.top}px`,
+                "--ask-left": `${selection.left}px`,
+              } as CSSProperties
+            }
+            type="button"
+            // Cancelling pointerdown keeps the text selection alive until
+            // click fires; a plain press would collapse it and unmount us.
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={askAboutSelection}
+          >
+            Ask about selection
+          </button>
+        )}
         {preview && pdfDocument && (
           <ReferencePreview
             document={pdfDocument}
             preview={preview}
             libraryLookup={libraryLookup}
+            chatPrompts={chatPrompts}
             onClose={closePreview}
           />
         )}

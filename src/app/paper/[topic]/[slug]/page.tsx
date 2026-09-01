@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
+import { readingPositionKey } from "@/lib/pdf/view/reading-position";
 import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
@@ -52,6 +53,8 @@ export default async function PaperPage({ params }: PaperPageProps) {
             title={meta.title}
             editable
             libraryLookup
+            chatPrompts={aiAvailable}
+            positionKey={readingPositionKey(topic, slug)}
           />
         }
         chat={
@@ -64,6 +67,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
               paperSourceUrl={meta.sourceUrl ?? undefined}
               aiAvailable={aiAvailable}
               visionAvailable={visionAvailable}
+              marginNotes
             />
           </div>
         }
