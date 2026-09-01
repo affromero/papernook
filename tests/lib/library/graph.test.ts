@@ -308,6 +308,19 @@ describe("bibliographyEntries", () => {
     expect(bibliographyEntries("a\nb")).toEqual(["a b"]);
   });
 
+  it("caps a runaway marker-less bibliography instead of windowing every line", async () => {
+    const { bibliographyEntries, MAX_BIBLIOGRAPHY_ENTRIES } =
+      await import("@/lib/library/graph");
+    const lines = Array.from({ length: 20_000 }, (_, i) => `line ${i}`);
+    const entries = bibliographyEntries(lines.join("\n"));
+    expect(entries).toHaveLength(MAX_BIBLIOGRAPHY_ENTRIES);
+    expect(entries[0]).toBe("line 0 line 1 line 2");
+    const numbered = Array.from({ length: 3_000 }, (_, i) => `[${i}] entry`);
+    expect(bibliographyEntries(numbered.join("\n"))).toHaveLength(
+      MAX_BIBLIOGRAPHY_ENTRIES,
+    );
+  });
+
   it("windows each long marker-less chunk on its own, keeping marker entries whole", async () => {
     const { bibliographyEntries } = await import("@/lib/library/graph");
     expect(

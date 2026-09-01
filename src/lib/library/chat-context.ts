@@ -15,6 +15,22 @@ import type { VerifiedRepositorySource } from "../github-source";
 
 const MAX_TEXT_CHARS = 50_000;
 const HEAD_WINDOW_CHARS = 12_000;
+const REFERENCE_TAIL_CHARS = 12_000;
+const REFERENCES_HEADING_RE = /\n\s*(References|Bibliography)\s*\n/gi;
+
+/**
+ * The reference list of a truncated paper, from its last "References" /
+ * "Bibliography" heading past the head window, so the bracket numbers and
+ * author-year citations the model copies stay resolvable in the reader.
+ */
+function referenceTail(text: string): string | null {
+  let start = -1;
+  for (const match of text.matchAll(REFERENCES_HEADING_RE)) {
+    if (match.index >= HEAD_WINDOW_CHARS) start = match.index;
+  }
+  if (start < 0) return null;
+  return text.slice(start, start + REFERENCE_TAIL_CHARS).trim();
+}
 
 function textWindow(
   paper: Paper,
@@ -30,9 +46,14 @@ function textWindow(
         .sort((a, b) => a.start - b.start)
     : [];
   let assembled = `${head}\n[...text truncated...]`;
+  const references = referenceTail(text);
+  const referenceBlock = references
+    ? `\n\nReference list (retrieved so citations stay resolvable):\n${references}`
+    : "";
   if (retrieved.length > 0) {
     const excerpts: string[] = [];
-    let budget = MAX_TEXT_CHARS - assembled.length - 200;
+    let budget =
+      MAX_TEXT_CHARS - assembled.length - referenceBlock.length - 200;
     for (const chunk of retrieved) {
       if (chunk.body.length > budget) continue;
       excerpts.push(chunk.body);
@@ -44,7 +65,7 @@ function textWindow(
         excerpts.join("\n[…]\n");
     }
   }
-  return assembled;
+  return assembled + referenceBlock;
 }
 
 export async function buildChatSystem(
@@ -95,6 +116,11 @@ export async function buildChatSystem(
       'Write every locator in a group in full so each remains independently navigable: use "Figure 2, Figure 3, and Figure 4", never "Figures 2–4" or "Figures 2 and 3".',
       "Use the paper's own printed numbering only; never invent a locator. If the supplied paper text does not let you verify an exact locator, explicitly say that the location could not be verified instead of substituting a generic paper link.",
       "External links remain appropriate for genuinely external material such as repository code or another cited work, but they do not replace the current paper's in-document locators.",
+    ].join(" "),
+    [
+      "When a claim rests on prior or related work, cite it exactly as the paper prints its inline citations — the same bracket number `[12]` or author-year form `(Smith et al., 2020)` copied verbatim from the paper text, never renumbered or paraphrased — and name the cited work in prose.",
+      "Papernook resolves those verbatim citations to the paper's reference list, so never use bracket numbers for anything that is not one of the paper's own citations.",
+      "For genuinely external works the paper does not cite, give the title and a descriptive Markdown link to its arXiv, DOI, or publisher page (only a verified URL), never a bare bracket number.",
     ].join(" "),
     "Honor the user's requested depth and scope. When they ask for all, full, complete, exhaustive, thorough, or an equivalent comprehensive treatment, cover the entire requested scope systematically, perform a completeness pass before answering, and identify any part you could not verify; do not silently reduce the request to representative examples or highlights.",
     allowWeb

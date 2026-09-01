@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import { listPapers, readText, textPath, type Paper } from "./papers";
 import {
+  titleCited,
   tokenizeReference,
-  titleWordsIn,
+  tokenizeTitle,
   type ReferenceTokens,
 } from "./context/reference-match";
 
@@ -59,6 +60,16 @@ export function bibliographyText(text: string): string {
 const ENTRY_MARKER = /^\s*(?:\[\d+\]|\d{1,3}\.)\s/;
 const ENTRY_BOUNDARY = /\n\s*\n|\n(?=\s*(?:\[\d+\]|\d{1,3}\.)\s)/;
 const WINDOW_LINES = 3;
+/**
+ * Bounds on what one paper contributes: the graph is built synchronously
+ * per request over every paper, and any signed-in user can capture an
+ * arbitrary PDF, so the text after a "References" heading must never be
+ * allowed to turn into a hundred thousand windows held in memory and
+ * scanned against every title. Real reference lists are a few hundred
+ * entries in well under 200k characters.
+ */
+export const MAX_BIBLIOGRAPHY_CHARS = 200_000;
+export const MAX_BIBLIOGRAPHY_ENTRIES = 2_000;
 
 /**
  * Split a bibliography into its entries so a title must occur within ONE
@@ -67,26 +78,35 @@ const WINDOW_LINES = 3;
  * breaks). A marker-less chunk longer than a single wrapped entry (an
  * author-year list between two page breaks) is replaced by windows of a few
  * consecutive lines so a wrapped title still lands in one chunk while words
- * from different entries do not.
+ * from different entries do not. Stops after MAX_BIBLIOGRAPHY_ENTRIES.
  */
 export function bibliographyEntries(refText: string): string[] {
-  return refText
-    .split(ENTRY_BOUNDARY)
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .flatMap((entry) =>
-      ENTRY_MARKER.test(entry) ? [entry] : lineWindows(entry),
-    );
+  const entries: string[] = [];
+  for (const raw of refText
+    .slice(0, MAX_BIBLIOGRAPHY_CHARS)
+    .split(ENTRY_BOUNDARY)) {
+    const entry = raw.trim();
+    if (!entry) continue;
+    const room = MAX_BIBLIOGRAPHY_ENTRIES - entries.length;
+    if (room <= 0) break;
+    const chunk = ENTRY_MARKER.test(entry) ? [entry] : lineWindows(entry, room);
+    entries.push(...chunk);
+  }
+  return entries;
 }
 
-function lineWindows(chunk: string): string[] {
+function lineWindows(chunk: string, limit: number): string[] {
   const lines = chunk
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
   if (lines.length <= WINDOW_LINES) return [lines.join(" ")];
   const windows: string[] = [];
-  for (let i = 0; i + WINDOW_LINES <= lines.length; i++) {
+  for (
+    let i = 0;
+    i + WINDOW_LINES <= lines.length && windows.length < limit;
+    i++
+  ) {
     windows.push(lines.slice(i, i + WINDOW_LINES).join(" "));
   }
   return windows;
@@ -126,22 +146,24 @@ function bibliographyTokens(paper: Paper): ReferenceTokens[] {
 function citationEdges(papers: Paper[]): GraphEdge[] {
   const edges: GraphEdge[] = [];
   const live = new Set<string>();
+  const titles = papers.map((paper) => tokenizeTitle(paper.meta.title));
   // ponytail: O(n²) title scan over a personal library; index bibliography
   // text in SQLite if libraries pass ~1k papers.
   for (const paper of papers) {
     live.add(textPath(paper.topic, paper.slug));
     const entries = bibliographyTokens(paper);
     if (entries.length === 0) continue;
-    for (const other of papers) {
-      if (other.slug === paper.slug) continue;
-      if (entries.some((tokens) => titleWordsIn(tokens, other.meta.title))) {
+    papers.forEach((other, index) => {
+      if (other.slug === paper.slug) return;
+      const title = titles[index];
+      if (entries.some((tokens) => titleCited(tokens, title))) {
         edges.push({
           source: `paper:${paper.slug}`,
           target: `paper:${other.slug}`,
           kind: "cites",
         });
       }
-    }
+    });
   }
   for (const key of bibliographyCache.keys()) {
     if (!live.has(key)) bibliographyCache.delete(key);

@@ -102,6 +102,28 @@ describe("findPaperByReference", () => {
       ),
     ).toBeNull();
   });
+
+  it("matches a short title by word overlap even when the entry reorders it", async () => {
+    await placePaper("cv", "fast-robust", "Fast Robust Estimation", "text");
+    await placePaper("ml", "deep", "Deep Learning", "text");
+    const { rebuildIndex } = await import("@/lib/library/index-db");
+    rebuildIndex();
+    const { findPaperByReference } =
+      await import("@/lib/library/context/reference-match");
+    expect(
+      findPaperByReference(
+        "Doe, A. Robust and fast estimation of homographies. IJCV (2011)",
+      )?.slug,
+    ).toBe("fast-robust");
+    expect(
+      findPaperByReference(
+        "LeCun, Y., Bengio, Y., Hinton, G. Deep learning. Nature 521 (2015)",
+      )?.slug,
+    ).toBe("deep");
+    expect(
+      findPaperByReference("Smith, J. A robust estimator for lines. (2001)"),
+    ).toBeNull();
+  });
 });
 
 describe("citations match route", () => {

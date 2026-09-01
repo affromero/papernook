@@ -25,32 +25,57 @@ export function tokenizeReference(text: string): ReferenceTokens {
   return { words: new Set(words), phrase: ` ${words.join(" ")} ` };
 }
 
+/** The tokenized title of ONE paper, built once and tested against many entries. */
+export interface TitleTokens {
+  words: string[];
+  /** Significant words in reading order, space-delimited on both ends. */
+  phrase: string;
+}
+
+export function tokenizeTitle(title: string): TitleTokens {
+  const words = significantWords(title);
+  return { words, phrase: ` ${words.join(" ")} ` };
+}
+
+/**
+ * True when at least 80% of the title's significant words appear anywhere
+ * in the reference entry. Titles with fewer than two significant words
+ * never match: a single common word is not evidence of a citation.
+ */
+export function titleOverlaps(
+  tokens: ReferenceTokens,
+  title: TitleTokens,
+): boolean {
+  if (title.words.length < 2) return false;
+  const present = title.words.filter((word) => tokens.words.has(word));
+  return present.length / title.words.length >= 0.8;
+}
+
 /** Titles this short are only evidence as an exact ordered phrase, not as a bag of words. */
 const PHRASE_ONLY_BELOW = 4;
 
 /**
- * True when the title occurs in the reference entry: for titles with fewer
- * than four significant words, as the exact ordered phrase ("Deep Learning"
- * would otherwise match every entry about deep learning); for longer titles,
- * when at least 80% of their significant words are present. Titles with
- * fewer than two significant words never match: a single common word is not
- * evidence of a citation.
+ * The stricter rule the library graph draws `cites` edges with: a title of
+ * fewer than four significant words must occur as the exact ordered phrase
+ * ("Deep Learning" would otherwise match every entry about deep learning);
+ * longer titles fall back to the overlap rule.
  */
-export function titleWordsIn(tokens: ReferenceTokens, title: string): boolean {
-  const titleWords = significantWords(title);
-  if (titleWords.length < 2) return false;
-  if (titleWords.length < PHRASE_ONLY_BELOW) {
-    return tokens.phrase.includes(` ${titleWords.join(" ")} `);
+export function titleCited(
+  tokens: ReferenceTokens,
+  title: TitleTokens,
+): boolean {
+  if (title.words.length < 2) return false;
+  if (title.words.length < PHRASE_ONLY_BELOW) {
+    return tokens.phrase.includes(title.phrase);
   }
-  const present = titleWords.filter((word) => tokens.words.has(word));
-  return present.length / titleWords.length >= 0.8;
+  return titleOverlaps(tokens, title);
 }
 
 export function referenceMentionsTitle(
   reference: string,
   title: string,
 ): boolean {
-  return titleWordsIn(tokenizeReference(reference), title);
+  return titleOverlaps(tokenizeReference(reference), tokenizeTitle(title));
 }
 
 export function findPaperByReference(reference: string): IndexedPaper | null {
@@ -60,7 +85,7 @@ export function findPaperByReference(reference: string): IndexedPaper | null {
   const tokens = tokenizeReference(reference);
   for (const candidate of allIndexed()) {
     if (candidate.topic === null) continue; // never link unconfirmed captures
-    if (titleWordsIn(tokens, candidate.title)) return candidate;
+    if (titleOverlaps(tokens, tokenizeTitle(candidate.title))) return candidate;
   }
   return null;
 }
