@@ -288,15 +288,17 @@ export function ReferencePreview({
   const mappingRef = useRef<CropMapping | null>(null);
   const [status, setStatus] = useState("Loading reference…");
   // Keyed by destination so a stale lookup never renders for a new target —
-  // no reset-in-effect needed.
+  // no reset-in-effect needed. Unset for the current key = lookup pending:
+  // the header shows "Checking library…" instead of flashing AddToLibrary.
   const [libraryMatch, setLibraryMatch] = useState<{
     key: string;
     match: LibraryMatch | null;
   } | null>(null);
   const { destination, ref } = preview;
   const destinationKey = `${destination.pageNumber}:${destination.left}:${destination.top}`;
-  const currentMatch =
-    libraryMatch?.key === destinationKey ? libraryMatch.match : null;
+  const settledLookup =
+    libraryMatch?.key === destinationKey ? libraryMatch : null;
+  const currentMatch = settledLookup?.match ?? null;
 
   // Safari kills window.open issued after an await (outside the click's
   // gesture), so open the tab synchronously and point it at the search once
@@ -381,6 +383,14 @@ export function ReferencePreview({
   useEffect(() => {
     let disposed = false;
     let renderTask: RenderTask | null = null;
+    // Every terminal path must settle the lookup for this key (match or
+    // null): an unsettled key keeps "Checking library…" up forever.
+    const settle = (match: LibraryMatch | null) => {
+      if (!disposed) setLibraryMatch({ key: destinationKey, match });
+    };
+    const settleWithoutLookup = () => {
+      if (libraryLookup && !ref) settle(null);
+    };
 
     void (async () => {
       try {
@@ -388,7 +398,10 @@ export function ReferencePreview({
         if (disposed) return;
         const canvas = canvasRef.current;
         const context = canvas?.getContext("2d");
-        if (!canvas || !context) return;
+        if (!canvas || !context) {
+          settleWithoutLookup();
+          return;
+        }
 
         const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
         // Fit the full text column into the preview width so bibliography
@@ -410,7 +423,10 @@ export function ReferencePreview({
           source.width = Math.ceil(viewport.width);
           source.height = Math.ceil(viewport.height);
           const sourceContext = source.getContext("2d");
-          if (!sourceContext) return;
+          if (!sourceContext) {
+            settleWithoutLookup();
+            return;
+          }
           renderTask = page.render({
             canvas: source,
             canvasContext: sourceContext,
@@ -514,47 +530,50 @@ export function ReferencePreview({
         // caption is not a citation, so in-paper locators skip this).
         const { left, top } = destination;
         const entryText = preview.entryText;
-        if (
-          libraryLookup &&
-          !ref &&
-          (entryText || (left !== null && top !== null))
-        ) {
-          void (async () => {
-            const reference =
-              entryText ??
-              referenceTextAtPoint(
-                await pageTextChunks(document, destination.pageNumber),
-                { x: (left ?? 0) + 15, y: (top ?? 0) - 6 },
-                base.width,
-              );
-            // The match API requires 12-400 chars.
-            if (!reference || reference.length < 12 || disposed) return;
-            const query = reference.slice(0, 400);
-            let cache = libraryMatchCache.get(document);
-            if (!cache) {
-              cache = new Map();
-              libraryMatchCache.set(document, cache);
-            }
-            let match = cache.get(query);
-            if (match === undefined) {
-              const response = await fetch(
-                `/api/v1/citations/match?q=${encodeURIComponent(query)}`,
-                { credentials: "same-origin" },
-              );
-              if (!response.ok || disposed) return;
-              const data = (await response.json()) as {
-                match: LibraryMatch | null;
-              };
-              match = data.match;
-              cache.set(query, match);
-            }
-            if (!disposed) {
-              setLibraryMatch({
-                key: `${destination.pageNumber}:${left}:${top}`,
-                match,
-              });
-            }
-          })().catch(() => undefined);
+        if (libraryLookup && !ref) {
+          if (entryText || (left !== null && top !== null)) {
+            void (async () => {
+              const reference =
+                entryText ??
+                referenceTextAtPoint(
+                  await pageTextChunks(document, destination.pageNumber),
+                  { x: (left ?? 0) + 15, y: (top ?? 0) - 6 },
+                  base.width,
+                );
+              // The match API requires 12-400 chars.
+              if (!reference || reference.length < 12) {
+                settle(null);
+                return;
+              }
+              if (disposed) return;
+              const query = reference.slice(0, 400);
+              let cache = libraryMatchCache.get(document);
+              if (!cache) {
+                cache = new Map();
+                libraryMatchCache.set(document, cache);
+              }
+              let match = cache.get(query);
+              if (match === undefined) {
+                const response = await fetch(
+                  `/api/v1/citations/match?q=${encodeURIComponent(query)}`,
+                  { credentials: "same-origin" },
+                );
+                if (disposed) return;
+                if (!response.ok) {
+                  settle(null);
+                  return;
+                }
+                const data = (await response.json()) as {
+                  match: LibraryMatch | null;
+                };
+                match = data.match;
+                cache.set(query, match);
+              }
+              settle(match);
+            })().catch(() => settle(null));
+          } else {
+            settle(null);
+          }
         }
       } catch (error) {
         if (
@@ -563,6 +582,9 @@ export function ReferencePreview({
             error.name !== "RenderingCancelledException")
         ) {
           setStatus("This reference preview could not be rendered.");
+          // The lookup never ran (or died with the render); settle it so
+          // the header falls back to AddToLibrary instead of "Checking…".
+          settleWithoutLookup();
         }
       }
     })();
@@ -571,7 +593,14 @@ export function ReferencePreview({
       disposed = true;
       renderTask?.cancel();
     };
-  }, [destination, document, libraryLookup, preview.entryText, ref]);
+  }, [
+    destination,
+    destinationKey,
+    document,
+    libraryLookup,
+    preview.entryText,
+    ref,
+  ]);
 
   return (
     <aside
@@ -606,7 +635,12 @@ export function ReferencePreview({
             In your library
           </a>
         )}
-        {libraryLookup && !ref && !currentMatch && (
+        {libraryLookup && !ref && !settledLookup && (
+          <span className={styles.previewChecking} role="status">
+            Checking library…
+          </span>
+        )}
+        {libraryLookup && !ref && settledLookup && !currentMatch && (
           <AddToLibrary key={destinationKey} resolveEntry={resolveEntry} />
         )}
         {!ref && (

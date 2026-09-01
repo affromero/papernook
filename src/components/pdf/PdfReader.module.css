@@ -307,6 +307,15 @@
   opacity: 0.6;
 }
 
+/* Library lookup in flight: muted so it reads as transient, not an action. */
+.previewChecking {
+  color: #315f4c;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0.55;
+}
+
 .previewActionState {
   display: inline-flex;
   align-items: center;
