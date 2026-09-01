@@ -117,3 +117,27 @@
   display: inline-flex;
   align-items: center;
 }
+
+.sectionTitle {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+  opacity: 0.85;
+}
+
+.entryText {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.82rem;
+  opacity: 0.75;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.citedByLink {
+  color: inherit;
+}
+
+.citedByLink:hover {
+  opacity: 0.8;
+}
