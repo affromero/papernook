@@ -293,6 +293,167 @@ describe("citations match route by url", () => {
   });
 });
 
+describe("citations match route batched", () => {
+  async function placeSource(
+    topic: string,
+    slug: string,
+    title: string,
+    sourceUrl: string,
+    arxivId: string | null,
+  ): Promise<void> {
+    const papers = await import("@/lib/library/papers");
+    papers.writeMeta(topic, slug, { ...meta(title), sourceUrl, arxivId });
+    papers.writeText(topic, slug, "");
+    const pdf = papers.pdfPath(topic, slug);
+    fs.mkdirSync(path.dirname(pdf), { recursive: true });
+    fs.writeFileSync(pdf, "%PDF-1.4");
+  }
+
+  const postMatch = (body: unknown) =>
+    new NextRequest("http://localhost/api/v1/citations/match", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("answers every URL of a batch positionally", async () => {
+    await placeSource(
+      "ml",
+      "splatting",
+      "3D Gaussian Splatting",
+      "https://arxiv.org/abs/2308.04079",
+      "2308.04079v1",
+    );
+    await placeSource(
+      "ml",
+      "nerf-book",
+      "Neural Fields",
+      "https://publisher.example/article/42",
+      null,
+    );
+    signedIn(true);
+    const route = await import("@/app/api/v1/citations/match/route");
+    const response = await route.POST(
+      postMatch({
+        urls: [
+          "https://arxiv.org/pdf/2308.04079v2",
+          "https://arxiv.org/abs/1706.03762",
+          "https://publisher.example/article/42",
+        ],
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      matches: [
+        {
+          topic: "ml",
+          slug: "splatting",
+          title: "3D Gaussian Splatting",
+        },
+        null,
+        { topic: "ml", slug: "nerf-book", title: "Neural Fields" },
+      ],
+    });
+  });
+
+  it("rejects malformed, oversized, and anonymous batches", async () => {
+    signedIn(true);
+    const route = await import("@/app/api/v1/citations/match/route");
+    expect((await route.POST(postMatch({ urls: [] }))).status).toBe(400);
+    expect(
+      (
+        await route.POST(
+          postMatch({
+            urls: Array.from(
+              { length: 21 },
+              (_, i) => `https://example.org/p/${i}`,
+            ),
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    expect((await route.POST(postMatch({ urls: ["not-a-url"] }))).status).toBe(
+      400,
+    );
+    expect(
+      (
+        await route.POST(
+          postMatch({ urls: ["https://example.org/p"], extra: true }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await route.POST(
+          new NextRequest("http://localhost/api/v1/citations/match", {
+            method: "POST",
+            body: "not json",
+          }),
+        )
+      ).status,
+    ).toBe(400);
+
+    signedIn(false);
+    vi.resetModules();
+    const anonymous = await import("@/app/api/v1/citations/match/route");
+    expect(
+      (await anonymous.POST(postMatch({ urls: ["https://example.org/p"] })))
+        .status,
+    ).toBe(401);
+  });
+
+  it("refuses a batch it cannot afford without burning the remainder", async () => {
+    signedIn(true);
+    const route = await import("@/app/api/v1/citations/match/route");
+    const urls = Array.from(
+      { length: 20 },
+      (_, i) => `https://example.org/p/${i}`,
+    );
+    // Five full batches and 19 singles leave one token of the 120.
+    for (let i = 0; i < 5; i++) {
+      expect((await route.POST(postMatch({ urls }))).status).toBe(200);
+    }
+    expect(
+      (await route.POST(postMatch({ urls: urls.slice(0, 19) }))).status,
+    ).toBe(200);
+    // A two-URL batch does not fit — refused whole, consuming nothing…
+    expect(
+      (await route.POST(postMatch({ urls: urls.slice(0, 2) }))).status,
+    ).toBe(429);
+    // …so the last affordable lookup still succeeds afterwards.
+    expect(
+      (await route.POST(postMatch({ urls: urls.slice(0, 1) }))).status,
+    ).toBe(200);
+  });
+
+  it("charges the shared lookup budget once per URL", async () => {
+    signedIn(true);
+    const route = await import("@/app/api/v1/citations/match/route");
+    const urls = Array.from(
+      { length: 20 },
+      (_, i) => `https://example.org/p/${i}`,
+    );
+    // 120 lookups per ten minutes: six full batches drain the budget.
+    for (let i = 0; i < 6; i++) {
+      expect((await route.POST(postMatch({ urls }))).status).toBe(200);
+    }
+    expect(
+      (await route.POST(postMatch({ urls: ["https://example.org/one-more"] })))
+        .status,
+    ).toBe(429);
+    // The single-URL GET draws on the same budget.
+    expect(
+      (
+        await route.GET(
+          new NextRequest(
+            `http://localhost/api/v1/citations/match?url=${encodeURIComponent("https://example.org/p/0")}`,
+          ),
+        )
+      ).status,
+    ).toBe(429);
+  });
+});
+
 describe("citations resolve route", () => {
   const resolveUrl = (query: string) =>
     new NextRequest(`http://localhost/api/v1/citations/resolve?${query}`);
@@ -302,7 +463,13 @@ describe("citations resolve route", () => {
   });
 
   it("resolves an entry to a capturable URL for signed-in readers only", async () => {
-    vi.stubGlobal("fetch", async () => new Response("<feed></feed>"));
+    // Answer each upstream in its own dialect: an empty arXiv Atom feed and
+    // an empty Crossref JSON page are both clean misses.
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) =>
+      String(input).includes("api.crossref.org")
+        ? new Response(JSON.stringify({ message: { items: [] } }))
+        : new Response("<feed></feed>"),
+    );
     signedIn(true);
     const route = await import("@/app/api/v1/citations/resolve/route");
     const hit = await route.GET(

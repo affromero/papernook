@@ -190,6 +190,16 @@ describe("paper CRUD on disk", () => {
         "ana",
       ),
     ).toBeNull();
+    // A caller-supplied pool is the whole search space: matching against an
+    // empty snapshot finds nothing even though the paper exists on disk.
+    expect(
+      lib.findPaperBySource(
+        "https://arxiv.org/abs/1706.03762",
+        null,
+        "andres",
+        [],
+      ),
+    ).toBeNull();
   });
 
   it("only lets the capture owner discard an inbox paper", async () => {

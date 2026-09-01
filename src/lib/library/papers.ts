@@ -335,16 +335,21 @@ function unversionedArxivId(value: string | null | undefined): string | null {
   return value?.replace(/v\d+$/i, "") ?? null;
 }
 
-/** Find an existing confirmed or pending capture by stable source identity. */
+/**
+ * Find an existing confirmed or pending capture by stable source identity.
+ * Callers matching many URLs pass a pre-listed `pool` so the library tree
+ * is walked once, not once per lookup.
+ */
 export function findPaperBySource(
   sourceUrl: string,
   arxivId?: string | null,
   username?: string,
+  pool?: Paper[],
 ): Paper | null {
   const wantedArxiv = unversionedArxivId(arxivId);
   const wantedUrl = canonicalSourceUrl(sourceUrl);
   return (
-    [...listPapers(), ...listInbox()].find((paper) => {
+    (pool ?? [...listPapers(), ...listInbox()]).find((paper) => {
       if (paper.topic === null && paper.meta.addedBy !== username) return false;
       const paperArxiv = unversionedArxivId(paper.meta.arxivId);
       if (wantedArxiv && paperArxiv) return wantedArxiv === paperArxiv;

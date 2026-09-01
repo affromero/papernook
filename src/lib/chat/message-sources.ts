@@ -139,6 +139,24 @@ function cleanTitle(raw: string): string {
     : text;
 }
 
+/**
+ * URLs a sources card still needs a library answer for: paper links (arXiv /
+ * DOI) whose lookup is not already cached, deduplicated in first-appearance
+ * order so one batched request covers the whole card.
+ */
+export function pendingLookupUrls(
+  sources: readonly Source[],
+  cachedKeys: ReadonlySet<string>,
+): string[] {
+  const pending: string[] = [];
+  for (const source of sources) {
+    if (source.kind !== "arxiv" && source.kind !== "doi") continue;
+    if (cachedKeys.has(source.url) || pending.includes(source.url)) continue;
+    pending.push(source.url);
+  }
+  return pending;
+}
+
 const MARKDOWN_LINK_RE =
   /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)(?:\s+"[^"\n]*")?\)/g;
 const BARE_URL_RE = /https?:\/\/[^\s<>()[\]]+(?:\([^\s()]*\))?[^\s<>()[\]]*/g;

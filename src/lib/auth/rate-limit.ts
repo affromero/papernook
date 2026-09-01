@@ -51,18 +51,21 @@ function bucket(key: string): Bucket {
   return b;
 }
 
+function pruneWindows(windowMs: number, now: number): void {
+  if (windows.size <= MAX_TRACKED) return;
+  for (const [candidate, value] of windows) {
+    if (value.startedAt + windowMs <= now) windows.delete(candidate);
+  }
+  if (windows.size > MAX_TRACKED) evictOldest(windows);
+}
+
 export function consumeRequestLimit(
   key: string,
   limit: number,
   windowMs: number,
   now = Date.now(),
 ): number {
-  if (windows.size > MAX_TRACKED) {
-    for (const [candidate, value] of windows) {
-      if (value.startedAt + windowMs <= now) windows.delete(candidate);
-    }
-    if (windows.size > MAX_TRACKED) evictOldest(windows);
-  }
+  pruneWindows(windowMs, now);
   const current = windows.get(key);
   if (!current || current.startedAt + windowMs <= now) {
     windows.set(key, { startedAt: now, count: 1 });
@@ -70,6 +73,30 @@ export function consumeRequestLimit(
   }
   current.count += 1;
   return current.count > limit ? current.startedAt + windowMs - now : 0;
+}
+
+/**
+ * Charge `n` requests against the window all-or-nothing: either every one
+ * fits and all are consumed, or none are and the retry wait is returned.
+ * Keeps a rejected batch from burning the budget of work never performed.
+ */
+export function consumeRequestLimitN(
+  key: string,
+  n: number,
+  limit: number,
+  windowMs: number,
+  now = Date.now(),
+): number {
+  pruneWindows(windowMs, now);
+  const current = windows.get(key);
+  if (!current || current.startedAt + windowMs <= now) {
+    if (n > limit) return windowMs;
+    windows.set(key, { startedAt: now, count: n });
+    return 0;
+  }
+  if (current.count + n > limit) return current.startedAt + windowMs - now;
+  current.count += n;
+  return 0;
 }
 
 /** Milliseconds until the key may try again; 0 when allowed now. */

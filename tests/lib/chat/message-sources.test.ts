@@ -5,6 +5,7 @@ import {
   collectSources,
   linksToCurrentPaper,
   normalizedPaperIdentity,
+  pendingLookupUrls,
 } from "@/lib/chat/message-sources";
 import { MessageSources } from "@/components/chat/MessageSources";
 
@@ -94,6 +95,47 @@ describe("collectSources", () => {
         "[Paper](/paper/ml/attention) [Section](#details) [mail](mailto:a@b.c)",
       ),
     ).toEqual([]);
+  });
+});
+
+describe("pendingLookupUrls", () => {
+  it("lists only paper links that have no cached lookup, in order", () => {
+    const sources = collectSources(
+      [
+        "Builds on [Splatting](https://arxiv.org/abs/2308.04079),",
+        "[the follow-up](https://doi.org/10.1145/3592433),",
+        "[repo](https://github.com/org/repo), and",
+        "[a write-up](https://example.org/blog/post).",
+      ].join(" "),
+    );
+    expect(pendingLookupUrls(sources, new Set())).toEqual([
+      "https://arxiv.org/abs/2308.04079",
+      "https://doi.org/10.1145/3592433",
+    ]);
+    expect(
+      pendingLookupUrls(sources, new Set(["https://arxiv.org/abs/2308.04079"])),
+    ).toEqual(["https://doi.org/10.1145/3592433"]);
+    expect(
+      pendingLookupUrls(
+        sources,
+        new Set([
+          "https://arxiv.org/abs/2308.04079",
+          "https://doi.org/10.1145/3592433",
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("never asks for the same URL twice in one batch", () => {
+    const source = {
+      url: "https://arxiv.org/abs/2308.04079",
+      title: "Splatting",
+      kind: "arxiv" as const,
+      host: "arxiv.org",
+    };
+    expect(pendingLookupUrls([source, { ...source }], new Set())).toEqual([
+      "https://arxiv.org/abs/2308.04079",
+    ]);
   });
 });
 
