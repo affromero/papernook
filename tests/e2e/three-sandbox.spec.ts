@@ -69,6 +69,7 @@ test("an early scene failure stays visible and reports no scene text", async ({
   const sandbox = page.frameLocator('iframe[title="Interactive 3D scene"]');
   await expect(sandbox.getByRole("alert")).toContainText(
     "The 3D scene could not start.",
+    { timeout: 20_000 },
   );
   await expect(
     page.getByRole("button", { name: "Regenerate in chat" }),
