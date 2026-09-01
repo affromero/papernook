@@ -189,12 +189,13 @@ export function writeSummary(
   fs.writeFileSync(path.join(dir, SUMMARY_FILE), summary);
 }
 
+export function textPath(topic: string | null, slug: string): string {
+  return path.join(companionDir(topic, slug), TEXT_FILE);
+}
+
 export function readText(topic: string | null, slug: string): string | null {
   try {
-    return fs.readFileSync(
-      path.join(companionDir(topic, slug), TEXT_FILE),
-      "utf8",
-    );
+    return fs.readFileSync(textPath(topic, slug), "utf8");
   } catch {
     return null;
   }
@@ -205,9 +206,9 @@ export function writeText(
   slug: string,
   text: string,
 ): void {
-  const dir = companionDir(topic, slug);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, TEXT_FILE), text);
+  const file = textPath(topic, slug);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text);
 }
 
 /**
