@@ -5,6 +5,7 @@ import { getPaper } from "@/lib/library/papers";
 import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
+import { CopySourceLinkButton } from "@/components/paper/CopySourceLinkButton";
 import { PaperHeader } from "@/components/paper/PaperHeader";
 import { CanvasClient } from "./CanvasClient";
 import {
@@ -54,6 +55,9 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
             meta={paper.meta}
             view="canvas"
           />
+        }
+        collapsedHeaderActions={
+          <CopySourceLinkButton sourceUrl={paper.meta.sourceUrl} />
         }
         main={
           <CanvasClient

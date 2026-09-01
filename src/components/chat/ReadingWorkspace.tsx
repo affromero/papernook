@@ -10,6 +10,8 @@ interface ReadingWorkspaceProps {
   mainLabel: string;
   /** Page chrome (title, breadcrumbs) the header toggle can hide. */
   header?: ReactNode;
+  /** Header actions that must stay reachable while the header is hidden. */
+  collapsedHeaderActions?: ReactNode;
 }
 
 const CHAT_VISIBILITY_KEY = "papernook:reading-chat-visible";
@@ -77,6 +79,7 @@ export function ReadingWorkspace({
   chat,
   mainLabel,
   header,
+  collapsedHeaderActions,
 }: ReadingWorkspaceProps) {
   const chatVisible = useSyncExternalStore(
     subscribe,
@@ -245,6 +248,11 @@ export function ReadingWorkspace({
         >
           {chat}
         </aside>
+        {header && !headerVisible && collapsedHeaderActions && (
+          <div className={styles.collapsedActions}>
+            {collapsedHeaderActions}
+          </div>
+        )}
         <div className={styles.toggleRow}>
           {header && (
             <button

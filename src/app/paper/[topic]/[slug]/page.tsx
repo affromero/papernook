@@ -6,6 +6,7 @@ import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
 import { PdfReader } from "@/components/pdf/PdfReader";
+import { CopySourceLinkButton } from "@/components/paper/CopySourceLinkButton";
 import { PaperHeader } from "@/components/paper/PaperHeader";
 import styles from "./paper.module.css";
 
@@ -41,6 +42,9 @@ export default async function PaperPage({ params }: PaperPageProps) {
         mainLabel="Paper PDF"
         header={
           <PaperHeader topic={topic} slug={slug} meta={meta} view="reader" />
+        }
+        collapsedHeaderActions={
+          <CopySourceLinkButton sourceUrl={meta.sourceUrl} />
         }
         main={
           <PdfReader
