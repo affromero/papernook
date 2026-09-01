@@ -1,0 +1,140 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import {
+  collectSources,
+  linksToCurrentPaper,
+  normalizedPaperIdentity,
+} from "@/lib/chat/message-sources";
+import { MessageSources } from "@/components/chat/MessageSources";
+
+describe("collectSources", () => {
+  it("lists Markdown links and bare URLs in order, classified by host", () => {
+    const sources = collectSources(
+      [
+        "Builds on [3D Gaussian Splatting](https://arxiv.org/abs/2308.04079) and",
+        "the follow-up at https://doi.org/10.1145/3592433.",
+        "Code: [repo](https://github.com/graphdeco-inria/gaussian-splatting).",
+        "See also https://example.org/blog/post (a write-up).",
+      ].join(" "),
+    );
+    expect(sources.map((s) => [s.kind, s.title, s.host])).toEqual([
+      ["arxiv", "3D Gaussian Splatting", "arxiv.org"],
+      ["github", "repo", "github.com"],
+      ["doi", "doi:10.1145/3592433", "doi.org"],
+      ["web", "example.org/blog/post", "example.org"],
+    ]);
+    expect(sources[2].url).toBe("https://doi.org/10.1145/3592433");
+    expect(sources[3].url).toBe("https://example.org/blog/post");
+  });
+
+  it("collapses the same work linked several ways and keeps the titled mention", () => {
+    const sources = collectSources(
+      [
+        "https://arxiv.org/pdf/2308.04079v2",
+        "[Gaussian Splatting](https://arxiv.org/abs/2308.04079)",
+        "https://www.arxiv.org/abs/2308.04079/",
+      ].join("\n"),
+    );
+    expect(sources).toHaveLength(1);
+    expect(sources[0].title).toBe("Gaussian Splatting");
+    expect(sources[0].kind).toBe("arxiv");
+  });
+
+  it("drops links back to the open paper", () => {
+    const sources = collectSources(
+      "[This paper](https://arxiv.org/pdf/1706.03762.pdf) cites [BERT](https://arxiv.org/abs/1810.04805).",
+      "https://arxiv.org/abs/1706.03762",
+    );
+    expect(sources.map((s) => s.title)).toEqual(["BERT"]);
+  });
+
+  it("ignores URLs inside fenced and inline code", () => {
+    const sources = collectSources(
+      [
+        "Fetch it with `curl https://api.example.com/v1` first.",
+        "```python",
+        'requests.get("https://arxiv.org/abs/2308.04079")',
+        "```",
+        "Then read [the docs](https://docs.example.com/guide).",
+      ].join("\n"),
+    );
+    expect(sources.map((s) => s.url)).toEqual([
+      "https://docs.example.com/guide",
+    ]);
+  });
+
+  it("does not list embedded images as sources", () => {
+    const sources = collectSources(
+      [
+        "![Figure 2](https://cdn.example.org/figure.png) shows the split;",
+        "compare ![](https://arxiv.org/html/2308.04079/x1.png) with",
+        "[the paper](https://arxiv.org/abs/2308.04079).",
+      ].join(" "),
+    );
+    expect(sources.map((s) => s.url)).toEqual([
+      "https://arxiv.org/abs/2308.04079",
+    ]);
+  });
+
+  it("returns nothing for relative links and non-web schemes", () => {
+    expect(
+      collectSources(
+        "[Paper](/paper/ml/attention) [Section](#details) [mail](mailto:a@b.c)",
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("paper identity", () => {
+  it("treats abs, pdf, and versioned arXiv URLs as the same paper", () => {
+    expect(normalizedPaperIdentity("https://arxiv.org/abs/2512.06818v3")).toBe(
+      "arxiv:2512.06818",
+    );
+    expect(
+      linksToCurrentPaper(
+        "https://arxiv.org/pdf/2512.06818.pdf",
+        "https://arxiv.org/abs/2512.06818",
+      ),
+    ).toBe(true);
+    expect(
+      linksToCurrentPaper(
+        "https://arxiv.org/abs/2512.06819",
+        "https://arxiv.org/abs/2512.06818",
+      ),
+    ).toBe(false);
+    expect(normalizedPaperIdentity("javascript:alert(1)")).toBeNull();
+  });
+});
+
+describe("MessageSources card", () => {
+  it("renders badges, hardened external links, and hosts for cited works", () => {
+    const html = renderToStaticMarkup(
+      createElement(MessageSources, {
+        content:
+          "See [Gaussian Splatting](https://arxiv.org/abs/2308.04079) and [repo](https://github.com/org/repo).",
+        currentOrigin: "https://papernook.example",
+      }),
+    );
+    expect(html).toContain("Sources &amp; related work");
+    expect(html).toContain('data-kind="arxiv"');
+    expect(html).toContain('data-kind="github"');
+    expect(html).toContain(
+      'href="https://arxiv.org/abs/2308.04079" target="_blank" rel="noopener noreferrer nofollow"',
+    );
+    expect(html).toContain("arxiv.org");
+    expect(html).toContain("Gaussian Splatting");
+  });
+
+  it("renders nothing when the answer cites only the open paper or same-origin pages", () => {
+    const html = renderToStaticMarkup(
+      createElement(MessageSources, {
+        content:
+          "[Paper](https://arxiv.org/abs/1706.03762) [Library](https://papernook.example/paper/ml/attention)",
+        currentOrigin: "https://papernook.example",
+        paperSourceUrl: "https://arxiv.org/abs/1706.03762",
+      }),
+    );
+    expect(html).toBe("");
+  });
+});

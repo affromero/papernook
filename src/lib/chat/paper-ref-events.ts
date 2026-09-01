@@ -8,6 +8,7 @@
  * a parsed JSON blob structurally.
  */
 
+import { NOTE_CHARS_PER_LINE, NOTE_MAX_LINES } from "@/lib/chat/margin-note";
 import type { CitationKey } from "@/lib/pdf/citations";
 import type { PaperRefKind } from "@/lib/pdf/paper-refs";
 
@@ -115,4 +116,78 @@ export function detailFromDataset(
   const citation = parseCitationKey(parseJson(dataset.citation));
   if (citation) return { action: "preview", citation };
   return null;
+}
+
+/**
+ * Reverse direction: any surface (a reference popover, a text selection)
+ * hands the chat composer a prompt. The chat fills its input, focuses it,
+ * and sends immediately only when the requester asks for it.
+ */
+export const CHAT_PROMPT_EVENT = "papernook:chat-prompt";
+export const CHAT_PROMPT_MAX_CHARS = 4000;
+
+export interface ChatPromptDetail {
+  text: string;
+  send: boolean;
+}
+
+export function chatPromptDetail(
+  text: string,
+  options: { send?: boolean } = {},
+): ChatPromptDetail {
+  return {
+    text: text.slice(0, CHAT_PROMPT_MAX_CHARS),
+    send: options.send === true,
+  };
+}
+
+export function requestChatPrompt(
+  text: string,
+  options: { send?: boolean } = {},
+): void {
+  window.dispatchEvent(
+    new CustomEvent(CHAT_PROMPT_EVENT, {
+      detail: chatPromptDetail(text, options),
+    }),
+  );
+}
+
+/** Validate a chat-prompt CustomEvent detail. Null: ignore it. */
+export function parseChatPromptEvent(detail: unknown): ChatPromptDetail | null {
+  if (!isRecord(detail)) return null;
+  const { text, send } = detail;
+  if (typeof text !== "string" || text.trim().length === 0) return null;
+  if (text.length > CHAT_PROMPT_MAX_CHARS) return null;
+  return { text, send: send === true };
+}
+
+/**
+ * Chat → PDF: save an answer into the paper as a FreeText margin note. The
+ * chat pre-wraps the text (see `@/lib/chat/margin-note`); `ref` is the
+ * answer's first in-paper locator so the note lands on the page it talks
+ * about, else the reader's current page. The bounds are exactly what the
+ * composer can emit: `wrapNote`'s line cap and its per-line width plus the
+ * newline joining each line.
+ */
+export const MARGIN_NOTE_EVENT = "papernook:margin-note";
+export const MARGIN_NOTE_MAX_LINES = NOTE_MAX_LINES;
+export const MARGIN_NOTE_MAX_CHARS = NOTE_MAX_LINES * (NOTE_CHARS_PER_LINE + 1);
+
+export interface MarginNoteDetail {
+  text: string;
+  ref: { kind: PaperRefKind; label: string } | null;
+}
+
+export function requestMarginNote(detail: MarginNoteDetail): void {
+  window.dispatchEvent(new CustomEvent(MARGIN_NOTE_EVENT, { detail }));
+}
+
+/** Validate a margin-note CustomEvent detail. Null: ignore it. */
+export function parseMarginNoteEvent(detail: unknown): MarginNoteDetail | null {
+  if (!isRecord(detail)) return null;
+  const { text } = detail;
+  if (typeof text !== "string" || text.trim().length === 0) return null;
+  if (text.length > MARGIN_NOTE_MAX_CHARS) return null;
+  if (text.split("\n").length > MARGIN_NOTE_MAX_LINES) return null;
+  return { text, ref: "ref" in detail ? parsePaperRef(detail.ref) : null };
 }

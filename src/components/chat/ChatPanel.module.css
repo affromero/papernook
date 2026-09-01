@@ -397,3 +397,22 @@
     padding: 0.8rem;
   }
 }
+
+/* "Save as note" composes .deleteBtn and sits beside the × on finished
+   assistant answers. */
+.assistantMsg .noteBtn {
+  right: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.noteBtn:disabled {
+  cursor: not-allowed;
+  color: rgba(127, 127, 127, 0.7);
+}
+
+.noteBtn svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}

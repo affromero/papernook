@@ -10,38 +10,38 @@ import {
   Type as TypeIcon,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
-import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
-import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 import {
-  resolvePdfDestination,
-  type ResolvedPdfDestination,
-} from "@/lib/pdf/destinations";
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+} from "react";
+import type { ResolvedPdfDestination } from "@/lib/pdf/destinations";
 import { resolvePdfDocumentTitle } from "@/lib/pdf/title";
-import { normalizeEtag } from "@/lib/pdf/etag";
 import { usePdfVersionPoll } from "./usePdfVersionPoll";
-import {
-  createPdfAutosave,
-  type PdfAutosaveCoordinator,
-} from "@/lib/pdf/autosave";
 import "pdfjs-dist/web/pdf_viewer.css";
 import styles from "./PdfReader.module.css";
 import { ReferencePreview, type Preview } from "./ReferencePreview";
 import { PREVIEW_GAP, placePreview } from "./placePreview";
-import { BIBLIOGRAPHY_EVENT } from "@/lib/chat/paper-ref-events";
-import type { Bibliography } from "@/lib/pdf/bibliography";
 import {
-  useCitationHotspots,
-  type ViewerEventBus,
-} from "./useCitationHotspots";
+  BIBLIOGRAPHY_EVENT,
+  requestChatPrompt,
+} from "@/lib/chat/paper-ref-events";
+import { selectionPrompt } from "./selection/selectionAsk";
+import { useTextSelectionAsk } from "./selection/useTextSelectionAsk";
+import { useCitationHotspots } from "./useCitationHotspots";
 import { usePaperRefBridge } from "./usePaperRefBridge";
+import {
+  usePdfDocument,
+  type EditMode,
+  type PdfReaderEditState,
+} from "./usePdfDocument";
+import { useMarginNotes } from "./notes/useMarginNotes";
 import { usePinchZoom } from "./usePinchZoom";
 import { useSaveOnLeave } from "./useSaveOnLeave";
 
-export interface PdfReaderEditState {
-  dirty: boolean;
-  saving: boolean;
-}
+export type { PdfReaderEditState } from "./usePdfDocument";
 
 interface PdfReaderProps {
   src: string;
@@ -55,37 +55,13 @@ interface PdfReaderProps {
   onDocumentTitle?(title: string): void;
   /** Let reference previews query the library (signed-in surfaces only). */
   libraryLookup?: boolean;
-}
-
-type EditMode = "select" | "highlight" | "text" | "draw";
-
-interface EditorTypes {
-  NONE: number;
-  HIGHLIGHT: number;
-  FREETEXT: number;
-  INK: number;
-}
-
-interface MutableAnnotationStorage {
-  onSetModified: (() => void) | null;
-  onResetModified: (() => void) | null;
-  resetModified(): void;
-  /** Content hash over real annotation edits; "" when nothing would save. */
-  readonly serializable: { hash: string };
-}
-
-class PdfSaveConflictError extends Error {}
-
-function errorMessage(payload: unknown, fallback: string): string {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "error" in payload &&
-    typeof payload.error === "string"
-  ) {
-    return payload.error;
-  }
-  return fallback;
+  /** Let reference previews hand prompts to a mounted chat composer. */
+  chatPrompts?: boolean;
+  /**
+   * localStorage key that remembers the last page and zoom for this paper
+   * (see `readingPositionKey`); omit to always open at the top.
+   */
+  positionKey?: string;
 }
 
 export function PdfReader({
@@ -97,49 +73,57 @@ export function PdfReader({
   onEditStateChange,
   onDocumentTitle,
   libraryLookup = false,
+  chatPrompts = false,
+  positionKey,
 }: PdfReaderProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<HTMLDivElement>(null);
-  const pdfViewerRef = useRef<PDFViewer | null>(null);
-  const documentRef = useRef<PDFDocumentProxy | null>(null);
-  const etagRef = useRef<string | null>(null);
-  const editorTypesRef = useRef<EditorTypes | null>(null);
-  const autosaveRef = useRef<PdfAutosaveCoordinator | null>(null);
-  const pendingPenRef = useRef(false);
   const referenceAnchorRef = useRef<Pick<Preview, "horizontal" | "top"> | null>(
     null,
   );
-  const dirtyRef = useRef(false);
-  const savingRef = useRef(false);
-  const restoreViewRef = useRef<{ page: number; scale: number } | null>(null);
-  const onEditStateChangeRef = useRef(onEditStateChange);
   const onDocumentTitleRef = useRef(onDocumentTitle);
   const previewRef = useRef<Preview | null>(null);
-  const bibliographyRef = useRef<Bibliography | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const hoverLinkRef = useRef<HTMLAnchorElement | null>(null);
-  const hoverPreviewRequestedRef = useRef(false);
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
-  const [viewerBus, setViewerBus] = useState<ViewerEventBus | null>(null);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageCount, setPageCount] = useState(0);
-  const [status, setStatus] = useState("Loading paper…");
-  const [zoom, setZoom] = useState(100);
-  const [editMode, setEditMode] = useState<EditMode>("select");
-  const [editorReady, setEditorReady] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState("");
-  const [remoteUpdate, setRemoteUpdate] = useState(false);
-  const [documentGeneration, setDocumentGeneration] = useState(0);
-  const [pencilMode, setPencilMode] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-
-  useEffect(() => {
-    onEditStateChangeRef.current = onEditStateChange;
-  }, [onEditStateChange]);
+  const {
+    containerRef,
+    viewerRef,
+    pdfViewerRef,
+    etagRef,
+    editorTypesRef,
+    autosaveRef,
+    uiManagerRef,
+    pendingPenRef,
+    dirtyRef,
+    savingRef,
+    restoreViewRef,
+    hoverPreviewRequestedRef,
+    bibliographyRef,
+    pdfDocument,
+    viewerBus,
+    pageNumber,
+    pageCount,
+    status,
+    zoom,
+    editMode,
+    setEditMode,
+    editorReady,
+    dirty,
+    saving,
+    saveStatus,
+    setSaveStatus,
+    remoteUpdate,
+    pencilMode,
+    setPencilMode,
+    setDocumentGeneration,
+  } = usePdfDocument({
+    src,
+    editable,
+    positionKey,
+    onEditStateChange,
+    onHoverPreview: (target) => showReferencePreview(target, null, null),
+  });
 
   useEffect(() => {
     onDocumentTitleRef.current = onDocumentTitle;
@@ -162,349 +146,36 @@ export function PdfReader({
     };
   }, [pdfDocument]);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    const viewerElement = viewerRef.current;
-    if (!container || !viewerElement) return;
-
-    let disposed = false;
-    let loadingTask: PDFDocumentLoadingTask | null = null;
-    let viewerCleanup: (() => void) | null = null;
-    const abortController = new AbortController();
-
-    void (async () => {
-      try {
-        const pdfjs = await import("pdfjs-dist");
-        const { EventBus, LinkTarget, PDFLinkService, PDFViewer } =
-          await import("pdfjs-dist/web/pdf_viewer.mjs");
-
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url,
-        ).toString();
-
-        const eventBus = new EventBus();
-        const linkService = new PDFLinkService({
-          eventBus,
-          externalLinkTarget: LinkTarget.BLANK,
-          externalLinkRel: "noopener noreferrer nofollow",
-          ignoreDestinationZoom: true,
-        });
-        const pdfViewer = new PDFViewer({
-          container,
-          viewer: viewerElement,
-          eventBus,
-          linkService,
-          removePageBorders: true,
-          annotationEditorMode: editable
-            ? pdfjs.AnnotationEditorType.NONE
-            : pdfjs.AnnotationEditorType.DISABLE,
-          annotationEditorHighlightColors:
-            "Yellow=#fff066,Green=#8ee3a1,Blue=#8dc8ff,Pink=#ff9cce",
-          enableSelectionRendering: true,
-        });
-        pdfViewerRef.current = pdfViewer;
-        editorTypesRef.current = pdfjs.AnnotationEditorType;
-        linkService.setViewer(pdfViewer);
-
-        const originalGoToDestination =
-          linkService.goToDestination.bind(linkService);
-        linkService.goToDestination = async (destination) => {
-          if (!hoverPreviewRequestedRef.current)
-            return originalGoToDestination(destination);
-          const document = documentRef.current;
-          if (!document) return;
-          const target = await resolvePdfDestination(document, destination);
-          if (!target) {
-            await originalGoToDestination(destination);
-            return;
-          }
-          showReferencePreview(target, null, null);
-        };
-        setViewerBus(eventBus);
-
-        const onPagesInit = () => {
-          const restore = restoreViewRef.current;
-          restoreViewRef.current = null;
-          if (restore) {
-            pdfViewer.currentScale = restore.scale;
-            pdfViewer.currentPageNumber = Math.min(
-              restore.page,
-              pdfViewer.pagesCount,
-            );
-          } else {
-            pdfViewer.currentScaleValue = "page-width";
-          }
-          setStatus("");
-        };
-        const onPageChanging = (event: unknown) => {
-          if (
-            event &&
-            typeof event === "object" &&
-            "pageNumber" in event &&
-            typeof event.pageNumber === "number"
-          ) {
-            setPageNumber(event.pageNumber);
-          }
-        };
-        const onScaleChanging = (event: unknown) => {
-          if (
-            event &&
-            typeof event === "object" &&
-            "scale" in event &&
-            typeof event.scale === "number"
-          ) {
-            setZoom(Math.round(event.scale * 100));
-          }
-        };
-        const onAnnotationEditorReady = () => {
-          setEditorReady(true);
-          if (pendingPenRef.current) {
-            pendingPenRef.current = false;
-            setPencilMode(true);
-            pdfViewer.annotationEditorMode = {
-              mode: pdfjs.AnnotationEditorType.INK,
-            };
-            setEditMode("draw");
-            setSaveStatus(
-              "Pencil detected; Draw enabled, touch reserved for pinch zoom",
-            );
-          }
-        };
-        // Double-clicking an annotation that came from the saved PDF makes
-        // pdf.js dispatch this event instead of switching modes itself; the
-        // embedding viewer must apply it or saved highlights stay read-only.
-        const onSwitchAnnotationEditorMode = (event: unknown) => {
-          if (
-            !editable ||
-            !event ||
-            typeof event !== "object" ||
-            !("mode" in event) ||
-            typeof event.mode !== "number"
-          ) {
-            return;
-          }
-          pdfViewer.annotationEditorMode = event as { mode: number };
-          const toolByType: [EditMode, number][] = [
-            ["select", pdfjs.AnnotationEditorType.NONE],
-            ["highlight", pdfjs.AnnotationEditorType.HIGHLIGHT],
-            ["text", pdfjs.AnnotationEditorType.FREETEXT],
-            ["draw", pdfjs.AnnotationEditorType.INK],
-          ];
-          const tool = toolByType.find(([, type]) => type === event.mode)?.[0];
-          if (tool) setEditMode(tool);
-        };
-        eventBus.on("pagesinit", onPagesInit);
-        eventBus.on("pagechanging", onPageChanging);
-        eventBus.on("scalechanging", onScaleChanging);
-        eventBus.on("annotationeditoruimanager", onAnnotationEditorReady);
-        eventBus.on("switchannotationeditormode", onSwitchAnnotationEditorMode);
-
-        // The document is left to pdf.js so it can stream: awaiting a full
-        // arrayBuffer() here would hold the first page hostage to the last
-        // byte of a 20 MB paper. Only an editable PDF needs the save
-        // version up front, and one byte is enough to read it off the
-        // response headers. GET rather than HEAD, because HEAD applies a
-        // recent-write guard that answers 409 mid-save.
-        if (editable) {
-          const probe = await fetch(src, {
-            headers: { range: "bytes=0-0" },
-            cache: "no-store",
-            credentials: "same-origin",
-            signal: abortController.signal,
-          });
-          if (!probe.ok) {
-            throw new Error(`PDF request failed with ${probe.status}.`);
-          }
-          const etag = normalizeEtag(probe.headers.get("etag"));
-          if (!etag) {
-            throw new Error("The PDF did not include a save version.");
-          }
-          etagRef.current = etag;
-        }
-        // Auto-fetch stays on, so the rest of the file keeps streaming in
-        // the background and `saveDocument()` never stalls waiting for
-        // chunks. Page 1 arrives early because captured PDFs are linearized.
-        // ponytail: two knowingly-unpinned edges. The revision is not pinned
-        // across pdf.js's range requests, so a WebDAV overwrite mid-load can
-        // mix two revisions into one render — the 30s version poll remounts
-        // the document and if-match still guards every save; pin it with
-        // `?v=<etag>` + a 412 if that ever bites. And if a paper still paints
-        // late, `disableAutoFetch: true` narrows the fetch to the current
-        // view at the cost of a slower first save.
-        loadingTask = pdfjs.getDocument({
-          url: src,
-          withCredentials: true,
-        });
-        const document = await loadingTask.promise;
-        if (disposed) {
-          await loadingTask.destroy();
-          return;
-        }
-        documentRef.current = document;
-        setPdfDocument(document);
-        setPageCount(document.numPages);
-        if (editable) {
-          const storage =
-            document.annotationStorage as unknown as MutableAnnotationStorage;
-          // Entering an editor mode registers the PDF's existing annotations
-          // in the storage, which flips its modified latch without any real
-          // edit. Only a moved content hash may dirty the reader — otherwise
-          // every Highlight/Draw toggle uploads the whole PDF and churns the
-          // save version other sessions poll against.
-          let savedAnnotationsHash = storage.serializable.hash;
-          const coordinator = createPdfAutosave({
-            delayMs: 1_800,
-            save: async () => {
-              const expectedEtag = etagRef.current;
-              if (!expectedEtag) {
-                throw new Error("The PDF has no save version.");
-              }
-              const focused = containerRef.current?.querySelector(":focus");
-              if (focused instanceof HTMLElement) focused.blur();
-              const annotationsHash = storage.serializable.hash;
-              if (annotationsHash === savedAnnotationsHash) {
-                // Edits were undone before the save fired; re-arm the latch
-                // so the next real edit reports again, and write nothing.
-                storage.resetModified();
-                return;
-              }
-              const bytes = await document.saveDocument();
-              const response = await fetch(src, {
-                method: "PUT",
-                credentials: "same-origin",
-                headers: {
-                  "content-type": "application/pdf",
-                  "if-match": expectedEtag,
-                },
-                body: bytes,
-              });
-              const payload: unknown = await response.json().catch(() => null);
-              if (response.status === 409 || response.status === 412) {
-                throw new PdfSaveConflictError(
-                  errorMessage(
-                    payload,
-                    "The PDF changed elsewhere. Reload before saving.",
-                  ),
-                );
-              }
-              if (!response.ok) {
-                throw new Error(
-                  errorMessage(payload, `Save failed with ${response.status}.`),
-                );
-              }
-              // Prefer the etag echoed in the JSON body: proxies that
-              // compress the response (Cloudflare) weaken or drop the
-              // header, but never touch the body.
-              const bodyEtag =
-                payload &&
-                typeof payload === "object" &&
-                "etag" in payload &&
-                typeof payload.etag === "string"
-                  ? payload.etag
-                  : null;
-              const nextEtag = normalizeEtag(
-                bodyEtag ?? response.headers.get("etag"),
-              );
-              if (!nextEtag) {
-                throw new Error("The save response had no PDF version.");
-              }
-              etagRef.current = nextEtag;
-              savedAnnotationsHash = annotationsHash;
-            },
-            onChange: (next) => {
-              dirtyRef.current = next.dirty;
-              savingRef.current = next.saving;
-              setDirty(next.dirty);
-              setSaving(next.saving);
-              onEditStateChangeRef.current?.({
-                dirty: next.dirty,
-                saving: next.saving,
-              });
-              if (next.saving) {
-                setSaveStatus("Saving annotations…");
-              } else if (next.error instanceof PdfSaveConflictError) {
-                setRemoteUpdate(true);
-                setSaveStatus(next.error.message);
-                autosaveRef.current?.pause();
-              } else if (next.error) {
-                setSaveStatus(next.error.message);
-              } else if (next.dirty) {
-                setSaveStatus("Unsaved changes");
-              } else {
-                setSaveStatus("Saved");
-              }
-            },
-          });
-          autosaveRef.current = coordinator;
-          storage.onSetModified = () => {
-            if (storage.serializable.hash === savedAnnotationsHash) {
-              // A mode switch registered untouched annotations, not an
-              // edit. The latch must be re-armed or a later real edit
-              // would never fire this callback again.
-              storage.resetModified();
-              return;
-            }
-            coordinator.markDirty();
-          };
-          storage.onResetModified = null;
-        }
-        linkService.setDocument(document);
-        pdfViewer.setDocument(document);
-
-        viewerCleanup = () => {
-          eventBus.off("pagesinit", onPagesInit);
-          eventBus.off("pagechanging", onPageChanging);
-          eventBus.off("scalechanging", onScaleChanging);
-          eventBus.off("annotationeditoruimanager", onAnnotationEditorReady);
-          eventBus.off(
-            "switchannotationeditormode",
-            onSwitchAnnotationEditorMode,
-          );
-          if (editable) {
-            const storage =
-              document.annotationStorage as unknown as MutableAnnotationStorage;
-            storage.onSetModified = null;
-            storage.onResetModified = null;
-            autosaveRef.current?.stop();
-            autosaveRef.current = null;
-          }
-          pdfViewer.cleanup();
-        };
-      } catch (error) {
-        if (
-          !disposed &&
-          (!(error instanceof Error) || error.name !== "AbortError")
-        ) {
-          setStatus("The paper could not be displayed.");
-        }
-      }
-    })();
-
-    return () => {
-      disposed = true;
-      abortController.abort();
-      viewerCleanup?.();
-      setViewerBus(null);
-      pdfViewerRef.current = null;
-      documentRef.current = null;
-      bibliographyRef.current = null;
-      etagRef.current = null;
-      editorTypesRef.current = null;
-      autosaveRef.current?.stop();
-      autosaveRef.current = null;
-      dirtyRef.current = false;
-      savingRef.current = false;
-      onEditStateChangeRef.current?.({ dirty: false, saving: false });
-      pendingPenRef.current = false;
-      setEditorReady(false);
-      void loadingTask?.destroy();
-    };
-  }, [editable, src, documentGeneration]);
-
   useSaveOnLeave(editable, dirtyRef, autosaveRef);
 
+  useMarginNotes({
+    pdfDocument,
+    editable,
+    pdfViewerRef,
+    uiManagerRef,
+    autosaveRef,
+    restoreViewRef,
+    remoteUpdate,
+    setEditMode,
+    setSaveStatus,
+    setDocumentGeneration,
+  });
+
   usePinchZoom(stageRef, pdfViewerRef, pencilMode);
+
+  // Read-only readers have no edit mode, yet their text layer is just as
+  // selectable; only the ink/highlight tools of an editable reader hide it.
+  const { selection, clear: clearSelectionAsk } = useTextSelectionAsk(
+    stageRef,
+    chatPrompts && (!editable || editMode === "select"),
+  );
+
+  function askAboutSelection(): void {
+    if (!selection) return;
+    requestChatPrompt(selectionPrompt(selection.text, selection.page));
+    window.getSelection()?.removeAllRanges();
+    clearSelectionAsk();
+  }
 
   usePdfVersionPoll({
     enabled: editable && !!pdfDocument && !remoteUpdate,
@@ -664,6 +335,7 @@ export function PdfReader({
     target: ResolvedPdfDestination,
     entryText: string | null,
     at: { clientX: number; clientY: number } | null,
+    ref?: Preview["ref"],
   ): void {
     const container = containerRef.current;
     if (!container) return;
@@ -692,6 +364,7 @@ export function PdfReader({
     const nextPreview = {
       destination: target,
       ...(entryText === null ? {} : { entryText }),
+      ...(ref ? { ref } : {}),
       ...anchor,
     };
     previewRef.current = nextPreview;
@@ -728,13 +401,14 @@ export function PdfReader({
           : {}),
       });
     },
-    onPreview: (target, entryText) => {
+    onPreview: (target, entryText, ref) => {
       // Chat events have no pointer position; use the chat-adjacent corner.
       const stage = stageRef.current?.getBoundingClientRect();
       showReferencePreview(
         target,
         entryText,
         stage ? { clientX: stage.right, clientY: stage.bottom } : null,
+        ref ?? undefined,
       );
     },
   });
@@ -936,11 +610,31 @@ export function PdfReader({
             </p>
           )}
         </div>
+        {selection && (
+          <button
+            data-selection-ask
+            className={styles.selectionAsk}
+            style={
+              {
+                "--ask-top": `${selection.top}px`,
+                "--ask-left": `${selection.left}px`,
+              } as CSSProperties
+            }
+            type="button"
+            // Cancelling pointerdown keeps the text selection alive until
+            // click fires; a plain press would collapse it and unmount us.
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={askAboutSelection}
+          >
+            Ask about selection
+          </button>
+        )}
         {preview && pdfDocument && (
           <ReferencePreview
             document={pdfDocument}
             preview={preview}
             libraryLookup={libraryLookup}
+            chatPrompts={chatPrompts}
             onClose={closePreview}
           />
         )}

@@ -259,6 +259,7 @@
 .previewHeader {
   min-height: 40px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -285,6 +286,53 @@
   font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* Header actions on a cited work: ask the chat about it, capture it. */
+.previewAction {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid rgba(31, 40, 34, 0.3);
+  border-radius: 999px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.previewAction:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.previewActionState {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 18rem;
+  min-width: 0;
+  color: #315f4c;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The message shrinks and clips; the Retry button beside it never does. */
+.previewActionText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.previewActionState > .previewAction {
+  flex: none;
+}
+
+.previewActionFailed {
+  color: #8a3b2f;
 }
 
 .previewOpen {
@@ -331,6 +379,11 @@
   object-fit: fill;
   background: #fff;
   cursor: pointer;
+}
+
+/* In-paper locator previews have no click action on the crop. */
+.previewPageStatic canvas {
+  cursor: default;
 }
 
 .previewStatus {
@@ -381,6 +434,35 @@
     width: 44px;
     height: 44px;
   }
+}
+
+/* Floats beside a text-layer selection; geometry arrives as custom
+   properties computed from the selection rect (see placeSelectionAsk). */
+.selectionAsk {
+  position: absolute;
+  top: var(--ask-top);
+  left: var(--ask-left);
+  /* Under .preview (20): a reference preview opened while a selection is
+     showing must not be overlapped by the button. */
+  z-index: 19;
+  height: 34px;
+  padding: 0 0.85rem;
+  border: 1px solid #315f4c;
+  border-radius: 999px;
+  color: #fff;
+  background: #315f4c;
+  box-shadow: 0 6px 18px rgba(24, 31, 26, 0.28);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.selectionAsk:hover {
+  background: #264e3e;
+  border-color: #264e3e;
 }
 
 .citationOverlay {

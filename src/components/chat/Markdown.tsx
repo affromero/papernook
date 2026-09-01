@@ -6,6 +6,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { rehypePaperRefs } from "@/lib/chat/ref-decorations";
+import { linksToCurrentPaper } from "@/lib/chat/message-sources";
 import { externalLinkProps } from "@/lib/external-link";
 import type { Bibliography } from "@/lib/pdf/bibliography";
 import { CopyCodeButton } from "./CopyCodeButton";
@@ -38,33 +39,6 @@ function codeText(children: ReactNode): string {
   if (Array.isArray(children)) return children.map(codeText).join("");
   if (!isValidElement(children)) return "";
   return codeText((children.props as { children?: ReactNode }).children);
-}
-
-function normalizedPaperIdentity(value: string): string | null {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    if (host === "arxiv.org") {
-      const match = url.pathname.match(
-        /^\/(?:abs|pdf)\/([^/]+?)(?:\.pdf)?\/?$/i,
-      );
-      if (match?.[1]) return `arxiv:${match[1].toLowerCase()}`;
-    }
-    const path = url.pathname.replace(/\/+$/, "") || "/";
-    return `${host}${path}`;
-  } catch {
-    return null;
-  }
-}
-
-function linksToCurrentPaper(href: string, paperSourceUrl?: string): boolean {
-  if (!paperSourceUrl) return false;
-  const hrefIdentity = normalizedPaperIdentity(href);
-  return (
-    hrefIdentity !== null &&
-    hrefIdentity === normalizedPaperIdentity(paperSourceUrl)
-  );
 }
 
 function CodeFrame({

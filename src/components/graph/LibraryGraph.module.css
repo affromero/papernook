@@ -41,3 +41,47 @@
   opacity: 0.7;
   padding: 2rem 0;
 }
+
+.dot,
+.line,
+.arrow {
+  background: var(--swatch);
+}
+
+.line {
+  width: 16px;
+  height: 2px;
+  display: inline-block;
+}
+
+.arrow {
+  width: 16px;
+  height: 2px;
+  display: inline-block;
+  position: relative;
+}
+
+.arrow::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: -3px;
+  border-left: 6px solid var(--swatch);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+.filter {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.12);
+  font-size: 0.78rem;
+  cursor: pointer;
+  user-select: none;
+}

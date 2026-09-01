@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useId, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useState, useSyncExternalStore } from "react";
+import { CHAT_PROMPT_EVENT } from "@/lib/chat/paper-ref-events";
 import styles from "./ReadingWorkspace.module.css";
 
 interface ReadingWorkspaceProps {
@@ -10,6 +11,8 @@ interface ReadingWorkspaceProps {
   mainLabel: string;
   /** Page chrome (title, breadcrumbs) the header toggle can hide. */
   header?: ReactNode;
+  /** Header actions that must stay reachable while the header is hidden. */
+  collapsedHeaderActions?: ReactNode;
 }
 
 const CHAT_VISIBILITY_KEY = "papernook:reading-chat-visible";
@@ -77,6 +80,7 @@ export function ReadingWorkspace({
   chat,
   mainLabel,
   header,
+  collapsedHeaderActions,
 }: ReadingWorkspaceProps) {
   const chatVisible = useSyncExternalStore(
     subscribe,
@@ -101,6 +105,19 @@ export function ReadingWorkspace({
     () => null,
   );
   const baseId = useId();
+
+  // A prompt handed to the chat must land somewhere the reader can see it:
+  // surface the chat tab on compact layouts and leave focus-reading mode.
+  useEffect(() => {
+    const onPrompt = () => {
+      setCompactTab("chat");
+      if (!chatIsVisible()) {
+        setVisibility(CHAT_VISIBILITY_KEY, CHAT_VISIBILITY_EVENT, true);
+      }
+    };
+    window.addEventListener(CHAT_PROMPT_EVENT, onPrompt);
+    return () => window.removeEventListener(CHAT_PROMPT_EVENT, onPrompt);
+  }, []);
 
   function clampChatWidth(width: number, rootWidth: number): number {
     return Math.round(
@@ -245,6 +262,11 @@ export function ReadingWorkspace({
         >
           {chat}
         </aside>
+        {header && !headerVisible && collapsedHeaderActions && (
+          <div className={styles.collapsedActions}>
+            {collapsedHeaderActions}
+          </div>
+        )}
         <div className={styles.toggleRow}>
           {header && (
             <button

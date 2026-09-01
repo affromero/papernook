@@ -97,7 +97,21 @@
   gap: 0.45rem;
 }
 
-.toggle {
+.collapsedActions {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  display: inline-flex;
+  gap: 0.45rem;
+}
+
+.collapsedActions svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.toggle,
+.collapsedActions > button {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -116,7 +130,8 @@
   letter-spacing: 0.01em;
 }
 
-.toggle:hover {
+.toggle:hover,
+.collapsedActions > button:hover {
   border-color: rgba(49, 95, 76, 0.55);
   background: #fff;
 }
@@ -173,6 +188,7 @@
   }
 
   .toggle,
+  .collapsedActions,
   .divider {
     display: none;
   }

@@ -44,10 +44,18 @@ interface UsePaperRefBridgeOptions {
   enabled: boolean;
   bibliography(): Bibliography | null;
   onNavigate(target: ResolvedPdfDestination): void;
-  onPreview(target: ResolvedPdfDestination, entryText: string | null): void;
+  /** Citations carry the bibliography entry's text; in-paper refs carry the
+   * locator itself so the preview can frame its heading or caption. */
+  onPreview(
+    target: ResolvedPdfDestination,
+    entryText: string | null,
+    ref: PaperRefLocator | null,
+  ): void;
 }
 
-async function resolveRef(
+export type PaperRefLocator = Pick<PaperRef, "kind" | "label">;
+
+export async function resolveRef(
   pdfDocument: PDFDocumentProxy,
   ref: Pick<PaperRef, "kind" | "label">,
 ): Promise<ResolvedPdfDestination | null> {
@@ -59,7 +67,7 @@ async function resolveRef(
 }
 
 /** Promise-per-page so concurrent lookups never extract a page twice. */
-type LineCache = Map<number, Promise<TextLine[]>>;
+export type LineCache = Map<number, Promise<TextLine[]>>;
 
 function pageTextLines(
   pdfDocument: PDFDocumentProxy,
@@ -114,6 +122,22 @@ async function findCaption(
   return null;
 }
 
+/**
+ * Full resolution: destination names first, then the caption text search.
+ * `cache` should live as long as the document (a fresh Map per effect).
+ */
+export async function locateRef(
+  pdfDocument: PDFDocumentProxy,
+  ref: Pick<PaperRef, "kind" | "label">,
+  cache: LineCache,
+  cancelled: () => boolean,
+): Promise<ResolvedPdfDestination | null> {
+  return (
+    (await resolveRef(pdfDocument, ref)) ??
+    findCaption(pdfDocument, ref, cache, cancelled)
+  );
+}
+
 export function usePaperRefBridge({
   pdfDocument,
   enabled,
@@ -153,22 +177,18 @@ export function usePaperRefBridge({
             zoom: null,
           },
           entry.text,
+          null,
         );
         return;
       }
 
-      void resolveRef(pdfDocument, detail.ref)
-        .then(
-          (target) =>
-            target ??
-            findCaption(pdfDocument, detail.ref, lineCache, () => disposed),
-        )
+      void locateRef(pdfDocument, detail.ref, lineCache, () => disposed)
         .then((target) => {
           if (disposed || !target) return;
           if (detail.action === "goto") {
             optionsRef.current.onNavigate(target);
           } else {
-            optionsRef.current.onPreview(target, null);
+            optionsRef.current.onPreview(target, null, detail.ref);
           }
         })
         .catch((error: unknown) => {

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getProvider, hasConfiguredProvider } from "../agent/registry";
 import { MAX_EXTRACTED_TEXT_BYTES } from "../pdf-limits";
 import { listTopics, listPapers } from "../library/papers";
-import { USER_AGENT } from "./download";
+import { decodeXml, fetchText, tagText } from "./arxiv/atom";
 
 /**
  * Post-download analysis: linearization, pdftotext extraction, then one
@@ -276,7 +276,6 @@ export async function analyzePaper(
  * provider. Every tier satisfies analysisSchema's non-empty minimums.
  */
 
-const LOOKUP_TIMEOUT_MS = 10_000;
 const NO_AI_SUMMARY =
   "Captured without an AI provider: metadata came from a bibliographic " +
   "lookup. Connect a provider in Settings for summaries and chat.";
@@ -318,7 +317,7 @@ async function fallbackAnalysis(
 async function arxivMetadata(arxivId: string): Promise<LookupMetadata | null> {
   const xml = await fetchText(
     `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(arxivId)}`,
-  );
+  ).catch(() => null);
   const entry = xml?.match(/<entry>([\s\S]*?)<\/entry>/)?.[1];
   if (!entry) return null;
   const title = decodeXml(tagText(entry, "title"));
@@ -339,7 +338,7 @@ async function crossrefMetadata(text: string): Promise<LookupMetadata | null> {
   if (!doi) return null;
   const raw = await fetchText(
     `https://api.crossref.org/works/${encodeURIComponent(doi.replace(/[).,;]+$/, ""))}`,
-  );
+  ).catch(() => null);
   if (!raw) return null;
   const workSchema = z.object({
     message: z.object({
@@ -365,34 +364,6 @@ async function crossrefMetadata(text: string): Promise<LookupMetadata | null> {
     venue: work["container-title"][0] ?? null,
     summary: null,
   };
-}
-
-async function fetchText(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url, {
-      headers: { "user-agent": USER_AGENT },
-      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
-    });
-    if (!response.ok) return null;
-    return await response.text();
-  } catch {
-    return null;
-  }
-}
-
-function tagText(xml: string, tag: string): string {
-  return xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))?.[1] ?? "";
-}
-
-function decodeXml(value: string): string {
-  return value
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function yearOf(dateText: string): number | null {

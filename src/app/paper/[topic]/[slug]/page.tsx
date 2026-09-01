@@ -2,10 +2,12 @@ import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { activeProfile } from "@/lib/auth/session";
 import { getPaper } from "@/lib/library/papers";
+import { readingPositionKey } from "@/lib/pdf/view/reading-position";
 import { getProvider, hasConfiguredProvider } from "@/lib/agent/registry";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
 import { PdfReader } from "@/components/pdf/PdfReader";
+import { CopySourceLinkButton } from "@/components/paper/CopySourceLinkButton";
 import { PaperHeader } from "@/components/paper/PaperHeader";
 import styles from "./paper.module.css";
 
@@ -42,12 +44,17 @@ export default async function PaperPage({ params }: PaperPageProps) {
         header={
           <PaperHeader topic={topic} slug={slug} meta={meta} view="reader" />
         }
+        collapsedHeaderActions={
+          <CopySourceLinkButton sourceUrl={meta.sourceUrl} />
+        }
         main={
           <PdfReader
             src={`/api/v1/papers/${topic}/${slug}/pdf`}
             title={meta.title}
             editable
             libraryLookup
+            chatPrompts={aiAvailable}
+            positionKey={readingPositionKey(topic, slug)}
           />
         }
         chat={
@@ -60,6 +67,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
               paperSourceUrl={meta.sourceUrl ?? undefined}
               aiAvailable={aiAvailable}
               visionAvailable={visionAvailable}
+              marginNotes
             />
           </div>
         }

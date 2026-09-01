@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
@@ -34,10 +34,35 @@ const KIND_COLORS: Record<GraphNode["kind"], string> = {
   tag: "#b83280",
 };
 
+const EDGE_COLORS = {
+  related: "#3f4fb0",
+  cites: "#d0342c",
+} as const;
+
+const HIDDEN_CLASS = "hidden";
+
+function swatch(color: string): CSSProperties {
+  return { "--swatch": color } as CSSProperties;
+}
+
+/** Keep only paper nodes and directed citation edges while the filter is on. */
+function applyCitationsOnly(cy: cytoscape.Core, on: boolean): void {
+  cy.batch(() => {
+    cy.elements().removeClass(HIDDEN_CLASS);
+    if (!on) return;
+    cy.nodes('[kind != "paper"]').addClass(HIDDEN_CLASS);
+    cy.edges('[kind != "cites"]').addClass(HIDDEN_CLASS);
+  });
+}
+
 export function LibraryGraph() {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+  const cyRef = useRef<cytoscape.Core | null>(null);
   const [empty, setEmpty] = useState(false);
+  const [citationsOnly, setCitationsOnly] = useState(false);
+  // Mirrors state so the async load can apply a toggle made before data arrived.
+  const citationsOnlyRef = useRef(false);
 
   useEffect(() => {
     let cy: cytoscape.Core | null = null;
@@ -110,7 +135,23 @@ export function LibraryGraph() {
           },
           {
             selector: 'edge[kind = "related"]',
-            style: { "line-color": "#3f4fb0", width: 2 },
+            style: { "line-color": EDGE_COLORS.related, width: 2 },
+          },
+          {
+            // Haystack edges cannot carry arrowheads; citations are directed.
+            selector: 'edge[kind = "cites"]',
+            style: {
+              "line-color": EDGE_COLORS.cites,
+              width: 2,
+              "curve-style": "bezier",
+              "target-arrow-shape": "triangle",
+              "target-arrow-color": EDGE_COLORS.cites,
+              "arrow-scale": 0.9,
+            },
+          },
+          {
+            selector: `.${HIDDEN_CLASS}`,
+            style: { display: "none" },
           },
         ],
         layout: {
@@ -125,9 +166,12 @@ export function LibraryGraph() {
         const href = event.target.data("href") as string | undefined;
         if (href) router.push(href);
       });
+      cyRef.current = cy;
+      applyCitationsOnly(cy, citationsOnlyRef.current);
     })();
     return () => {
       cancelled = true;
+      cyRef.current = null;
       cy?.destroy();
     };
   }, [router]);
@@ -145,14 +189,33 @@ export function LibraryGraph() {
       <div className={styles.legend}>
         {(Object.keys(KIND_COLORS) as GraphNode["kind"][]).map((kind) => (
           <span key={kind} className={styles.legendItem}>
-            <span
-              className={styles.dot}
-              style={{ backgroundColor: KIND_COLORS[kind] }}
-            />
+            <span className={styles.dot} style={swatch(KIND_COLORS[kind])} />
             {kind}
           </span>
         ))}
+        <span className={styles.legendItem}>
+          <span className={styles.line} style={swatch(EDGE_COLORS.related)} />
+          related
+        </span>
+        <span className={styles.legendItem}>
+          <span className={styles.arrow} style={swatch(EDGE_COLORS.cites)} />
+          cites
+        </span>
       </div>
+      <label className={styles.filter}>
+        <input
+          type="checkbox"
+          checked={citationsOnly}
+          onChange={(event) => {
+            const on = event.target.checked;
+            citationsOnlyRef.current = on;
+            setCitationsOnly(on);
+            const cy = cyRef.current;
+            if (cy) applyCitationsOnly(cy, on);
+          }}
+        />
+        Citations only
+      </label>
     </div>
   );
 }
