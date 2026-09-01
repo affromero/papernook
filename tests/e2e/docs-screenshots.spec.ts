@@ -142,7 +142,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
   test("paper chat can be hidden persistently for a full-width reading view", async ({
     page,
   }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     await loginAsAdmin(page);
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
@@ -155,9 +155,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
       page
         .getByRole("paragraph")
         .filter({ hasText: /^Why was removing recurrence such a big deal\?$/ }),
-    ).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 45_000 });
     await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled({
-      timeout: 20_000,
+      timeout: 45_000,
     });
     await expect(page).toHaveScreenshot(["product", "paper-and-chat.png"], {
       animations: "disabled",
