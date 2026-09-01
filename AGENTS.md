@@ -60,7 +60,8 @@ Architecture diagram (code-accurate) in README.md.
 ```bash
 npm run dev            # local dev
 npm run ci             # lint + typecheck + vitest + build (run before every commit)
-pre-commit install --install-hooks   # two-tier gate (commit: hygiene+lint+tsc; push: test+build)
+pre-commit install --install-hooks   # two-tier gate (commit: hygiene+lint+tsc; push: test+build+e2e)
+npx playwright install --with-deps chromium webkit   # e2e prerequisite; the push gate adds ~1-2 min and needs port 3107 free
 ```
 
 ## Rules
