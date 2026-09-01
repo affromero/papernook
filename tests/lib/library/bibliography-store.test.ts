@@ -103,7 +103,12 @@ describe("bibliography store", () => {
       file,
       JSON.stringify({
         ...bib,
-        entries: [{ ...bib.entries[0], text: "x".repeat(401) }],
+        entries: [
+          {
+            ...bib.entries[0],
+            text: "x".repeat(store.MAX_STORED_ENTRY_TEXT + 1),
+          },
+        ],
       }),
     );
     expect(store.readBibliography("ml", "paper")).toBeNull();
