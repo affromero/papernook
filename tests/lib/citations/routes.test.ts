@@ -466,7 +466,7 @@ describe("citations resolve route", () => {
     // Answer each upstream in its own dialect: an empty arXiv Atom feed and
     // an empty Crossref JSON page are both clean misses.
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) =>
-      String(input).includes("api.crossref.org")
+      new URL(String(input)).hostname === "api.crossref.org"
         ? new Response(JSON.stringify({ message: { items: [] } }))
         : new Response("<feed></feed>"),
     );

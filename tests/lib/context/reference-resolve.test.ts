@@ -40,9 +40,10 @@ function stubSearches(routes: {
 }): void {
   vi.stubGlobal("fetch", async (url: string) => {
     fetchedUrls.push(url);
-    const body = url.includes("api.crossref.org")
-      ? routes.crossref
-      : routes.arxiv;
+    const body =
+      new URL(url).hostname === "api.crossref.org"
+        ? routes.crossref
+        : routes.arxiv;
     return body === null
       ? new Response("nope", { status: 503 })
       : new Response(body, { status: 200 });
