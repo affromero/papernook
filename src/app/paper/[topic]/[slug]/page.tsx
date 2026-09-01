@@ -37,6 +37,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
   const currentOrigin = `${protocol}://${hostname}`;
   const aiAvailable = hasConfiguredProvider();
   const visionAvailable = aiAvailable && getProvider().capabilities.vision;
+  const bibliographyEndpoint = `/api/v1/papers/${topic}/${slug}/bibliography`;
   return (
     <main className={styles.root}>
       <ReadingWorkspace
@@ -55,6 +56,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
             libraryLookup
             chatPrompts={aiAvailable}
             positionKey={readingPositionKey(topic, slug)}
+            bibliographyEndpoint={bibliographyEndpoint}
           />
         }
         chat={
@@ -68,6 +70,8 @@ export default async function PaperPage({ params }: PaperPageProps) {
               aiAvailable={aiAvailable}
               visionAvailable={visionAvailable}
               marginNotes
+              bibliographyEndpoint={bibliographyEndpoint}
+              hasReader
             />
           </div>
         }

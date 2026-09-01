@@ -27,6 +27,10 @@ interface ChatMessagesProps {
   /** Indices mid-vanish animation, about to be removed. */
   vanishing: ReadonlySet<number>;
   bibliography: Bibliography | null;
+  /** A PdfReader is mounted to answer in-paper locator buttons; without
+   * one they stay undecorated (citations still decorate — the panel's
+   * CitationPopover answers them locally). */
+  paperRefs: boolean;
   currentOrigin: string;
   paperSourceUrl?: string;
   visionAvailable: boolean;
@@ -69,6 +73,7 @@ export function ChatMessages({
   busy,
   vanishing,
   bibliography,
+  paperRefs,
   currentOrigin,
   paperSourceUrl,
   visionAvailable,
@@ -126,6 +131,7 @@ export function ChatMessages({
                   highlightCode={!(busy && i === messages.length - 1)}
                   copyCode={!(busy && i === messages.length - 1)}
                   decorateRefs={!(busy && i === messages.length - 1)}
+                  paperRefs={paperRefs}
                   bibliography={bibliography}
                   currentOrigin={currentOrigin}
                   paperSourceUrl={paperSourceUrl}

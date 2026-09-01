@@ -1,0 +1,85 @@
+.actionGroup {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  white-space: normal;
+}
+
+.addBtn {
+  min-height: 26px;
+  padding: 0 0.55rem;
+  border: 1px solid rgba(63, 79, 176, 0.5);
+  border-radius: 6px;
+  background: rgba(63, 79, 176, 0.1);
+  color: inherit;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addBtn:hover {
+  background: rgba(63, 79, 176, 0.18);
+}
+
+.addBtn:focus-visible {
+  outline: 2px solid #3f4fb0;
+  outline-offset: 2px;
+}
+
+.adding {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0.75;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.spinner {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid rgba(127, 127, 127, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .spinner {
+    animation: addToLibrarySpin 0.7s linear infinite;
+  }
+}
+
+@keyframes addToLibrarySpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.added {
+  color: #2f8a4c;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.added:hover {
+  text-decoration: underline;
+}
+
+.stateText {
+  opacity: 0.7;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.failed {
+  max-width: 18rem;
+  overflow: hidden;
+  color: #a42e2b;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

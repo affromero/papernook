@@ -1,5 +1,12 @@
 import fs from "node:fs";
-import { listPapers, readText, textPath, type Paper } from "./papers";
+import {
+  companionDir,
+  listPapers,
+  readText,
+  textPath,
+  type Paper,
+} from "./papers";
+import { bibliographyPath, readBibliography } from "./bibliography/store";
 import {
   titleCited,
   tokenizeReference,
@@ -113,33 +120,53 @@ function lineWindows(chunk: string, limit: number): string[] {
 }
 
 /**
- * Tokenized bibliography per paper, keyed by text.txt path and invalidated
- * by its mtime and size: the graph route rebuilds per request, and re-reading every
- * paper's full text each time would let one signed-in profile keep the
- * event loop busy with disk reads.
+ * Tokenized bibliography per paper, keyed by companion dir and invalidated
+ * by the mtime and size of BOTH sources — the reader-scanned
+ * bibliography.json (preferred: real parsed entries) and text.txt (the
+ * heuristic fallback) — so writing either one refreshes the cache. The
+ * graph route rebuilds per request, and re-reading every paper's full text
+ * each time would let one signed-in profile keep the event loop busy with
+ * disk reads.
  */
 const bibliographyCache = new Map<
   string,
   { stamp: string; entries: ReferenceTokens[] }
 >();
 
-function bibliographyTokens(paper: Paper): ReferenceTokens[] {
-  const file = textPath(paper.topic, paper.slug);
-  let stamp: string;
+function statStamp(file: string): string {
   try {
     const stat = fs.statSync(file);
-    stamp = `${stat.mtimeMs}:${stat.size}`;
+    return `${stat.mtimeMs}:${stat.size}`;
   } catch {
-    bibliographyCache.delete(file);
+    return "missing";
+  }
+}
+
+function bibliographyTokens(paper: Paper): ReferenceTokens[] {
+  const key = companionDir(paper.topic, paper.slug);
+  const bibStamp = statStamp(bibliographyPath(paper.topic, paper.slug));
+  const textStamp = statStamp(textPath(paper.topic, paper.slug));
+  if (bibStamp === "missing" && textStamp === "missing") {
+    bibliographyCache.delete(key);
     return [];
   }
-  const cached = bibliographyCache.get(file);
+  const stamp = `bib:${bibStamp}|text:${textStamp}`;
+  const cached = bibliographyCache.get(key);
   if (cached && cached.stamp === stamp) return cached.entries;
-  const text = readText(paper.topic, paper.slug) ?? "";
-  const entries = bibliographyEntries(bibliographyText(text)).map(
-    tokenizeReference,
-  );
-  bibliographyCache.set(file, { stamp, entries });
+  // A corrupt or invalid bibliography.json reads as null and falls through
+  // to the text heuristic rather than blanking the paper's edges.
+  const scanned =
+    bibStamp === "missing"
+      ? null
+      : readBibliography(paper.topic, paper.slug)?.entries.map((entry) =>
+          tokenizeReference(entry.text),
+        );
+  const entries =
+    scanned ??
+    bibliographyEntries(
+      bibliographyText(readText(paper.topic, paper.slug) ?? ""),
+    ).map(tokenizeReference);
+  bibliographyCache.set(key, { stamp, entries });
   return entries;
 }
 
@@ -150,7 +177,7 @@ function citationEdges(papers: Paper[]): GraphEdge[] {
   // ponytail: O(n²) title scan over a personal library; index bibliography
   // text in SQLite if libraries pass ~1k papers.
   for (const paper of papers) {
-    live.add(textPath(paper.topic, paper.slug));
+    live.add(companionDir(paper.topic, paper.slug));
     const entries = bibliographyTokens(paper);
     if (entries.length === 0) continue;
     papers.forEach((other, index) => {

@@ -271,6 +271,64 @@ describe("library graph citation edges", () => {
     ]);
   });
 
+  it("prefers a reader-scanned bibliography.json over the text heuristic", async () => {
+    await placePaper(
+      "nlp",
+      "attention",
+      "Attention Is All You Need",
+      "Body.\n\nReferences\n\n[1] Nothing relevant.",
+    );
+    // The citing paper's text.txt bibliography names nothing; only the
+    // scanned bibliography.json carries the real entry.
+    await placePaper(
+      "nlp",
+      "citer",
+      "A Citing Paper",
+      "Body.\n\nReferences\n\n[1] Nothing relevant.",
+    );
+    const store = await import("@/lib/library/bibliography/store");
+    store.writeBibliography("nlp", "citer", {
+      style: "numbered",
+      entries: [
+        {
+          pageNumber: 9,
+          x: 40,
+          y: 700,
+          text: "[1] Vaswani, A., et al. Attention is all you need. NeurIPS 2017.",
+          surname: "Vaswani",
+          year: "2017",
+          suffix: null,
+          number: 1,
+        },
+      ],
+    });
+    const { buildLibraryGraph } = await import("@/lib/library/graph");
+    expect(citesEdges(buildLibraryGraph())).toEqual([
+      "paper:citer->paper:attention",
+    ]);
+  });
+
+  it("falls back to the text heuristic when bibliography.json is corrupt", async () => {
+    await placePaper(
+      "nlp",
+      "attention",
+      "Attention Is All You Need",
+      "Body.\n\nReferences\n\n[1] Nothing relevant.",
+    );
+    await placePaper(
+      "nlp",
+      "citer",
+      "A Citing Paper",
+      "Body.\n\nReferences\n\n[1] Vaswani, A. Attention is all you need. NeurIPS 2017.",
+    );
+    const store = await import("@/lib/library/bibliography/store");
+    fs.writeFileSync(store.bibliographyPath("nlp", "citer"), "{not json");
+    const { buildLibraryGraph } = await import("@/lib/library/graph");
+    expect(citesEdges(buildLibraryGraph())).toEqual([
+      "paper:citer->paper:attention",
+    ]);
+  });
+
   it("falls back to the tail of the text when no References heading exists", async () => {
     await placePaper("nlp", "attention", "Attention Is All You Need", "Body.");
     await placePaper(

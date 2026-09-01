@@ -7,7 +7,7 @@ import {
   type Source,
   type SourceKind,
 } from "@/lib/chat/message-sources";
-import { captureInboxHref, useCapture } from "@/components/library/useCapture";
+import { AddToLibraryButton } from "@/components/library/AddToLibraryButton";
 import styles from "./MessageSources.module.css";
 
 /**
@@ -112,37 +112,6 @@ function useSeen<T extends Element>(): [RefObject<T | null>, boolean] {
   return [ref, seen];
 }
 
-function AddToLibrary({ url }: { url: string }) {
-  const { state, start } = useCapture(url);
-  if (state.status === "added") {
-    return (
-      <a className={styles.added} href={captureInboxHref(state.finalSlug)}>
-        Added ✓ · review in Inbox
-      </a>
-    );
-  }
-  if (state.status === "adding") {
-    return (
-      <span className={styles.adding} role="status">
-        <span className={styles.spinner} aria-hidden="true" />
-        Adding…
-      </span>
-    );
-  }
-  return (
-    <span className={styles.actionGroup}>
-      <button type="button" className={styles.addBtn} onClick={start}>
-        {state.status === "failed" ? "Retry" : "+ Add to library"}
-      </button>
-      {state.status === "failed" && (
-        <span className={styles.failed} role="alert" title={state.error}>
-          Failed · {state.error}
-        </span>
-      )}
-    </span>
-  );
-}
-
 /** Papers only (arXiv / DOI): library membership, else a one-tap capture. */
 function LibraryAction({ url, visible }: { url: string; visible: boolean }) {
   const lookup = useLibraryLookup(url, visible);
@@ -171,7 +140,7 @@ function LibraryAction({ url, visible }: { url: string; visible: boolean }) {
       </a>
     );
   }
-  return <AddToLibrary url={url} />;
+  return <AddToLibraryButton url={url} />;
 }
 
 function isPaperLink(source: Source): boolean {

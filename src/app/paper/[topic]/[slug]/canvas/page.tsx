@@ -80,6 +80,7 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
               paperSourceUrl={paper.meta.sourceUrl ?? undefined}
               aiAvailable={aiAvailable}
               visionAvailable={visionAvailable}
+              bibliographyEndpoint={`/api/v1/papers/${topic}/${slug}/bibliography`}
             />
           </div>
         }
