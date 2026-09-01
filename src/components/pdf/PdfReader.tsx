@@ -70,6 +70,13 @@ interface PdfReaderProps {
    */
   positionKey?: string;
   /**
+   * Session-authed per-profile position route
+   * (`/api/v1/papers/<topic>/<slug>/position`); with it the last page and
+   * zoom follow the reader across devices, newest copy winning. Only
+   * signed-in surfaces (paper page, canvas annotator) pass this.
+   */
+  positionEndpoint?: string;
+  /**
    * PUT the scanned bibliography here once per document open
    * (`/api/v1/papers/<topic>/<slug>/bibliography`), so readerless surfaces
    * (the canvas chat) and the library graph can use it. Only the paper page
@@ -89,6 +96,7 @@ export function PdfReader({
   libraryLookup = false,
   chatPrompts = false,
   positionKey,
+  positionEndpoint,
   bibliographyEndpoint,
 }: PdfReaderProps) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -116,6 +124,7 @@ export function PdfReader({
     dirtyRef,
     savingRef,
     restoreViewRef,
+    noteUserMove,
     hoverPreviewRequestedRef,
     bibliographyRef,
     pdfDocument,
@@ -139,6 +148,7 @@ export function PdfReader({
     src,
     editable,
     positionKey,
+    positionEndpoint,
     onEditStateChange,
     onHoverPreview: (target) => showReferencePreview(target, null, null),
   });
@@ -506,7 +516,10 @@ export function PdfReader({
         <div className={styles.toolbarGroup}>
           <button
             type="button"
-            onClick={() => pdfViewerRef.current?.previousPage()}
+            onClick={() => {
+              noteUserMove();
+              pdfViewerRef.current?.previousPage();
+            }}
             disabled={pageNumber <= 1}
             aria-label="Previous page"
           >
@@ -518,7 +531,10 @@ export function PdfReader({
           </span>
           <button
             type="button"
-            onClick={() => pdfViewerRef.current?.nextPage()}
+            onClick={() => {
+              noteUserMove();
+              pdfViewerRef.current?.nextPage();
+            }}
             disabled={pageCount === 0 || pageNumber >= pageCount}
             aria-label="Next page"
           >
@@ -577,7 +593,10 @@ export function PdfReader({
         <div className={styles.toolbarGroup}>
           <button
             type="button"
-            onClick={() => pdfViewerRef.current?.decreaseScale()}
+            onClick={() => {
+              noteUserMove();
+              pdfViewerRef.current?.decreaseScale();
+            }}
             aria-label="Zoom out"
           >
             −
@@ -585,7 +604,10 @@ export function PdfReader({
           <span className={styles.zoom}>{zoom}%</span>
           <button
             type="button"
-            onClick={() => pdfViewerRef.current?.increaseScale()}
+            onClick={() => {
+              noteUserMove();
+              pdfViewerRef.current?.increaseScale();
+            }}
             aria-label="Zoom in"
           >
             +

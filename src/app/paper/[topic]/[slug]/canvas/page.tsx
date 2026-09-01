@@ -64,6 +64,7 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
             topic={topic}
             slug={slug}
             title={paper.meta.title}
+            username={profile.username}
             licenseKey={licenseKey}
             licenseRequired={tldrawLicenseRequired(protocol, hostname)}
             licenseError={licenseError}

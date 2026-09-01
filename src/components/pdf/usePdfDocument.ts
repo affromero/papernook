@@ -25,7 +25,9 @@ import {
 } from "@/lib/pdf/autosave";
 import type { Bibliography } from "@/lib/pdf/bibliography";
 import {
+  newerReadingPosition,
   parseReadingPosition,
+  readingPositionFromUnknown,
   serializeReadingPosition,
   type ReadingPosition,
 } from "@/lib/pdf/view/reading-position";
@@ -110,6 +112,13 @@ interface UsePdfDocumentOptions {
    * viewer) that should always start from the top.
    */
   positionKey?: string;
+  /**
+   * Session-authed route (`/api/v1/papers/<topic>/<slug>/position`) that
+   * mirrors the reading position per profile, so a paper resumes where the
+   * same reader left it on another device. Omitted on logged-out surfaces
+   * (share links, the viewer).
+   */
+  positionEndpoint?: string;
   onEditStateChange?(state: PdfReaderEditState): void;
   /**
    * Receives the destination of an internal link clicked while
@@ -132,6 +141,14 @@ export interface PdfDocumentHandle {
   savingRef: RefObject<boolean>;
   /** Page and scale to re-apply on the next `pagesinit` (document remount). */
   restoreViewRef: RefObject<{ page: number; scale: number } | null>;
+  /**
+   * Marks the current view as chosen by the reader. The toolbar's page and
+   * zoom buttons live outside the scroll container whose input listeners
+   * feed `userMovedRef`, so the reader calls this from those handlers;
+   * without it, toolbar-only navigation would never persist a position and
+   * a late-arriving server position could yank the view away.
+   */
+  noteUserMove(): void;
   /**
    * Set by the reader while it synthesises a link click for a hover
    * preview; the link service then routes the destination to
@@ -170,6 +187,7 @@ export function usePdfDocument({
   src,
   editable,
   positionKey,
+  positionEndpoint,
   onEditStateChange,
   onHoverPreview,
 }: UsePdfDocumentOptions): PdfDocumentHandle {
@@ -185,6 +203,12 @@ export function usePdfDocument({
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
   const restoreViewRef = useRef<{ page: number; scale: number } | null>(null);
+  // True once the reader wheels, taps, or keys inside the current document,
+  // or presses a toolbar page/zoom button (via `noteUserMove`); a server
+  // position that arrives after that must not yank the view away. Only real
+  // input sets it — programmatic restores fire the same
+  // pagechanging/scalechanging events a person does.
+  const userMovedRef = useRef(false);
   const hoverPreviewRequestedRef = useRef(false);
   const bibliographyRef = useRef<Bibliography | null>(null);
   const onEditStateChangeRef = useRef(onEditStateChange);
@@ -212,6 +236,10 @@ export function usePdfDocument({
     onHoverPreviewRef.current = onHoverPreview;
   }, [onHoverPreview]);
 
+  const noteUserMove = () => {
+    userMovedRef.current = true;
+  };
+
   useEffect(() => {
     const container = containerRef.current;
     const viewerElement = viewerRef.current;
@@ -221,7 +249,23 @@ export function usePdfDocument({
     let loadingTask: PDFDocumentLoadingTask | null = null;
     let viewerCleanup: (() => void) | null = null;
     let positionWriteTimer: ReturnType<typeof setTimeout> | null = null;
+    let remotePosition: ReadingPosition | null = null;
     const abortController = new AbortController();
+
+    userMovedRef.current = false;
+    const markUserMoved = () => {
+      userMovedRef.current = true;
+    };
+    container.addEventListener("wheel", markUserMoved, {
+      signal: abortController.signal,
+      passive: true,
+    });
+    container.addEventListener("pointerdown", markUserMoved, {
+      signal: abortController.signal,
+    });
+    container.addEventListener("keydown", markUserMoved, {
+      signal: abortController.signal,
+    });
 
     void (async () => {
       try {
@@ -279,38 +323,126 @@ export function usePdfDocument({
         // pinch fire scalechanging dozens of times a second.
         const flushReadingPosition = () => {
           positionWriteTimer = null;
-          if (!positionKey || pdfViewer.pagesCount === 0) return;
-          writeStoredReadingPosition(positionKey, {
+          // Only a position the reader chose by hand may be stamped and
+          // persisted. pagesinit restores and applyRemotePosition fire the
+          // same pagechanging/scalechanging events real moves do; stamping
+          // those with a fresh Date.now() would clobber the server copy on
+          // every open and let a restamped local copy beat a genuinely
+          // newer remote in newerReadingPosition.
+          if (!userMovedRef.current) return;
+          if (
+            (!positionKey && !positionEndpoint) ||
+            pdfViewer.pagesCount === 0
+          ) {
+            return;
+          }
+          const position: ReadingPosition = {
             page: pdfViewer.currentPageNumber,
             scale: pdfViewer.currentScale,
-          });
+            updatedAt: Date.now(),
+          };
+          if (positionKey) writeStoredReadingPosition(positionKey, position);
+          if (positionEndpoint) {
+            // Deliberately NOT on the effect's abort signal: the final
+            // flush fires from teardown or pagehide, exactly when the
+            // signal aborts; keepalive lets the PUT outlive the page.
+            void fetch(positionEndpoint, {
+              method: "PUT",
+              credentials: "same-origin",
+              headers: { "content-type": "application/json" },
+              body: serializeReadingPosition(position),
+              keepalive: true,
+            }).catch(() => {
+              // A dropped write only costs cross-device freshness; the
+              // next debounced move re-PUTs.
+            });
+          }
         };
         const scheduleReadingPositionWrite = () => {
-          if (!positionKey) return;
+          if (!positionKey && !positionEndpoint) return;
           if (positionWriteTimer !== null) clearTimeout(positionWriteTimer);
           positionWriteTimer = setTimeout(
             flushReadingPosition,
             READING_POSITION_WRITE_DELAY_MS,
           );
         };
+        let pagesInitDone = false;
+        // True once pagesinit re-applied a live mid-session view (a silent
+        // version-poll or margin-notes remount). That view is where the
+        // reader is actively reading, so it outranks any server copy — but
+        // unlike a hand move it must NOT count as userMoved: stamping it
+        // with a fresh Date.now() would let an idle tab clobber the server
+        // position another device keeps advancing.
+        let restoredLiveView = false;
+        // Applies a late-arriving server position, but only while nothing
+        // has a stronger claim: a pending remount restore (consumed or
+        // not), a move the reader already made by hand, or a local copy
+        // written more recently. Safe to run more than once (the effect
+        // re-runs on documentGeneration bumps, so the fetch may resolve
+        // twice): re-applying the same winner just re-sets the same page
+        // and zoom.
+        const applyRemotePosition = () => {
+          if (!remotePosition || !pagesInitDone) return;
+          if (restoreViewRef.current || restoredLiveView) return;
+          if (userMovedRef.current) return;
+          const local = positionKey
+            ? readStoredReadingPosition(positionKey)
+            : null;
+          if (newerReadingPosition(local, remotePosition) !== remotePosition) {
+            return;
+          }
+          pdfViewer.currentScale = remotePosition.scale;
+          pdfViewer.currentPageNumber = Math.min(
+            remotePosition.page,
+            pdfViewer.pagesCount,
+          );
+          if (positionKey) {
+            writeStoredReadingPosition(positionKey, remotePosition);
+          }
+        };
+        if (positionEndpoint) {
+          // Races the document load; whichever side finishes last
+          // reconciles (pagesinit below, or applyRemotePosition here).
+          void fetch(positionEndpoint, {
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: abortController.signal,
+          })
+            .then(async (response) => {
+              if (!response.ok) return;
+              const payload: unknown = await response.json();
+              const position =
+                payload && typeof payload === "object" && "position" in payload
+                  ? readingPositionFromUnknown(payload.position)
+                  : null;
+              if (!position || disposed) return;
+              remotePosition = position;
+              applyRemotePosition();
+            })
+            .catch(() => {
+              // Resuming from localStorage alone is fine; the next move
+              // re-PUTs and heals the server copy.
+            });
+        }
         const onPagesInit = () => {
+          pagesInitDone = true;
           const restore = restoreViewRef.current;
           restoreViewRef.current = null;
+          if (restore) restoredLiveView = true;
           const stored = positionKey
             ? readStoredReadingPosition(positionKey)
             : null;
-          if (restore) {
-            pdfViewer.currentScale = restore.scale;
+          const resume =
+            restore ?? newerReadingPosition(stored, remotePosition);
+          if (resume) {
+            pdfViewer.currentScale = resume.scale;
             pdfViewer.currentPageNumber = Math.min(
-              restore.page,
+              resume.page,
               pdfViewer.pagesCount,
             );
-          } else if (stored) {
-            pdfViewer.currentScale = stored.scale;
-            pdfViewer.currentPageNumber = Math.min(
-              stored.page,
-              pdfViewer.pagesCount,
-            );
+            if (!restore && positionKey && resume === remotePosition) {
+              writeStoredReadingPosition(positionKey, remotePosition);
+            }
           } else {
             pdfViewer.currentScaleValue = "page-width";
           }
@@ -601,7 +733,7 @@ export function usePdfDocument({
       setEditorReady(false);
       void loadingTask?.destroy();
     };
-  }, [editable, positionKey, src, documentGeneration]);
+  }, [editable, positionKey, positionEndpoint, src, documentGeneration]);
 
   return {
     containerRef,
@@ -615,6 +747,7 @@ export function usePdfDocument({
     dirtyRef,
     savingRef,
     restoreViewRef,
+    noteUserMove,
     hoverPreviewRequestedRef,
     bibliographyRef,
     pdfDocument,

@@ -55,7 +55,8 @@ export default async function PaperPage({ params }: PaperPageProps) {
             editable
             libraryLookup
             chatPrompts={aiAvailable}
-            positionKey={readingPositionKey(topic, slug)}
+            positionKey={readingPositionKey(topic, slug, profile.username)}
+            positionEndpoint={`/api/v1/papers/${topic}/${slug}/position`}
             bibliographyEndpoint={bibliographyEndpoint}
           />
         }
