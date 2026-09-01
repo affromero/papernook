@@ -9,6 +9,17 @@ import {
 import { MessageSources } from "@/components/chat/MessageSources";
 
 describe("collectSources", () => {
+  it("keeps repository links but not file permalinks already linked inline", () => {
+    const sources = collectSources(
+      [
+        "See [train.py#L69-L71](https://github.com/org/repo/blob/0123456789abcdef0123456789abcdef01234567/train.py#L69-L71)",
+        "in [the repo](https://github.com/org/repo) and",
+        "[tree](https://github.com/org/repo/tree/main/src).",
+      ].join(" "),
+    );
+    expect(sources.map((s) => s.url)).toEqual(["https://github.com/org/repo"]);
+  });
+
   it("lists Markdown links and bare URLs in order, classified by host", () => {
     const sources = collectSources(
       [

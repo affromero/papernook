@@ -64,6 +64,22 @@ export function sourceKind(url: string): SourceKind {
   return "web";
 }
 
+/**
+ * A GitHub file permalink ("/blob/<sha>/path#L1-L2") is an inline code
+ * citation the answer already links beside its excerpt, not a work to
+ * list; only repository-level links qualify as sources.
+ */
+function isRepositoryFileLink(url: string): boolean {
+  if (hostOf(url) !== "github.com") return false;
+  try {
+    return /^\/[^/]+\/[^/]+\/(blob|tree|blame|raw)\//.test(
+      new URL(url).pathname,
+    );
+  } catch {
+    return false;
+  }
+}
+
 function hostOf(url: string): string {
   try {
     return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
@@ -144,6 +160,7 @@ export function collectSources(
   function add(url: string, title: string | null): void {
     if (!/^https?:\/\//i.test(url)) return;
     if (linksToCurrentPaper(url, paperSourceUrl)) return;
+    if (isRepositoryFileLink(url)) return;
     const identity = normalizedPaperIdentity(url);
     if (!identity) return;
     const kind = sourceKind(url);
