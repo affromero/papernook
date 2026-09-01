@@ -12,6 +12,13 @@ export interface ReadingPosition {
   scale: number;
   /** Epoch ms of the move that produced this position; 0 when unknown. */
   updatedAt: number;
+  /**
+   * Width in CSS px of the reader container that produced the position;
+   * 0 when unknown. Zoom is meaningful only relative to the surface it
+   * was chosen on, so a restore applies the stored scale only when the
+   * viewports are comparable (see `scaleTransfers`).
+   */
+  viewport: number;
 }
 
 /**
@@ -54,6 +61,7 @@ export function readingPositionFromUnknown(
     return null;
   }
   if (typeof scale !== "number" || !Number.isFinite(scale)) return null;
+  const { viewport } = value as Record<string, unknown>;
   return {
     page,
     scale: Math.min(MAX_READING_SCALE, Math.max(MIN_READING_SCALE, scale)),
@@ -62,6 +70,10 @@ export function readingPositionFromUnknown(
       Number.isFinite(updatedAt) &&
       updatedAt > 0
         ? updatedAt
+        : 0,
+    viewport:
+      typeof viewport === "number" && Number.isFinite(viewport) && viewport > 0
+        ? viewport
         : 0,
   };
 }
@@ -85,6 +97,7 @@ export function serializeReadingPosition(position: ReadingPosition): string {
     page: position.page,
     scale: position.scale,
     updatedAt: position.updatedAt,
+    viewport: position.viewport,
   });
 }
 
@@ -93,6 +106,21 @@ export function serializeReadingPosition(position: ReadingPosition): string {
  * same move, or both timestampless) keeps the first argument, so callers
  * pass the copy they would rather trust — the local one — first.
  */
+/**
+ * Whether a stored zoom is meaningful on the current surface: true when the
+ * widths are within 20% of each other. A position from an unknown viewport
+ * (0) never transfers its zoom — restoring a desktop zoom on a tablet (or
+ * vice versa) reads as a broken fit, while the page number transfers fine.
+ */
+export function scaleTransfers(
+  position: ReadingPosition,
+  containerWidth: number,
+): boolean {
+  if (position.viewport <= 0 || containerWidth <= 0) return false;
+  const ratio = position.viewport / containerWidth;
+  return ratio >= 0.8 && ratio <= 1.25;
+}
+
 export function newerReadingPosition(
   a: ReadingPosition | null,
   b: ReadingPosition | null,

@@ -27,6 +27,8 @@ export const readingPositionSchema = z
     page: z.number().int().min(1).max(5000),
     scale: z.number().min(MIN_READING_SCALE).max(MAX_READING_SCALE),
     updatedAt: z.number().int().min(0).max(MAX_POSITION_TIMESTAMP_MS),
+    // Container width (CSS px) the position was written from; 0 = unknown.
+    viewport: z.number().min(0).max(100_000),
   })
   .strict();
 

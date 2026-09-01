@@ -26,6 +26,7 @@ import {
 import type { Bibliography } from "@/lib/pdf/bibliography";
 import {
   newerReadingPosition,
+  scaleTransfers,
   parseReadingPosition,
   readingPositionFromUnknown,
   serializeReadingPosition,
@@ -340,6 +341,7 @@ export function usePdfDocument({
             page: pdfViewer.currentPageNumber,
             scale: pdfViewer.currentScale,
             updatedAt: Date.now(),
+            viewport: container.clientWidth,
           };
           if (positionKey) writeStoredReadingPosition(positionKey, position);
           if (positionEndpoint) {
@@ -432,15 +434,28 @@ export function usePdfDocument({
           const stored = positionKey
             ? readStoredReadingPosition(positionKey)
             : null;
-          const resume =
-            restore ?? newerReadingPosition(stored, remotePosition);
-          if (resume) {
-            pdfViewer.currentScale = resume.scale;
+          const resume = newerReadingPosition(stored, remotePosition);
+          if (restore) {
+            // Same-session remount: the surface is unchanged, restore
+            // the exact view.
+            pdfViewer.currentScale = restore.scale;
+            pdfViewer.currentPageNumber = Math.min(
+              restore.page,
+              pdfViewer.pagesCount,
+            );
+          } else if (resume) {
+            // A remembered zoom only makes sense on a comparable surface;
+            // the page transfers regardless.
+            if (scaleTransfers(resume, container.clientWidth)) {
+              pdfViewer.currentScale = resume.scale;
+            } else {
+              pdfViewer.currentScaleValue = "page-width";
+            }
             pdfViewer.currentPageNumber = Math.min(
               resume.page,
               pdfViewer.pagesCount,
             );
-            if (!restore && positionKey && resume === remotePosition) {
+            if (positionKey && resume === remotePosition) {
               writeStoredReadingPosition(positionKey, remotePosition);
             }
           } else {

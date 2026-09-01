@@ -4,6 +4,7 @@ import {
   MIN_READING_SCALE,
   newerReadingPosition,
   parseReadingPosition,
+  scaleTransfers,
   readingPositionFromUnknown,
   readingPositionKey,
   serializeReadingPosition,
@@ -31,11 +32,13 @@ describe("parseReadingPosition", () => {
       page: 7,
       scale: 1.25,
       updatedAt: 1_756_600_000_000,
+      viewport: 1180,
     });
     expect(parseReadingPosition(stored)).toEqual({
       page: 7,
       scale: 1.25,
       updatedAt: 1_756_600_000_000,
+      viewport: 1180,
     });
   });
 
@@ -65,6 +68,7 @@ describe("parseReadingPosition", () => {
       page: 3,
       scale: 1.5,
       updatedAt: 0,
+      viewport: 0,
     });
   });
 
@@ -72,7 +76,7 @@ describe("parseReadingPosition", () => {
     for (const updatedAt of ['"soon"', "-5", "null", "1e999"]) {
       expect(
         parseReadingPosition(`{"page":3,"scale":1.5,"updatedAt":${updatedAt}}`),
-      ).toEqual({ page: 3, scale: 1.5, updatedAt: 0 });
+      ).toEqual({ page: 3, scale: 1.5, updatedAt: 0, viewport: 0 });
     }
   });
 
@@ -81,12 +85,12 @@ describe("parseReadingPosition", () => {
       parseReadingPosition(
         JSON.stringify({ page: 9, scale: MIN_READING_SCALE / 2 }),
       ),
-    ).toEqual({ page: 9, scale: MIN_READING_SCALE, updatedAt: 0 });
+    ).toEqual({ page: 9, scale: MIN_READING_SCALE, updatedAt: 0, viewport: 0 });
     expect(
       parseReadingPosition(
         JSON.stringify({ page: 9, scale: MAX_READING_SCALE * 2 }),
       ),
-    ).toEqual({ page: 9, scale: MAX_READING_SCALE, updatedAt: 0 });
+    ).toEqual({ page: 9, scale: MAX_READING_SCALE, updatedAt: 0, viewport: 0 });
   });
 
   it("rejects zoom values that are not finite numbers", () => {
@@ -101,26 +105,31 @@ describe("parseReadingPosition", () => {
       parseReadingPosition(
         JSON.stringify({ page: 1, scale: MIN_READING_SCALE }),
       ),
-    ).toEqual({ page: 1, scale: MIN_READING_SCALE, updatedAt: 0 });
+    ).toEqual({ page: 1, scale: MIN_READING_SCALE, updatedAt: 0, viewport: 0 });
     expect(
       parseReadingPosition(
         JSON.stringify({ page: 1, scale: MAX_READING_SCALE }),
       ),
-    ).toEqual({ page: 1, scale: MAX_READING_SCALE, updatedAt: 0 });
+    ).toEqual({ page: 1, scale: MAX_READING_SCALE, updatedAt: 0, viewport: 0 });
   });
 
   it("ignores extra fields from an older or foreign shape", () => {
     expect(
       parseReadingPosition('{"page":3,"scale":1.5,"scrollTop":120}'),
-    ).toEqual({ page: 3, scale: 1.5, updatedAt: 0 });
+    ).toEqual({ page: 3, scale: 1.5, updatedAt: 0, viewport: 0 });
   });
 });
 
 describe("readingPositionFromUnknown", () => {
   it("accepts an already-parsed API payload", () => {
     expect(
-      readingPositionFromUnknown({ page: 4, scale: 2, updatedAt: 17 }),
-    ).toEqual({ page: 4, scale: 2, updatedAt: 17 });
+      readingPositionFromUnknown({
+        page: 4,
+        scale: 2,
+        updatedAt: 17,
+        viewport: 0,
+      }),
+    ).toEqual({ page: 4, scale: 2, updatedAt: 17, viewport: 0 });
     expect(readingPositionFromUnknown(null)).toBeNull();
     expect(readingPositionFromUnknown("position")).toBeNull();
     expect(readingPositionFromUnknown({ page: 0, scale: 1 })).toBeNull();
@@ -128,8 +137,8 @@ describe("readingPositionFromUnknown", () => {
 });
 
 describe("newerReadingPosition", () => {
-  const older = { page: 2, scale: 1, updatedAt: 1_000 };
-  const newer = { page: 9, scale: 1.5, updatedAt: 2_000 };
+  const older = { page: 2, scale: 1, updatedAt: 1_000, viewport: 0 };
+  const newer = { page: 9, scale: 1.5, updatedAt: 2_000, viewport: 0 };
 
   it("picks the more recently written position from either side", () => {
     expect(newerReadingPosition(older, newer)).toBe(newer);
@@ -145,14 +154,35 @@ describe("newerReadingPosition", () => {
   it("keeps the first argument on a tie, so callers can prefer local", () => {
     const localCopy = { ...newer, page: 5 };
     expect(newerReadingPosition(localCopy, newer)).toBe(localCopy);
-    const untimed = { page: 1, scale: 1, updatedAt: 0 };
+    const untimed = { page: 1, scale: 1, updatedAt: 0, viewport: 0 };
     expect(newerReadingPosition(untimed, { ...untimed, page: 8 })).toBe(
       untimed,
     );
   });
 
   it("lets a timestamped position beat a pre-timestamp one", () => {
-    const untimed = { page: 12, scale: 1, updatedAt: 0 };
+    const untimed = { page: 12, scale: 1, updatedAt: 0, viewport: 0 };
     expect(newerReadingPosition(untimed, older)).toBe(older);
+  });
+});
+
+describe("scaleTransfers", () => {
+  const at = (viewport: number) => ({
+    page: 1,
+    scale: 0.95,
+    updatedAt: 1,
+    viewport,
+  });
+
+  it("transfers zoom between comparable surfaces only", () => {
+    expect(scaleTransfers(at(1180), 1180)).toBe(true);
+    expect(scaleTransfers(at(1180), 1000)).toBe(true);
+    expect(scaleTransfers(at(1180), 810)).toBe(false); // desktop -> tablet
+    expect(scaleTransfers(at(810), 1180)).toBe(false); // tablet -> desktop
+  });
+
+  it("never transfers zoom from an unknown viewport", () => {
+    expect(scaleTransfers(at(0), 1180)).toBe(false);
+    expect(scaleTransfers(at(1180), 0)).toBe(false);
   });
 });

@@ -21,7 +21,13 @@ afterEach(async () => {
 });
 
 function position(overrides: Partial<ReadingPosition> = {}): ReadingPosition {
-  return { page: 7, scale: 1.25, updatedAt: 1_756_600_000_000, ...overrides };
+  return {
+    page: 7,
+    scale: 1.25,
+    updatedAt: 1_756_600_000_000,
+    viewport: 900,
+    ...overrides,
+  };
 }
 
 async function placePaper(topic: string, slug: string): Promise<void> {
