@@ -393,7 +393,11 @@ export function usePdfDocument({
           if (newerReadingPosition(local, remotePosition) !== remotePosition) {
             return;
           }
-          pdfViewer.currentScale = remotePosition.scale;
+          if (scaleTransfers(remotePosition, container.clientWidth)) {
+            pdfViewer.currentScale = remotePosition.scale;
+          } else {
+            pdfViewer.currentScaleValue = "page-width";
+          }
           pdfViewer.currentPageNumber = Math.min(
             remotePosition.page,
             pdfViewer.pagesCount,
