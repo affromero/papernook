@@ -147,6 +147,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
     const readerUrl = page.url();
+    await page
+      .getByRole("combobox", { name: "Previous conversations" })
+      .selectOption("0123456789abcdef");
     // The chat panel loads its history over two client fetches that compete
     // with the PDF for the dev server, and the reader's tools only enable
     // once pdf.js has the document. Neither is a five-second promise on a
@@ -660,6 +663,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
       .not.toBe(initialZoom);
 
     await page.getByRole("tab", { name: "Chat" }).click();
+    await page
+      .getByRole("combobox", { name: "Previous conversations" })
+      .selectOption("0123456789abcdef");
     await expect(
       page
         .getByRole("paragraph")

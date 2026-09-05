@@ -65,6 +65,9 @@ test("an early scene failure stays visible and reports no scene text", async ({
 
   await login(page);
   await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  await page
+    .getByRole("combobox", { name: "Previous conversations" })
+    .selectOption("0123456789abcdef");
 
   const sandbox = page.frameLocator('iframe[title="Interactive 3D scene"]');
   await expect(sandbox.getByRole("alert")).toContainText(
@@ -166,6 +169,9 @@ test("a legacy module scene loads Three.js and creates its canvas", async ({
 
   await login(page);
   await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  await page
+    .getByRole("combobox", { name: "Previous conversations" })
+    .selectOption("0123456789abcdef");
 
   const sandbox = page.frameLocator('iframe[title="Interactive 3D scene"]');
   await expect(sandbox.locator("canvas")).toBeVisible();
