@@ -550,6 +550,13 @@ test.describe.serial("documentation journeys and screenshots", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 834, height: 1112 });
+    await page.route(
+      "**/api/v1/papers/machine-learning/attention-is-all-you-need/position",
+      async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        await route.fulfill({ json: { position: null } });
+      },
+    );
     await loginAsAdmin(page);
     await expect(page).toHaveScreenshot(["product", "library-tablet.png"], {
       animations: "disabled",
@@ -661,4 +668,43 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.getByRole("tab", { name: "Chat" }).press("ArrowLeft");
     await expect(page.getByRole("tab", { name: "Reading" })).toBeFocused();
   });
+});
+
+test("a late desktop reading position restores the page without changing tablet zoom", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 834, height: 1112 });
+  const positionEndpoint =
+    "**/api/v1/papers/machine-learning/attention-is-all-you-need/position";
+  const { promise: readerReady, resolve: releasePosition } =
+    Promise.withResolvers<void>();
+  await page.route(positionEndpoint, async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    await readerReady;
+    await route.fulfill({
+      json: {
+        position: {
+          page: 2,
+          scale: 2,
+          viewport: 2000,
+          updatedAt: Date.now(),
+        },
+      },
+    });
+  });
+  try {
+    await loginAsAdmin(page);
+    await page.getByText("Attention Is All You Need").click();
+    await expect(page.getByText("Page 1 of 3")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();
+    await expect(page.locator(".page canvas").first()).toBeVisible();
+    const zoom = page.locator("span").filter({ hasText: /^\d+%$/ });
+    const fittedZoom = await zoom.innerText();
+    releasePosition();
+    await expect(page.getByText("Page 2 of 3")).toBeVisible();
+    await expect(zoom).toHaveText(fittedZoom);
+  } finally {
+    releasePosition();
+    await page.unrouteAll({ behavior: "wait" });
+  }
 });
