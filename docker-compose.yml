@@ -24,8 +24,15 @@
 #                                  ghcr.io/affromero/papernook) instead of
 #                                  building this checkout
 
+x-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
 services:
   app:
+    logging: *bounded-logging
     build: .
     # Built from this checkout by default, which is what a self-host install
     # does. Set PAPERNOOK_IMAGE (and the tag) to run a prebuilt image
@@ -82,6 +89,7 @@ services:
       start_period: 20s
 
   credential-sync:
+    logging: *bounded-logging
     image: alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
     restart: unless-stopped
     network_mode: none
@@ -108,6 +116,7 @@ services:
   # Internal metasearch backend for local-model web_search tool calls. It is
   # reachable from the host only on loopback and never receives server files.
   search:
+    logging: *bounded-logging
     image: searxng/searxng:latest@sha256:7a39e9e2610fb6f332393d0f1c69534d5f1fd4e85cb4b204cd1b1768195b8ee9
     restart: unless-stopped
     environment:
@@ -124,6 +133,7 @@ services:
       start_period: 20s
 
   webdav:
+    logging: *bounded-logging
     image: rclone/rclone:1.74.4@sha256:c61954aaa32328a5486715dd063a81c7879f5195ad3505cd362deddd509dc4a1
     restart: unless-stopped
     command:
