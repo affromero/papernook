@@ -14,9 +14,11 @@ async function loginAsAdmin(page: Page): Promise<void> {
   const enter = page.getByRole("button", { name: "Enter" });
   // A fill() that lands before React hydrates sets the native value without
   // the component ever seeing it, so the gate's Enter — disabled while its
-  // state holds an empty password — never enables. WebKit on CI loses that
-  // race often enough to matter; retry the fill until the button reacts.
+  // state holds an empty password — never enables. Reload each retry because
+  // refilling the same pre-hydration node cannot update React's state.
   await expect(async () => {
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(250);
     await field.fill(password);
     await expect(enter).toBeEnabled({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
