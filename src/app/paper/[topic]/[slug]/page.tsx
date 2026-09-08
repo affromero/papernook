@@ -9,6 +9,7 @@ import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
 import { PdfReader } from "@/components/pdf/PdfReader";
 import { CopySourceLinkButton } from "@/components/paper/CopySourceLinkButton";
 import { PaperHeader } from "@/components/paper/PaperHeader";
+import { DownloadButton } from "@/components/offline/DownloadButton";
 import styles from "./paper.module.css";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,12 @@ export default async function PaperPage({ params }: PaperPageProps) {
       <ReadingWorkspace
         mainLabel="Paper PDF"
         header={
-          <PaperHeader topic={topic} slug={slug} meta={meta} view="reader" />
+          <>
+            <PaperHeader topic={topic} slug={slug} meta={meta} view="reader" />
+            <DownloadButton
+              snapshotUrl={`/api/v1/offline/papers/${topic}/${slug}`}
+            />
+          </>
         }
         collapsedHeaderActions={
           <CopySourceLinkButton sourceUrl={meta.sourceUrl} />

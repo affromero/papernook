@@ -21,11 +21,23 @@ const nextConfig: NextConfig = {
   // Self-contained server bundle for the Docker image.
   output: "standalone",
   outputFileTracingRoot: projectRoot,
+  outputFileTracingIncludes: {
+    "/api/v1/offline/**/*": ["./node_modules/katex/dist/**/*"],
+    "/api/v1/conversations/**/*": ["./node_modules/katex/dist/**/*"],
+  },
   outputFileTracingExcludes: {
     "/*": privateTraceExcludes,
   },
   async headers() {
     return [
+      {
+        source: "/offline/:path*",
+        headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }],
+      },
+      {
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }],
+      },
       {
         source: "/:path*",
         headers: [

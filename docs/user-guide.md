@@ -4,6 +4,59 @@
 
 ## Daily use
 
+### Import a conversation
+
+Open **Conversations** and paste a public ChatGPT or Claude share URL. Submit
+the import to save a private source snapshot and open its Papernook page.
+The original URL stays available through **Original share**. Removing the share
+or deleting the original conversation later does not delete the imported copy.
+Papers and Conversations have independent topics, tags and searches.
+
+If the provider blocks access or changes its share format, Papernook reports the
+import error. You can explicitly upload or paste a Markdown/text transcript,
+ChatGPT or Claude conversation JSON, or a Codex JSONL session export. The importer
+does not sign into your provider account. Source attachments that are absent from
+the export are unavailable; their contents cannot be reconstructed from a link.
+
+Ask follow-up questions beside the saved source. Responses use the AI configured
+in Settings and stay private to your profile. The imported source remains a
+snapshot. **Export HTML / Save as PDF** downloads a formatted HTML file including
+saved follow-ups. Open that file and use the browser print menu to save a PDF.
+Markdown and JSON exports are also available.
+
+A shortcut can open `/conversations?import=<encoded-share-url>` on your instance
+to prefill the import form. Opening this address alone does not create a document.
+
+### Read without internet
+
+While online, open a paper or conversation and choose **Available offline**.
+Wait for **Saved on this device** before disconnecting. A paper download includes
+its current PDF, extracted text, summary and your saved chats. A conversation
+download includes its source transcript and saved follow-ups. Approved local chat
+attachments are embedded; external image links are not fetched automatically.
+
+Use **Downloads** to inspect the saved library. When the server is unreachable,
+Papernook opens this library automatically. Downloaded papers and conversations
+remain in separate tabs with their own categories and search. You can read a PDF,
+its text and existing chats, or export HTML and PDF files. Sending AI questions
+and editing annotations require a connection. The reader restores the online
+document when connectivity returns and the profile session is still valid.
+
+**Settings → Offline storage** lists downloaded items, their sizes and save dates.
+Update a download to capture recent changes, remove individual items, or choose
+**Clear all downloads**. These controls only remove device copies. They do not
+delete documents or conversations from the server. While the app is open online,
+downloads older than 15 minutes are refreshed; update failures are shown and keep
+the last complete copy.
+
+Downloads live in browser-managed storage on this device. They are not a visible
+folder in the phone's Files app. Export PDF or HTML to keep independent files.
+Changing profiles or logging out clears private downloads, including in other
+open tabs. Browsers may reclaim stored data when the device is low on space.
+Offline support requires HTTPS (or localhost for development) and a browser that
+supports service workers and IndexedDB. Install Papernook on your home screen
+and open Downloads once before a trip to check the documents you need.
+
 ### Add a paper
 
 - **From anywhere:** copy an arXiv/OpenReview URL, direct PDF URL, or publisher

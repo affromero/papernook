@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LibraryNavigation } from "@/components/conversations/LibraryNavigation";
 import { AddPaperBox } from "./AddPaperBox";
 import { ReviewStrip } from "./ReviewStrip";
 import { ViewToggle } from "./ViewToggle";
@@ -76,6 +77,7 @@ export function LibraryView({
   return (
     <div className={styles.root}>
       <aside className={styles.sidebar}>
+        <LibraryNavigation />
         <nav aria-label="Topics">
           <h2 className={styles.sideTitle}>Topics</h2>
           <ul className={styles.sideList}>

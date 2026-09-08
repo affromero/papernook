@@ -17,6 +17,7 @@ import { DevicePanel } from "@/components/pwa/DevicePanel";
 import { CanvasLicenseCard } from "@/components/canvas/CanvasLicenseCard";
 import { captureBookmarklet } from "@/lib/capture/browser/submit";
 import { externalLinkProps } from "@/lib/external-link";
+import { OfflineStorage } from "@/components/offline/OfflineStorage";
 import styles from "./settings.module.css";
 
 export const dynamic = "force-dynamic";
@@ -78,10 +79,12 @@ export default async function SettingsPage() {
             {admin && <a href="#ai">AI model</a>}
             <a href="#people">People</a>
             <a href="#devices">Devices</a>
+            <a href="#offline-storage">Offline storage</a>
             <a href="#profile">My profile</a>
           </nav>
 
           <div className={styles.content}>
+            <OfflineStorage />
             <section className={styles.section} id="capture">
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionNumber}>01</span>
