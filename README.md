@@ -120,7 +120,8 @@ installed before the command existed, run `./scripts/papernook link` once.
 
 ![Papernook web reader with PDF annotation tools and grounded chat](docs/product-preview.png)
 
-MeshSplatting, annotated and understood in Papernook:
+Click the MeshSplatting paper directly from arXiv with the browser extension
+enabled, then annotate and understand it in Papernook:
 
 ![MeshSplatting paper open in Papernook with grounded code and chat context](docs/images/product/meshsplat-teaser.gif)
 
