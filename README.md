@@ -120,6 +120,10 @@ installed before the command existed, run `./scripts/papernook link` once.
 
 ![Papernook web reader with PDF annotation tools and grounded chat](docs/product-preview.png)
 
+MeshSplatting, annotated and understood in Papernook:
+
+![MeshSplatting paper open in Papernook with grounded code and chat context](docs/images/product/meshsplat-teaser.gif)
+
 | Step              | What happens                                                                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **1. Capture**    | Save arXiv, PDF, and publisher pages from Safari, Chrome, or Papernook. AI proposes the topic, tags, summary, and links. |
