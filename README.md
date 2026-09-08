@@ -33,10 +33,10 @@ Ask your own AI grounded questions, then share a revocable, view-only reading.
 
 </div>
 
-Click the MeshSplatting paper directly from arXiv with the browser extension
-enabled, then annotate and understand it in Papernook:
+Click an arXiv paper directly with the browser extension enabled, then annotate
+and understand it in Papernook:
 
-![MeshSplatting paper open in Papernook with grounded code and chat context](docs/images/product/meshsplat-teaser.gif)
+![An arXiv paper open in Papernook with grounded code and chat context](docs/images/product/meshsplat-teaser.gif)
 
 ---
 
