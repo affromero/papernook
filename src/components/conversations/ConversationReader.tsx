@@ -2,11 +2,23 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Markdown } from "@/components/chat/Markdown";
+import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
+import { LibraryNavigation } from "./LibraryNavigation";
+import {
+  BookOpen,
+  Bot,
+  Download,
+  ExternalLink,
+  MessageSquare,
+  Send,
+  User,
+} from "lucide-react";
 import { DownloadButton } from "@/components/offline/DownloadButton";
 import { useConnection } from "@/components/offline/useConnection";
 import type { Conversation } from "@/lib/conversations/store";
 import type { Chat } from "@/lib/library/chats";
 import styles from "./ConversationView.module.css";
+import readerStyles from "./ConversationReader.module.css";
 export function ConversationReader({
   conversation,
   initialChats,
@@ -22,24 +34,37 @@ export function ConversationReader({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const sourceRef = useRef<HTMLElement>(null);
+  const sourceRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const base = `/api/v1/conversations/${conversation.id}`;
   useEffect(() => {
     const key = `papernook:offline-position:conversation:${conversation.id}:source`;
+    const scrollElement = sourceRef.current;
+    if (!scrollElement) return;
     try {
       const value = Number(localStorage.getItem(key));
-      if (value > 0) window.scrollTo(0, value);
+      if (value > 0) scrollElement.scrollTop = value;
     } catch {}
     const save = () => {
       try {
-        localStorage.setItem(key, String(window.scrollY));
+        localStorage.setItem(key, String(scrollElement.scrollTop));
       } catch {}
     };
-    window.addEventListener("scroll", save, { passive: true });
-    return () => window.removeEventListener("scroll", save);
+    scrollElement.addEventListener("scroll", save, { passive: true });
+    return () => scrollElement.removeEventListener("scroll", save);
   }, [conversation.id]);
+  useEffect(() => {
+    const element = chatScrollRef.current;
+    if (element)
+      element.scrollTop =
+        draft ||
+        chats.find((chat) => chat.header.id === chatId)?.messages.length
+          ? element.scrollHeight
+          : 0;
+  }, [draft, chatId, chats]);
   async function send(event: FormEvent) {
     event.preventDefault();
+    if (busy || !query.trim()) return;
     if (!connected) {
       setError("Connect to continue this conversation.");
       return;
@@ -145,130 +170,265 @@ export function ConversationReader({
   const active = chats.find((chat) => chat.header.id === chatId);
   return (
     <>
-      <h1>{conversation.title}</h1>
-      <p>
-        Saved {new Date(conversation.importedAt).toLocaleDateString()} ·{" "}
-        {conversation.provider}. This source copy remains available if the
-        original share is removed.
-      </p>
-      <div className={styles.actions}>
-        <DownloadButton
-          snapshotUrl={`/api/v1/offline/conversations/${conversation.id}`}
-        />
-        <a href={`${base}/export?format=html`}>Export HTML / Save as PDF</a>
-        <a href={`${base}/export?format=markdown`}>Export Markdown</a>
-        <a href={`${base}/export?format=json`}>Export JSON</a>
-        {conversation.sourceUrl && (
-          <a
-            href={conversation.sourceUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            Original share
-          </a>
-        )}
-        <button disabled={busy} onClick={() => void remove()}>
-          Delete conversation
-        </button>
-      </div>
-      <details>
-        <summary>Edit title, topic and tags</summary>
-        <form
-          className={styles.form}
-          onSubmit={(event) => void metadata(event)}
-        >
-          <label>
-            Title
-            <input
-              name="title"
-              defaultValue={conversation.title}
-              required
-              maxLength={200}
-            />
-          </label>
-          <label>
-            Topic
-            <input
-              name="topic"
-              defaultValue={conversation.topic}
-              required
-              maxLength={80}
-            />
-          </label>
-          <label>
-            Tags
-            <input name="tags" defaultValue={conversation.tags.join(", ")} />
-          </label>
-          <button>Save details</button>
-        </form>
-      </details>
       {error && (
         <p role="alert" className={styles.error}>
           {error}
         </p>
       )}
-      <div className={styles.grid}>
-        <section ref={sourceRef} aria-label="Source transcript">
-          <h2>Source transcript</h2>
-          {conversation.messages.map((message, index) => (
-            <article key={index} className={styles.message}>
-              <h3>{message.role === "user" ? "User" : "Assistant"}</h3>
-              <Markdown content={message.content} currentOrigin="" />
-            </article>
-          ))}
-        </section>
-        <section aria-label="Follow-up chats">
-          <h2>Study this conversation</h2>
-          <div className={styles.form}>
-            <label>
-              Follow-up chat
-              <select
-                disabled={busy}
-                value={chatId}
-                onChange={(event) => setChatId(event.target.value)}
+      <ReadingWorkspace
+        mainLabel="Source transcript"
+        workspaceLabel="Conversation workspace"
+        header={
+          <header className={readerStyles.header}>
+            <LibraryNavigation />
+            <div className={readerStyles.headingRow}>
+              <div>
+                <h1>{conversation.title}</h1>
+                <p className={readerStyles.caption}>
+                  Saved {new Date(conversation.importedAt).toLocaleDateString()}{" "}
+                  · {conversation.provider} · {conversation.messages.length}{" "}
+                  messages · Private
+                </p>
+              </div>
+              <div className={readerStyles.actions}>
+                <DownloadButton
+                  snapshotUrl={`/api/v1/offline/conversations/${conversation.id}`}
+                />
+                <details className={readerStyles.exportMenu}>
+                  <summary>
+                    <Download size={16} aria-hidden="true" /> Export
+                  </summary>
+                  <div>
+                    <a
+                      href={`${base}/export?format=html`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      HTML / Save as PDF
+                    </a>
+                    <a href={`${base}/export?format=markdown`}>Markdown</a>
+                    <a href={`${base}/export?format=json`}>JSON</a>
+                  </div>
+                </details>
+                {conversation.sourceUrl && (
+                  <a
+                    href={conversation.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    <ExternalLink size={16} aria-hidden="true" /> Original share
+                  </a>
+                )}
+              </div>
+            </div>
+            <details className={readerStyles.metadata}>
+              <summary>Edit title, topic and tags</summary>
+              <form
+                className={styles.form}
+                onSubmit={(event) => void metadata(event)}
               >
-                <option value="">New chat</option>
-                {chats.map((chat) => (
-                  <option key={chat.header.id} value={chat.header.id}>
-                    {chat.header.title}
-                  </option>
+                <label>
+                  Title
+                  <input
+                    name="title"
+                    defaultValue={conversation.title}
+                    required
+                    maxLength={200}
+                  />
+                </label>
+                <label>
+                  Topic
+                  <input
+                    name="topic"
+                    defaultValue={conversation.topic}
+                    required
+                    maxLength={80}
+                  />
+                </label>
+                <label>
+                  Tags
+                  <input
+                    name="tags"
+                    defaultValue={conversation.tags.join(", ")}
+                  />
+                </label>
+                <button>Save details</button>
+                <button
+                  type="button"
+                  className={readerStyles.deleteButton}
+                  disabled={busy}
+                  onClick={() => void remove()}
+                >
+                  Delete conversation
+                </button>
+              </form>
+            </details>
+          </header>
+        }
+        main={
+          <div className={readerStyles.documentViewer}>
+            <div className={readerStyles.documentToolbar}>
+              <span>
+                <BookOpen size={16} aria-hidden="true" /> Source transcript
+              </span>
+              <span>{conversation.messages.length} messages</span>
+            </div>
+            <div
+              ref={sourceRef}
+              className={readerStyles.documentScroll}
+              tabIndex={0}
+              aria-label="Scroll transcript"
+            >
+              <div className={readerStyles.paper}>
+                <div className={readerStyles.documentTitle}>
+                  <p className={readerStyles.eyebrow}>
+                    Conversation · {conversation.provider}
+                  </p>
+                  <p className={readerStyles.paperTitle}>
+                    {conversation.title}
+                  </p>
+                  <div className={readerStyles.tags}>
+                    <span>{conversation.topic}</span>
+                    {conversation.tags.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+                {conversation.messages.map((message, index) => (
+                  <article
+                    key={index}
+                    className={readerStyles.sourceMessage}
+                    data-message-role={message.role}
+                  >
+                    <div className={readerStyles.messageHeading}>
+                      <h3
+                        className={`${readerStyles.role} ${message.role === "user" ? readerStyles.userRole : readerStyles.assistantRole}`}
+                      >
+                        {message.role === "user" ? (
+                          <User size={13} aria-hidden="true" />
+                        ) : (
+                          <Bot size={13} aria-hidden="true" />
+                        )}
+                        {message.role === "user" ? "User" : "Assistant"}
+                      </h3>
+                      <span>{String(index + 1).padStart(2, "0")}</span>
+                    </div>
+                    <Markdown
+                      content={message.content}
+                      renderThree
+                      currentOrigin=""
+                    />
+                  </article>
                 ))}
-              </select>
-            </label>
+                <footer className={readerStyles.documentFooter}>
+                  End of saved conversation · {conversation.messages.length}{" "}
+                  messages
+                </footer>
+              </div>
+            </div>
           </div>
-          {active?.messages.map((message, index) => (
-            <article className={styles.message} key={index}>
-              <h3>{message.role === "user" ? "You" : "Assistant"}</h3>
-              <Markdown content={message.content} currentOrigin="" />
-            </article>
-          ))}
-          {draft && (
-            <article className={styles.message}>
-              <Markdown content={draft} currentOrigin="" />
-            </article>
-          )}
-          <form className={styles.form} onSubmit={(event) => void send(event)}>
-            <label>
-              Question
-              <textarea
-                required
-                maxLength={40_000}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                disabled={busy}
-              />
-            </label>
-            {!connected && (
-              <p role="status">
-                Connect to continue this conversation. Your draft is preserved.
-              </p>
-            )}
-            <button disabled={busy || !connected}>
-              {busy ? "Thinking…" : "Send"}
-            </button>
-          </form>
-        </section>
-      </div>
+        }
+        chat={
+          <section
+            className={readerStyles.chatPanel}
+            aria-label="Follow-up chats"
+          >
+            <div className={readerStyles.chatHeader}>
+              <h2>
+                <MessageSquare size={18} aria-hidden="true" /> Study this
+                conversation
+              </h2>
+              <label>
+                Follow-up chat
+                <select
+                  disabled={busy}
+                  value={chatId}
+                  onChange={(event) => setChatId(event.target.value)}
+                >
+                  <option value="">New chat</option>
+                  {chats.map((chat) => (
+                    <option key={chat.header.id} value={chat.header.id}>
+                      {chat.header.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div ref={chatScrollRef} className={readerStyles.chatMessages}>
+              {!active?.messages.length && !busy && (
+                <div className={readerStyles.emptyChat}>
+                  <BookOpen size={28} aria-hidden="true" />
+                  <p>Ask a question to explore the saved conversation.</p>
+                </div>
+              )}
+              {active?.messages.map((message, index) => (
+                <article
+                  className={readerStyles.chatMessage}
+                  key={index}
+                  data-message-role={message.role}
+                >
+                  <h3
+                    className={`${readerStyles.role} ${message.role === "user" ? readerStyles.userRole : readerStyles.assistantRole}`}
+                  >
+                    {message.role === "user" ? "You" : "Assistant"}
+                  </h3>
+                  <Markdown
+                    content={message.content}
+                    renderThree
+                    currentOrigin=""
+                  />
+                </article>
+              ))}
+              {draft && (
+                <article className={readerStyles.chatMessage}>
+                  <h3
+                    className={`${readerStyles.role} ${readerStyles.assistantRole}`}
+                  >
+                    Assistant
+                  </h3>
+                  <Markdown
+                    content={draft}
+                    highlightCode={false}
+                    copyCode={false}
+                    currentOrigin=""
+                  />
+                </article>
+              )}
+              {busy && !draft && (
+                <p role="status" className={readerStyles.caption}>
+                  Thinking…
+                </p>
+              )}
+            </div>
+            <form
+              className={readerStyles.composer}
+              onSubmit={(event) => void send(event)}
+            >
+              <label>
+                Question
+                <textarea
+                  required
+                  maxLength={40_000}
+                  value={query}
+                  placeholder="Ask about this conversation…"
+                  onChange={(event) => setQuery(event.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              {!connected && (
+                <p role="status">
+                  Connect to continue this conversation. Your draft is
+                  preserved.
+                </p>
+              )}
+              <button disabled={busy || !connected || !query.trim()}>
+                <Send size={16} aria-hidden="true" />{" "}
+                {busy ? "Thinking…" : "Send"}
+              </button>
+            </form>
+          </section>
+        }
+      />
     </>
   );
 }

@@ -53,7 +53,7 @@ export default async function Conversations({
           profile.
         </p>
         <ImportConversation initialUrl={params.import} />
-        <form className={styles.form}>
+        <form className={`${styles.form} ${styles.filters}`}>
           <label>
             Search conversations
             <input name="q" defaultValue={params.q} />

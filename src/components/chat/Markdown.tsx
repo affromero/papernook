@@ -8,6 +8,7 @@ import "katex/dist/katex.min.css";
 import { rehypePaperRefs } from "@/lib/chat/ref-decorations";
 import { linksToCurrentPaper } from "@/lib/chat/message-sources";
 import { externalLinkProps } from "@/lib/external-link";
+import { normalizeMath } from "@/lib/chat/normalize-math";
 import type { Bibliography } from "@/lib/pdf/bibliography";
 import { CopyCodeButton } from "./CopyCodeButton";
 import { ThreeSandbox } from "./ThreeSandbox";
@@ -153,7 +154,7 @@ export function Markdown({
           },
         }}
       >
-        {content}
+        {normalizeMath(content)}
       </ReactMarkdown>
     </div>
   );

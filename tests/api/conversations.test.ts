@@ -82,6 +82,9 @@ it("grounds replies in the stored transcript after the original share is revoked
   expect(received).toContain("Original question α");
   expect(received).toContain("Original answer β");
   expect(received).toContain("Explain the saved answer");
+  expect(received).toContain("threejs");
+  expect(received).toContain("OrbitControls");
+  expect(received).toContain("KaTeX");
   expect(
     listConversationChats("alice", record.id)[0].messages.map(
       (message) => message.content,

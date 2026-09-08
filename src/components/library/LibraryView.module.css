@@ -1,6 +1,6 @@
 .root {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 2rem;
   padding: 1.5rem;
   max-width: 1200px;
@@ -8,6 +8,7 @@
 }
 
 .sidebar {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -39,6 +40,8 @@
   min-height: 44px;
   display: flex;
   align-items: center;
+  overflow-wrap: anywhere;
+  border: 1px solid transparent;
 }
 
 .sideLink:hover {
@@ -47,7 +50,16 @@
 
 .sideActive {
   background: rgba(63, 79, 176, 0.12);
+  border-color: rgba(127, 127, 127, 0.3);
   font-weight: 600;
+}
+
+.sideLink:focus-visible,
+.sideActive:focus-visible,
+.tag:focus-visible,
+.tagActive:focus-visible {
+  outline: 2px solid #6578df;
+  outline-offset: 2px;
 }
 
 .inboxBadge {
@@ -114,7 +126,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 1rem;
 }
 

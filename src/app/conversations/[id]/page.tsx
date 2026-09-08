@@ -6,9 +6,8 @@ import {
 } from "@/lib/conversations/store";
 import { isValidSlug } from "@/lib/library/slug";
 import { AccountBar } from "@/components/profiles/AccountBar";
-import { LibraryNavigation } from "@/components/conversations/LibraryNavigation";
 import { ConversationReader } from "@/components/conversations/ConversationReader";
-import styles from "@/components/conversations/ConversationView.module.css";
+import styles from "@/components/conversations/ConversationReader.module.css";
 export const dynamic = "force-dynamic";
 export default async function ConversationPage({
   params,
@@ -22,18 +21,15 @@ export default async function ConversationPage({
   const conversation = getConversation(profile.username, id);
   if (!conversation) notFound();
   return (
-    <main>
+    <main className={styles.page}>
       <AccountBar
         displayName={profile.displayName}
         avatarSlug={profile.avatarSlug}
       />
-      <div className={styles.root}>
-        <LibraryNavigation />
-        <ConversationReader
-          conversation={conversation}
-          initialChats={listConversationChats(profile.username, id)}
-        />
-      </div>
+      <ConversationReader
+        conversation={conversation}
+        initialChats={listConversationChats(profile.username, id)}
+      />
     </main>
   );
 }

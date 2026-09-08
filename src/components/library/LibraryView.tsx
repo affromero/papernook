@@ -77,7 +77,7 @@ export function LibraryView({
   return (
     <div className={styles.root}>
       <aside className={styles.sidebar}>
-        <LibraryNavigation />
+        <LibraryNavigation sidebar />
         <nav aria-label="Topics">
           <h2 className={styles.sideTitle}>Topics</h2>
           <ul className={styles.sideList}>
@@ -87,6 +87,7 @@ export function LibraryView({
                   activeTopic === null ? styles.sideActive : styles.sideLink
                 }
                 href="/"
+                aria-current={activeTopic === null ? "page" : undefined}
               >
                 All papers
               </Link>
@@ -98,6 +99,7 @@ export function LibraryView({
                     activeTopic === topic ? styles.sideActive : styles.sideLink
                   }
                   href={`/?topic=${encodeURIComponent(topic)}`}
+                  aria-current={activeTopic === topic ? "page" : undefined}
                 >
                   {topic}
                 </Link>

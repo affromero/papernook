@@ -9,6 +9,7 @@ interface ReadingWorkspaceProps {
   main: ReactNode;
   chat: ReactNode;
   mainLabel: string;
+  workspaceLabel?: string;
   /** Page chrome (title, breadcrumbs) the header toggle can hide. */
   header?: ReactNode;
   /** Header actions that must stay reachable while the header is hidden. */
@@ -79,6 +80,7 @@ export function ReadingWorkspace({
   main,
   chat,
   mainLabel,
+  workspaceLabel = "Paper workspace",
   header,
   collapsedHeaderActions,
 }: ReadingWorkspaceProps) {
@@ -207,7 +209,7 @@ export function ReadingWorkspace({
         <div
           className={styles.mobileTabs}
           role="tablist"
-          aria-label="Paper workspace"
+          aria-label={workspaceLabel}
           onKeyDown={selectAdjacentTab}
         >
           <button

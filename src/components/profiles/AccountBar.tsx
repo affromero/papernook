@@ -46,7 +46,9 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
 
   return (
     <div className={styles.root} ref={rootRef}>
-      <span className={styles.brand}>papernook</span>
+      <Link className={styles.brand} href="/" aria-label="papernook home">
+        papernook
+      </Link>
       <div className={styles.controls}>
         <ThemeToggle />
         <button

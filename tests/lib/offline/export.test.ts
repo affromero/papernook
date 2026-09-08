@@ -38,6 +38,19 @@ afterEach(() => {
 });
 
 describe("portable study exports", () => {
+  it("renders imported LaTeX delimiters in portable exports while preserving code", () => {
+    const body = renderMarkdown(
+      String.raw`\(x^2\)
+
+\[\frac{a}{b}\]
+
+` + "`\\(literal\\)`",
+    );
+    expect(body).toContain('class="katex"');
+    expect(body).toContain('class="katex-display"');
+    expect(body).toContain("<code>\\(literal\\)</code>");
+    expect(body).not.toContain("katex-error");
+  });
   it("preserves Unicode, code, tables and math without executable HTML or remote images", () => {
     const body = renderMarkdown(
       "你好 café\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n$x^2$\n\n```threejs\nalert('unsafe')\n```\n\n<script>alert(1)</script>\n\n![remote](https://example.com/image.png)\n\n[bad](javascript:alert%281%29)",

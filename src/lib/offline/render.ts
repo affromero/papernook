@@ -9,6 +9,7 @@ import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import rehypeStringify from "rehype-stringify";
 import type { Root, Element } from "hast";
+import { normalizeMath } from "@/lib/chat/normalize-math";
 
 export const STUDY_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'";
@@ -69,7 +70,7 @@ const processor = unified()
 export function renderMarkdown(content: string): string {
   if (Buffer.byteLength(content) > 8 * 1024 * 1024)
     throw new Error("Study text exceeds the 8 MB limit.");
-  return String(processor.processSync(content));
+  return String(processor.processSync(normalizeMath(content)));
 }
 
 let embeddedCss: string | undefined;

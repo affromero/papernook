@@ -2,6 +2,54 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Markdown } from "@/components/chat/Markdown";
+import { normalizeMath } from "@/lib/chat/normalize-math";
+
+describe("imported formula rendering", () => {
+  it("keeps equations and trailing prose inside lists and quotations", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: String.raw`- Formula \[x^2\] stays in the list.
+
+> Formula \[y^2\] stays in the quote.`,
+      }),
+    );
+    expect(html).toMatch(
+      /<li>[\s\S]*class="katex"[\s\S]*stays in the list\.<\/li>/,
+    );
+    expect(html).toMatch(
+      /<blockquote>[\s\S]*class="katex"[\s\S]*stays in the quote\.[\s\S]*<\/blockquote>/,
+    );
+  });
+  it("renders exported inline and multiline display math as accessible equations", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: String.raw`Inline \(x^2\).
+
+\[
+\frac{a}{b} = c
+\]`,
+      }),
+    );
+    expect(html).toContain('class="katex"');
+    expect(html).toContain('class="katex-display"');
+    expect(html).toContain("<math");
+    expect(html).not.toContain("katex-error");
+  });
+
+  it("preserves literal delimiters in code, links, existing math and escaped text", () => {
+    const content = [
+      String.raw`Use \(x^2\).`,
+      "`\\(literal\\)`",
+      '```python\nvalue = "\\[code\\]"\n```',
+      String.raw`[reference](https://example.com/\(path\))`,
+      String.raw`$\text{\(literal\)}$`,
+      String.raw`Escaped \\(literal\\) and unmatched \(x`,
+    ].join("\n\n");
+    expect(normalizeMath(content)).toBe(
+      content.replace(String.raw`\(x^2\)`, "$x^2$"),
+    );
+  });
+});
 
 describe("chat markdown code blocks", () => {
   it("renders precise paper locators as in-app navigation controls", () => {
