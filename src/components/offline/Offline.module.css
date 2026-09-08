@@ -1,0 +1,69 @@
+.download,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.download {
+  padding: 0.6rem 1rem;
+}
+.download button,
+.storage button {
+  font: inherit;
+  min-height: 44px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  background: var(--background);
+  color: var(--foreground);
+  cursor: pointer;
+}
+.download button:disabled,
+.storage button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.download a,
+.storage a {
+  color: #6578d2;
+  text-decoration: underline;
+}
+.download p[role="alert"],
+.storage p[role="alert"] {
+  color: #ba571e;
+}
+.storage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem 0;
+}
+.storage ul {
+  list-style: none;
+  width: 100%;
+}
+.storage li {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+}
+.storage li p {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  margin-top: 0.25rem;
+}
+.storage > p {
+  max-width: 70ch;
+  line-height: 1.6;
+}
+.banner {
+  background: rgba(194, 115, 10, 0.15);
+  border-bottom: 1px solid rgba(194, 115, 10, 0.4);
+  padding: 0.7rem 1rem;
+  font-size: 0.85rem;
+}

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
+import { clearOfflineForAuthentication } from "@/lib/offline/storage";
 import styles from "./AccountBar.module.css";
 
 /**
@@ -34,6 +35,7 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
   }, [open]);
 
   async function logout(): Promise<void> {
+    await clearOfflineForAuthentication();
     await fetch("/api/v1/session", {
       method: "DELETE",
       credentials: "include",
@@ -86,6 +88,7 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
           <Link href="/settings" onClick={() => setOpen(false)}>
             Settings
           </Link>
+          <a href="/offline/index.html">Downloads</a>
           <Link href="/login" onClick={() => setOpen(false)}>
             Switch profile
           </Link>

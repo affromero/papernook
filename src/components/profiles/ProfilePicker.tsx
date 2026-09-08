@@ -5,6 +5,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Plus, Check, X } from "lucide-react";
 import { ANIMAL_AVATARS } from "@/lib/auth/avatars";
+import {
+  clearOfflineForAuthentication,
+  setOfflineIdentity,
+} from "@/lib/offline/storage";
 import styles from "./ProfilePicker.module.css";
 
 export interface PickerProfile {
@@ -31,6 +35,7 @@ export function ProfilePicker({ profiles }: ProfilePickerProps) {
     setBusy(true);
     setError(null);
     try {
+      await clearOfflineForAuthentication();
       const res = await fetch("/api/v1/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -40,6 +45,11 @@ export function ProfilePicker({ profiles }: ProfilePickerProps) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
         throw new Error(body.error ?? "Could not sign in.");
+      }
+      try {
+        await setOfflineIdentity(username);
+      } catch {
+        /* Online sign-in succeeds; denied offline storage stays revoked. */
       }
       router.push("/");
       router.refresh();

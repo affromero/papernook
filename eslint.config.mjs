@@ -16,6 +16,9 @@ const eslintConfig = defineConfig([
     "extension/**",
     // Vendored third-party runtime for the chat ThreeSandbox iframe.
     "public/vendor/**",
+    // Generated offline bundle and vendored PDF.js; source is linted normally.
+    "public/offline/**",
+    "public/sw.js",
   ]),
 ]);
 

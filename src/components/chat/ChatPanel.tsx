@@ -26,6 +26,7 @@ import { ChatMessages, type ChatMessage } from "./ChatMessages";
 import { CitationPopover } from "./CitationPopover";
 import { HistorySearchDialog, useComposerHistory } from "./ComposerHistory";
 import styles from "./ChatPanel.module.css";
+import { useConnection } from "@/components/offline/useConnection";
 
 interface ChatHeader {
   id: string;
@@ -103,6 +104,7 @@ export function ChatPanel({
   bibliographyEndpoint,
   hasReader = false,
 }: ChatPanelProps) {
+  const connected = useConnection();
   const base = `/api/v1/papers/${topic}/${slug}`;
   const [chats, setChats] = useState<ChatHeader[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -492,6 +494,10 @@ export function ChatPanel({
   }
 
   async function send(forcedContent?: string): Promise<void> {
+    if (!connected) {
+      setError("Connect to continue this conversation.");
+      return;
+    }
     const content = (forcedContent ?? input).trim();
     if (!content || busy) return;
     let chatId = activeId;
@@ -662,7 +668,7 @@ export function ChatPanel({
             type="button"
             className={styles.sendBtn}
             onClick={() => void send()}
-            disabled={busy || input.trim().length === 0}
+            disabled={busy || !connected || input.trim().length === 0}
           >
             Send
           </button>
