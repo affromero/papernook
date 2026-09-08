@@ -47,7 +47,14 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
   return (
     <div className={styles.root} ref={rootRef}>
       <Link className={styles.brand} href="/" aria-label="papernook home">
-        papernook
+        <Image
+          src="/logo.svg"
+          width={32}
+          height={30}
+          alt=""
+          className={styles.logo}
+        />
+        <span>papernook</span>
       </Link>
       <div className={styles.controls}>
         <ThemeToggle />

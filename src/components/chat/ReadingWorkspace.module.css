@@ -90,11 +90,19 @@
 }
 
 .toggleRow {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  justify-self: end;
+  margin-left: auto;
   display: inline-flex;
   gap: 0.45rem;
+}
+.toolbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .collapsedActions {
@@ -102,6 +110,8 @@
   grid-row: 1;
   justify-self: start;
   display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.45rem;
 }
 
@@ -188,6 +198,7 @@
   }
 
   .toggle,
+  .toolbar,
   .collapsedActions,
   .divider {
     display: none;
@@ -196,5 +207,21 @@
   .root[data-compact-tab="reading"] .chat,
   .root[data-compact-tab="chat"] .main {
     display: none;
+  }
+
+  .root[data-has-actions="true"] {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  .root[data-has-actions="true"] .collapsedActions {
+    display: flex;
+  }
+  .root[data-has-actions="true"] .toolbar {
+    display: flex;
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .root[data-has-actions="true"] .main,
+  .root[data-has-actions="true"] .chat {
+    grid-row: 3;
   }
 }

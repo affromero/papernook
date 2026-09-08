@@ -83,6 +83,52 @@ test.describe("downloaded library", () => {
   test.use({ serviceWorkers: "allow" });
   test.setTimeout(120_000);
 
+  test("offline saving stays available with hidden headers on papers and conversations", async ({
+    page,
+  }) => {
+    await login(page);
+    const conversationPath = await importConversation(page);
+    try {
+      for (const url of [paperPath, conversationPath]) {
+        await page.setViewportSize({ width: 1000, height: 900 });
+        await page.goto(url);
+        const hideHeader = page.getByRole("button", {
+          name: "Hide header",
+          exact: true,
+        });
+        await hideHeader.click();
+        await page
+          .getByRole("button", { name: "Available offline", exact: true })
+          .click();
+        const update = page.getByRole("button", {
+          name: "Update offline download",
+          exact: true,
+        });
+        await expect(update).toBeEnabled({ timeout: 60_000 });
+        await expect(
+          page.getByRole("link", { name: "Saved on this device", exact: true }),
+        ).toBeVisible();
+        await page
+          .getByRole("button", { name: "Focus reading", exact: true })
+          .click();
+        await expect(update).toBeVisible();
+        await page.setViewportSize({ width: 390, height: 844 });
+        await expect(update).toBeVisible();
+        await page.getByRole("tab", { name: "Chat", exact: true }).click();
+        await expect(update).toBeVisible();
+        await page.setViewportSize({ width: 1000, height: 900 });
+        await page
+          .getByRole("button", { name: "Show chat", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "Show header", exact: true })
+          .click();
+      }
+    } finally {
+      await page.request.delete(`/api/v1${conversationPath}`);
+    }
+  });
+
   test("downloaded paper and chat survive a complete Chromium browser restart", async ({
     browserName,
     baseURL,

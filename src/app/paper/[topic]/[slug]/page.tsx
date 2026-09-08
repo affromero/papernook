@@ -43,12 +43,14 @@ export default async function PaperPage({ params }: PaperPageProps) {
     <main className={styles.root}>
       <ReadingWorkspace
         mainLabel="Paper PDF"
+        actions={
+          <DownloadButton
+            snapshotUrl={`/api/v1/offline/papers/${topic}/${slug}`}
+          />
+        }
         header={
           <>
             <PaperHeader topic={topic} slug={slug} meta={meta} view="reader" />
-            <DownloadButton
-              snapshotUrl={`/api/v1/offline/papers/${topic}/${slug}`}
-            />
           </>
         }
         collapsedHeaderActions={

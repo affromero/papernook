@@ -10,6 +10,8 @@ interface ReadingWorkspaceProps {
   chat: ReactNode;
   mainLabel: string;
   workspaceLabel?: string;
+  /** Actions that remain available while the header or chat is hidden. */
+  actions?: ReactNode;
   /** Page chrome (title, breadcrumbs) the header toggle can hide. */
   header?: ReactNode;
   /** Header actions that must stay reachable while the header is hidden. */
@@ -81,6 +83,7 @@ export function ReadingWorkspace({
   chat,
   mainLabel,
   workspaceLabel = "Paper workspace",
+  actions,
   header,
   collapsedHeaderActions,
 }: ReadingWorkspaceProps) {
@@ -200,6 +203,7 @@ export function ReadingWorkspace({
         className={`${styles.root} ${chatVisible ? "" : styles.focusMode} ${resizing ? styles.resizing : ""}`}
         data-chat-visible={chatVisible}
         data-compact-tab={compactTab}
+        data-has-actions={Boolean(actions)}
         style={
           chatWidth
             ? ({ "--chat-width": `${chatWidth}px` } as React.CSSProperties)
@@ -264,33 +268,37 @@ export function ReadingWorkspace({
         >
           {chat}
         </aside>
-        {header && !headerVisible && collapsedHeaderActions && (
-          <div className={styles.collapsedActions}>
-            {collapsedHeaderActions}
-          </div>
-        )}
-        <div className={styles.toggleRow}>
-          {header && (
+        <div className={styles.toolbar}>
+          {(actions ||
+            (header && !headerVisible && collapsedHeaderActions)) && (
+            <div className={styles.collapsedActions}>
+              {actions}
+              {header && !headerVisible && collapsedHeaderActions}
+            </div>
+          )}
+          <div className={styles.toggleRow}>
+            {header && (
+              <button
+                type="button"
+                className={styles.toggle}
+                onClick={toggleHeader}
+                aria-expanded={headerVisible}
+              >
+                <span aria-hidden="true">{headerVisible ? "↑" : "↓"}</span>
+                {headerVisible ? "Hide header" : "Show header"}
+              </button>
+            )}
             <button
               type="button"
               className={styles.toggle}
-              onClick={toggleHeader}
-              aria-expanded={headerVisible}
+              onClick={toggleChat}
+              aria-expanded={chatVisible}
+              aria-controls={chatPanelId}
             >
-              <span aria-hidden="true">{headerVisible ? "↑" : "↓"}</span>
-              {headerVisible ? "Hide header" : "Show header"}
+              <span aria-hidden="true">{chatVisible ? "→" : "←"}</span>
+              {chatVisible ? "Focus reading" : "Show chat"}
             </button>
-          )}
-          <button
-            type="button"
-            className={styles.toggle}
-            onClick={toggleChat}
-            aria-expanded={chatVisible}
-            aria-controls={chatPanelId}
-          >
-            <span aria-hidden="true">{chatVisible ? "→" : "←"}</span>
-            {chatVisible ? "Focus reading" : "Show chat"}
-          </button>
+          </div>
         </div>
       </div>
     </>

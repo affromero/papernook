@@ -55,6 +55,18 @@ test("conversation reading shares paper focus controls and renders rich source c
       source.getByRole("heading", { name: "Assistant", exact: true }).first(),
     ).toBeVisible();
     await expect(source.locator(".katex-display")).toBeVisible();
+    await source.getByLabel("Assistant turn 2", { exact: true }).click();
+    await expect(source.locator(".katex-display")).toBeHidden();
+    await source.getByLabel("Assistant turn 2", { exact: true }).press("Enter");
+    await expect(source.locator(".katex-display")).toBeVisible();
+    await source.getByLabel("User turn 1", { exact: true }).click();
+    await expect(
+      source.getByText(/How does attention connect the tokens/),
+    ).toBeHidden();
+    await source.getByLabel("User turn 1", { exact: true }).click();
+    await expect(
+      source.getByText(/How does attention connect the tokens/),
+    ).toBeVisible();
     await expect(source.locator("table")).toContainText("Queries");
     await expect(source.locator("pre")).toContainText("weights = softmax");
     await page.screenshot({
@@ -125,7 +137,7 @@ async function login(page: Page) {
   await expect(page).toHaveURL("/");
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440, 390, 320]) {
   test(`library navigation and home link work at ${width}px`, async ({
     page,
   }, testInfo) => {
@@ -152,7 +164,11 @@ for (const width of [1440, 390]) {
       path: testInfo.outputPath("conversation-import.png"),
       fullPage: true,
     });
-    await page.getByRole("link", { name: "papernook home" }).click();
+    const home = page.getByRole("link", { name: "papernook home" });
+    await home.locator("img").click();
+    await expect(page).toHaveURL("/");
+    await nav.getByRole("link", { name: "Conversations", exact: true }).click();
+    await home.getByText("papernook", { exact: true }).click();
     await expect(page).toHaveURL("/");
     await page.screenshot({
       path: testInfo.outputPath("library-navigation.png"),

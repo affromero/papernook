@@ -7,6 +7,7 @@ import { LibraryNavigation } from "./LibraryNavigation";
 import {
   BookOpen,
   Bot,
+  ChevronDown,
   Download,
   ExternalLink,
   MessageSquare,
@@ -19,6 +20,55 @@ import type { Conversation } from "@/lib/conversations/store";
 import type { Chat } from "@/lib/library/chats";
 import styles from "./ConversationView.module.css";
 import readerStyles from "./ConversationReader.module.css";
+
+function ConversationTurn({
+  message,
+  index,
+  followUp = false,
+}: {
+  message: { role: "user" | "assistant"; content: string };
+  index: number;
+  followUp?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const label =
+    message.role === "user" ? (followUp ? "You" : "User") : "Assistant";
+  return (
+    <details
+      className={
+        followUp ? readerStyles.chatMessage : readerStyles.sourceMessage
+      }
+      data-message-role={message.role}
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
+      <summary
+        className={readerStyles.messageHeading}
+        aria-label={`${label} turn ${index + 1}`}
+      >
+        <h3
+          className={`${readerStyles.role} ${message.role === "user" ? readerStyles.userRole : readerStyles.assistantRole}`}
+        >
+          {message.role === "user" ? (
+            <User size={13} aria-hidden="true" />
+          ) : (
+            <Bot size={13} aria-hidden="true" />
+          )}
+          {label}
+        </h3>
+        <span>
+          {String(index + 1).padStart(2, "0")}{" "}
+          <ChevronDown
+            className={readerStyles.turnChevron}
+            size={16}
+            aria-hidden="true"
+          />
+        </span>
+      </summary>
+      <Markdown content={message.content} renderThree currentOrigin="" />
+    </details>
+  );
+}
 export function ConversationReader({
   conversation,
   initialChats,
@@ -178,6 +228,11 @@ export function ConversationReader({
       <ReadingWorkspace
         mainLabel="Source transcript"
         workspaceLabel="Conversation workspace"
+        actions={
+          <DownloadButton
+            snapshotUrl={`/api/v1/offline/conversations/${conversation.id}`}
+          />
+        }
         header={
           <header className={readerStyles.header}>
             <LibraryNavigation />
@@ -191,9 +246,6 @@ export function ConversationReader({
                 </p>
               </div>
               <div className={readerStyles.actions}>
-                <DownloadButton
-                  snapshotUrl={`/api/v1/offline/conversations/${conversation.id}`}
-                />
                 <details className={readerStyles.exportMenu}>
                   <summary>
                     <Download size={16} aria-hidden="true" /> Export
@@ -295,30 +347,11 @@ export function ConversationReader({
                   </div>
                 </div>
                 {conversation.messages.map((message, index) => (
-                  <article
+                  <ConversationTurn
                     key={index}
-                    className={readerStyles.sourceMessage}
-                    data-message-role={message.role}
-                  >
-                    <div className={readerStyles.messageHeading}>
-                      <h3
-                        className={`${readerStyles.role} ${message.role === "user" ? readerStyles.userRole : readerStyles.assistantRole}`}
-                      >
-                        {message.role === "user" ? (
-                          <User size={13} aria-hidden="true" />
-                        ) : (
-                          <Bot size={13} aria-hidden="true" />
-                        )}
-                        {message.role === "user" ? "User" : "Assistant"}
-                      </h3>
-                      <span>{String(index + 1).padStart(2, "0")}</span>
-                    </div>
-                    <Markdown
-                      content={message.content}
-                      renderThree
-                      currentOrigin=""
-                    />
-                  </article>
+                    message={message}
+                    index={index}
+                  />
                 ))}
                 <footer className={readerStyles.documentFooter}>
                   End of saved conversation · {conversation.messages.length}{" "}
@@ -362,22 +395,12 @@ export function ConversationReader({
                 </div>
               )}
               {active?.messages.map((message, index) => (
-                <article
-                  className={readerStyles.chatMessage}
-                  key={index}
-                  data-message-role={message.role}
-                >
-                  <h3
-                    className={`${readerStyles.role} ${message.role === "user" ? readerStyles.userRole : readerStyles.assistantRole}`}
-                  >
-                    {message.role === "user" ? "You" : "Assistant"}
-                  </h3>
-                  <Markdown
-                    content={message.content}
-                    renderThree
-                    currentOrigin=""
-                  />
-                </article>
+                <ConversationTurn
+                  key={`${chatId}-${index}`}
+                  message={message}
+                  index={index}
+                  followUp
+                />
               ))}
               {draft && (
                 <article className={readerStyles.chatMessage}>
