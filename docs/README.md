@@ -110,9 +110,6 @@ is optional compatibility for external PDF apps.
 
 ## Guides
 
-The [Conversations and offline reading implementation plan](offline-conversations-plan.md)
-describes storage, imports, privacy and verification for the offline library.
-
 | Goal                                                        | Guide                                            |
 | ----------------------------------------------------------- | ------------------------------------------------ |
 | Learn the everyday capture, reading, chat, and sharing flow | [User guide](user-guide.md)                      |
