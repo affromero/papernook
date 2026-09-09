@@ -57,6 +57,26 @@
   margin-bottom: 0.25em;
 }
 
+.collapsibleSection {
+  margin: 0.8em 0;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.35);
+  padding-bottom: 0.8em;
+}
+
+.collapsibleSection > summary {
+  cursor: pointer;
+  list-style-position: outside;
+}
+
+.collapsibleSection > summary h1,
+.collapsibleSection > summary h2,
+.collapsibleSection > summary h3,
+.collapsibleSection > summary h4,
+.collapsibleSection > summary h5,
+.collapsibleSection > summary h6 {
+  display: inline;
+}
+
 .root h1,
 .root h2,
 .root h3,

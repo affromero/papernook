@@ -62,6 +62,19 @@ Thanks for sharing the schedule.
     expect(html).toContain("Check the controls.");
   });
 
+  it("makes numbered section headings collapse their following explanation", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content:
+          "## 18. Preferred answer\n\nUse the hybrid approach.\n\n## 19. Camera space\n\nProject the map points.",
+      }),
+    );
+    expect(html.match(/<details/g)).toHaveLength(2);
+    expect(html).toContain("18. Preferred answer");
+    expect(html).toContain("Use the hybrid approach.");
+    expect(html).toContain("19. Camera space");
+  });
+
   it("keeps equations and trailing prose inside lists and quotations", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {

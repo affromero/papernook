@@ -6,6 +6,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { rehypePaperRefs } from "@/lib/chat/ref-decorations";
+import { rehypeCollapsibleNumberedSections } from "@/lib/chat/rehype-collapsible-sections";
 import { linksToCurrentPaper } from "@/lib/chat/message-sources";
 import { externalLinkProps } from "@/lib/external-link";
 import { normalizeMath } from "@/lib/chat/normalize-math";
@@ -102,7 +103,10 @@ export function Markdown({
 }) {
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
-  const rehypePlugins: Options["rehypePlugins"] = [rehypeKatex];
+  const rehypePlugins: Options["rehypePlugins"] = [
+    rehypeCollapsibleNumberedSections,
+    rehypeKatex,
+  ];
   if (decorateRefs && (paperRefs || bibliography)) {
     rehypePlugins.push([rehypePaperRefs, { bibliography, refs: paperRefs }]);
   }
