@@ -157,6 +157,7 @@ export function saveConversationTurn(
   chatId: string | undefined,
   query: string,
   answer: string,
+  images?: string[],
 ): Chat {
   if (!getConversation(username, id))
     throw new Error("Conversation not found.");
@@ -178,7 +179,7 @@ export function saveConversationTurn(
     messages: [],
   };
   const messages: ChatMessage[] = [
-    { role: "user", content: query, at },
+    { role: "user", content: query, images, at },
     { role: "assistant", content: answer, at },
   ];
   chat.messages.push(...messages);

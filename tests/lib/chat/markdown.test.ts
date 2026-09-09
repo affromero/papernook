@@ -75,6 +75,18 @@ Thanks for sharing the schedule.
     expect(html).toContain("19. Camera space");
   });
 
+  it("also collapses bold numbered section labels", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content:
+          "**31. Off-the-shelf models**\n\nStart with a baseline.\n\n**32. Fine-tuning**\n\nAdapt only after evaluation.",
+      }),
+    );
+    expect(html.match(/<details/g)).toHaveLength(2);
+    expect(html).toContain("Start with a baseline.");
+    expect(html).toContain("Adapt only after evaluation.");
+  });
+
   it("keeps equations and trailing prose inside lists and quotations", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {

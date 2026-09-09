@@ -5,6 +5,21 @@ function headingLevel(node: Element): number | null {
   return match ? Number(match[1]) : null;
 }
 
+function numberedSectionLevel(node: Element): number | null {
+  const level = headingLevel(node);
+  if (level !== null && /^\d+[.)]\s/.test(textContent(node))) return level;
+  const first = node.children[0];
+  if (
+    node.tagName === "p" &&
+    first?.type === "element" &&
+    first.tagName === "strong" &&
+    /^\d+[.)]\s/.test(textContent(node))
+  ) {
+    return 2;
+  }
+  return null;
+}
+
 function textContent(node: Element): string {
   return node.children
     .map((child) => {
@@ -25,8 +40,8 @@ export function rehypeCollapsibleNumberedSections() {
         output.push(node);
         continue;
       }
-      const level = headingLevel(node);
-      if (level === null || !/^\d+[.)]\s/.test(textContent(node))) {
+      const level = numberedSectionLevel(node);
+      if (level === null) {
         output.push(node);
         continue;
       }
@@ -41,8 +56,8 @@ export function rehypeCollapsibleNumberedSections() {
         }
         if (
           next.type === "element" &&
-          headingLevel(next) !== null &&
-          (headingLevel(next) as number) <= level
+          numberedSectionLevel(next) !== null &&
+          (numberedSectionLevel(next) as number) <= level
         ) {
           index -= 1;
           break;

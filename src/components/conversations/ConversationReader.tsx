@@ -31,7 +31,11 @@ import {
   useDocumentAppearance,
 } from "@/components/chat/DocumentAppearance";
 
-type TurnMessage = { role: "user" | "assistant"; content: string };
+type TurnMessage = {
+  role: "user" | "assistant";
+  content: string;
+  images?: string[];
+};
 
 function ConversationInput({
   busy,
@@ -40,16 +44,19 @@ function ConversationInput({
 }: {
   busy: boolean;
   connected: boolean;
-  onSend: (query: string) => Promise<void>;
+  onSend: (query: string, images: string[]) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
+  const [images, setImages] = useState<string[]>([]);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (busy || !connected || !query.trim()) return;
     const value = query;
     setQuery("");
-    await onSend(value);
+    const attached = images;
+    setImages([]);
+    await onSend(value, attached);
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
@@ -63,39 +70,77 @@ function ConversationInput({
     event.currentTarget.form?.requestSubmit();
   }
 
+  function onPaste(event: React.ClipboardEvent<HTMLTextAreaElement>): void {
+    for (const item of event.clipboardData.items) {
+      if (!item.type.startsWith("image/")) continue;
+      const file = item.getAsFile();
+      if (!file) continue;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          setImages((current) =>
+            [...current, reader.result as string].slice(0, 4),
+          );
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
   return (
-    <form
-      className={chatStyles.inputRow}
-      onSubmit={(event) => void submit(event)}
-    >
-      <textarea
-        className={chatStyles.input}
-        aria-label="Question"
-        rows={2}
-        required
-        maxLength={40_000}
-        value={query}
-        placeholder="Ask about this conversation…"
-        onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={onKeyDown}
-        disabled={busy}
-      />
-      <button
-        className={chatStyles.sendBtn}
-        disabled={busy || !connected || !query.trim()}
+    <>
+      {images.length > 0 && (
+        <div className={chatStyles.pastedRow} aria-label="Attached images">
+          {images.map((src, index) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`${src.slice(0, 30)}-${index}`}
+              className={chatStyles.pastedThumb}
+              src={src}
+              alt={`Attachment ${index + 1}`}
+            />
+          ))}
+          <button type="button" onClick={() => setImages([])}>
+            Clear
+          </button>
+        </div>
+      )}
+      <form
+        className={chatStyles.inputRow}
+        onSubmit={(event) => void submit(event)}
       >
-        {busy ? "Thinking…" : "Send"}
-      </button>
-    </form>
+        <textarea
+          className={chatStyles.input}
+          aria-label="Question"
+          rows={2}
+          required
+          maxLength={40_000}
+          value={query}
+          placeholder="Ask about this conversation… (paste screenshots here)"
+          onChange={(event) => setQuery(event.target.value)}
+          onPaste={onPaste}
+          onKeyDown={onKeyDown}
+          disabled={busy}
+        />
+        <button
+          className={chatStyles.sendBtn}
+          disabled={busy || !connected || !query.trim()}
+        >
+          {busy ? "Thinking…" : "Send"}
+        </button>
+      </form>
+    </>
   );
 }
 
 function ConversationTurns({
   messages,
   followUp = false,
+  conversationId,
 }: {
   messages: TurnMessage[];
   followUp?: boolean;
+  conversationId?: string;
 }) {
   const groups: { start: number; messages: TurnMessage[] }[] = [];
   messages.forEach((message, index) => {
@@ -113,9 +158,15 @@ function ConversationTurns({
         message={group.messages[0]}
         index={group.start}
         followUp={followUp}
+        conversationId={conversationId}
       />
     ) : (
-      <ConversationTurnGroup key={group.start} {...group} followUp={followUp} />
+      <ConversationTurnGroup
+        key={group.start}
+        {...group}
+        followUp={followUp}
+        conversationId={conversationId}
+      />
     ),
   );
 }
@@ -124,10 +175,12 @@ function ConversationTurnGroup({
   messages,
   start,
   followUp,
+  conversationId,
 }: {
   messages: TurnMessage[];
   start: number;
   followUp: boolean;
+  conversationId?: string;
 }) {
   const [expanded, setExpanded] = useState(true);
   const label =
@@ -161,6 +214,7 @@ function ConversationTurnGroup({
             message={message}
             index={start + index}
             followUp={followUp}
+            conversationId={conversationId}
           />
         ))}
       </div>
@@ -172,10 +226,12 @@ function ConversationTurn({
   message,
   index,
   followUp = false,
+  conversationId,
 }: {
   message: TurnMessage;
   index: number;
   followUp?: boolean;
+  conversationId?: string;
 }) {
   const [expanded, setExpanded] = useState(true);
   const label =
@@ -214,6 +270,18 @@ function ConversationTurn({
           />
         </span>
       </summary>
+      {message.images?.map((image) => {
+        const name = image.split("/").at(-1);
+        return conversationId && name ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={image}
+            className={chatStyles.msgImage}
+            src={`/api/v1/conversations/${conversationId}/images/${encodeURIComponent(name)}`}
+            alt="Conversation attachment"
+          />
+        ) : null;
+      })}
       <Markdown content={message.content} renderThree currentOrigin="" />
     </details>
   );
@@ -233,6 +301,7 @@ export function ConversationReader({
   const [chats, setChats] = useState(initialChats);
   const [chatId, setChatId] = useState(initialChats[0]?.header.id ?? "");
   const [pendingQuery, setPendingQuery] = useState("");
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -276,7 +345,7 @@ export function ConversationReader({
           ? element.scrollHeight
           : 0;
   }, [draft, chatId, chats]);
-  async function send(query: string): Promise<void> {
+  async function send(query: string, images: string[] = []): Promise<void> {
     if (busy || !query.trim()) return;
     if (!connected) {
       setError("Connect to continue this conversation.");
@@ -285,12 +354,17 @@ export function ConversationReader({
     setBusy(true);
     setError("");
     setPendingQuery(query);
+    setPendingImages(images);
     setDraft("");
     try {
       const response = await fetch(`${base}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, chatId: chatId || undefined }),
+        body: JSON.stringify({
+          query,
+          chatId: chatId || undefined,
+          images: images.length ? images : undefined,
+        }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -323,6 +397,7 @@ export function ConversationReader({
               ]);
               setChatId(chat.header.id);
               setPendingQuery("");
+              setPendingImages([]);
               setDraft("");
               done = true;
             }
@@ -338,6 +413,7 @@ export function ConversationReader({
       }
     } catch (error) {
       setPendingQuery("");
+      setPendingImages([]);
       setDraft("");
       setError(error instanceof Error ? error.message : "Chat failed.");
     } finally {
@@ -523,7 +599,10 @@ export function ConversationReader({
                     ))}
                   </div>
                 </div>
-                <ConversationTurns messages={conversation.messages} />
+                <ConversationTurns
+                  messages={conversation.messages}
+                  conversationId={conversation.id}
+                />
                 <footer className={readerStyles.documentFooter}>
                   End of saved conversation · {conversation.messages.length}{" "}
                   messages
@@ -571,10 +650,20 @@ export function ConversationReader({
                 key={chatId}
                 messages={active?.messages ?? []}
                 followUp
+                conversationId={conversation.id}
               />
               {pendingQuery && (
                 <article className={chatStyles.userMsg}>
                   <h3 className={readerStyles.role}>You</h3>
+                  {pendingImages.map((src, index) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={`${src.slice(0, 30)}-${index}`}
+                      className={chatStyles.msgImage}
+                      src={src}
+                      alt={`Attachment ${index + 1}`}
+                    />
+                  ))}
                   <p>{pendingQuery}</p>
                 </article>
               )}
