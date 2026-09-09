@@ -232,6 +232,7 @@ export function ConversationReader({
   const connected = useConnection();
   const [chats, setChats] = useState(initialChats);
   const [chatId, setChatId] = useState(initialChats[0]?.header.id ?? "");
+  const [pendingQuery, setPendingQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -283,6 +284,7 @@ export function ConversationReader({
     }
     setBusy(true);
     setError("");
+    setPendingQuery(query);
     setDraft("");
     try {
       const response = await fetch(`${base}/chats`, {
@@ -320,6 +322,7 @@ export function ConversationReader({
                 chat,
               ]);
               setChatId(chat.header.id);
+              setPendingQuery("");
               setDraft("");
               done = true;
             }
@@ -334,6 +337,8 @@ export function ConversationReader({
         reader.releaseLock();
       }
     } catch (error) {
+      setPendingQuery("");
+      setDraft("");
       setError(error instanceof Error ? error.message : "Chat failed.");
     } finally {
       setBusy(false);
@@ -567,15 +572,33 @@ export function ConversationReader({
                 messages={active?.messages ?? []}
                 followUp
               />
-              {draft && (
+              {pendingQuery && (
+                <article className={chatStyles.userMsg}>
+                  <h3 className={readerStyles.role}>You</h3>
+                  <p>{pendingQuery}</p>
+                </article>
+              )}
+              {busy && (
                 <article className={chatStyles.assistantMsg}>
                   <h3 className={readerStyles.role}>Assistant</h3>
-                  <Markdown
-                    content={draft}
-                    highlightCode={false}
-                    copyCode={false}
-                    currentOrigin=""
-                  />
+                  {draft ? (
+                    <Markdown
+                      content={draft}
+                      highlightCode={false}
+                      copyCode={false}
+                      currentOrigin=""
+                    />
+                  ) : (
+                    <span
+                      className={chatStyles.typingIndicator}
+                      role="status"
+                      aria-label="Assistant is typing"
+                    >
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  )}
                 </article>
               )}
             </div>
