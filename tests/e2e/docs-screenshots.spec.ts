@@ -285,6 +285,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
       name: "Annotate Attention Is All You Need",
     });
     await expect(annotator).toBeVisible();
+    await page
+      .getByRole("combobox", { name: "Color theme" })
+      .selectOption("dark");
     await expect(
       page.getByText(
         "Highlights, text, and ink save to Reader and every device.",
@@ -299,6 +302,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
       .filter({ hasText: "dominant sequence transduction" })
       .first();
     await expect(highlightText).toBeVisible();
+    await highlightText.scrollIntoViewIfNeeded();
     await expect(highlightText.locator("xpath=..")).toHaveClass(/highlighting/);
     const highlightBox = await highlightText.boundingBox();
     expect(highlightBox).not.toBeNull();

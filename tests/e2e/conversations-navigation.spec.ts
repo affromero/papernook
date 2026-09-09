@@ -158,8 +158,8 @@ test("conversation reading shares paper focus controls and renders rich source c
       "background-color",
       "rgb(10, 10, 10)",
     );
-    await expect(sheet).toHaveCSS("background-color", lightBackground);
-    await expect(sheet).toHaveCSS("color", lightInk);
+    await expect(sheet).not.toHaveCSS("background-color", lightBackground);
+    await expect(sheet).not.toHaveCSS("color", lightInk);
     await expect(source.locator(".katex-display")).toHaveCSS(
       "color",
       await sheet.evaluate((element) => getComputedStyle(element).color),

@@ -26,6 +26,10 @@ import styles from "./ConversationView.module.css";
 import readerStyles from "./ConversationReader.module.css";
 import chatStyles from "@/components/chat/ChatPanel.module.css";
 import pdfStyles from "@/components/pdf/PdfReader.module.css";
+import {
+  DocumentAppearanceSelect,
+  useDocumentAppearance,
+} from "@/components/chat/DocumentAppearance";
 
 type TurnMessage = { role: "user" | "assistant"; content: string };
 
@@ -167,6 +171,7 @@ export function ConversationReader({
   accountBar: ReactNode;
 }) {
   const router = useRouter();
+  const appearance = useDocumentAppearance();
   const connected = useConnection();
   const [chats, setChats] = useState(initialChats);
   const [chatId, setChatId] = useState(initialChats[0]?.header.id ?? "");
@@ -410,7 +415,7 @@ export function ConversationReader({
           </header>
         }
         main={
-          <div className={pdfStyles.root}>
+          <div className={pdfStyles.root} data-document-appearance={appearance}>
             <div
               className={`${pdfStyles.toolbar} ${readerStyles.documentToolbar}`}
             >
@@ -418,6 +423,7 @@ export function ConversationReader({
                 <BookOpen size={16} aria-hidden="true" /> Source transcript
               </span>
               <span>{conversation.messages.length} messages</span>
+              <DocumentAppearanceSelect value={appearance} />
             </div>
             <div
               ref={sourceRef}

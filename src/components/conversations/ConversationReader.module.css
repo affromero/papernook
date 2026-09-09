@@ -111,6 +111,7 @@
 .page .documentToolbar {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 .documentToolbar span:first-child {
   display: inline-flex;
@@ -144,6 +145,31 @@
   color: #171717;
   color-scheme: light;
   overflow-wrap: anywhere;
+}
+:global(html[data-theme="dark"])
+  .page
+  [data-document-appearance="theme"]
+  .documentScroll {
+  background: #171717;
+}
+:global(html[data-theme="dark"])
+  .page
+  [data-document-appearance="theme"]
+  .paper {
+  --reader-ink: #ededed;
+  --reader-muted: #aaa;
+  --reader-accent: #a7b1f2;
+  --reader-border: #444;
+  --reader-rule: #383838;
+  --reader-tag: #252525;
+  --reader-user-bg: rgba(104, 120, 220, 0.18);
+  --reader-user-ink: #b7c0ff;
+  --reader-user-border: #495484;
+  --reader-assistant-bg: #262626;
+  --reader-assistant-border: #444;
+  color: #ededed;
+  background: #171717;
+  color-scheme: dark;
 }
 .documentTitle {
   padding-bottom: 28px;
@@ -255,7 +281,7 @@ details[open] > .messageHeading .turnChevron {
 }
 .assistantRole {
   background: var(--reader-assistant-bg);
-  color: #555;
+  color: var(--reader-muted);
   border: 1px solid var(--reader-assistant-border);
 }
 .documentFooter {

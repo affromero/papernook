@@ -41,6 +41,10 @@ import {
 import { useMarginNotes } from "./notes/useMarginNotes";
 import { usePinchZoom } from "./usePinchZoom";
 import { useSaveOnLeave } from "./useSaveOnLeave";
+import {
+  DocumentAppearanceSelect,
+  useDocumentAppearance,
+} from "@/components/chat/DocumentAppearance";
 
 export type { PdfReaderEditState } from "./usePdfDocument";
 
@@ -99,6 +103,7 @@ export function PdfReader({
   positionEndpoint,
   bibliographyEndpoint,
 }: PdfReaderProps) {
+  const appearance = useDocumentAppearance();
   const stageRef = useRef<HTMLDivElement>(null);
   const referenceAnchorRef = useRef<Pick<Preview, "horizontal" | "top"> | null>(
     null,
@@ -511,6 +516,7 @@ export function PdfReader({
         fullscreen ? styles.fullscreen : ""
       }`}
       aria-label={title}
+      data-document-appearance={appearance}
     >
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
@@ -636,6 +642,7 @@ export function PdfReader({
           >
             ↗
           </a>
+          <DocumentAppearanceSelect value={appearance} />
           {onClose && (
             <button
               type="button"
