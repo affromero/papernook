@@ -33,6 +33,63 @@ import {
 
 type TurnMessage = { role: "user" | "assistant"; content: string };
 
+function ConversationInput({
+  busy,
+  connected,
+  onSend,
+}: {
+  busy: boolean;
+  connected: boolean;
+  onSend: (query: string) => Promise<void>;
+}) {
+  const [query, setQuery] = useState("");
+
+  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (busy || !connected || !query.trim()) return;
+    const value = query;
+    setQuery("");
+    await onSend(value);
+  }
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
+    if (
+      event.nativeEvent.isComposing ||
+      event.key !== "Enter" ||
+      event.shiftKey
+    )
+      return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+
+  return (
+    <form
+      className={chatStyles.inputRow}
+      onSubmit={(event) => void submit(event)}
+    >
+      <textarea
+        className={chatStyles.input}
+        aria-label="Question"
+        rows={2}
+        required
+        maxLength={40_000}
+        value={query}
+        placeholder="Ask about this conversation…"
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={onKeyDown}
+        disabled={busy}
+      />
+      <button
+        className={chatStyles.sendBtn}
+        disabled={busy || !connected || !query.trim()}
+      >
+        {busy ? "Thinking…" : "Send"}
+      </button>
+    </form>
+  );
+}
+
 function ConversationTurns({
   messages,
   followUp = false,
@@ -175,7 +232,6 @@ export function ConversationReader({
   const connected = useConnection();
   const [chats, setChats] = useState(initialChats);
   const [chatId, setChatId] = useState(initialChats[0]?.header.id ?? "");
-  const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -207,8 +263,7 @@ export function ConversationReader({
           ? element.scrollHeight
           : 0;
   }, [draft, chatId, chats]);
-  async function send(event: FormEvent) {
-    event.preventDefault();
+  async function send(query: string): Promise<void> {
     if (busy || !query.trim()) return;
     if (!connected) {
       setError("Connect to continue this conversation.");
@@ -253,7 +308,6 @@ export function ConversationReader({
                 chat,
               ]);
               setChatId(chat.header.id);
-              setQuery("");
               setDraft("");
               done = true;
             }
@@ -506,39 +560,17 @@ export function ConversationReader({
                   />
                 </article>
               )}
-              {busy && !draft && (
-                <p role="status" className={readerStyles.caption}>
-                  Thinking…
-                </p>
-              )}
             </div>
             {!connected && (
               <p role="status" className={readerStyles.caption}>
                 Connect to continue this conversation. Your draft is preserved.
               </p>
             )}
-            <form
-              className={chatStyles.inputRow}
-              onSubmit={(event) => void send(event)}
-            >
-              <textarea
-                className={chatStyles.input}
-                aria-label="Question"
-                rows={2}
-                required
-                maxLength={40_000}
-                value={query}
-                placeholder="Ask about this conversation…"
-                onChange={(event) => setQuery(event.target.value)}
-                disabled={busy}
-              />
-              <button
-                className={chatStyles.sendBtn}
-                disabled={busy || !connected || !query.trim()}
-              >
-                {busy ? "Thinking…" : "Send"}
-              </button>
-            </form>
+            <ConversationInput
+              busy={busy}
+              connected={connected}
+              onSend={send}
+            />
           </section>
         }
       />
