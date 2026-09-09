@@ -5,6 +5,19 @@ import { Markdown } from "@/components/chat/Markdown";
 import { normalizeMath } from "@/lib/chat/normalize-math";
 
 describe("imported formula rendering", () => {
+  it("hides provider citation control markers from rendered messages", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content:
+          "Profile details. \uE200cite\uE202turn883294search6\uE201\n\nNext point.",
+      }),
+    );
+    expect(html).toContain("Profile details.");
+    expect(html).toContain("Next point.");
+    expect(html).not.toContain("turn883294search6");
+    expect(html).not.toContain("cite");
+  });
+
   it("keeps equations and trailing prose inside lists and quotations", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {

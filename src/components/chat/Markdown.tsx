@@ -9,6 +9,7 @@ import { rehypePaperRefs } from "@/lib/chat/ref-decorations";
 import { linksToCurrentPaper } from "@/lib/chat/message-sources";
 import { externalLinkProps } from "@/lib/external-link";
 import { normalizeMath } from "@/lib/chat/normalize-math";
+import { normalizeProviderText } from "@/lib/chat/normalize-provider-text";
 import type { Bibliography } from "@/lib/pdf/bibliography";
 import { CopyCodeButton } from "./CopyCodeButton";
 import { ThreeSandbox } from "./ThreeSandbox";
@@ -154,7 +155,7 @@ export function Markdown({
           },
         }}
       >
-        {normalizeMath(content)}
+        {normalizeMath(normalizeProviderText(content))}
       </ReactMarkdown>
     </div>
   );
