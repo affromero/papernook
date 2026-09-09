@@ -205,9 +205,19 @@
   background: var(--reader-tag);
 }
 .sourceMessage {
+  width: min(86%, 920px);
+  margin: 18px 0;
   padding: 20px 0;
-  border-bottom: 1px solid var(--reader-rule);
+  padding-inline: 22px;
+  border: 1px solid var(--reader-assistant-border);
+  border-radius: 18px;
+  background: var(--reader-assistant-bg);
   font-size: 0.98rem;
+}
+.sourceMessage[data-message-role="user"] {
+  margin-left: auto;
+  border-color: var(--reader-user-border);
+  background: var(--reader-user-bg);
 }
 .sourceMessage > div:last-child {
   font-family: Georgia, "Times New Roman", serif;
@@ -224,12 +234,17 @@
   gap: 12px;
 }
 .groupMessages > .sourceMessage {
+  width: calc(100% - 10px);
   margin-left: 10px;
   padding-left: 14px;
-  border-left: 2px solid var(--reader-rule);
+}
+.groupMessages > .sourceMessage[data-message-role="user"] {
+  margin-left: auto;
+  margin-right: 10px;
+  padding-left: 14px;
 }
 .groupMessages > .sourceMessage:last-child {
-  border-bottom: 0;
+  margin-bottom: 18px;
 }
 .messageHeading {
   display: flex;
