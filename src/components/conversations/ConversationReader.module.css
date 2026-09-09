@@ -1,33 +1,11 @@
 .page {
-  --reader-ink: #29372f;
-  --reader-muted: #657168;
-  --reader-accent: #315f4c;
-  --reader-panel: #fafbf8;
-  --reader-border: #cdd4ce;
-  --reader-paper: #fffdf7;
-  --reader-rule: #dfe3d9;
-  --reader-tag: #f0f3e9;
-  --reader-user-bg: #f4e7da;
-  --reader-user-ink: #865733;
-  --reader-user-border: #e8d3bd;
-  --reader-assistant-bg: #e2eee5;
-  --reader-assistant-border: #c6dacb;
-  display: flex;
-  flex-direction: column;
-  height: 100dvh;
-  min-height: 580px;
-  padding: 0 20px 16px;
-  gap: 10px;
-  background: #eef0eb;
-  color: var(--reader-ink);
+  --reader-ink: var(--foreground);
+  --reader-muted: var(--paper-muted);
+  --reader-accent: var(--paper-accent);
+  --reader-panel: var(--background);
+  --reader-border: var(--paper-line);
 }
-.page > div:first-child {
-  padding: 8px 0 0;
-  max-width: none;
-}
-.page > div:last-child {
-  min-height: 0;
-}
+
 .header {
   display: grid;
   gap: 10px;
@@ -75,10 +53,10 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 12px;
   border: 1px solid var(--reader-border);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--reader-panel);
   color: inherit;
   cursor: pointer;
@@ -129,57 +107,47 @@
 .metadata .deleteButton {
   color: #bc4942;
 }
-.documentViewer {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--reader-border);
-  border-radius: 10px;
-  background: #dce0d9;
-  box-shadow: 0 12px 30px #24352a12;
-}
-.documentToolbar {
+
+.page .documentToolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--reader-border);
-  background: var(--reader-panel);
-  font-size: 0.75rem;
-  color: var(--reader-muted);
 }
 .documentToolbar span:first-child {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--reader-ink);
   font-weight: 650;
 }
 .documentScroll {
   overflow: auto;
   min-height: 0;
   flex: 1;
-  padding: 28px;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
+  background: #fff;
 }
 .paper {
-  max-width: 850px;
+  --reader-ink: #171717;
+  --reader-muted: #666;
+  --reader-accent: #3f4fb0;
+  --reader-border: #d4d4d4;
+  --reader-rule: #dedede;
+  --reader-tag: #f4f4f4;
+  --reader-user-bg: rgba(63, 79, 176, 0.14);
+  --reader-user-ink: #3f4fb0;
+  --reader-user-border: rgba(63, 79, 176, 0.25);
+  --reader-assistant-bg: rgba(127, 127, 127, 0.1);
+  --reader-assistant-border: rgba(127, 127, 127, 0.25);
   margin: 0 auto;
   padding: clamp(24px, 4vw, 56px);
-  background: var(--reader-paper);
-  color: var(--reader-ink);
-  border: 1px solid var(--reader-border);
-  box-shadow: 0 4px 24px #1c2c2326;
-  border-radius: 2px;
+  background: #fff;
+  color: #171717;
+  color-scheme: light;
   overflow-wrap: anywhere;
 }
 .documentTitle {
   padding-bottom: 28px;
-  border-bottom: 2px solid var(--reader-accent);
+  border-bottom: 1px solid var(--reader-border);
 }
 .eyebrow {
   color: var(--reader-muted);
@@ -211,29 +179,30 @@
   background: var(--reader-tag);
 }
 .sourceMessage {
-  padding: 28px 0;
+  padding: 20px 0;
   border-bottom: 1px solid var(--reader-rule);
   font-size: 0.98rem;
 }
 .sourceMessage > div:last-child {
-  line-height: 1.8;
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.65;
 }
 .turnGroup {
   margin-top: 16px;
-  border-bottom: 1px solid var(--reader-rule);
+  border-bottom: 1px solid rgba(127, 127, 127, 0.25);
 }
 .turnGroup > summary {
   padding: 8px 10px;
-  background: var(--reader-tag);
+  background: rgba(127, 127, 127, 0.08);
   font-size: 0.78rem;
   gap: 12px;
 }
-.turnGroup > details {
+.groupMessages > .sourceMessage {
   margin-left: 10px;
   padding-left: 14px;
   border-left: 2px solid var(--reader-rule);
 }
-.turnGroup > details:last-child {
+.groupMessages > .sourceMessage:last-child {
   border-bottom: 0;
 }
 .messageHeading {
@@ -286,7 +255,7 @@ details[open] > .messageHeading .turnChevron {
 }
 .assistantRole {
   background: var(--reader-assistant-bg);
-  color: var(--reader-accent);
+  color: #555;
   border: 1px solid var(--reader-assistant-border);
 }
 .documentFooter {
@@ -295,167 +264,77 @@ details[open] > .messageHeading .turnChevron {
   color: var(--reader-muted);
   font-size: 0.68rem;
 }
-.chatPanel {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  border: 1px solid var(--reader-border);
-  border-radius: 12px;
-  background: var(--reader-panel);
-  overflow: hidden;
-}
-.chatHeader {
-  display: grid;
-  gap: 10px;
-  padding: 18px;
-  border-bottom: 1px solid var(--reader-border);
-}
-.chatHeader h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.94rem;
-}
-.chatHeader p {
-  color: var(--reader-muted);
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
-.chatHeader label,
-.composer label {
-  display: grid;
-  gap: 7px;
-  font-size: 0.75rem;
-  font-weight: 550;
-}
-.chatHeader select,
-.composer textarea {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  border: 1px solid var(--reader-border);
-  background: var(--reader-panel);
-  color: inherit;
-  font: inherit;
-  font-size: 1rem;
-  border-radius: 8px;
-  padding: 10px;
-}
-.chatMessages {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 18px;
-  overscroll-behavior: contain;
-}
-.emptyChat {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px;
-  color: var(--reader-muted);
-}
-.emptyChat svg {
-  flex-shrink: 0;
-  color: var(--reader-accent);
-}
-.emptyChat p {
-  font-size: 0.85rem;
-  line-height: 1.65;
-}
-.chatMessage {
-  padding: 16px 0;
-  border-bottom: 1px solid var(--reader-border);
-  font-size: 0.9rem;
-}
-.chatMessage > h3 {
-  margin-bottom: 12px;
-}
-.composer {
-  display: grid;
-  gap: 10px;
-  border-top: 1px solid var(--reader-border);
-  padding: 16px;
-}
-.composer textarea {
-  resize: vertical;
-  min-height: 96px;
-  max-height: 30dvh;
-  line-height: 1.5;
-}
-.composer > button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 10px 18px;
-  border: 0;
-  border-radius: 8px;
-  background: #315f4c;
-  color: #fff;
-  font: inherit;
-  font-weight: 600;
-}
-.composer > button:disabled {
-  background: #7f7f7f20;
-  color: var(--reader-muted);
-  cursor: not-allowed;
-}
-.composer > button:not(:disabled) {
-  cursor: pointer;
-}
-.composer > button:hover:not(:disabled) {
-  background: #234b3b;
-}
-.composer > p {
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
+
 .page :is(a, button, summary, select, textarea, [tabindex="0"]):focus-visible {
   outline: 2px solid #78ae95;
   outline-offset: 3px;
 }
-:global(html[data-theme="dark"]) .page {
-  --reader-ink: #e4eae3;
-  --reader-muted: #a0aea4;
-  --reader-accent: #91baa0;
-  --reader-panel: #1d2621;
-  --reader-border: #38463c;
-  --reader-paper: #202b24;
-  --reader-rule: #3a483e;
-  --reader-tag: #29382e;
-  --reader-user-bg: #443426;
-  --reader-user-ink: #e5bb94;
-  --reader-user-border: #66503b;
-  --reader-assistant-bg: #293f31;
-  --reader-assistant-border: #46614e;
-  background: #141c17;
-}
-:global(html[data-theme="dark"]) .documentViewer {
-  background: #29332d;
-}
+
 @media (max-width: 900px) {
-  .page {
-    padding: 0 10px 10px;
-  }
   .header h1 {
     font-size: 1.15rem;
   }
   .headingRow > div:first-child {
     flex-basis: 100%;
   }
-  .documentScroll {
-    padding: 12px;
-  }
-  .paper {
-    padding: 24px 20px;
-  }
   .paperTitle {
     font-size: 1.7rem;
   }
   .sourceMessage {
     font-size: 0.95rem;
+  }
+}
+
+main.page {
+  height: 100dvh;
+  min-height: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+.page > div:last-child {
+  min-height: 0;
+}
+.mobileAccount {
+  display: none;
+}
+.desktopAccount > div,
+.mobileAccount > div {
+  padding: 0;
+  max-width: none;
+}
+.header {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--paper-line);
+}
+.header h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
+}
+.chatGroup {
+  width: 100%;
+}
+.page .chatPanel {
+  min-height: 0;
+}
+.chatGroup > .groupMessages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.chatMessage .role {
+  color: inherit;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.chatGroup > summary {
+  color: var(--foreground);
+}
+@media (max-width: 900px) {
+  .mobileAccount {
+    display: block;
+  }
+  .desktopAccount {
+    display: none;
   }
 }

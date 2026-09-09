@@ -4,6 +4,20 @@ test("conversation reading shares paper focus controls and renders rich source c
   page,
 }, testInfo) => {
   await login(page);
+  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  const paperInput = page.getByPlaceholder(
+    "Ask about the paper… (paste screenshots here)",
+  );
+  const paperInputBorder = await paperInput.evaluate(
+    (element) => getComputedStyle(element).borderColor,
+  );
+  const paperSendColor = await page
+    .getByRole("button", { name: "Send", exact: true })
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  const paperToolbarColor = await page
+    .getByRole("button", { name: "Select", exact: true })
+    .locator("../..")
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
   const scene =
     "const scene = new THREE.Scene(); scene.background = new THREE.Color('#234b3b'); const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100); camera.position.z = 4; const renderer = new THREE.WebGLRenderer(); renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement); scene.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial())); renderer.render(scene, camera);";
   const response = await page.request.post("/api/v1/conversations", {
@@ -115,15 +129,35 @@ test("conversation reading shares paper focus controls and renders rich source c
       name: "Question",
       exact: true,
     });
+    await expect(question).toHaveCSS("border-color", paperInputBorder);
+    await expect(
+      page.getByRole("button", { name: "Send", exact: true }),
+    ).toHaveCSS("background-color", paperSendColor);
+    const transcriptToolbar = page
+      .getByText("Source transcript", { exact: true })
+      .locator("..");
+    await expect(transcriptToolbar).toHaveCSS(
+      "background-color",
+      paperToolbarColor,
+    );
+    const composer = question.locator("..");
+    await expect(composer).toHaveCSS("display", "flex");
     await question.fill("Keep this draft while I read.");
     await page.getByRole("button", { name: "Focus reading" }).click();
     await expect(question).toBeHidden();
+    await expect(
+      page.getByRole("link", { name: "papernook home" }),
+    ).toBeHidden();
     await page.getByRole("button", { name: "Show chat" }).click();
     await expect(question).toHaveValue("Keep this draft while I read.");
     await page.getByRole("button", { name: "Show header" }).click();
     await page.getByRole("button", { name: "Use dark theme" }).click();
-    await expect(sheet).not.toHaveCSS("background-color", lightBackground);
-    await expect(sheet).not.toHaveCSS("color", lightInk);
+    await expect(page.getByRole("main")).toHaveCSS(
+      "background-color",
+      "rgb(10, 10, 10)",
+    );
+    await expect(sheet).toHaveCSS("background-color", lightBackground);
+    await expect(sheet).toHaveCSS("color", lightInk);
     await expect(source.locator(".katex-display")).toHaveCSS(
       "color",
       await sheet.evaluate((element) => getComputedStyle(element).color),
@@ -131,14 +165,52 @@ test("conversation reading shares paper focus controls and renders rich source c
     await page.screenshot({
       path: testInfo.outputPath("conversation-reader-dark.png"),
     });
+    await page
+      .getByRole("button", { name: "Hide header", exact: true })
+      .click();
+    await page.screenshot({
+      path: testInfo.outputPath("conversation-reader-collapsed-header.png"),
+    });
+    await page
+      .getByRole("button", { name: "Show header", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Account menu for Maya" })
+      .press("Enter");
     await page.setViewportSize({ width: 390, height: 844 });
+    const mobileAccount = page.getByRole("button", {
+      name: "Account menu for Maya",
+    });
+    await mobileAccount.press("Enter");
+    const menuId = await mobileAccount.getAttribute("aria-controls");
+    await expect(page.locator(`[id="${menuId}"]`)).toHaveCount(1);
+    await expect(page.locator(`[id="${menuId}"]`)).toBeVisible();
+    await mobileAccount.press("Escape");
     await page.getByRole("tab", { name: "Chat", exact: true }).click();
     await expect(question).toHaveValue("Keep this draft while I read.");
+    const sendBounds = await page
+      .getByRole("button", { name: "Send", exact: true })
+      .boundingBox();
+    expect(sendBounds).not.toBeNull();
+    expect(sendBounds!.y + sendBounds!.height).toBeLessThanOrEqual(844);
     await page.getByRole("tab", { name: "Reading", exact: true }).click();
     await expect(question).toBeHidden();
+    await expect(
+      page.getByRole("link", { name: "papernook home" }),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        scroll.evaluate(
+          (element) => element.scrollHeight > element.clientHeight,
+        ),
+      )
+      .toBe(true);
     await page.screenshot({
       path: testInfo.outputPath("conversation-reader-mobile.png"),
     });
+    const scrollBounds = await scroll.boundingBox();
+    expect(scrollBounds).not.toBeNull();
+    expect(scrollBounds!.y + scrollBounds!.height).toBeLessThanOrEqual(844);
     await page.getByRole("button", { name: "Use light theme" }).click();
     await expect(sheet).toHaveCSS("background-color", lightBackground);
     await expect(sheet).toHaveCSS("color", lightInk);

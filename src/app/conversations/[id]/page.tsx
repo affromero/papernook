@@ -8,6 +8,7 @@ import { isValidSlug } from "@/lib/library/slug";
 import { AccountBar } from "@/components/profiles/AccountBar";
 import { ConversationReader } from "@/components/conversations/ConversationReader";
 import styles from "@/components/conversations/ConversationReader.module.css";
+import paperStyles from "@/app/paper/[topic]/[slug]/paper.module.css";
 export const dynamic = "force-dynamic";
 export default async function ConversationPage({
   params,
@@ -21,12 +22,14 @@ export default async function ConversationPage({
   const conversation = getConversation(profile.username, id);
   if (!conversation) notFound();
   return (
-    <main className={styles.page}>
-      <AccountBar
-        displayName={profile.displayName}
-        avatarSlug={profile.avatarSlug}
-      />
+    <main className={`${paperStyles.root} ${styles.page}`}>
       <ConversationReader
+        accountBar={
+          <AccountBar
+            displayName={profile.displayName}
+            avatarSlug={profile.avatarSlug}
+          />
+        }
         conversation={conversation}
         initialChats={listConversationChats(profile.username, id)}
       />

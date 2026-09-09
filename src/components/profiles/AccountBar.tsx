@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ interface AccountBarProps {
 }
 
 export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
+  const menuId = useId();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -63,7 +64,7 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
           className={styles.avatarBtn}
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          aria-controls="account-options"
+          aria-controls={menuId}
           aria-label={`Account menu for ${displayName}`}
         >
           <Image
@@ -76,11 +77,7 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
         </button>
       </div>
       {open && (
-        <div
-          className={styles.menu}
-          id="account-options"
-          aria-label="Account options"
-        >
+        <div className={styles.menu} id={menuId} aria-label="Account options">
           <p className={styles.menuWho}>
             <Image
               src={`/avatars/${avatarSlug}.png`}

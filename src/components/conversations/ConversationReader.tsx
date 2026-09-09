@@ -1,5 +1,11 @@
 "use client";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Markdown } from "@/components/chat/Markdown";
 import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
@@ -10,8 +16,6 @@ import {
   ChevronDown,
   Download,
   ExternalLink,
-  MessageSquare,
-  Send,
   User,
 } from "lucide-react";
 import { DownloadButton } from "@/components/offline/DownloadButton";
@@ -20,6 +24,8 @@ import type { Conversation } from "@/lib/conversations/store";
 import type { Chat } from "@/lib/library/chats";
 import styles from "./ConversationView.module.css";
 import readerStyles from "./ConversationReader.module.css";
+import chatStyles from "@/components/chat/ChatPanel.module.css";
+import pdfStyles from "@/components/pdf/PdfReader.module.css";
 
 type TurnMessage = { role: "user" | "assistant"; content: string };
 
@@ -67,7 +73,7 @@ function ConversationTurnGroup({
     messages[0].role === "user" ? (followUp ? "You" : "User") : "Assistant";
   return (
     <details
-      className={readerStyles.turnGroup}
+      className={`${readerStyles.turnGroup} ${followUp ? readerStyles.chatGroup : ""}`}
       open={expanded}
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
@@ -87,14 +93,16 @@ function ConversationTurnGroup({
           />
         </span>
       </summary>
-      {messages.map((message, index) => (
-        <ConversationTurn
-          key={start + index}
-          message={message}
-          index={start + index}
-          followUp={followUp}
-        />
-      ))}
+      <div className={readerStyles.groupMessages}>
+        {messages.map((message, index) => (
+          <ConversationTurn
+            key={start + index}
+            message={message}
+            index={start + index}
+            followUp={followUp}
+          />
+        ))}
+      </div>
     </details>
   );
 }
@@ -114,7 +122,9 @@ function ConversationTurn({
   return (
     <details
       className={
-        followUp ? readerStyles.chatMessage : readerStyles.sourceMessage
+        followUp
+          ? `${readerStyles.chatMessage} ${message.role === "user" ? chatStyles.userMsg : chatStyles.assistantMsg}`
+          : readerStyles.sourceMessage
       }
       data-message-role={message.role}
       open={expanded}
@@ -150,9 +160,11 @@ function ConversationTurn({
 export function ConversationReader({
   conversation,
   initialChats,
+  accountBar,
 }: {
   conversation: Conversation;
   initialChats: Chat[];
+  accountBar: ReactNode;
 }) {
   const router = useRouter();
   const connected = useConnection();
@@ -298,6 +310,7 @@ export function ConversationReader({
   const active = chats.find((chat) => chat.header.id === chatId);
   return (
     <>
+      <div className={readerStyles.mobileAccount}>{accountBar}</div>
       {error && (
         <p role="alert" className={styles.error}>
           {error}
@@ -313,6 +326,7 @@ export function ConversationReader({
         }
         header={
           <header className={readerStyles.header}>
+            <div className={readerStyles.desktopAccount}>{accountBar}</div>
             <LibraryNavigation />
             <div className={readerStyles.headingRow}>
               <div>
@@ -396,8 +410,10 @@ export function ConversationReader({
           </header>
         }
         main={
-          <div className={readerStyles.documentViewer}>
-            <div className={readerStyles.documentToolbar}>
+          <div className={pdfStyles.root}>
+            <div
+              className={`${pdfStyles.toolbar} ${readerStyles.documentToolbar}`}
+            >
               <span>
                 <BookOpen size={16} aria-hidden="true" /> Source transcript
               </span>
@@ -435,36 +451,38 @@ export function ConversationReader({
         }
         chat={
           <section
-            className={readerStyles.chatPanel}
+            className={`${chatStyles.root} ${readerStyles.chatPanel}`}
             aria-label="Follow-up chats"
           >
-            <div className={readerStyles.chatHeader}>
-              <h2>
-                <MessageSquare size={18} aria-hidden="true" /> Study this
-                conversation
-              </h2>
-              <label>
-                Follow-up chat
-                <select
-                  disabled={busy}
-                  value={chatId}
-                  onChange={(event) => setChatId(event.target.value)}
-                >
-                  <option value="">New chat</option>
-                  {chats.map((chat) => (
-                    <option key={chat.header.id} value={chat.header.id}>
-                      {chat.header.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className={chatStyles.header}>
+              <select
+                className={chatStyles.chatSelect}
+                aria-label="Follow-up chat"
+                disabled={busy}
+                value={chatId}
+                onChange={(event) => setChatId(event.target.value)}
+              >
+                <option value="">New chat</option>
+                {chats.map((chat) => (
+                  <option key={chat.header.id} value={chat.header.id}>
+                    {chat.header.title}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className={chatStyles.newBtn}
+                disabled={busy}
+                onClick={() => setChatId("")}
+              >
+                + New
+              </button>
             </div>
-            <div ref={chatScrollRef} className={readerStyles.chatMessages}>
+            <div ref={chatScrollRef} className={chatStyles.messages}>
               {!active?.messages.length && !busy && (
-                <div className={readerStyles.emptyChat}>
-                  <BookOpen size={28} aria-hidden="true" />
-                  <p>Ask a question to explore the saved conversation.</p>
-                </div>
+                <p className={chatStyles.empty}>
+                  Ask a question to explore the saved conversation.
+                </p>
               )}
               <ConversationTurns
                 key={chatId}
@@ -472,12 +490,8 @@ export function ConversationReader({
                 followUp
               />
               {draft && (
-                <article className={readerStyles.chatMessage}>
-                  <h3
-                    className={`${readerStyles.role} ${readerStyles.assistantRole}`}
-                  >
-                    Assistant
-                  </h3>
+                <article className={chatStyles.assistantMsg}>
+                  <h3 className={readerStyles.role}>Assistant</h3>
                   <Markdown
                     content={draft}
                     highlightCode={false}
@@ -492,29 +506,30 @@ export function ConversationReader({
                 </p>
               )}
             </div>
+            {!connected && (
+              <p role="status" className={readerStyles.caption}>
+                Connect to continue this conversation. Your draft is preserved.
+              </p>
+            )}
             <form
-              className={readerStyles.composer}
+              className={chatStyles.inputRow}
               onSubmit={(event) => void send(event)}
             >
-              <label>
-                Question
-                <textarea
-                  required
-                  maxLength={40_000}
-                  value={query}
-                  placeholder="Ask about this conversation…"
-                  onChange={(event) => setQuery(event.target.value)}
-                  disabled={busy}
-                />
-              </label>
-              {!connected && (
-                <p role="status">
-                  Connect to continue this conversation. Your draft is
-                  preserved.
-                </p>
-              )}
-              <button disabled={busy || !connected || !query.trim()}>
-                <Send size={16} aria-hidden="true" />{" "}
+              <textarea
+                className={chatStyles.input}
+                aria-label="Question"
+                rows={2}
+                required
+                maxLength={40_000}
+                value={query}
+                placeholder="Ask about this conversation…"
+                onChange={(event) => setQuery(event.target.value)}
+                disabled={busy}
+              />
+              <button
+                className={chatStyles.sendBtn}
+                disabled={busy || !connected || !query.trim()}
+              >
                 {busy ? "Thinking…" : "Send"}
               </button>
             </form>
