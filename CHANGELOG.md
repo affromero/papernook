@@ -2,6 +2,40 @@
 
 All notable changes to Papernook are documented in this file.
 
+## [0.3.0] - 2026-09-09
+
+### Added
+
+- Import private conversations and save papers or conversations for offline
+  reading on your device. ([`769b939`](https://github.com/affromero/papernook/commit/769b939))
+- Ask about selected text and citations, add referenced papers to the library,
+  and browse a reading list of cited works you have not saved.
+  ([`37f9aec`](https://github.com/affromero/papernook/commit/37f9aec), [#32](https://github.com/affromero/papernook/pull/32))
+- Choose system, light, or dark appearance, with a separate light document
+  option. ([`46569b3`](https://github.com/affromero/papernook/commit/46569b3), [`d0d249a`](https://github.com/affromero/papernook/commit/d0d249a))
+
+### Changed
+
+- Conversations use the paper reader layout with collapsible turns. Offline
+  saving stays accessible in focus mode, with simpler toolbar actions.
+  ([`6abb461`](https://github.com/affromero/papernook/commit/6abb461), [`46cba0f`](https://github.com/affromero/papernook/commit/46cba0f), [`e80fe7d`](https://github.com/affromero/papernook/commit/e80fe7d))
+- PDFs load progressively, and captured PDFs are optimized for faster reading.
+  ([`b4d7074`](https://github.com/affromero/papernook/commit/b4d7074), [`ce903d0`](https://github.com/affromero/papernook/commit/ce903d0))
+- The `papernook` command supports in-place updates. CI publishes tested
+  container images, and every Compose service has bounded logs.
+  ([`9573606`](https://github.com/affromero/papernook/commit/9573606), [`029321f`](https://github.com/affromero/papernook/commit/029321f), [#34](https://github.com/affromero/papernook/pull/34))
+
+### Fixed
+
+- Citation previews resolve and highlight the referenced entry more accurately;
+  reading positions preserve fitted zoom across different viewports.
+  ([`6b292c6`](https://github.com/affromero/papernook/commit/6b292c6), [`4cecb4c`](https://github.com/affromero/papernook/commit/4cecb4c), [#33](https://github.com/affromero/papernook/pull/33))
+- CLI credentials survive token rotation, Claude calls run in isolation, and
+  Codex usage limits produce explicit errors.
+  ([`7eba353`](https://github.com/affromero/papernook/commit/7eba353), [`7a767c2`](https://github.com/affromero/papernook/commit/7a767c2))
+- Updated dependencies and patched image and YAML security advisories.
+  ([#27](https://github.com/affromero/papernook/pull/27), [#28](https://github.com/affromero/papernook/pull/28), [#30](https://github.com/affromero/papernook/pull/30), [#31](https://github.com/affromero/papernook/pull/31), [#33](https://github.com/affromero/papernook/pull/33), [#34](https://github.com/affromero/papernook/pull/34)) Thanks @dependabot.
+
 ## [0.2.0] - 2026-08-18
 
 The reader learns to follow citations, conversations become durable and
@@ -149,5 +183,6 @@ Papernook v0.1.0 is the first source release of the self-hosted paper library.
   `scripts/install.sh`. The one-line installer on `main` follows current
   development.
 
+[0.3.0]: https://github.com/affromero/papernook/releases/tag/v0.3.0
 [0.2.0]: https://github.com/affromero/papernook/releases/tag/v0.2.0
 [0.1.0]: https://github.com/affromero/papernook/releases/tag/v0.1.0

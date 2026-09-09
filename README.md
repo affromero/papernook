@@ -101,7 +101,7 @@ reported, never replaced.
 For a reproducible production install, use a release tag:
 
 ```bash
-git clone --branch v0.2.0 --depth 1 https://github.com/affromero/papernook.git
+git clone --branch v0.3.0 --depth 1 https://github.com/affromero/papernook.git
 cd papernook
 ./scripts/install.sh
 ```
