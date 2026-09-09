@@ -18,6 +18,25 @@ describe("imported formula rendering", () => {
     expect(html).not.toContain("cite");
   });
 
+  it("keeps writing content while hiding provider wrappers and citation placeholders", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: `:::writing{variant="email" id="4728" subject="Final interview format"}
+Hi [Name],
+
+Thanks for sharing the schedule.
+:::
+
+□memcite□`,
+      }),
+    );
+    expect(html).toContain("Hi [Name]");
+    expect(html).toContain("Thanks for sharing the schedule.");
+    expect(html).not.toContain("writing");
+    expect(html).not.toContain("4728");
+    expect(html).not.toContain("memcite");
+  });
+
   it("keeps equations and trailing prose inside lists and quotations", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {
