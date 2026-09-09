@@ -99,22 +99,20 @@ export function DownloadButton({ snapshotUrl }: { snapshotUrl: string }) {
   }
   return (
     <div className={styles.download} data-saved={saved}>
-      <div className={styles.downloadDescription}>
+      <div className={styles.downloadDescription} hidden={!saved}>
         <p id={descriptionId} role="status">
-          {saved ? (
+          {saved && (
             <>
               <CircleCheck aria-hidden="true" />
               Saved on this device
             </>
-          ) : (
-            "Read without internet on this device"
           )}
         </p>
       </div>
       <button
         type="button"
         disabled={busy}
-        aria-describedby={descriptionId}
+        aria-describedby={saved ? descriptionId : undefined}
         onClick={() => void download()}
       >
         {saved ? (

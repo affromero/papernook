@@ -140,6 +140,10 @@
   letter-spacing: 0.01em;
 }
 
+.collapsedActions > button {
+  min-height: 44px;
+}
+
 .toggle:hover,
 .collapsedActions > button:hover {
   border-color: rgba(49, 95, 76, 0.55);
