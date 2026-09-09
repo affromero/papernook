@@ -58,6 +58,9 @@ test("conversation reading shares paper focus controls and renders rich source c
   const { conversation } = await response.json();
   try {
     await page.goto(`/conversations/${conversation.id}`);
+    await expect(page).toHaveTitle(
+      "Understanding attention, one step at a time",
+    );
     const source = page.getByRole("region", {
       name: "Source transcript",
       exact: true,

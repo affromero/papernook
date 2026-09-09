@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { activeProfile } from "@/lib/auth/session";
 import {
@@ -10,6 +11,20 @@ import { ConversationReader } from "@/components/conversations/ConversationReade
 import styles from "@/components/conversations/ConversationReader.module.css";
 import paperStyles from "@/app/paper/[topic]/[slug]/paper.module.css";
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const profile = await activeProfile();
+  if (!profile) return { title: "papernook" };
+  const { id } = await params;
+  if (!isValidSlug(id)) return { title: "papernook" };
+  const conversation = getConversation(profile.username, id);
+  return { title: conversation?.title ?? "papernook" };
+}
+
 export default async function ConversationPage({
   params,
 }: {
