@@ -235,6 +235,7 @@ export function ConversationReader({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [readingProgress, setReadingProgress] = useState(0);
   const sourceRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const base = `/api/v1/conversations/${conversation.id}`;
@@ -242,6 +243,12 @@ export function ConversationReader({
     const key = `papernook:offline-position:conversation:${conversation.id}:source`;
     const scrollElement = sourceRef.current;
     if (!scrollElement) return;
+    const updateProgress = () => {
+      const maximum = scrollElement.scrollHeight - scrollElement.clientHeight;
+      setReadingProgress(
+        maximum > 0 ? Math.round((scrollElement.scrollTop / maximum) * 100) : 0,
+      );
+    };
     try {
       const value = Number(localStorage.getItem(key));
       if (value > 0) scrollElement.scrollTop = value;
@@ -252,7 +259,12 @@ export function ConversationReader({
       } catch {}
     };
     scrollElement.addEventListener("scroll", save, { passive: true });
-    return () => scrollElement.removeEventListener("scroll", save);
+    scrollElement.addEventListener("scroll", updateProgress, { passive: true });
+    updateProgress();
+    return () => {
+      scrollElement.removeEventListener("scroll", save);
+      scrollElement.removeEventListener("scroll", updateProgress);
+    };
   }, [conversation.id]);
   useEffect(() => {
     const element = chatScrollRef.current;
@@ -479,6 +491,12 @@ export function ConversationReader({
               <span>{conversation.messages.length} messages</span>
               <DocumentAppearanceSelect value={appearance} />
             </div>
+            <progress
+              className={readerStyles.readingProgress}
+              max={100}
+              value={readingProgress}
+              aria-label={`Reading progress: ${readingProgress}%`}
+            />
             <div
               ref={sourceRef}
               className={readerStyles.documentScroll}
