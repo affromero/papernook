@@ -394,7 +394,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
     const initial = await html.getAttribute("data-theme");
     expect(initial === "light" || initial === "dark").toBe(true);
     const target = initial === "dark" ? "light" : "dark";
-    await page.getByRole("button", { name: `Use ${target} theme` }).click();
+    await page
+      .getByRole("combobox", { name: "Color theme" })
+      .selectOption(target);
     await expect(html).toHaveAttribute("data-theme", target);
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", target);

@@ -1,4 +1,5 @@
 .toggle {
+  position: relative;
   min-width: 44px;
   min-height: 44px;
   display: inline-flex;
@@ -22,7 +23,16 @@
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
-.toggle:focus-visible {
+.toggle:has(select:focus-visible) {
   outline: 2px solid var(--color-primary, #b88a52);
   outline-offset: 2px;
+}
+.select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px;
 }

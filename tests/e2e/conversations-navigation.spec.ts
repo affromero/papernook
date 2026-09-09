@@ -151,7 +151,9 @@ test("conversation reading shares paper focus controls and renders rich source c
     await page.getByRole("button", { name: "Show chat" }).click();
     await expect(question).toHaveValue("Keep this draft while I read.");
     await page.getByRole("button", { name: "Show header" }).click();
-    await page.getByRole("button", { name: "Use dark theme" }).click();
+    await page
+      .getByRole("combobox", { name: "Color theme" })
+      .selectOption("dark");
     await expect(page.getByRole("main")).toHaveCSS(
       "background-color",
       "rgb(10, 10, 10)",
@@ -211,7 +213,9 @@ test("conversation reading shares paper focus controls and renders rich source c
     const scrollBounds = await scroll.boundingBox();
     expect(scrollBounds).not.toBeNull();
     expect(scrollBounds!.y + scrollBounds!.height).toBeLessThanOrEqual(844);
-    await page.getByRole("button", { name: "Use light theme" }).click();
+    await page
+      .getByRole("combobox", { name: "Color theme" })
+      .selectOption("light");
     await expect(sheet).toHaveCSS("background-color", lightBackground);
     await expect(sheet).toHaveCSS("color", lightInk);
   } finally {
@@ -298,7 +302,9 @@ for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
     await login(page);
     if (width === 390)
-      await page.getByRole("button", { name: "Use dark theme" }).click();
+      await page
+        .getByRole("combobox", { name: "Color theme" })
+        .selectOption("dark");
     const nav = page.getByRole("navigation", { name: "Libraries" });
     await expect(
       nav.getByRole("link", { name: "Papers", exact: true }),
