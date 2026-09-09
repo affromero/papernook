@@ -1,4 +1,4 @@
-import { isValidElement, type ReactNode } from "react";
+import { Children, isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -139,6 +139,19 @@ export function Markdown({
               <ThreeSandbox code={code} onRegenerate={onRegenerateThree} />
             ) : (
               <CodeFrame copyCode={copyCode}>{props.children}</CodeFrame>
+            );
+          },
+          ol(props) {
+            const { node, ...listProps } = props;
+            void node;
+            const count = Children.toArray(props.children).filter(
+              (child) => isValidElement(child) && child.type === "li",
+            ).length;
+            return (
+              <details className={styles.collapsibleList} open>
+                <summary>{count} numbered points</summary>
+                <ol {...listProps} />
+              </details>
             );
           },
           // Never auto-load an image the model put in its answer: a

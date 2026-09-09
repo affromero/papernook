@@ -8,6 +8,9 @@ export function normalizeProviderText(content: string): string {
       .replace(/^:::\s*$/gm, "")
       .replace(/\uE200cite\uE202[\w:-]+(?:\uE202[\w:-]+)*\uE201/g, "")
       .replace(/[\uE200\uE201\uE202]/g, "")
+      // Boxed text from imported LaTeX renders as border strokes through
+      // adjacent text when several boxes share one display equation.
+      .replace(/\\boxed\{\\text\{([^{}]*)\}\}/g, "\\text{$1}")
       // Some imported transcripts have already substituted the private-use
       // citation controls with visible square placeholders.
       .replace(/□(?:mem)?cite□/gi, "")

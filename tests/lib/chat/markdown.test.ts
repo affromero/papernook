@@ -37,6 +37,31 @@ Thanks for sharing the schedule.
     expect(html).not.toContain("memcite");
   });
 
+  it("removes imported LaTeX boxes that render as strokes through text", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: String.raw`\[
+\boxed{\text{Is it realistic?}}\qquad\boxed{\text{Can we deploy it?}}
+\]`,
+      }),
+    );
+    expect(html).toContain("Is it realistic?");
+    expect(html).toContain("Can we deploy it?");
+    expect(html).not.toContain("\\boxed");
+  });
+
+  it("makes numbered explanations collapsible without hiding them initially", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: "1. Check the map.\n2. Check the controls.",
+      }),
+    );
+    expect(html).toContain('<details class="');
+    expect(html).toContain('open=""');
+    expect(html).toContain("2 numbered points");
+    expect(html).toContain("Check the controls.");
+  });
+
   it("keeps equations and trailing prose inside lists and quotations", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {

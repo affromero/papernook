@@ -40,6 +40,23 @@
   padding-left: 1.4em;
 }
 
+.collapsibleList {
+  margin: 0.5em 0;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 8px;
+  padding: 0.35em 0.8em;
+}
+
+.collapsibleList > summary {
+  cursor: pointer;
+  color: inherit;
+  font-weight: 650;
+}
+
+.collapsibleList > ol {
+  margin-bottom: 0.25em;
+}
+
 .root h1,
 .root h2,
 .root h3,
