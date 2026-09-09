@@ -69,6 +69,17 @@ test("conversation reading shares paper focus controls and renders rich source c
     ).toBeVisible();
     await expect(source.locator("table")).toContainText("Queries");
     await expect(source.locator("pre")).toContainText("weights = softmax");
+    const sheet = page
+      .getByLabel("Scroll transcript")
+      .getByText("Understanding attention, one step at a time", { exact: true })
+      .locator("..")
+      .locator("..");
+    const lightBackground = await sheet.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    );
+    const lightInk = await sheet.evaluate(
+      (element) => getComputedStyle(element).color,
+    );
     await page.screenshot({
       path: testInfo.outputPath("conversation-reader-light.png"),
     });
@@ -111,6 +122,12 @@ test("conversation reading shares paper focus controls and renders rich source c
     await expect(question).toHaveValue("Keep this draft while I read.");
     await page.getByRole("button", { name: "Show header" }).click();
     await page.getByRole("button", { name: "Use dark theme" }).click();
+    await expect(sheet).not.toHaveCSS("background-color", lightBackground);
+    await expect(sheet).not.toHaveCSS("color", lightInk);
+    await expect(source.locator(".katex-display")).toHaveCSS(
+      "color",
+      await sheet.evaluate((element) => getComputedStyle(element).color),
+    );
     await page.screenshot({
       path: testInfo.outputPath("conversation-reader-dark.png"),
     });
@@ -122,6 +139,71 @@ test("conversation reading shares paper focus controls and renders rich source c
     await page.screenshot({
       path: testInfo.outputPath("conversation-reader-mobile.png"),
     });
+    await page.getByRole("button", { name: "Use light theme" }).click();
+    await expect(sheet).toHaveCSS("background-color", lightBackground);
+    await expect(sheet).toHaveCSS("color", lightInk);
+  } finally {
+    await page.request.delete(`/api/v1/conversations/${conversation.id}`);
+  }
+});
+
+test("consecutive speaker runs collapse together while preserving individual turn choices", async ({
+  page,
+}) => {
+  await login(page);
+  const response = await page.request.post("/api/v1/conversations", {
+    data: {
+      title: "Long consecutive replies",
+      format: "json",
+      content: JSON.stringify({
+        messages: [
+          { role: "user", content: "First question" },
+          ...Array.from({ length: 100 }, (_, index) => ({
+            role: "assistant",
+            content: `Consecutive reply ${index + 1}.`,
+          })),
+          { role: "user", content: "Next question" },
+          { role: "user", content: "Extra context" },
+          { role: "assistant", content: "Separate answer" },
+        ],
+      }),
+    },
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  const { conversation } = await response.json();
+  try {
+    await page.goto(`/conversations/${conversation.id}`);
+    const assistantRun = page.getByLabel("Assistant turns 2 to 101", {
+      exact: true,
+    });
+    await expect(assistantRun).toContainText("100 messages");
+    await page.getByLabel("Assistant turn 2", { exact: true }).click();
+    await assistantRun.click();
+    await expect(
+      page.getByText("Consecutive reply 100.", { exact: true }),
+    ).toBeHidden();
+    await expect(
+      page.getByText("Next question", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Separate answer", { exact: true }),
+    ).toBeVisible();
+    await assistantRun.press("Enter");
+    await expect(
+      page.getByText("Consecutive reply 1.", { exact: true }),
+    ).toBeHidden();
+    await expect(
+      page.getByText("Consecutive reply 100.", { exact: true }),
+    ).toBeVisible();
+    await page.getByLabel("User turns 102 to 103", { exact: true }).click();
+    await expect(page.getByText("Next question", { exact: true })).toBeHidden();
+    await expect(page.getByText("Extra context", { exact: true })).toBeHidden();
+    await expect(
+      page.getByText("First question", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Separate answer", { exact: true }),
+    ).toBeVisible();
   } finally {
     await page.request.delete(`/api/v1/conversations/${conversation.id}`);
   }

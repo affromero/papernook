@@ -21,12 +21,90 @@ import type { Chat } from "@/lib/library/chats";
 import styles from "./ConversationView.module.css";
 import readerStyles from "./ConversationReader.module.css";
 
+type TurnMessage = { role: "user" | "assistant"; content: string };
+
+function ConversationTurns({
+  messages,
+  followUp = false,
+}: {
+  messages: TurnMessage[];
+  followUp?: boolean;
+}) {
+  const groups: { start: number; messages: TurnMessage[] }[] = [];
+  messages.forEach((message, index) => {
+    const previous = groups.at(-1);
+    if (previous?.messages[0].role === message.role) {
+      previous.messages.push(message);
+    } else {
+      groups.push({ start: index, messages: [message] });
+    }
+  });
+  return groups.map((group) =>
+    group.messages.length === 1 ? (
+      <ConversationTurn
+        key={group.start}
+        message={group.messages[0]}
+        index={group.start}
+        followUp={followUp}
+      />
+    ) : (
+      <ConversationTurnGroup key={group.start} {...group} followUp={followUp} />
+    ),
+  );
+}
+
+function ConversationTurnGroup({
+  messages,
+  start,
+  followUp,
+}: {
+  messages: TurnMessage[];
+  start: number;
+  followUp: boolean;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const label =
+    messages[0].role === "user" ? (followUp ? "You" : "User") : "Assistant";
+  return (
+    <details
+      className={readerStyles.turnGroup}
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
+      <summary
+        className={readerStyles.messageHeading}
+        aria-label={`${label} turns ${start + 1} to ${start + messages.length}`}
+      >
+        <strong>
+          {label} · {messages.length} messages
+        </strong>
+        <span>
+          {start + 1}–{start + messages.length}
+          <ChevronDown
+            className={readerStyles.turnChevron}
+            size={16}
+            aria-hidden="true"
+          />
+        </span>
+      </summary>
+      {messages.map((message, index) => (
+        <ConversationTurn
+          key={start + index}
+          message={message}
+          index={start + index}
+          followUp={followUp}
+        />
+      ))}
+    </details>
+  );
+}
+
 function ConversationTurn({
   message,
   index,
   followUp = false,
 }: {
-  message: { role: "user" | "assistant"; content: string };
+  message: TurnMessage;
   index: number;
   followUp?: boolean;
 }) {
@@ -346,13 +424,7 @@ export function ConversationReader({
                     ))}
                   </div>
                 </div>
-                {conversation.messages.map((message, index) => (
-                  <ConversationTurn
-                    key={index}
-                    message={message}
-                    index={index}
-                  />
-                ))}
+                <ConversationTurns messages={conversation.messages} />
                 <footer className={readerStyles.documentFooter}>
                   End of saved conversation · {conversation.messages.length}{" "}
                   messages
@@ -394,14 +466,11 @@ export function ConversationReader({
                   <p>Ask a question to explore the saved conversation.</p>
                 </div>
               )}
-              {active?.messages.map((message, index) => (
-                <ConversationTurn
-                  key={`${chatId}-${index}`}
-                  message={message}
-                  index={index}
-                  followUp
-                />
-              ))}
+              <ConversationTurns
+                key={chatId}
+                messages={active?.messages ?? []}
+                followUp
+              />
               {draft && (
                 <article className={readerStyles.chatMessage}>
                   <h3

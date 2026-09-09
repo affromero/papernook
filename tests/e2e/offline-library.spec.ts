@@ -53,12 +53,12 @@ async function download(page: Page, url: string): Promise<void> {
     response.url().includes("/api/v1/offline/"),
   );
   await page
-    .getByRole("button", { name: "Available offline", exact: true })
+    .getByRole("button", { name: "Save for offline", exact: true })
     .click();
   const response = await snapshot;
   expect(response.ok(), response.ok() ? "" : await response.text()).toBe(true);
   await expect(
-    page.getByRole("button", { name: "Update offline download", exact: true }),
+    page.getByRole("button", { name: "Update copy", exact: true }),
   ).toBeEnabled({ timeout: 60_000 });
 }
 
@@ -98,16 +98,26 @@ test.describe("downloaded library", () => {
         });
         await hideHeader.click();
         await page
-          .getByRole("button", { name: "Available offline", exact: true })
+          .getByRole("button", { name: "Save for offline", exact: true })
           .click();
         const update = page.getByRole("button", {
-          name: "Update offline download",
+          name: "Update copy",
           exact: true,
         });
         await expect(update).toBeEnabled({ timeout: 60_000 });
         await expect(
-          page.getByRole("link", { name: "Saved on this device", exact: true }),
+          page.getByRole("status").filter({ hasText: "Saved on this device" }),
         ).toBeVisible();
+        await expect(
+          page.getByRole("link", { name: "Open downloads" }),
+        ).toHaveAttribute("href", "/offline/index.html");
+        const refreshedSnapshot = page.waitForResponse((response) =>
+          response.url().includes("/api/v1/offline/"),
+        );
+        await update.click();
+        expect((await refreshedSnapshot).ok()).toBe(true);
+        await expect(update).toBeEnabled({ timeout: 60_000 });
+        await expect(update.locator("..").getByRole("alert")).toHaveCount(0);
         await page
           .getByRole("button", { name: "Focus reading", exact: true })
           .click();
@@ -325,7 +335,7 @@ test.describe("downloaded library", () => {
     ).toBeVisible();
     await page.goto(paperPath);
     await page
-      .getByRole("button", { name: "Available offline", exact: true })
+      .getByRole("button", { name: "Save for offline", exact: true })
       .click();
     await expect(
       page.getByRole("alert").filter({ hasText: /storage|download/i }),

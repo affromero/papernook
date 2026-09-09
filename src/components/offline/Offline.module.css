@@ -6,9 +6,94 @@
   gap: 0.6rem;
 }
 .download {
-  padding: 0.6rem 1rem;
+  gap: 0.4rem 0.75rem;
+  font-size: 0.78rem;
+  color: #526158;
 }
-.download button,
+.downloadDescription {
+  order: 1;
+}
+.downloadDescription p {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.download svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.download button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid #315f4c;
+  border-radius: 999px;
+  background: #315f4c;
+  color: #fff;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.download button:hover:not(:disabled) {
+  background: #244c3b;
+}
+.download[data-saved="true"] .downloadDescription {
+  order: 0;
+  color: #315f4c;
+  font-weight: 650;
+}
+.download[data-saved="true"] button {
+  background: #f8f7f2;
+  color: #315f4c;
+  border-color: #b8c8bd;
+}
+.download[data-saved="true"] button:hover:not(:disabled) {
+  background: #e3ece5;
+}
+.download a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.download button:focus-visible,
+.download a:focus-visible {
+  outline: 2px solid #315f4c;
+  outline-offset: 3px;
+}
+.download p[role="alert"] {
+  flex-basis: 100%;
+  order: 2;
+}
+:global(html[data-theme="dark"]) .download {
+  color: #b4c5ba;
+}
+:global(html[data-theme="dark"])
+  .download[data-saved="true"]
+  .downloadDescription {
+  color: #a6d4b9;
+}
+:global(html[data-theme="dark"]) .download[data-saved="true"] button {
+  background: #23382c;
+  color: #c9e4d4;
+  border-color: #557460;
+}
+:global(html[data-theme="dark"])
+  .download[data-saved="true"]
+  button:hover:not(:disabled) {
+  background: #304c3b;
+}
 .storage button {
   font: inherit;
   min-height: 44px;
@@ -24,7 +109,6 @@
   opacity: 0.5;
   cursor: wait;
 }
-.download a,
 .storage a {
   color: #6578d2;
   text-decoration: underline;

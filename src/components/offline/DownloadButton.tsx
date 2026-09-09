@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { CircleCheck, Download, RefreshCw } from "lucide-react";
 import { downloadOffline } from "@/lib/offline/download";
 import {
   listOffline,
@@ -59,6 +60,7 @@ export async function ensureOfflineReader(): Promise<void> {
 }
 
 export function DownloadButton({ snapshotUrl }: { snapshotUrl: string }) {
+  const descriptionId = useId();
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,15 +98,39 @@ export function DownloadButton({ snapshotUrl }: { snapshotUrl: string }) {
     }
   }
   return (
-    <div className={styles.download}>
-      <button type="button" disabled={busy} onClick={() => void download()}>
+    <div className={styles.download} data-saved={saved}>
+      <div className={styles.downloadDescription}>
+        <p id={descriptionId} role="status">
+          {saved ? (
+            <>
+              <CircleCheck aria-hidden="true" />
+              Saved on this device
+            </>
+          ) : (
+            "Read without internet on this device"
+          )}
+        </p>
+      </div>
+      <button
+        type="button"
+        disabled={busy}
+        aria-describedby={descriptionId}
+        onClick={() => void download()}
+      >
+        {saved ? (
+          <RefreshCw aria-hidden="true" />
+        ) : (
+          <Download aria-hidden="true" />
+        )}
         {busy
-          ? "Downloading…"
+          ? saved
+            ? "Updating…"
+            : "Saving…"
           : saved
-            ? "Update offline download"
-            : "Available offline"}
+            ? "Update copy"
+            : "Save for offline"}
       </button>
-      {saved && <a href="/offline/index.html">Saved on this device</a>}
+      {saved && <a href="/offline/index.html">Open downloads</a>}
       {error && <p role="alert">{error}</p>}
     </div>
   );
