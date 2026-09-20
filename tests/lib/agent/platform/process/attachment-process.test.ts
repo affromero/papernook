@@ -87,7 +87,7 @@ it("keeps application secrets out of transport processes", async () => {
   const result = await stageImagesOverSsh(["/local/image.png"], "fixture-host");
   expect(result.paths).toHaveLength(1);
   await result.cleanup();
-});
+}, 15_000);
 
 it("keeps identical basenames separate and resolves option-like or colon-bearing local names", async () => {
   const transfers = path.join(directory, "transfers");

@@ -149,7 +149,7 @@ describe("capture admission and status", () => {
       error: expect.stringContaining("public internet addresses"),
     });
   });
-  it("hides missing, foreign, legacy and stale-generation jobs without changing them", async () => {
+  it("hides missing, foreign, incomplete and stale-generation jobs without changing them", async () => {
     const route = await import("@/app/api/v1/capture/route");
     expect((await route.GET(statusGet())).status).toBe(404);
     for (const overrides of [
