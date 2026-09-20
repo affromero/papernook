@@ -75,7 +75,7 @@
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
     "thesidedoor": "0.2.0",
-    "thesidedoor-core": "0.1.0",
+    "thesidedoor-core": "0.2.0",
     "three": "^0.185.1",
     "tldraw": "^5.3.2",
     "undici": "^8.10.0",
