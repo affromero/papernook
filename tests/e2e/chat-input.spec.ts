@@ -363,6 +363,8 @@ test("PDF text can be copied and the chat draft stays editable while answering",
 test("keepalive-only responses do not create blank assistant cards", async ({
   page,
 }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   await login(page);
   let sent = false;
   let releaseReload: (() => void) | undefined;
@@ -404,6 +406,7 @@ test("keepalive-only responses do not create blank assistant cards", async ({
 
   await reloadStarted;
   await expect(assistantCards).toHaveCount(completedAnswers);
+  expect(pageErrors).toEqual([]);
   releaseReload?.();
 });
 
