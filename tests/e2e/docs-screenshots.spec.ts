@@ -580,7 +580,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.getByRole("button", { name: "Delete permanently" }).click();
     await expect(page).toHaveURL("/login");
     await expect(
-      page.getByRole("heading", { name: "Enter the access password" }),
+      page.getByRole("heading", { name: "Open your library" }),
     ).toBeVisible();
     await passGate(page);
     await expect(page.getByText("Jordan")).not.toBeVisible();

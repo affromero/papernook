@@ -164,10 +164,10 @@ export function useComposerHistory({
     return true;
   }
 
-  function openSearch(): void {
+  function openSearch(draft: string): void {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
-    pickerDraftRef.current = input;
+    pickerDraftRef.current = draft;
     setQuery("");
     setSelection(0);
     dialog.showModal();
@@ -189,7 +189,7 @@ export function useComposerHistory({
       !event.altKey &&
       !event.metaKey
     ) {
-      openSearch();
+      openSearch(event.currentTarget.value);
       return true;
     }
     return navigate(event);
