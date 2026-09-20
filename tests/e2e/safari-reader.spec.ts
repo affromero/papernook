@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
  * was the one that shipped — must fail here rather than in production.
  */
 
-const password = "admin-created-password";
+const password = "browser-owner-password-phrase";
 
 async function loginAsAdmin(page: Page): Promise<void> {
   const capabilities = page.waitForResponse(

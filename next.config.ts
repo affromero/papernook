@@ -17,7 +17,7 @@ const privateTraceExcludes = [
 
 const nextConfig: NextConfig = {
   // Native modules stay external so the server loads their .node binaries.
-  serverExternalPackages: ["better-sqlite3", "fs-ext"],
+  serverExternalPackages: ["better-sqlite3", "thesidedoor-flock"],
   // Self-contained server bundle for the Docker image.
   output: "standalone",
   outputFileTracingRoot: projectRoot,

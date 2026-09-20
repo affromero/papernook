@@ -7,7 +7,7 @@ test("documents follow system colors or stay light without changing the PDF", as
   await page.goto("/login");
   await page
     .getByLabel("Password", { exact: true })
-    .fill("admin-created-password");
+    .fill("browser-owner-password-phrase");
   await page
     .locator("form")
     .getByRole("button", { name: "Enter household", exact: true })

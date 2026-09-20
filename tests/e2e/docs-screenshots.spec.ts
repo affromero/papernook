@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const password = "admin-created-password";
+const password = "browser-owner-password-phrase";
 let pdfRestore:
   | {
       path: string;

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const password = "admin-created-password";
+const password = "browser-owner-password-phrase";
 const pasteShortcut = process.platform === "darwin" ? "Meta+V" : "Control+V";
 const copyShortcut = process.platform === "darwin" ? "Meta+C" : "Control+C";
 

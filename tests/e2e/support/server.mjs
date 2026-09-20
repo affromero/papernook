@@ -57,13 +57,26 @@ try {
     headers: { "Content-Type": "application/json", Origin: origin },
     body: JSON.stringify({
       token: code,
-      name: "Fixture Owner",
+      name: "Maya",
       password: "browser-owner-password-phrase",
       mode: "household",
     }),
   });
   if (!response.ok)
     throw new Error(`Browser fixture owner claim failed (${response.status})`);
+  const ownerCookie = response.headers.get("set-cookie");
+  if (!ownerCookie) throw new Error("Browser fixture owner claim did not create a session");
+  const household = await fetch(`${origin}/api/v1/access/configure-household`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Cookie: ownerCookie,
+    },
+    body: JSON.stringify({ password: "browser-owner-password-phrase" }),
+  });
+  if (!household.ok)
+    throw new Error(`Browser fixture household setup failed (${household.status})`);
   console.log("Browser fixture ready");
 } catch (error) {
   server.kill("SIGTERM");

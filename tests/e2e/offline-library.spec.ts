@@ -36,7 +36,7 @@ async function login(page: Page): Promise<void> {
     .toBe(true);
   await page
     .getByLabel("Password", { exact: true })
-    .fill("admin-created-password");
+    .fill("browser-owner-password-phrase");
   await page
     .locator("form")
     .getByRole("button", { name: "Enter household", exact: true })

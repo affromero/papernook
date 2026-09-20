@@ -292,7 +292,7 @@ async function login(page: Page) {
   await page.goto("/login");
   await page
     .getByLabel("Password", { exact: true })
-    .fill("admin-created-password");
+    .fill("browser-owner-password-phrase");
   await page
     .locator("form")
     .getByRole("button", { name: "Enter household", exact: true })
