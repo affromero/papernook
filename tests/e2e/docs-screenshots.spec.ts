@@ -22,9 +22,21 @@ async function passGate(page: Page): Promise<void> {
   ).toBeVisible();
 }
 
-async function loginAsAdmin(page: Page): Promise<void> {
+async function loginAsMaya(page: Page): Promise<void> {
   await passGate(page);
   await page.getByRole("button", { name: "Switch to Maya" }).click();
+  await expect(page).toHaveURL("/");
+  await expect(page.getByText("Attention Is All You Need")).toBeVisible();
+}
+
+async function loginAsOwner(page: Page): Promise<void> {
+  await page.goto("/login?account=1");
+  await page.getByLabel("Account name", { exact: true }).fill("Fixture Owner");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page
+    .locator("form")
+    .getByRole("button", { name: "Sign in", exact: true })
+    .click();
   await expect(page).toHaveURL("/");
   await expect(page.getByText("Attention Is All You Need")).toBeVisible();
 }
@@ -34,7 +46,7 @@ async function removeProfileAsAdminIfPresent(
   username: string,
 ): Promise<void> {
   await page.context().clearCookies();
-  await loginAsAdmin(page);
+  await loginAsOwner(page);
   const listed = await page.request.get("/api/v1/profiles");
   expect(listed.ok()).toBe(true);
   const body = (await listed.json()) as {
@@ -159,7 +171,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     page,
   }) => {
     test.setTimeout(120_000);
-    await loginAsAdmin(page);
+    await loginAsMaya(page);
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
     const readerUrl = page.url();
@@ -409,7 +421,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
   test("manual theme choice persists across navigation and reload", async ({
     page,
   }) => {
-    await loginAsAdmin(page);
+    await loginAsMaya(page);
     const html = page.locator("html");
     const initial = await html.getAttribute("data-theme");
     expect(initial === "light" || initial === "dark").toBe(true);
@@ -425,7 +437,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
   test("sharing, graph, invitations, and device setup are visible before sending", async ({
     page,
   }) => {
-    await loginAsAdmin(page);
+    await loginAsOwner(page);
     await page.getByText("Attention Is All You Need").click();
     await page.getByRole("button", { name: "Share", exact: true }).click();
     await expect(
@@ -489,7 +501,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(setupWizard).toHaveAttribute("href", "/welcome");
     await setupWizard.click();
     await expect(
-      page.getByRole("heading", { name: "Welcome, Maya" }),
+      page.getByRole("heading", { name: "Welcome, Fixture Owner" }),
     ).toBeVisible();
     await page.goto("/settings");
     await expect(page).toHaveURL("/settings");
@@ -529,7 +541,10 @@ test.describe.serial("documentation journeys and screenshots", () => {
     page.on("dialog", (dialog) => dialog.accept());
     const casey = page.getByRole("listitem").filter({ hasText: "Casey" });
     await casey.getByRole("button", { name: "Remove completely" }).click();
-    await expect(casey).not.toBeVisible();
+    await expect(casey).toContainText("Cleanup queued.");
+    await expect(
+      casey.getByRole("button", { name: "Remove completely" }),
+    ).toHaveCount(0);
   });
 
   test("a friend adds their own profile past the gate", async ({ page }) => {
@@ -582,7 +597,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
         await route.fulfill({ json: { position: null } });
       },
     );
-    await loginAsAdmin(page);
+    await loginAsMaya(page);
     await expect(page).toHaveScreenshot(["product", "library-tablet.png"], {
       animations: "disabled",
       fullPage: true,
@@ -721,7 +736,7 @@ test("a late desktop reading position restores the page without changing tablet 
     });
   });
   try {
-    await loginAsAdmin(page);
+    await loginAsMaya(page);
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
     await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();

@@ -57,7 +57,7 @@ try {
     headers: { "Content-Type": "application/json", Origin: origin },
     body: JSON.stringify({
       token: code,
-      name: "Maya",
+      name: "Fixture Owner",
       password: "browser-owner-password-phrase",
       mode: "household",
     }),
@@ -67,6 +67,17 @@ try {
   const ownerCookie = response.headers.get("set-cookie");
   if (!ownerCookie) throw new Error("Browser fixture owner claim did not create a session");
   const cookie = ownerCookie.split(";", 1)[0];
+  const profile = await fetch(`${origin}/api/v1/profiles`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Cookie: cookie,
+    },
+    body: JSON.stringify({ displayName: "Maya", avatarSlug: "hummingbird" }),
+  });
+  if (!profile.ok)
+    throw new Error(`Browser fixture profile setup failed (${profile.status})`);
   const household = await fetch(`${origin}/api/v1/access/configure-household`, {
     method: "POST",
     headers: {
@@ -95,6 +106,33 @@ try {
   });
   if (!wizard.ok)
     throw new Error(`Browser fixture onboarding setup failed (${wizard.status})`);
+  const admitted = await fetch(`${origin}/api/v1/access/household`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: origin },
+    body: JSON.stringify({ password: "browser-owner-password-phrase" }),
+  });
+  if (!admitted.ok)
+    throw new Error(`Browser fixture household admission failed (${admitted.status})`);
+  const householdCookie = admitted.headers.get("set-cookie")?.split(";", 1)[0];
+  if (!householdCookie)
+    throw new Error("Browser fixture household admission did not create a session");
+  const selected = await fetch(`${origin}/api/v1/access/select-profile`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Cookie: householdCookie,
+    },
+    body: JSON.stringify({ id: "maya" }),
+  });
+  if (!selected.ok)
+    throw new Error(`Browser fixture profile selection failed (${selected.status})`);
+  const memberWizard = await fetch(`${origin}/api/v1/session/wizard-done`, {
+    method: "POST",
+    headers: { Origin: origin, Cookie: householdCookie },
+  });
+  if (!memberWizard.ok)
+    throw new Error(`Browser fixture profile onboarding failed (${memberWizard.status})`);
   console.log("Browser fixture ready");
 } catch (error) {
   server.kill("SIGTERM");
