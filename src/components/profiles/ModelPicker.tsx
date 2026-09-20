@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  ProviderFields,
+  AccessVerification,
+  type ProviderFieldsPatch,
+  type ProviderFieldStatus,
+} from "thesidedoor/react";
+import type { ProviderDescriptor } from "thesidedoor-core/ai/browser";
 import styles from "./ModelPicker.module.css";
 
 /**
@@ -29,6 +36,10 @@ const READINESS_LABEL: Record<Readiness, string> = {
 };
 
 interface AgentState {
+  revision: number;
+  descriptor?: ProviderDescriptor;
+  credentialFields?: ProviderFieldStatus[];
+  credentialError?: boolean;
   provider: string | null;
   statuses: Record<string, Readiness>;
   model: string | null;
@@ -40,6 +51,7 @@ interface AgentState {
   endpointConfigurable: boolean;
   suggestions: string[];
   liveList: boolean;
+  discoveryError?: string | null;
   admin: boolean;
   available?: boolean;
   webAccess: boolean;
@@ -59,7 +71,14 @@ export function ModelPicker() {
   const [baseUrl, setBaseUrl] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState(false);
+  const [credentialPatch, setCredentialPatch] = useState<ProviderFieldsPatch>(
+    {},
+  );
+  const [resetCredentials, setResetCredentials] = useState(false);
   const requestVersion = useRef(0);
+  const draftRevision = useRef<number | null>(null);
+  const [settingsChanged, setSettingsChanged] = useState(false);
+  const [verificationRequired, setVerificationRequired] = useState(false);
 
   async function refreshDetails(
     version: number,
@@ -69,9 +88,20 @@ export function ModelPicker() {
       const response = await fetch("/api/v1/agent/model?probe=1", {
         credentials: "include",
       });
-      if (!response.ok || version !== requestVersion.current) return;
+      if (version !== requestVersion.current) return;
+      if (response.status === 401 || response.status === 403) {
+        setCredentialPatch({});
+        setResetCredentials(false);
+        setState(null);
+        return;
+      }
+      if (!response.ok) throw new Error("Availability request failed");
       const data = (await response.json()) as AgentState;
       if (version !== requestVersion.current) return;
+      if (data.revision !== draftRevision.current) {
+        setSettingsChanged(true);
+        return;
+      }
       setState(data);
       if (announce) {
         setFeedback(
@@ -106,6 +136,7 @@ export function ModelPicker() {
       .then((d: AgentState) => {
         if (version !== requestVersion.current) return;
         setState(d);
+        draftRevision.current = d.revision;
         setValue(d.model ?? "");
         setBaseUrl(d.baseUrl ?? "");
         void refreshDetails(version, false);
@@ -124,6 +155,8 @@ export function ModelPicker() {
     effort?: string | null;
     baseUrl?: string | null;
     webAccess?: boolean;
+    credentials?: ProviderFieldsPatch;
+    resetCredentials?: boolean;
   }): Promise<void> {
     const version = requestVersion.current + 1;
     requestVersion.current = version;
@@ -134,10 +167,12 @@ export function ModelPicker() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, revision: draftRevision.current }),
       });
       const data = (await res.json()) as AgentState & { error?: string };
       if (!res.ok) {
+        if (res.status === 409) setSettingsChanged(true);
+        if (res.status === 401) setVerificationRequired(true);
         setFeedback({
           tone: "error",
           label: "Settings not saved",
@@ -146,8 +181,12 @@ export function ModelPicker() {
         return;
       }
       setState(data);
+      draftRevision.current = data.revision;
+      setSettingsChanged(false);
       setValue(data.model ?? "");
       setBaseUrl(data.baseUrl ?? "");
+      setCredentialPatch({});
+      setResetCredentials(false);
       setFeedback({
         tone: "info",
         label: "Settings saved",
@@ -287,6 +326,47 @@ export function ModelPicker() {
 
   return (
     <div className={styles.root}>
+      {verificationRequired && (
+        <>
+          <AccessVerification
+            endpoint="/api/v1/access"
+            disabled={busy}
+            classes={{
+              form: styles.root,
+              label: styles.line,
+              input: styles.input,
+              button: styles.save,
+              secondary: styles.secondaryAction,
+              hint: styles.hint,
+              error: styles.hint,
+            }}
+            onVerified={() => {
+              setVerificationRequired(false);
+              setFeedback({
+                tone: "info",
+                label: "Identity verified",
+                message: "Your edits are still here. Save them when ready.",
+              });
+            }}
+          />
+          <p className={styles.hint}>
+            If your session has ended,{" "}
+            <a href="/login?account=1">sign in again</a>.
+          </p>
+        </>
+      )}
+      {settingsChanged && (
+        <p role="alert" className={styles.hint}>
+          Settings changed in another session. Your edits have not been saved.{" "}
+          <button
+            type="button"
+            className={styles.secondaryAction}
+            onClick={() => window.location.reload()}
+          >
+            Discard edits and reload settings
+          </button>
+        </p>
+      )}
       <div className={styles.current} aria-live="polite">
         <span className={styles.currentLabel}>Current</span>
         <span className={styles.currentValue}>
@@ -454,6 +534,49 @@ export function ModelPicker() {
           </div>
         </>
       )}
+      {state.descriptor &&
+        state.descriptor.fields.some((field) => field.id !== "baseUrl") && (
+          <>
+            <p className={styles.line}>Provider credentials</p>
+            <ProviderFields
+              descriptor={{
+                ...state.descriptor,
+                fields: state.descriptor.fields.filter(
+                  (field) => field.id !== "baseUrl",
+                ),
+              }}
+              fields={state.credentialFields}
+              patch={credentialPatch}
+              onChange={setCredentialPatch}
+              disabled={busy}
+              error={state.credentialError}
+              reset={resetCredentials}
+              onResetChange={setResetCredentials}
+              classes={{
+                root: styles.root,
+                field: styles.reloadRow,
+                label: styles.line,
+                input: styles.input,
+                button: styles.secondaryAction,
+                hint: styles.hint,
+                error: styles.hint,
+              }}
+            />
+            <button
+              type="button"
+              className={styles.save}
+              disabled={
+                busy ||
+                (!resetCredentials && Object.keys(credentialPatch).length === 0)
+              }
+              onClick={() =>
+                void save({ credentials: credentialPatch, resetCredentials })
+              }
+            >
+              Save credentials
+            </button>
+          </>
+        )}
       <p className={styles.line}>
         Model{" "}
         <span className={styles.hint}>
@@ -464,6 +587,11 @@ export function ModelPicker() {
               : "(common choices; any id the provider accepts works)"}
         </span>
       </p>
+      {state.discoveryError && (
+        <p role="status" className={styles.hint}>
+          {state.discoveryError}
+        </p>
+      )}
       <div className={styles.controls}>
         {state.suggestions.slice(0, 8).map((s) => (
           <button

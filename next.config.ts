@@ -16,8 +16,8 @@ const privateTraceExcludes = [
 ];
 
 const nextConfig: NextConfig = {
-  // Native module: must stay external so webpack never bundles the .node binary.
-  serverExternalPackages: ["better-sqlite3"],
+  // Native modules stay external so the server loads their .node binaries.
+  serverExternalPackages: ["better-sqlite3", "fs-ext"],
   // Self-contained server bundle for the Docker image.
   output: "standalone",
   outputFileTracingRoot: projectRoot,

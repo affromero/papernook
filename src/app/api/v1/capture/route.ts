@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { activeProfile } from "@/lib/auth/session";
+import { FileLockBusyError } from "thesidedoor-core/storage";
+import { withProfileFiles } from "@/lib/auth/profile-capability";
+import { requestIdentity, sharedAccess } from "@/lib/auth/access";
 import { consumeRequestLimit } from "@/lib/auth/rate-limit";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { captureAsync } from "@/lib/capture";
@@ -25,8 +27,9 @@ export const dynamic = "force-dynamic";
 const bodySchema = z.object({ url: z.string().url() }).strict();
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const body = bodySchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
@@ -50,9 +53,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Async: the marker on disk carries the outcome (Cloudflare cuts
     // responses at 100s, so waiting inline loses it). Failures — including
     // duplicates — surface as job cards in the inbox view.
-    const result = captureAsync(body.data.url, profile.username);
+    const result = await captureAsync(body.data.url, admission.capability);
     return NextResponse.json({ slug: result.slug }, { status: 202 });
   } catch (error) {
+    if (error instanceof FileLockBusyError) {
+      return NextResponse.json(
+        { error: "Capture is busy. Try again shortly." },
+        { status: 503, headers: { "Retry-After": "1" } },
+      );
+    }
     // Synchronous failures only: profile mid-erasure, disk errors.
     console.error(`papernook capture failed (${body.data.url}):`, error);
     if (error instanceof CaptureError) {
@@ -73,8 +82,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
  * marker (same contract as the token-authed /add/status page).
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const slug = request.nextUrl.searchParams.get("slug") ?? "";
   if (!isValidSlug(slug)) {
@@ -83,26 +93,36 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { status: 400 },
     );
   }
-  const job = readCaptureJob(slug);
-  if (!job || job.addedBy !== profile.username) {
-    return NextResponse.json(
-      {
-        error:
-          "This capture is no longer pending — it may already be in your papernook inbox.",
-      },
-      { status: 404 },
-    );
-  }
-  if (job.state === "analyzing") {
-    return NextResponse.json({ state: "analyzing" });
-  }
-  if (job.state === "failed") {
+  const capability = admission.capability;
+  return withProfileFiles(sharedAccess().identity, capability, () => {
+    const job = readCaptureJob(slug);
+    if (
+      !job ||
+      job.addedBy !== profile.username ||
+      job.generation !== capability.generation
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "This capture is no longer pending — it may already be in your papernook inbox.",
+        },
+        { status: 404 },
+      );
+    }
+    if (job.state === "analyzing") {
+      return NextResponse.json({ state: "analyzing" });
+    }
+    if (job.state === "failed") {
+      return NextResponse.json({
+        state: "failed",
+        error: job.error ?? "Capture failed.",
+      });
+    }
+    clearCaptureJob(slug);
+    removeCaptureJobDir(slug);
     return NextResponse.json({
-      state: "failed",
-      error: job.error ?? "Capture failed.",
+      state: "done",
+      finalSlug: job.finalSlug ?? null,
     });
-  }
-  clearCaptureJob(slug);
-  removeCaptureJobDir(slug);
-  return NextResponse.json({ state: "done", finalSlug: job.finalSlug ?? null });
+  });
 }

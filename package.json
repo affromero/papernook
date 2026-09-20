@@ -14,7 +14,7 @@
   "license": "MIT",
   "author": "Andres Romero <me@afromero.co>",
   "scripts": {
-    "build": "node scripts/build-offline.mjs && next build && node scripts/prepare-runtime.mjs && node scripts/assert-standalone-safe.mjs",
+    "build": "node scripts/build-offline.mjs && next build && node scripts/sidedoor/build-access.mjs && node scripts/prepare-runtime.mjs && node scripts/assert-standalone-safe.mjs",
     "build:chrome": "node scripts/extension/build-chrome.mjs",
     "build:safari": "./scripts/safari/build.sh",
     "ci": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build",
@@ -74,7 +74,8 @@
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
-    "thesidedoor": "^0.1.0",
+    "thesidedoor": "0.2.0",
+    "thesidedoor-core": "0.1.0",
     "three": "^0.185.1",
     "tldraw": "^5.3.2",
     "undici": "^8.10.0",

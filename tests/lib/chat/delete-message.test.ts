@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
+import { createTestProfile, mockTestSession } from "../../helpers/access";
 
 let tmpDir: string;
 
@@ -10,13 +11,13 @@ beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-chat-delete-"));
   process.env.PAPERNOOK_DATA_DIR = tmpDir;
   vi.resetModules();
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => ({ username: "andres" }),
-  }));
+  await createTestProfile("Andres");
+  await mockTestSession("andres");
 });
 
 afterEach(async () => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
+  vi.unstubAllEnvs();
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
   fs.rmSync(tmpDir, { recursive: true, force: true });

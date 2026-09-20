@@ -3,9 +3,12 @@ import { expect, test, type Page } from "@playwright/test";
 async function login(page: Page) {
   await page.goto("/login");
   await page
-    .getByRole("textbox", { name: "Password" })
+    .getByLabel("Password", { exact: true })
     .fill("admin-created-password");
-  await page.getByRole("button", { name: "Enter", exact: true }).click();
+  await page
+    .locator("form")
+    .getByRole("button", { name: "Enter household", exact: true })
+    .click();
   await page.getByRole("button", { name: "Switch to Maya" }).click();
   await expect(page).toHaveURL("/");
 }

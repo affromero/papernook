@@ -1,4 +1,12 @@
-import { spawn } from "node:child_process";
+import {
+  ProcessRunner,
+  ProcessExecutionError,
+} from "thesidedoor-core/runtime/process";
+import {
+  ClaudeOutputDecoder,
+  type CliOutputEvent,
+} from "thesidedoor-core/runtime/cli";
+import type { ExecutionObserver } from "thesidedoor-core/observability";
 import { randomUUID } from "node:crypto";
 import {
   copyFileSync,
@@ -12,10 +20,11 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { readImageBase64 } from "./attachments";
-import { configuredEffort, configuredModel } from "./config";
+import { configuredEffort, configuredModel, readAgentConfig } from "./config";
+import { observeAgentStream } from "./platform/observed-stream";
 import { supersedesCredentials } from "./credentials";
 import {
-  buildAgentInvocation,
+  agentProcessRequest,
   getClaudeSshHost,
   minimalAgentEnvironment,
 } from "./invocation";
@@ -212,7 +221,7 @@ export function createClaudeInvocation(): ClaudeInvocation {
 
 async function buildArgs(
   turn: AgentTurn,
-  streaming: boolean,
+  config: ReturnType<typeof readAgentConfig>,
 ): Promise<{ args: string[]; stdin: string }> {
   const args = [
     "-p",
@@ -233,16 +242,16 @@ async function buildArgs(
     // receives a permission-denied tool result instead of searching.
     args.push("--allowedTools", "WebSearch,WebFetch");
   }
-  const model = configuredModel();
+  const model = configuredModel(config);
   if (model) args.push("--model", model);
-  const effort = configuredEffort();
+  const effort = configuredEffort(config);
   if (effort) args.push("--effort", effort);
-  args.push("--output-format", streaming ? "stream-json" : "text");
+  args.push("--output-format", "stream-json");
   // --include-partial-messages makes the CLI emit content_block_delta events
   // as tokens arrive; without it the reply lands as one assistant event at
   // the very end, so a long answer streams nothing for minutes and proxies
   // (Cloudflare's 100s idle cutoff) kill the connection mid-chat.
-  if (streaming) args.push("--verbose", "--include-partial-messages");
+  args.push("--verbose", "--include-partial-messages");
   if (turn.system) args.push("--system-prompt", turn.system);
 
   const images = turn.images ?? [];
@@ -267,208 +276,116 @@ async function buildArgs(
 }
 
 export async function executeClaudeCode(turn: AgentTurn): Promise<string> {
-  if (turn.images?.length || turn.maxOutputChars) {
-    // stream-json input requires stream-json output; reuse the stream parser.
-    let full = "";
-    for await (const chunk of streamClaudeCode(turn)) full += chunk;
-    return full;
-  }
-  const timeoutMs = turn.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const { args, stdin } = await buildArgs(turn, false);
-  const { command, args: spawnArgs } = buildAgentInvocation(
-    "claude",
-    args,
-    getClaudeSshHost(),
+  const preserveWhitespace = Boolean(
+    turn.images?.length || turn.maxOutputChars,
   );
+  let full = "";
+  for await (const chunk of observedClaude(turn)) full += chunk;
+  return preserveWhitespace ? full : full.trim();
+}
 
-  const invocation = createClaudeInvocation();
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, spawnArgs, {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: invocation.env,
-    });
-    const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      reject(new Error(`claude-code: timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
+export function streamClaudeCode(turn: AgentTurn): AsyncGenerator<string> {
+  return observedClaude(turn);
+}
 
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      invocation.release();
-      if (code !== 0) {
-        reject(
-          new Error(
-            `claude-code: exited with code ${code}\n${failureDiagnostic(stdout, stderr)}`,
+function observedClaude(turn: AgentTurn): AsyncGenerator<string> {
+  return observeAgentStream("claude-code", turn, {
+    prepare() {
+      const config = readAgentConfig();
+      return {
+        model: configuredModel(config),
+        open: (observer) =>
+          streamClaudeRaw(
+            { ...turn, signal: observer.signal },
+            config,
+            observer,
           ),
-        );
-        return;
-      }
-      const content = stdout.trim();
-      if (!content) {
-        const detail = stderr.trim().slice(0, 300) || "(empty)";
-        reject(new Error(`claude-code: no output produced. Buffer: ${detail}`));
-        return;
-      }
-      resolve(content);
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      invocation.release();
-      reject(
-        new Error(
-          `claude-code: failed to spawn: ${err.message}. Is the 'claude' CLI installed?`,
-        ),
-      );
-    });
-    child.stdin.write(stdin);
-    child.stdin.end();
+      };
+    },
   });
 }
 
-interface StreamEvent {
-  type?: string;
-  event?: StreamEvent;
-  delta?: { text?: string };
-  result?: unknown;
-  message?: { content?: unknown };
-  content?: unknown;
-}
-
-/**
- * Which event kinds already produced text. Deltas outrank assistant events
- * (assistant messages repeat delta text); assistant events outrank the final
- * result (which repeats the full reply). Every assistant event yields — a
- * turn without deltas can carry text across several of them.
- */
-interface StreamTextState {
-  sawDelta: boolean;
-  sawAssistant: boolean;
-}
-
-function* textFromEvent(
-  raw: StreamEvent,
-  state: StreamTextState,
-): Generator<string> {
-  const event = raw.type === "stream_event" && raw.event ? raw.event : raw;
-  if (event.type === "content_block_delta" && event.delta?.text) {
-    state.sawDelta = true;
-    yield event.delta.text;
-  } else if (event.type === "result" && !state.sawDelta) {
-    if (state.sawAssistant) return;
-    if (typeof event.result === "string" && event.result) yield event.result;
-  } else if (event.type === "assistant" && !state.sawDelta) {
-    const blocks = event.message?.content ?? event.content;
-    if (Array.isArray(blocks)) {
-      for (const block of blocks as { type?: string; text?: string }[]) {
-        if (block.type === "text" && block.text) {
-          state.sawAssistant = true;
-          yield block.text;
-        }
-      }
-    }
-  }
-}
-
-export async function* streamClaudeCode(
+async function* streamClaudeRaw(
   turn: AgentTurn,
+  config: ReturnType<typeof readAgentConfig>,
+  observer: ExecutionObserver,
 ): AsyncGenerator<string> {
+  turn.signal?.throwIfAborted();
   const timeoutMs = turn.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const { args, stdin } = await buildArgs(turn, true);
-  const { command, args: spawnArgs } = buildAgentInvocation(
-    "claude",
-    args,
-    getClaudeSshHost(),
-  );
+  const { args, stdin } = await buildArgs(turn, config);
   const invocation = createClaudeInvocation();
-  const child = spawn(command, spawnArgs, {
-    stdio: ["pipe", "pipe", "pipe"],
-    env: invocation.env,
-  });
-  const timer = setTimeout(() => child.kill("SIGTERM"), timeoutMs);
-
   let stderr = "";
-  child.stderr.on("data", (chunk: Buffer) => {
-    stderr += chunk.toString();
-  });
-  let exitCode: number | null = null;
-  child.on("close", (code) => {
-    exitCode = code;
-    invocation.release();
-  });
-  child.stdin.write(stdin);
-  child.stdin.end();
+  let stdout = "";
 
-  let buffer = "";
+  const decoder = new ClaudeOutputDecoder();
+  let finished = false;
   let produced = false;
   let outputChars = 0;
-  const state: StreamTextState = { sawDelta: false, sawAssistant: false };
+  let terminalFailure = "";
+  function* consume(events: Iterable<CliOutputEvent>): Generator<string> {
+    for (const event of events) {
+      if (event.type === "usage") observer.usage(event.usage);
+      if (event.type === "failure") terminalFailure = event.message;
+      if (event.type !== "text") continue;
+      outputChars += event.text.length;
+      if (turn.maxOutputChars && outputChars > turn.maxOutputChars)
+        throw new Error("claude-code: output limit exceeded");
+      produced = true;
+      yield event.text;
+    }
+  }
   try {
-    for await (const chunk of child.stdout) {
-      buffer += (chunk as Buffer).toString();
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        let raw: StreamEvent;
-        try {
-          raw = JSON.parse(line) as StreamEvent;
-        } catch {
-          continue; // partial line, not valid JSON
-        }
-        for (const text of textFromEvent(raw, state)) {
-          outputChars += text.length;
-          if (turn.maxOutputChars && outputChars > turn.maxOutputChars) {
-            child.kill("SIGTERM");
-            throw new Error("claude-code: output limit exceeded");
-          }
-          produced = true;
-          yield text;
-        }
+    for await (const chunk of new ProcessRunner().stream(
+      agentProcessRequest({
+        cli: "claude",
+        args,
+        sshHost: getClaudeSshHost(),
+        environment: invocation.env,
+        input: stdin,
+        signal: turn.signal,
+        timeoutMs,
+      }),
+    )) {
+      if (chunk.channel === "stderr") {
+        stderr += chunk.text;
+        continue;
       }
+      stdout += chunk.text;
+      yield* consume(decoder.push(chunk.text));
     }
-    if (buffer.trim()) {
-      let raw: StreamEvent | null = null;
-      try {
-        raw = JSON.parse(buffer) as StreamEvent;
-      } catch {
-        // Preserve a final plain-text fragment from unusual CLI output.
-      }
-      if (raw) {
-        for (const text of textFromEvent(raw, state)) {
-          outputChars += text.length;
-          if (turn.maxOutputChars && outputChars > turn.maxOutputChars) {
-            child.kill("SIGTERM");
-            throw new Error("claude-code: output limit exceeded");
-          }
-          produced = true;
-          yield text;
-        }
-      } else {
-        yield buffer.trim();
-        produced = true;
-      }
-    }
+    finished = true;
+    // Older supported CLIs can finish with assistant messages or a plain final fragment.
+    yield* consume(decoder.finish(false));
+    if (terminalFailure) throw new Error(`claude-code: ${terminalFailure}`);
     if (!produced) {
-      if (exitCode !== null && exitCode !== 0) {
-        throw new Error(
-          stderr.trim() || `claude-code exited with code ${exitCode}`,
-        );
-      }
       throw new Error(
         `claude-code: no output produced. Buffer: ${stderr.trim().slice(0, 300) || "(empty)"}`,
       );
     }
+  } catch (error) {
+    if (!finished) {
+      finished = true;
+      try {
+        for (const event of decoder.finish(false)) {
+          if (event.type === "usage") observer.usage(event.usage);
+        }
+      } catch {
+        // An incomplete final record cannot establish terminal usage.
+      }
+    }
+    if (error instanceof ProcessExecutionError && error.code === "exit_failed")
+      throw new Error(
+        `claude-code: exited with code ${error.exitCode}\n${failureDiagnostic(stdout, stderr)}`,
+        { cause: error },
+      );
+    if (error instanceof ProcessExecutionError && error.code === "start_failed")
+      throw new Error(
+        "claude-code: failed to spawn. Is the 'claude' CLI installed?",
+        { cause: error },
+      );
+    throw error;
   } finally {
-    clearTimeout(timer);
-    child.kill("SIGTERM");
+    invocation.release();
   }
 }
 

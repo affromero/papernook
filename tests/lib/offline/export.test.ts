@@ -14,8 +14,7 @@ import {
 } from "@/lib/conversations/store";
 import { createChat, appendMessage } from "@/lib/library/chats";
 import { GET } from "@/app/api/v1/conversations/[id]/export/route";
-import { createProfile } from "@/lib/auth/users";
-import { createSessionToken } from "@/lib/auth/session";
+import { createTestProfile, testSession } from "../../helpers/access";
 
 const session = vi.hoisted(() => ({ token: "" }));
 vi.mock("next/headers", () => ({
@@ -24,11 +23,11 @@ vi.mock("next/headers", () => ({
   }),
 }));
 let directory: string;
-beforeEach(() => {
+beforeEach(async () => {
   directory = fs.mkdtempSync(path.join(os.tmpdir(), "offline-export-"));
   vi.stubEnv("PAPERNOOK_DATA_DIR", directory);
-  createProfile("Alice");
-  session.token = createSessionToken("alice");
+  await createTestProfile("Alice");
+  session.token = await testSession("alice");
 });
 afterEach(() => {
   session.token = "";

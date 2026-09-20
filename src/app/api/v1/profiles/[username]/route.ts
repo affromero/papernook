@@ -1,118 +1,122 @@
-import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import {
-  activeProfile,
-  SESSION_COOKIE,
-  sessionCookieOptions,
-} from "@/lib/auth/session";
-import { GATE_COOKIE, gateCookieOptions } from "@/lib/auth/gate";
-import { forgetAccountRateLimit } from "@/lib/auth/rate-limit";
-import {
-  deleteProfile,
-  isAdmin,
-  ProfileError,
-  toPublicProfile,
-  updateProfileAvatar,
-} from "@/lib/auth/users";
+  ACCESS_COOKIE,
+  accessFailure,
+  accessHandler,
+  requestIdentity,
+  sharedAccess,
+} from "@/lib/auth/access";
+import { ProfileOperations } from "@/lib/auth/profile-operations";
+import { toPublicProfile, updateProfileAvatar } from "@/lib/auth/users";
+import { sessionCookieOptions } from "@/lib/auth/session";
 import { ANIMAL_AVATARS } from "@/lib/auth/avatars";
-import { beginProfileErasure } from "@/lib/auth/profile-activity";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
-import { rejectCrossSiteMutation } from "@/lib/auth/request-security";
-
-/** Self-service profile appearance and complete profile erasure. */
+import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-
 interface Params {
   params: Promise<{ username: string }>;
 }
 
-const avatarSchema = z.object({
-  avatarSlug: z.enum(
-    ANIMAL_AVATARS.map((avatar) => avatar.slug) as [string, ...string[]],
-  ),
-});
+async function checkOrigin(request: Request): Promise<Response> {
+  const headers = new Headers(request.headers);
+  if (request.method === "DELETE")
+    headers.set("content-type", "application/json");
+  return accessHandler()(
+    new Request(request.url, { method: "POST", headers, body: "{}" }),
+    "check-origin",
+  );
+}
 
-export async function PATCH(request: NextRequest, { params }: Params) {
-  const crossSite = rejectCrossSiteMutation(request);
-  if (crossSite) return crossSite;
-  const me = await activeProfile();
-  if (!me)
-    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  const { username } = await params;
-  if (me.username !== username) {
-    return NextResponse.json(
-      { error: "You can edit only your own profile." },
-      { status: 403 },
-    );
-  }
-  const body = avatarSchema.safeParse(await readBoundedJsonOrNull(request));
-  if (!body.success) {
-    return NextResponse.json(
-      { error: "Choose a valid avatar." },
-      { status: 400 },
-    );
-  }
+export async function GET(
+  request: Request,
+  { params }: Params,
+): Promise<Response> {
+  request.signal.throwIfAborted();
   try {
-    return NextResponse.json({
-      profile: toPublicProfile(
-        updateProfileAvatar(username, body.data.avatarSlug),
-      ),
-    });
+    const identity = await requestIdentity();
+    if (!identity)
+      return Response.json({ error: "Not signed in." }, { status: 401 });
+    const status = await new ProfileOperations(
+      sharedAccess().identity,
+    ).deletionStatus(identity.token, (await params).username);
+    return Response.json(status, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    if (error instanceof ProfileError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-    throw error;
+    return accessFailure(error);
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: Params) {
-  const me = await activeProfile();
-  if (!me)
-    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  const { username } = await params;
-  if (me.username !== username && !isAdmin(me)) {
-    return NextResponse.json(
-      { error: "You can delete only your own profile." },
-      { status: 403 },
-    );
-  }
-  const body = z
-    .object({
-      confirmation: z.string(),
-    })
-    .safeParse(await readBoundedJsonOrNull(request));
-  if (!body.success || body.data.confirmation !== username) {
-    return NextResponse.json(
-      { error: `Type ${username} to confirm complete deletion.` },
-      { status: 400 },
-    );
-  }
+export async function PATCH(
+  request: Request,
+  { params }: Params,
+): Promise<Response> {
+  const origin = await checkOrigin(request);
+  if (!origin.ok) return origin;
   try {
-    const finishErasure = await beginProfileErasure(username);
-    try {
-      forgetAccountRateLimit(username);
-      deleteProfile(username);
-    } finally {
-      finishErasure();
-    }
-    const response = NextResponse.json({ ok: true });
-    if (me.username === username) {
-      response.cookies.set(SESSION_COOKIE, "", {
+    const identity = await requestIdentity();
+    if (!identity)
+      return Response.json({ error: "Not signed in." }, { status: 401 });
+    const input = z
+      .object({
+        avatarSlug: z.enum(
+          ANIMAL_AVATARS.map((avatar) => avatar.slug) as [string, ...string[]],
+        ),
+      })
+      .safeParse(await readBoundedJsonOrNull(request));
+    if (!input.success)
+      return Response.json(
+        { error: "Choose a valid avatar." },
+        { status: 400 },
+      );
+    const profile = await updateProfileAvatar(
+      (await params).username,
+      input.data.avatarSlug,
+      identity.token,
+    );
+    return Response.json({
+      profile: toPublicProfile(profile, identity.principal?.role === "owner"),
+    });
+  } catch (error) {
+    return accessFailure(error);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: Params,
+): Promise<Response> {
+  const origin = await checkOrigin(request);
+  if (!origin.ok) return origin;
+  try {
+    const identity = await requestIdentity();
+    if (!identity)
+      return Response.json({ error: "Not signed in." }, { status: 401 });
+    const { username } = await params;
+    const input = z
+      .object({ confirmation: z.string() })
+      .safeParse(await readBoundedJsonOrNull(request));
+    if (!input.success || input.data.confirmation !== username)
+      return Response.json(
+        { error: `Type ${username} to confirm complete deletion.` },
+        { status: 400 },
+      );
+    await new ProfileOperations(sharedAccess().identity).remove(
+      identity.token,
+      username,
+    );
+    const response = NextResponse.json(
+      { ok: true, erasure: "pending" },
+      { status: 202 },
+    );
+    if (identity.profile?.username === username) {
+      await sharedAccess().access.logout(identity.token);
+      response.cookies.set(ACCESS_COOKIE, "", {
         ...sessionCookieOptions(),
-        maxAge: 0,
-      });
-      response.cookies.set(GATE_COOKIE, "", {
-        ...gateCookieOptions(),
         maxAge: 0,
       });
     }
     return response;
-  } catch (err) {
-    if (err instanceof ProfileError) {
-      return NextResponse.json({ error: err.message }, { status: 400 });
-    }
-    throw err;
+  } catch (error) {
+    return accessFailure(error);
   }
 }

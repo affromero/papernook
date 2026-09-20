@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { activeProfile } from "@/lib/auth/session";
+import {
+  requestIdentity,
+  sharedAccess,
+  accessFailure,
+} from "@/lib/auth/access";
+import { withProfileFiles } from "@/lib/auth/profile-capability";
+import { isAccessError } from "thesidedoor-core/access";
 import {
   getConversation,
   listConversationChats,
@@ -21,8 +27,10 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability)
     return Response.json(
       { error: "Unauthorized" },
       { status: 401, headers: privateHeaders },
@@ -32,47 +40,50 @@ export async function GET(
     const query = querySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams),
     );
-    const source = getConversation(profile.username, id);
-    if (!source)
-      return Response.json(
-        { error: "Document not found" },
-        { status: 404, headers: privateHeaders },
-      );
-    const chats =
-      query.chats === "true"
-        ? listConversationChats(profile.username, id).filter(
-            (chat) => chat.header.username === profile.username,
-          )
-        : [];
-    let body: string;
-    let mime: string;
-    let extension: string;
-    if (query.format === "json") {
-      body = JSON.stringify({ ...source, chats }, null, 2);
-      mime = "application/json";
-      extension = "json";
-    } else if (query.format === "markdown") {
-      body = `# ${source.title}\n\n${source.messages.map((message) => `## ${message.role}\n\n${message.content}`).join("\n\n")}${chats.map((chat) => `\n\n# Follow-up: ${chat.header.title}\n\n${chat.messages.map((message) => `## ${message.role}\n\n${message.content}${(message.images ?? []).map((image) => `\n\nAttachment unavailable: ${image}`).join("")}`).join("\n\n")}`).join("")}`;
-      mime = "text/markdown";
-      extension = "md";
-    } else {
-      body = studyHtml(
-        source.title,
-        `${renderMessages(source.messages)}${chats.map((chat) => `<section><h2>Follow-up: ${escapeHtml(chat.header.title)}</h2>${renderMessages(chat.messages)}</section>`).join("")}`,
-      );
-      mime = "text/html";
-      extension = "html";
-    }
-    if (Buffer.byteLength(body) > MAX_STUDY_BYTES)
-      throw new Error("Export exceeds the 32 MB limit.");
-    return new Response(body, {
-      headers: {
-        ...privateHeaders,
-        "Content-Type": `${mime}; charset=utf-8`,
-        "Content-Disposition": `attachment; filename="conversation-${id}.${extension}"`,
-      },
+    return withProfileFiles(sharedAccess().identity, capability, () => {
+      const source = getConversation(profile.username, id);
+      if (!source)
+        return Response.json(
+          { error: "Document not found" },
+          { status: 404, headers: privateHeaders },
+        );
+      const chats =
+        query.chats === "true"
+          ? listConversationChats(profile.username, id).filter(
+              (chat) => chat.header.username === profile.username,
+            )
+          : [];
+      let body: string;
+      let mime: string;
+      let extension: string;
+      if (query.format === "json") {
+        body = JSON.stringify({ ...source, chats }, null, 2);
+        mime = "application/json";
+        extension = "json";
+      } else if (query.format === "markdown") {
+        body = `# ${source.title}\n\n${source.messages.map((message) => `## ${message.role}\n\n${message.content}`).join("\n\n")}${chats.map((chat) => `\n\n# Follow-up: ${chat.header.title}\n\n${chat.messages.map((message) => `## ${message.role}\n\n${message.content}${(message.images ?? []).map((image) => `\n\nAttachment unavailable: ${image}`).join("")}`).join("\n\n")}`).join("")}`;
+        mime = "text/markdown";
+        extension = "md";
+      } else {
+        body = studyHtml(
+          source.title,
+          `${renderMessages(source.messages)}${chats.map((chat) => `<section><h2>Follow-up: ${escapeHtml(chat.header.title)}</h2>${renderMessages(chat.messages)}</section>`).join("")}`,
+        );
+        mime = "text/html";
+        extension = "html";
+      }
+      if (Buffer.byteLength(body) > MAX_STUDY_BYTES)
+        throw new Error("Export exceeds the 32 MB limit.");
+      return new Response(body, {
+        headers: {
+          ...privateHeaders,
+          "Content-Type": `${mime}; charset=utf-8`,
+          "Content-Disposition": `attachment; filename="conversation-${id}.${extension}"`,
+        },
+      });
     });
   } catch (error) {
+    if (isAccessError(error)) return accessFailure(error);
     return Response.json(
       {
         error:

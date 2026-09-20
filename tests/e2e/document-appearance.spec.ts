@@ -6,9 +6,12 @@ test("documents follow system colors or stay light without changing the PDF", as
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/login");
   await page
-    .getByRole("textbox", { name: "Password" })
+    .getByLabel("Password", { exact: true })
     .fill("admin-created-password");
-  await page.getByRole("button", { name: "Enter", exact: true }).click();
+  await page
+    .locator("form")
+    .getByRole("button", { name: "Enter household", exact: true })
+    .click();
   await page.getByRole("button", { name: "Switch to Maya" }).click();
   await expect(page).toHaveURL("/");
   await page.goto("/paper/machine-learning/attention-is-all-you-need");

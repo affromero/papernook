@@ -9,18 +9,18 @@ library.
 
 ## Choose how you connect
 
-| I have a custom domain                                                                                                  | I use Tailscale                                                                                                      |
-| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Best when friends should open Papernook from any browser. HTTPS and an instance access password protect the public app. | Best when the library should stay off the public internet. Each device runs Tailscale before it can reach Papernook. |
-| App: `https://papernook.example.com`                                                                                    | App: `https://papernook-server.<tailnet>.ts.net`                                                                     |
-| WebDAV: `https://dav-papernook.example.com`                                                                             | WebDAV: `http://papernook-server:8080`                                                                               |
-| [Set up a custom domain →](public-exposure.md)                                                                          | [Invite over Tailscale →](user-guide.md#option-b-tailscale)                                                          |
+| I have a custom domain                                                                               | I use Tailscale                                                                                                      |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Best when friends should open Papernook from any browser. HTTPS and Sidedoor protect the public app. | Best when the library should stay off the public internet. Each device runs Tailscale before it can reach Papernook. |
+| App: `https://papernook.example.com`                                                                 | App: `https://papernook-server.<tailnet>.ts.net`                                                                     |
+| WebDAV: `https://dav-papernook.example.com`                                                          | WebDAV: `http://papernook-server:8080`                                                                               |
+| [Set up a custom domain →](public-exposure.md)                                                       | [Invite over Tailscale →](user-guide.md#option-b-tailscale)                                                          |
 
-Papernook always requires one instance access password before showing the
-profile picker. After passing the gate, a visitor may choose any profile.
-Profiles organize chats, capture tokens, and Zotero connections by reader, but
-they are not a security boundary. Anyone with the instance password can switch
-profiles and read any profile's chats.
+The owner claims a new instance with the one-time code printed by the
+installer, then chooses household or individual access. Household members can
+switch profiles after admission. Individual accounts stay bound to one profile.
+Passwords, Apple passkeys, recovery codes, sessions, and invitations all use
+the same Sidedoor authority.
 
 ![Access gate shown before profile names](images/setup/access-gate.png)
 
@@ -130,8 +130,8 @@ is optional compatibility for external PDF apps.
   logout. See `.env.example` for `CODEX_AUTH_DIR` and `CLAUDE_AUTH_DIR`.
   Configure both directories only when both local CLIs should be selectable.
 - Use a long, unique `WEBDAV_PASS`.
-- Set the required `PAPERNOOK_PASSWORD` for every installation. For a custom
-  domain, also set `PAPERNOOK_WEBDAV_URL`, then keep
+- Claim the owner, register a passkey, and store the recovery codes. For a
+  custom domain, set `PAPERNOOK_WEBDAV_URL`, then keep
   the default loopback port bindings behind Caddy.
 - Generate friend links from **Settings → Invite a friend** while visiting the
   URL the friend will use.

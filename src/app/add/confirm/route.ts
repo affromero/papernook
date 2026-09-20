@@ -1,5 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { profileForCaptureToken } from "@/lib/auth/users";
+import {
+  captureIdentity,
+  withProfileFiles,
+} from "@/lib/auth/profile-capability";
+import { isAccessError } from "thesidedoor-core/access";
+import { FileLockBusyError } from "thesidedoor-core/storage";
+import { sharedAccess } from "@/lib/auth/access";
 import {
   acceptInboxCapture,
   CaptureOwnershipError,
@@ -47,8 +53,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (ipKey && retryAfterMs(ipKey) > 0) {
     return html(errorPage("Too many attempts. Try again later."), 429);
   }
-  const profile = profileForCaptureToken(token);
-  if (!profile) {
+  const admission = await captureIdentity(sharedAccess().identity, token);
+  const profile = admission?.profile;
+  if (!profile || !admission) {
     if (ipKey) recordFailure(ipKey);
     return html(errorPage("Invalid capture token."), 401);
   }
@@ -57,16 +64,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return html(errorPage("Invalid folder or paper name."), 400);
   }
   try {
-    acceptInboxCapture(slug, topic, profile.username);
-    rebuildIndex();
+    withProfileFiles(sharedAccess().identity, admission.capability, () => {
+      acceptInboxCapture(slug, topic, profile.username);
+      rebuildIndex();
+    });
     return html(acceptedPage(slug, topic), 200);
   } catch (err) {
+    if (isAccessError(err))
+      return html(errorPage("Invalid capture token."), 401);
     if (err instanceof CaptureOwnershipError) {
       return html(errorPage("No pending capture exists."), 404);
     }
     return html(
       errorPage(err instanceof Error ? err.message : "Accept failed."),
-      500,
+      err instanceof FileLockBusyError ? 503 : 500,
     );
   }
 }

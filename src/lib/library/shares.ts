@@ -2,9 +2,22 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import { syncDirectory } from "thesidedoor-core/storage";
+import { AccessError, isAccessError } from "thesidedoor-core/access";
+import { dataRoot } from "../data-dir";
+import { PapernookIdentityStore } from "../auth/identity-store";
+import {
+  withProfileFiles,
+  type ProfileCapability,
+} from "../auth/profile-capability";
 import { readChat } from "./chats";
 import { assertSlug, isValidSlug } from "./slug";
-import { companionDir, getPaper, listPapers } from "./papers";
+import {
+  companionDir,
+  getPaper,
+  visitPaperCompanions,
+  withPaperMutation,
+} from "./papers";
 
 /**
  * Revocable view-only shares live beside the paper they expose:
@@ -32,6 +45,7 @@ const sharedConversationSchema = z.object({
   header: z.object({
     id: z.string().regex(CHAT_ID_RE),
     title: z.string(),
+    titleSource: z.enum(["placeholder", "generated", "manual"]).optional(),
     username: z.string(),
     createdAt: z.string(),
   }),
@@ -44,6 +58,7 @@ const shareRecordSchema = z.object({
   topic: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
   slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
   ownerUsername: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
+  ownerGeneration: z.number().int().nonnegative().optional(),
   createdAt: z.string(),
   conversations: z.array(sharedConversationSchema).max(MAX_CONVERSATIONS),
 });
@@ -100,6 +115,31 @@ function readStoredShare(
   return share;
 }
 
+/** Revalidate both the owner generation and the original share before private I/O. */
+export function withShareFiles<Result>(
+  share: PaperShare,
+  operation: () => Result &
+    (Result extends PromiseLike<unknown> ? never : unknown),
+): Result {
+  if (share.ownerGeneration === undefined)
+    throw new AccessError("unauthorized", "Unknown share.");
+  const identity = new PapernookIdentityStore(dataRoot());
+  return withProfileFiles(
+    identity,
+    { username: share.ownerUsername, generation: share.ownerGeneration },
+    () => {
+      const current = readStoredShare(share.topic, share.slug, share.id);
+      if (
+        !current ||
+        current.ownerUsername !== share.ownerUsername ||
+        current.ownerGeneration !== share.ownerGeneration
+      )
+        throw new AccessError("unauthorized", "Unknown share.");
+      return operation();
+    },
+  );
+}
+
 /** Resolve a public link only while its confirmed paper still exists. */
 export function getShare(
   topic: string,
@@ -107,49 +147,75 @@ export function getShare(
   shareId: string,
 ): PaperShare | null {
   const share = readStoredShare(topic, slug, shareId);
-  return share && getPaper(topic, slug) ? share : null;
+  if (!share || share.ownerGeneration === undefined) return null;
+  try {
+    return withShareFiles(share, () => (getPaper(topic, slug) ? share : null));
+  } catch (error) {
+    if (isAccessError(error) && error.code === "unauthorized") return null;
+    throw error;
+  }
 }
 
 export function createShare(
   topic: string,
   slug: string,
-  ownerUsername: string,
+  capability: ProfileCapability,
   chatIds: string[],
 ): PaperShare {
-  assertSlug(topic);
-  assertSlug(slug);
-  assertSlug(ownerUsername);
-  if (!getPaper(topic, slug)) throw new ShareError("Unknown paper.");
+  const ownerUsername = capability.username;
+  return withProfileFiles(
+    new PapernookIdentityStore(dataRoot()),
+    capability,
+    () => {
+      assertSlug(topic);
+      assertSlug(slug);
+      assertSlug(ownerUsername);
+      if (!getPaper(topic, slug)) throw new ShareError("Unknown paper.");
 
-  const uniqueChatIds = [...new Set(chatIds)];
-  if (
-    uniqueChatIds.length > MAX_CONVERSATIONS ||
-    uniqueChatIds.some((id) => !CHAT_ID_RE.test(id))
-  ) {
-    throw new ShareError("Invalid conversations.");
-  }
+      const uniqueChatIds = [...new Set(chatIds)];
+      if (
+        uniqueChatIds.length > MAX_CONVERSATIONS ||
+        uniqueChatIds.some((id) => !CHAT_ID_RE.test(id))
+      ) {
+        throw new ShareError("Invalid conversations.");
+      }
 
-  const conversations = uniqueChatIds.map((chatId) => {
-    const chat = readChat(topic, slug, ownerUsername, chatId);
-    if (!chat) throw new ShareError("Unknown conversation.");
-    return chat;
-  });
+      const conversations = uniqueChatIds.map((chatId) => {
+        const chat = readChat(topic, slug, ownerUsername, chatId);
+        if (!chat) throw new ShareError("Unknown conversation.");
+        return chat;
+      });
 
-  const id = crypto.randomBytes(32).toString("hex");
-  const share: PaperShare = {
-    version: 1,
-    id,
-    topic,
-    slug,
-    ownerUsername,
-    createdAt: new Date().toISOString(),
-    conversations,
-  };
+      const id = crypto.randomBytes(32).toString("hex");
+      const share: PaperShare = {
+        version: 1,
+        id,
+        topic,
+        slug,
+        ownerUsername,
+        ownerGeneration: capability.generation,
+        createdAt: new Date().toISOString(),
+        conversations,
+      };
+      return persistShare(share);
+    },
+  );
+}
 
+function persistShare(share: PaperShare): PaperShare {
+  return withPaperMutation(share.slug, () => persistShareLocked(share));
+}
+
+function persistShareLocked(share: PaperShare): PaperShare {
+  const { topic, slug, id } = share;
+  if (!fs.existsSync(companionDir(topic, slug)))
+    throw new ShareError(
+      "The paper was moved or removed. Reload it before sharing.",
+    );
   const dir = sharesDir(topic, slug);
   fs.mkdirSync(dir, { recursive: true });
   const file = sharePath(topic, slug, id);
-  const tmp = path.join(dir, `.${id}.${process.pid}.tmp`);
+  const tmp = path.join(dir, `.${id}.${crypto.randomUUID()}.tmp`);
   const serialized = JSON.stringify(share, null, 2);
   if (Buffer.byteLength(serialized, "utf8") > MAX_SHARE_BYTES) {
     throw new ShareError("Selected conversations are too large to share.");
@@ -159,8 +225,15 @@ export function createShare(
       encoding: "utf8",
       flag: "wx",
       mode: 0o600,
+      flush: true,
     });
     fs.renameSync(tmp, file);
+    const descriptor = fs.openSync(dir, "r");
+    try {
+      fs.fsyncSync(descriptor);
+    } finally {
+      fs.closeSync(descriptor);
+    }
   } catch (error) {
     fs.rmSync(tmp, { force: true });
     throw error;
@@ -220,13 +293,36 @@ export function deleteShare(
 
 /** Profile deletion must revoke links that otherwise outlive their owner. */
 export function deleteSharesByOwner(ownerUsername: string): void {
-  if (!isValidSlug(ownerUsername)) return;
-  for (const paper of listPapers()) {
-    if (!paper.topic) continue;
-    for (const share of listShares(paper.topic, paper.slug, ownerUsername)) {
-      fs.rmSync(sharePath(paper.topic, paper.slug, share.id), { force: true });
+  assertSlug(ownerUsername);
+  visitPaperCompanions(({ directory }) => {
+    const root = path.join(directory, "shares");
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT")
+        return;
+      throw error;
     }
-  }
+    for (const entry of entries) {
+      if (
+        !entry.isFile() ||
+        (!entry.name.endsWith(".json") &&
+          !/^\.[a-f0-9]{64}\.[a-f0-9-]{36}\.tmp$/.test(entry.name))
+      )
+        continue;
+      const file = path.join(root, entry.name);
+      if (fs.statSync(file).size > MAX_SHARE_BYTES)
+        throw new ShareError(
+          "Share ownership cannot be read: record exceeds size limit.",
+        );
+      const share = shareRecordSchema.parse(
+        JSON.parse(fs.readFileSync(file, "utf8")),
+      );
+      if (share.ownerUsername === ownerUsername) fs.rmSync(file);
+    }
+    syncDirectory(root);
+  });
 }
 
 export interface SharedCrop {

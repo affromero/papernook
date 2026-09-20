@@ -35,9 +35,12 @@ async function login(page: Page): Promise<void> {
     )
     .toBe(true);
   await page
-    .getByRole("textbox", { name: "Password" })
+    .getByLabel("Password", { exact: true })
     .fill("admin-created-password");
-  await page.getByRole("button", { name: "Enter" }).click();
+  await page
+    .locator("form")
+    .getByRole("button", { name: "Enter household", exact: true })
+    .click();
   await page.getByRole("button", { name: "Switch to Maya" }).click();
   await expect(page).toHaveURL("/");
   await expect

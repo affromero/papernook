@@ -1,7 +1,13 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { z } from "zod";
-import { activeProfile } from "@/lib/auth/session";
+import {
+  requestIdentity,
+  sharedAccess,
+  accessFailure,
+} from "@/lib/auth/access";
+import { withProfileFiles } from "@/lib/auth/profile-capability";
+import { isAccessError } from "thesidedoor-core/access";
 import { getPaper, readText } from "@/lib/library/papers";
 import { listChats, readChat, type Chat } from "@/lib/library/chats";
 import { isValidSlug } from "@/lib/library/slug";
@@ -150,14 +156,18 @@ export function conversationSnapshot(
 export async function snapshotResponse(
   build: (owner: string) => OfflineManifest | null,
 ): Promise<Response> {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability)
     return Response.json(
       { error: "Unauthorized" },
       { status: 401, headers: privateHeaders },
     );
   try {
-    const manifest = build(profile.username);
+    const manifest = withProfileFiles(sharedAccess().identity, capability, () =>
+      build(profile.username),
+    );
     return manifest
       ? Response.json(manifest, { headers: privateHeaders })
       : Response.json(
@@ -165,6 +175,7 @@ export async function snapshotResponse(
           { status: 404, headers: privateHeaders },
         );
   } catch (error) {
+    if (isAccessError(error)) return accessFailure(error);
     return Response.json(
       {
         error:

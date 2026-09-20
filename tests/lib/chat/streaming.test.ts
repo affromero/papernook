@@ -1,3 +1,4 @@
+import { createTestProfile, mockTestSession } from "../../helpers/access";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -19,9 +20,8 @@ beforeEach(async () => {
   capturedSystem = undefined;
   capturedTitlePrompt = undefined;
   vi.resetModules();
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => ({ username: "andres" }),
-  }));
+  await createTestProfile("Andres");
+  await mockTestSession("andres");
   vi.doMock("@/lib/agent/registry", () => ({
     hasConfiguredProvider: () => true,
     getProvider: () => ({
@@ -63,7 +63,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
+  vi.unstubAllEnvs();
   vi.doUnmock("@/lib/agent/registry");
   vi.unstubAllGlobals();
   const { closeIndex } = await import("@/lib/library/index-db");

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createTestProfile, testProfileCapability } from "../../helpers/access";
 
 let tmpDir: string;
 
@@ -35,6 +36,7 @@ describe("filesystem operation locks", () => {
 
 describe("Zotero catalog limits", () => {
   it("rejects oversized metadata before serializing the full catalog", async () => {
+    await createTestProfile("Andres");
     const { writeZoteroCatalog } = await import("@/lib/capture/zotero-catalog");
     const records: Record<
       string,
@@ -57,7 +59,7 @@ describe("Zotero catalog limits", () => {
     }
 
     await expect(
-      writeZoteroCatalog("andres", {
+      writeZoteroCatalog(testProfileCapability("andres"), {
         formatVersion: 1,
         libraries: {
           "user:1234567": {

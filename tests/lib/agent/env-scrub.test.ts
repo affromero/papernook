@@ -16,7 +16,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const SECRETS = {
-  PAPERNOOK_PASSWORD: "the-instance-access-password",
   WEBDAV_PASS: "the-webdav-password",
   SESSION_SECRET: "s".repeat(64),
   OPENAI_API_KEY: "sk-openai-secret",
@@ -46,7 +45,6 @@ describe("CLI provider environment", () => {
     for (const key of Object.keys(SECRETS)) {
       expect(env[key], key).toBeUndefined();
     }
-    expect(Object.values(env)).not.toContain(SECRETS.PAPERNOOK_PASSWORD);
     // Named keys, not a CODEX_ prefix sweep: a variable added later is
     // absent by default rather than inherited because of how it is spelled.
     expect(env.CODEX_INTERNAL_TOKEN).toBeUndefined();
@@ -67,7 +65,6 @@ describe("CLI provider environment", () => {
     const env = invocation.env;
     invocation.release();
 
-    expect(env.PAPERNOOK_PASSWORD).toBeUndefined();
     expect(env.WEBDAV_PASS).toBeUndefined();
     expect(env.SESSION_SECRET).toBeUndefined();
     expect(env.OPENAI_API_KEY).toBeUndefined();

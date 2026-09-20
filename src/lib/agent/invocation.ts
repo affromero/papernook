@@ -1,3 +1,6 @@
+import { supervisedRemoteRequest } from "thesidedoor-core/runtime/ssh";
+import type { ProcessRequest } from "thesidedoor-core/runtime/process";
+
 /**
  * Direct-or-SSH command construction for CLI-backed providers.
  * When an SSH host is configured the whole
@@ -34,7 +37,7 @@ const BASE_ENV_KEYS = [
 
 /**
  * The environment a CLI provider is spawned with. Inheriting the app's own
- * environment would put WEBDAV_PASS, PAPERNOOK_PASSWORD, SESSION_SECRET and
+ * environment would put WEBDAV_PASS, SESSION_SECRET and
  * every other provider's API key inside a process that a prompt-injected
  * paper can steer, so the child gets an allowlist instead: the base variables
  * above plus the exact keys the provider needs. Named keys rather than a
@@ -95,4 +98,51 @@ export function getClaudeSshHost(): string | undefined {
 
 export function getCodexSshHost(): string | undefined {
   return process.env.CODEX_SSH_HOST || undefined;
+}
+
+/** Remote execution uses the shared supervisor and the remote host's selected credentials. */
+export function agentProcessRequest(request: {
+  cli: "claude" | "codex";
+  args: string[];
+  input: string;
+  environment: ProcessRequest["environment"];
+  signal?: AbortSignal;
+  timeoutMs: number;
+  sshHost?: string;
+}): ProcessRequest {
+  if (!request.sshHost)
+    return {
+      command: request.cli,
+      args: request.args,
+      input: request.input,
+      environment: request.environment,
+      signal: request.signal,
+      timeoutMs: request.timeoutMs,
+    };
+  return supervisedRemoteRequest({
+    connection: {
+      host: request.sshHost,
+      identityFile: process.env.PAPERNOOK_SSH_KEY_PATH,
+      knownHostsFile: process.env.PAPERNOOK_SSH_KNOWN_HOSTS_PATH,
+    },
+    command: request.cli,
+    args: request.args,
+    input: request.input,
+    transportEnvironment: minimalAgentEnvironment([]),
+    remoteEnvironmentKeys: [
+      ...BASE_ENV_KEYS,
+      ...(request.cli === "codex"
+        ? ["CODEX_HOME", "CODEX_API_KEY"]
+        : [
+            "CLAUDE_HOME",
+            "CLAUDE_CONFIG_DIR",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_BASE_URL",
+            "ANTHROPIC_AUTH_TOKEN",
+          ]),
+    ],
+    signal: request.signal,
+    timeoutMs: request.timeoutMs,
+  });
 }

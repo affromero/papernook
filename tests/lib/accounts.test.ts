@@ -2,190 +2,137 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {
+  AccessService,
+  HouseholdProfileService,
+} from "thesidedoor-core/access";
+import {
+  createTestProfile,
+  deleteTestProfile,
+  testAccess,
+  testSession,
+  TEST_ACCESS_PASSWORD,
+} from "../helpers/access";
+import { captureIdentity } from "@/lib/auth/profile-capability";
 
 let tmpDir: string;
-
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-test-"));
-  process.env.PAPERNOOK_DATA_DIR = tmpDir;
-  delete process.env.SESSION_SECRET;
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-account-test-"));
+  vi.stubEnv("PAPERNOOK_DATA_DIR", tmpDir);
   vi.resetModules();
 });
-
 afterEach(async () => {
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
+  vi.unstubAllEnvs();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
-
 async function users() {
   return import("@/lib/auth/users");
 }
-
-async function session() {
-  return import("@/lib/auth/session");
-}
-
 async function rateLimit() {
   return import("@/lib/auth/rate-limit");
 }
 
-describe("profiles on disk", () => {
-  it("creates a profile and lists it back from disk", async () => {
+describe("authoritative profiles", () => {
+  it("persists profile changes in the authoritative identity envelope", async () => {
     const u = await users();
-    const created = u.createProfile("Andres R", "jaguar");
-    expect(created.username).toBe("andres-r");
-    expect(created.avatarSlug).toBe("jaguar");
-    const listed = u.listProfiles();
-    expect(listed.map((p) => p.username)).toEqual(["andres-r"]);
+    const created = await createTestProfile("Andres R", "jaguar");
+    expect(u.listProfiles().map((profile) => profile.username)).toEqual([
+      "fixture-owner",
+      "andres-r",
+    ]);
+    const token = await testSession(created.username);
+    const updated = await u.updateProfileAvatar(
+      created.username,
+      "toucan",
+      token,
+    );
+    expect(u.getProfile(created.username)).toEqual(updated);
+    expect(updated.avatarSlug).toBe("toucan");
+    await u.markWizardDone(created.username, token);
+    expect(u.getProfile(created.username)?.wizardDone).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, "users", created.username, "profile.json"),
+      ),
+    ).toBe(false);
   });
 
-  it("rejects duplicate and unusable names", async () => {
+  it("rejects duplicate names, unusable names, invalid avatars, and another selected profile", async () => {
     const u = await users();
-    u.createProfile("Ana");
-    expect(() => u.createProfile("Ana")).toThrow(/already exists/);
-    expect(() => u.createProfile("!")).toThrow(/at least two/);
-  });
-
-  it("never resolves usernames outside the users root", async () => {
-    const u = await users();
+    await createTestProfile("Ana");
+    await createTestProfile("Ben");
+    const token = await testSession("ana");
+    await expect(
+      u.createProfile("Ana", undefined, token),
+    ).rejects.toMatchObject({ code: "conflict" });
+    await expect(u.createProfile("!", undefined, token)).rejects.toMatchObject({
+      code: "invalid",
+    });
+    await expect(
+      u.updateProfileAvatar("ana", "unknown", token),
+    ).rejects.toMatchObject({ code: "invalid" });
+    await expect(
+      u.updateProfileAvatar("ben", "toucan", token),
+    ).rejects.toMatchObject({ code: "forbidden" });
     expect(u.getProfile("../escape")).toBeNull();
-    expect(u.getProfile("..")).toBeNull();
     expect(u.getProfile("a/../../b")).toBeNull();
   });
 
-  it("updates only the selected profile avatar on disk", async () => {
+  it("keeps credentials and authority out of a selected profile's public representation", async () => {
     const u = await users();
-    const created = u.createProfile("Ana", "jaguar");
-    const updated = u.updateProfileAvatar("ana", "toucan");
-
-    expect(updated).toEqual({ ...created, avatarSlug: "toucan" });
-    expect(u.getProfile("ana")).toEqual(updated);
-    expect(() => u.updateProfileAvatar("ana", "unknown")).toThrow(
-      "Choose a valid avatar.",
-    );
-    expect(() => u.updateProfileAvatar("missing", "toucan")).toThrow(
-      'No profile named "missing".',
-    );
+    const profile = await createTestProfile("Owner", undefined, true);
+    const publicProfile = u.toPublicProfile(profile);
+    expect(publicProfile.isAdmin).toBe(false);
+    expect(publicProfile).not.toHaveProperty("captureToken");
+    expect(publicProfile).not.toHaveProperty("sessionEpoch");
+    expect(publicProfile).not.toHaveProperty("passwordHash");
+    const { access } = await testAccess();
+    const token = await testSession("owner");
+    expect((await access.authenticate(token)).principal).toBeNull();
+    expect(u.toPublicProfile(profile, true).isAdmin).toBe(true);
   });
 
-  it("keeps no per-profile credential and never leaks internals publicly", async () => {
+  it("rotates capture admission without changing the profile identity", async () => {
     const u = await users();
-    const created = u.createProfile("Ana", "jaguar");
-    // Profiles separate whose chats are whose; the instance password is the
-    // only credential, so a profile carries nothing to brute-force.
-    const serialized = JSON.stringify(created);
-    expect(serialized).not.toContain("passwordHash");
-    const publicShape = JSON.stringify(u.toPublicProfile(created));
-    expect(publicShape).not.toContain(created.captureToken);
-    expect(publicShape).not.toContain("sessionEpoch");
-  });
-
-  it("refuses a profile file that names a different user", async () => {
-    const u = await users();
-    u.createProfile("Ana", "jaguar");
-    u.createProfile("Ben", "toucan");
-
-    // Ana's file is edited to claim Ben's identity. Returning it would give
-    // an Ana session username "ben", so every later write — capture token,
-    // Zotero config, deletion — would land in Ben's storage.
-    const anaFile = path.join(tmpDir, "users", "ana", "profile.json");
-    const forged = JSON.parse(fs.readFileSync(anaFile, "utf8")) as {
-      username: string;
-    };
-    forged.username = "ben";
-    fs.writeFileSync(anaFile, JSON.stringify(forged));
-
-    expect(u.getProfile("ana")).toBeNull();
-    expect(u.getProfile("ben")?.username).toBe("ben");
-    expect(u.getProfile("ben")?.avatarSlug).toBe("toucan");
-  });
-
-  it("erases a legacy password verifier from disk on first read", async () => {
-    const u = await users();
-    u.createProfile("Ana", "jaguar");
-    const anaFile = path.join(tmpDir, "users", "ana", "profile.json");
-    const legacy = JSON.parse(fs.readFileSync(anaFile, "utf8")) as Record<
-      string,
-      unknown
-    >;
-    legacy.passwordHash = "scrypt$16384$8$1$c2FsdA$aGFzaA";
-    fs.writeFileSync(anaFile, JSON.stringify(legacy));
-
-    expect(u.getProfile("ana")).not.toBeNull();
-
-    // Gone from the returned object and from the file, so an obsolete
-    // verifier is not left waiting to be cracked offline.
-    expect(JSON.stringify(u.getProfile("ana"))).not.toContain("passwordHash");
-    expect(fs.readFileSync(anaFile, "utf8")).not.toContain("passwordHash");
-  });
-});
-
-describe("capture token attribution", () => {
-  it("resolves a token to exactly its owning profile", async () => {
-    const u = await users();
-    const ana = u.createProfile("Ana");
-    const ben = u.createProfile("Ben");
-    expect(u.profileForCaptureToken(ana.captureToken)?.username).toBe("ana");
-    expect(u.profileForCaptureToken(ben.captureToken)?.username).toBe("ben");
-  });
-
-  it("rejects malformed and unknown tokens", async () => {
-    const u = await users();
-    u.createProfile("Ana");
-    expect(u.profileForCaptureToken("a".repeat(48))).toBeNull();
-    expect(u.profileForCaptureToken("not-a-token")).toBeNull();
-    expect(u.profileForCaptureToken("")).toBeNull();
-  });
-
-  it("rotation invalidates the old token", async () => {
-    const u = await users();
-    const ana = u.createProfile("Ana");
-    const old = ana.captureToken;
-    const rotated = u.rotateCaptureToken("ana");
-    expect(u.profileForCaptureToken(old)).toBeNull();
-    expect(u.profileForCaptureToken(rotated.captureToken)?.username).toBe(
-      "ana",
-    );
-  });
-});
-
-describe("sessions", () => {
-  it("round-trips a valid token and rejects tampering", async () => {
-    const u = await users();
-    u.createProfile("Ana");
-    const s = await session();
-    const token = s.createSessionToken("ana");
-    expect(s.verifySessionToken(token)).toBe("ana");
-    // Forged username with the original signature must fail.
-    const parts = token.split(".");
+    const profile = await createTestProfile("Ana");
+    const { identity } = await testAccess();
+    const before = await captureIdentity(identity, profile.captureToken);
+    const updated = await u.rotateCaptureToken("ana", await testSession("ana"));
+    expect(await captureIdentity(identity, profile.captureToken)).toBeNull();
     expect(
-      s.verifySessionToken(`ben.${parts[1]}.${parts[2]}.${parts[3]}`),
-    ).toBeNull();
-    // Truncated / garbage tokens must fail, not throw.
-    expect(s.verifySessionToken("ana")).toBeNull();
-    expect(s.verifySessionToken("")).toBeNull();
+      (await captureIdentity(identity, updated.captureToken))?.capability,
+    ).toEqual(before?.capability);
+    expect(await captureIdentity(identity, "invalid")).toBeNull();
   });
 
-  it("rejects expired tokens", async () => {
-    const u = await users();
-    u.createProfile("Ana");
-    const s = await session();
-    const past = Date.now() - 1000 * 60 * 60 * 24 * 120;
-    const token = s.createSessionToken("ana", past);
-    expect(s.verifySessionToken(token)).toBeNull();
+  it("invalidates selection after deletion and recreation without invalidating unrelated profiles", async () => {
+    await createTestProfile("Ana");
+    await createTestProfile("Ben");
+    const { verifySessionToken } = await import("@/lib/auth/session");
+    const old = await testSession("ana");
+    const other = await testSession("ben");
+    await deleteTestProfile("ana");
+    await createTestProfile("Ana");
+    expect(await verifySessionToken(old)).toBeNull();
+    expect(await verifySessionToken(other)).toBe("ben");
+    expect(await verifySessionToken("invalid")).toBeNull();
   });
 
-  it("revokes sessions when a profile is deleted or recreated", async () => {
-    const u = await users();
-    u.createProfile("Ana");
-    const s = await session();
-    const token = s.createSessionToken("ana");
-
-    u.deleteProfile("ana");
-    expect(s.verifySessionToken(token)).toBeNull();
-    u.createProfile("Ana");
-    expect(s.verifySessionToken(token)).toBeNull();
+  it("rejects a persisted expired session", async () => {
+    await createTestProfile("Ana");
+    const { identity } = await testAccess();
+    const past = Date.now() - 10000;
+    const access = new AccessService({
+      store: identity.accessStore(),
+      now: () => past,
+      householdSessionTtlMs: 1,
+    });
+    const token = await access.enterHousehold(TEST_ACCESS_PASSWORD);
+    await new HouseholdProfileService(access).select(token, "ana");
+    const { verifySessionToken } = await import("@/lib/auth/session");
+    expect(await verifySessionToken(token)).toBeNull();
   });
 });
 
@@ -220,62 +167,11 @@ describe("login rate limiting", () => {
   });
 });
 
-describe("wizard flag", () => {
-  it("persists wizardDone across reads", async () => {
-    const u = await users();
-    u.createProfile("Ana");
-    expect(u.getProfile("ana")?.wizardDone).toBeFalsy();
-    u.markWizardDone("ana");
-    expect(u.getProfile("ana")?.wizardDone).toBe(true);
-  });
-});
-
-describe("admin-owned instance password", () => {
-  it("verifies only the exact configured password", async () => {
-    process.env.PAPERNOOK_PASSWORD = "correct-horse-battery";
-    const u = await users();
-    expect(u.instancePasswordConfigured()).toBe(true);
-    expect(u.verifyInstancePassword("correct-horse-battery")).toBe(true);
-    expect(u.verifyInstancePassword("wrong")).toBe(false);
-    expect(u.verifyInstancePassword("")).toBe(false);
-    expect(u.verifyInstancePassword("correct-horse-battery-x")).toBe(false);
-    delete process.env.PAPERNOOK_PASSWORD;
-  });
-
-  it("reports unconfigured when the env var is absent", async () => {
-    delete process.env.PAPERNOOK_PASSWORD;
-    const u = await users();
-    expect(u.instancePasswordConfigured()).toBe(false);
-    expect(u.verifyInstancePassword("anything")).toBe(false);
-  });
-});
-
-describe("admin role", () => {
-  it("first profile is admin, later ones are members", async () => {
-    const u = await users();
-    const first = u.createProfile("Andres");
-    const second = u.createProfile("Ana");
-    expect(first.role).toBe("admin");
-    expect(second.role).toBe("member");
-    expect(u.toPublicProfile(first).isAdmin).toBe(true);
-    expect(u.toPublicProfile(second).isAdmin).toBe(false);
-  });
-
-  it("promotes the oldest remaining profile when the admin is deleted", async () => {
-    const u = await users();
-    u.createProfile("Andres");
-    u.createProfile("Ana");
-    u.createProfile("Ben");
-    u.deleteProfile("andres");
-    expect(u.getProfile("andres")).toBeNull();
-    expect(u.getProfile("ana")?.role).toBe("admin");
-    expect(u.getProfile("ben")?.role).toBe("member");
-  });
-
+describe("profile erasure", () => {
   it("erases private data while preserving anonymized shared papers", async () => {
     const u = await users();
-    u.createProfile("Andres");
-    u.createProfile("Ana");
+    await createTestProfile("Andres");
+    await createTestProfile("Ana");
     const papers = await import("@/lib/library/papers");
     const chats = await import("@/lib/library/chats");
     const index = await import("@/lib/library/index-db");
@@ -326,7 +222,7 @@ describe("admin role", () => {
     });
     index.rebuildIndex();
 
-    u.deleteProfile("ana");
+    await deleteTestProfile("ana");
 
     expect(u.getProfile("ana")).toBeNull();
     expect(chats.listChats("research", "shared-paper", "ana")).toEqual([]);

@@ -4,8 +4,11 @@ const password = "admin-created-password";
 
 async function login(page: Page): Promise<void> {
   await page.goto("/login");
-  await page.getByRole("textbox", { name: "Password" }).fill(password);
-  await page.getByRole("button", { name: "Enter" }).click();
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page
+    .locator("form")
+    .getByRole("button", { name: "Enter household", exact: true })
+    .click();
   await page.getByRole("button", { name: "Switch to Maya" }).click();
   await expect(page).toHaveURL("/");
 }

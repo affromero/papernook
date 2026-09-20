@@ -205,7 +205,7 @@ flowchart LR
     end
 
     subgraph agent["Agent layer (src/lib/agent)"]
-      registry["registry.ts<br/>AI_PROVIDER"]
+      registry["Sidedoor provider registry"]
       claude["claude-code.ts"]
       codex["codex.ts"]
       api["api.ts<br/>anthropic · openai · local"]
@@ -241,7 +241,7 @@ flowchart LR
       inboxui["CaptureJobs + ReviewStrip<br/>/inbox, unconfirmed captures"]
     end
 
-    gate["Access gate (src/lib/auth)<br/>one instance password · invites · rate limits"]
+    gate["Sidedoor access (src/lib/auth)<br/>passwords · passkeys · recovery · invites"]
 
     browserext["Safari + Chrome extension<br/>extension/<br/>PDF navigations → /viewer"]
     dav["rclone WebDAV sidecar<br/>docker-compose.yml<br/>serves data/papers ONLY"]
@@ -339,23 +339,28 @@ and [quizzes](https://support.google.com/notebooklm/answer/16958963).
 
 ## Bring your own agent
 
-`AI_PROVIDER` is selected at install time, never hardcoded. Use a local CLI,
-run that CLI over SSH, provide an API key, or connect a local model server.
+Choose a provider in browser setup or Settings. Sidedoor stores provider credentials,
+models, and endpoints in the instance configuration. You can use a local CLI, run a
+CLI over SSH, provide an API key, or connect a local model server.
+
+SSH execution requires Python 3 and the selected CLI on the remote host. The
+shared supervisor limits execution time and stops its process group when the
+connection closes. A network failure can prevent confirmation of remote cleanup.
 
 <details>
 <summary><strong>Providers and configuration</strong></summary>
 
-| Mode                   | Config                                                      | Keyless |
-| ---------------------- | ----------------------------------------------------------- | ------- |
-| Claude Code CLI, local | `AI_PROVIDER=claude-code`                                   | ✓       |
-| Codex CLI, local       | `AI_PROVIDER=codex`                                         | ✓       |
-| Claude Code over SSH   | `AI_PROVIDER=claude-code` + `CLAUDE_CODE_SSH_HOST=you@host` | ✓       |
-| Codex over SSH         | `AI_PROVIDER=codex` + `CODEX_SSH_HOST=you@host`             | ✓       |
-| Anthropic API          | `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`               | ✗       |
-| OpenAI API             | `AI_PROVIDER=openai` + `OPENAI_API_KEY`                     | ✗       |
-| Ollama                 | `AI_PROVIDER=ollama` + model in Settings                    | ✓       |
-| llama.cpp server       | `AI_PROVIDER=llamacpp` + model in Settings                  | ✓       |
-| vLLM server            | `AI_PROVIDER=vllm` + model in Settings                      | ✓       |
+| Mode                   | Configuration                                | Keyless |
+| ---------------------- | -------------------------------------------- | ------- |
+| Claude Code CLI, local | Select in setup or Settings                  | ✓       |
+| Codex CLI, local       | Select in setup or Settings                  | ✓       |
+| Claude Code over SSH   | Save the SSH connection in setup or Settings | ✓       |
+| Codex over SSH         | Save the SSH connection in setup or Settings | ✓       |
+| Anthropic API          | Save the API key in setup or Settings        | ✗       |
+| OpenAI API             | Save the API key in setup or Settings        | ✗       |
+| Ollama                 | Save the endpoint and model in Settings      | ✓       |
+| llama.cpp server       | Save the endpoint and model in Settings      | ✓       |
+| vLLM server            | Save the endpoint and model in Settings      | ✓       |
 
 Settings detects local endpoints and installed models. Docker reaches local
 servers through `host.docker.internal`; Papernook does not publish model ports.
@@ -470,17 +475,15 @@ unconfirmed captures stay private. Connect through
 [Tailscale](https://tailscale.com) or a hardened custom domain. Settings
 generates the correct device QR code for the address in use.
 
-Papernook always requires the single `PAPERNOOK_PASSWORD` instance credential,
-regardless of hostname. Docker Compose refuses to start without it, and the
-login API returns `503` if it is unset. After passing the gate, anyone may
-choose any profile. Profiles organize chats and capture tokens for people who
-already share the instance password. They are not a security boundary. Anyone
-with the password can switch profiles and read any profile's chats.
+The installer initializes Sidedoor and prints a one-time owner claim code. The
+owner chooses household or individual access in the browser, sets a password,
+and can register Apple passkeys, keep recovery codes, manage sessions, and
+invite other readers. Household access permits profile switching. Individual
+accounts stay bound to their own profiles.
 
-Signed invite links open the gate for seven days without revealing the
-password. Share links remain readable without a login because the unguessable
-share id is the capability for one paper. For custom domains, Caddy terminates
-TLS in front of app and WebDAV ports that bind to `127.0.0.1` by default. See
+Share links remain readable without a login because the unguessable share id
+is the capability for one paper. For custom domains, Caddy terminates TLS in
+front of app and WebDAV ports that bind to `127.0.0.1` by default. See
 [Invite a friend](docs/user-guide.md#invite-a-friend) and
 [custom-domain setup](docs/public-exposure.md).
 

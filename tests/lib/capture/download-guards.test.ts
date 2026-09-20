@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { isPrivateAddress, looksLikePdf } from "@/lib/capture/download";
+import {
+  fetchPublicUrl,
+  isPrivateAddress,
+  looksLikePdf,
+} from "@/lib/capture/download";
+
+it("rejects cancelled public fetches before DNS resolution or connection", async () => {
+  const controller = new AbortController();
+  controller.abort(new Error("Turn cancelled"));
+  await expect(
+    fetchPublicUrl("https://example.invalid", controller.signal),
+  ).rejects.toThrow("Turn cancelled");
+});
 
 describe("SSRF address allowlist", () => {
   it("blocks loopback, link-local, and RFC1918 ranges", () => {

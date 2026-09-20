@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getProvider, configuredProviderId } from "@/lib/agent/registry";
-import { activeProfile } from "@/lib/auth/session";
-import { isAdmin } from "@/lib/auth/users";
+import { currentOwner, requestIdentity } from "@/lib/auth/access";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +23,10 @@ function json(body: object, status = 200): NextResponse {
 let testInFlight = false;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const profile = await activeProfile();
-  if (!profile) return json({ error: "Not signed in." }, 401);
-  if (!isAdmin(profile)) return json({ error: "Admin only." }, 403);
+  const admission = await requestIdentity();
+  if (!admission?.profile || !admission.capability)
+    return json({ error: "Not signed in." }, 401);
+  if (!(await currentOwner())) return json({ error: "Admin only." }, 403);
   const body = schema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) return json({ error: "Invalid request." }, 400);
   if (testInFlight) {
@@ -38,6 +38,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const provider = configuredProviderId();
     const reply = await getProvider(provider).execute({
+      metricOwner: admission.capability,
+      signal: request.signal,
       system:
         "This is a connection test. Follow the user's instruction exactly and do not use tools.",
       prompt: "Reply with exactly: Papernook model test passed",

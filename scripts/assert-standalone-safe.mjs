@@ -4,10 +4,10 @@ import path from "node:path";
 const root = path.resolve(process.argv[2] ?? ".next/runtime");
 const forbidden = [
   /(^|\/)\.env(?:\.|$)/,
-  /(^|\/)data\//,
-  /(^|\/)docs\//,
-  /(^|\/)src\//,
-  /(^|\/)tests\//,
+  /^data\//,
+  /^docs\//,
+  /^src\//,
+  /^tests\//,
   /(^|\/)(AGENTS|CLAUDE)\.md$/,
 ];
 

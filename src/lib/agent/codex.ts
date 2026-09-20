@@ -1,7 +1,17 @@
-import { spawn } from "node:child_process";
-import { configuredEffort, configuredModel } from "./config";
 import {
-  buildAgentInvocation,
+  ProcessRunner,
+  ProcessExecutionError,
+} from "thesidedoor-core/runtime/process";
+import {
+  CodexOutputDecoder,
+  CliProtocolError,
+  type CliOutputEvent,
+} from "thesidedoor-core/runtime/cli";
+import type { ExecutionObserver } from "thesidedoor-core/observability";
+import { configuredEffort, configuredModel, readAgentConfig } from "./config";
+import { observeAgentStream } from "./platform/observed-stream";
+import {
+  agentProcessRequest,
   getCodexSshHost,
   minimalAgentEnvironment,
 } from "./invocation";
@@ -27,9 +37,13 @@ export function codexEnvironment(): NodeJS.ProcessEnv {
   return minimalAgentEnvironment(["CODEX_HOME", "CODEX_API_KEY"]);
 }
 
-function buildBase(turn: AgentTurn): string[] {
+function buildBase(
+  turn: AgentTurn,
+  config: ReturnType<typeof readAgentConfig>,
+): string[] {
   const args = [
     "exec",
+    "--json",
     "--ephemeral",
     "--ignore-user-config",
     "--ignore-rules",
@@ -41,9 +55,9 @@ function buildBase(turn: AgentTurn): string[] {
     "read-only",
     "--skip-git-repo-check",
   ];
-  const model = configuredModel();
+  const model = configuredModel(config);
   if (model) args.push("-m", model);
-  const effort = configuredEffort();
+  const effort = configuredEffort(config);
   if (effort) {
     args.push("-c", `model_reasoning_effort=${JSON.stringify(effort)}`);
   }
@@ -52,15 +66,18 @@ function buildBase(turn: AgentTurn): string[] {
 
 async function prepare(
   turn: AgentTurn,
+  config: ReturnType<typeof readAgentConfig>,
+  sshHost?: string,
 ): Promise<{ args: string[]; prompt: string; cleanup?: () => Promise<void> }> {
-  const args = buildBase(turn);
+  const args = buildBase(turn, config);
   let cleanup: (() => Promise<void>) | undefined;
   let prompt = turn.system ? `${turn.system}\n\n${turn.prompt}` : turn.prompt;
   const images = turn.images ?? [];
   if (images.length > 0) {
-    const sshHost = getCodexSshHost();
     if (sshHost) {
-      const staged = await stageImagesOverSsh(images, sshHost);
+      const staged = await stageImagesOverSsh(images, sshHost, {
+        signal: turn.signal,
+      });
       cleanup = staged.cleanup;
       prompt = imagePromptPreamble(staged.paths) + prompt;
     } else {
@@ -92,127 +109,133 @@ export function codexFailureMessage(
   return `codex: exited with code ${code}: ${stderr.trim().slice(-500)}`;
 }
 
-function runCodex(
-  args: string[],
-  prompt: string,
-  timeoutMs: number,
-  maxOutputChars?: number,
-  onChunk?: (text: string) => void,
-): Promise<string> {
-  const { command, args: spawnArgs } = buildAgentInvocation(
-    "codex",
-    args,
-    getCodexSshHost(),
-  );
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, spawnArgs, {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: codexEnvironment(),
-    });
-    const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      reject(new Error(`codex: timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
+export async function executeCodex(turn: AgentTurn): Promise<string> {
+  let text = "";
+  for await (const chunk of streamCodex(turn)) text += chunk;
+  return text.trim();
+}
 
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => {
-      const text = chunk.toString();
-      stdout += text;
-      if (maxOutputChars && stdout.length > maxOutputChars) {
-        child.kill("SIGTERM");
-        return;
-      }
-      onChunk?.(text);
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code !== 0) {
-        reject(new Error(codexFailureMessage(code, stderr)));
-        return;
-      }
-      const content = stdout.trim();
-      if (!content) {
-        reject(
-          new Error(
-            `codex: no output produced. Buffer: ${stderr.trim().slice(0, 300) || "(empty)"}`,
-          ),
-        );
-        return;
-      }
-      resolve(content);
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(
-        new Error(
-          `codex: failed to spawn: ${err.message}. Is the 'codex' CLI installed?`,
-        ),
-      );
-    });
-    child.stdin.write(prompt);
-    child.stdin.end();
+export function streamCodex(turn: AgentTurn): AsyncGenerator<string> {
+  return observeAgentStream("codex", turn, {
+    prepare() {
+      const config = readAgentConfig();
+      return {
+        model: configuredModel(config),
+        open(observer) {
+          const signal = AbortSignal.any([
+            observer.signal,
+            AbortSignal.timeout(turn.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+          ]);
+          return streamCodexRaw({ ...turn, signal }, config, observer);
+        },
+      };
+    },
   });
 }
 
-export async function executeCodex(turn: AgentTurn): Promise<string> {
-  const { args, prompt, cleanup } = await prepare(turn);
-  try {
-    return await runCodex(
-      args,
-      prompt,
-      turn.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      turn.maxOutputChars,
-    );
-  } finally {
-    await cleanup?.();
+async function* streamCodexRaw(
+  turn: AgentTurn,
+  config: ReturnType<typeof readAgentConfig>,
+  observer: ExecutionObserver,
+): AsyncGenerator<string> {
+  turn.signal?.throwIfAborted();
+  const sshHost = getCodexSshHost();
+  const { args, prompt, cleanup } = await prepare(turn, config, sshHost);
+  let stderr = "";
+  let outputChars = 0;
+  let content = false;
+  const decoder = new CodexOutputDecoder();
+  let decoderFinished = false;
+  let failure = "";
+  let primary: { error: unknown } | undefined;
+  function* consume(events: Iterable<CliOutputEvent>): Generator<string> {
+    for (const event of events) {
+      if (event.type === "usage") observer.usage(event.usage);
+      else if (event.type === "failure")
+        failure = (failure + "\n" + event.message).slice(-4096);
+      else {
+        const text = event.text + "\n";
+        outputChars += text.length;
+        if (turn.maxOutputChars && outputChars > turn.maxOutputChars)
+          throw new ProcessExecutionError("output_limit");
+        content ||= Boolean(text.trim());
+        yield text;
+      }
+    }
   }
-}
-
-export async function* streamCodex(turn: AgentTurn): AsyncGenerator<string> {
-  // codex exec writes progressively to stdout; forward chunks as they arrive.
-  const { args, prompt, cleanup } = await prepare(turn);
-  const chunks: string[] = [];
-  let notify: (() => void) | null = null;
-  let done = false;
-  let failure: Error | null = null;
-
-  const finished = runCodex(
-    args,
-    prompt,
-    turn.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    turn.maxOutputChars,
-    (text) => {
-      chunks.push(text);
-      notify?.();
-    },
-  )
-    .catch((err: Error) => {
-      failure = err;
-    })
-    .finally(() => {
-      done = true;
-      notify?.();
-    });
-
   try {
-    while (!done || chunks.length > 0) {
-      if (chunks.length === 0) {
-        await new Promise<void>((resolve) => {
-          notify = resolve;
-        });
-        notify = null;
+    const runner = new ProcessRunner();
+    for await (const chunk of runner.stream(
+      agentProcessRequest({
+        cli: "codex",
+        args,
+        sshHost,
+        environment: codexEnvironment(),
+        input: prompt,
+        signal: turn.signal,
+        timeoutMs: turn.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      }),
+    )) {
+      if (chunk.channel === "stderr") {
+        stderr = (stderr + chunk.text).slice(-4096);
         continue;
       }
-      yield chunks.shift() as string;
+      yield* consume(decoder.push(chunk.text));
     }
-    await finished;
-    if (failure) throw failure;
+    decoderFinished = true;
+    yield* consume(decoder.finish());
+    if (failure)
+      throw new Error(codexFailureMessage(1, failure + "\n" + stderr));
+    if (!content)
+      throw new Error(
+        `codex: no output produced. Buffer: ${stderr.trim().slice(0, 300) || "(empty)"}`,
+      );
+  } catch (error) {
+    if (!decoderFinished) {
+      decoderFinished = true;
+      try {
+        for (const event of decoder.finish(false)) {
+          if (event.type === "usage") observer.usage(event.usage);
+          else if (event.type === "failure")
+            failure = (failure + "\n" + event.message).slice(-4096);
+        }
+      } catch {
+        // Incomplete protocol output must not replace the transport failure.
+      }
+    }
+    let reported = error;
+    if (error instanceof ProcessExecutionError) {
+      if (error.code === "exit_failed")
+        reported = new Error(
+          codexFailureMessage(error.exitCode, failure + "\n" + stderr),
+          {
+            cause: error,
+          },
+        );
+      if (error.code === "start_failed")
+        reported = new Error(
+          "codex: failed to spawn. Is the 'codex' CLI installed?",
+          { cause: error },
+        );
+    }
+    if (failure && error instanceof CliProtocolError)
+      reported = new Error(codexFailureMessage(1, failure + "\n" + stderr), {
+        cause: error,
+      });
+    primary = { error: reported };
+    throw reported;
   } finally {
-    await cleanup?.();
+    try {
+      await cleanup?.();
+    } catch (error) {
+      if (primary)
+        throw new AggregateError(
+          [primary.error, error],
+          "Codex execution and attachment cleanup failed",
+          { cause: error },
+        );
+      throw error;
+    }
   }
 }
 

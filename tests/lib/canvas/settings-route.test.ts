@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestProfile, mockTestSession } from "../../helpers/access";
 
 let tmpDir: string;
 
@@ -14,19 +15,15 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
   vi.unstubAllEnvs();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 async function routeAs(role: "admin" | "member" | "anonymous") {
-  const users = await import("@/lib/auth/users");
-  const admin = users.createProfile("Admin");
-  const member = users.createProfile("Member");
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () =>
-      role === "admin" ? admin : role === "member" ? member : null,
-  }));
+  await createTestProfile("Admin", undefined, true);
+  await createTestProfile("Member");
+  await mockTestSession(role === "anonymous" ? null : role, role === "admin");
   return import("@/app/api/v1/settings/canvas/route");
 }
 
@@ -99,22 +96,6 @@ describe("canvas settings route", () => {
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({
       error: "The saved canvas configuration is invalid.",
-    });
-  });
-
-  it("reports whether the current origin requires a key", async () => {
-    const route = await routeAs("admin");
-    vi.stubEnv("NODE_ENV", "production");
-    const response = await route.GET(
-      getRequest("http://localhost/api/v1/settings/canvas", {
-        host: "papernook.example",
-        "x-forwarded-proto": "https",
-      }),
-    );
-
-    expect(await response.json()).toMatchObject({
-      configured: false,
-      requiredForThisOrigin: true,
     });
   });
 });

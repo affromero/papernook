@@ -11,6 +11,34 @@ afterEach(() => {
 });
 
 describe("local-provider web tools", () => {
+  it("cancels an in-flight search when its turn is cancelled", async () => {
+    let started: (() => void) | undefined;
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      async (url: URL, options: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          options.signal!.addEventListener(
+            "abort",
+            () => reject(options.signal!.reason),
+            { once: true },
+          );
+          started!();
+        }),
+    );
+    const { executeWebTool } = await import("@/lib/agent/web/tools");
+    const controller = new AbortController();
+    const result = executeWebTool(
+      "web_search",
+      { query: "paper" },
+      controller.signal,
+    );
+    await ready;
+    controller.abort(new Error("Turn cancelled"));
+    await expect(result).rejects.toThrow("Turn cancelled");
+  });
   it("returns bounded structured SearXNG results", async () => {
     vi.stubEnv("WEB_SEARCH_BASE_URL", "http://search.test:8080");
     const fetchMock = vi.fn(

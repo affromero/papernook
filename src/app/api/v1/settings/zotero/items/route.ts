@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
-import { activeProfile } from "@/lib/auth/session";
+import { requestIdentity, accessFailure } from "@/lib/auth/access";
+import { isAccessError } from "thesidedoor-core/access";
 import {
   importCatalogItem,
   listCatalogItems,
@@ -19,9 +20,10 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  const profile = await activeProfile();
-  if (!profile) {
+export async function GET(request: NextRequest): Promise<Response> {
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
   if (!profile.zotero) {
@@ -41,23 +43,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { status: 400 },
     );
   }
-  return NextResponse.json(
-    await listCatalogItems(
-      profile.username,
-      query.data.q,
-      query.data.page,
-      query.data.limit,
-    ),
-  );
+  try {
+    return NextResponse.json(
+      await listCatalogItems(
+        admission.capability,
+        query.data.q,
+        query.data.page,
+        query.data.limit,
+      ),
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch (error) {
+    return accessFailure(error);
+  }
 }
 
 const importSchema = z.object({
   itemKey: z.string().regex(/^[A-Za-z0-9]{1,64}$/),
 });
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  const profile = await activeProfile();
-  if (!profile) {
+export async function POST(request: NextRequest): Promise<Response> {
+  const admission = await requestIdentity();
+  if (!admission?.capability) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
   const body = importSchema.safeParse(await readBoundedJsonOrNull(request));
@@ -68,9 +75,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
   try {
-    const result = await importCatalogItem(profile.username, body.data.itemKey);
+    const result = await importCatalogItem(
+      admission.capability,
+      body.data.itemKey,
+    );
     return NextResponse.json(result, { status: result.created ? 201 : 200 });
   } catch (error) {
+    if (isAccessError(error)) return accessFailure(error);
     if (error instanceof ZoteroCatalogItemNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
     }

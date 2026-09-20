@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { profileForCaptureToken } from "@/lib/auth/users";
+import { FileLockBusyError } from "thesidedoor-core/storage";
+import { captureIdentity } from "@/lib/auth/profile-capability";
+import { sharedAccess } from "@/lib/auth/access";
 import {
   consumeRequestLimit,
   recordFailure,
@@ -40,7 +42,8 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   if (ipKey && retryAfterMs(ipKey) > 0) {
     return html(errorPage("Too many attempts. Try again later."), 429);
   }
-  const profile = profileForCaptureToken(token);
+  const admission = await captureIdentity(sharedAccess().identity, token);
+  const profile = admission?.profile;
   if (!profile) {
     if (ipKey) recordFailure(ipKey);
     return html(
@@ -64,10 +67,18 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   try {
     // Async: the pending page polls /add/status for the outcome, so the
     // response returns before Cloudflare's 100s proxy limit can cut it.
-    const result = captureAsync(url, profile.username);
+    const result = await captureAsync(url, admission!.capability);
     const nonce = request.headers.get("x-nonce") ?? "";
     return html(pendingPage(result.slug, token, nonce), 202);
   } catch (err) {
+    if (err instanceof FileLockBusyError) {
+      const response = html(
+        errorPage("Capture is busy. Try again shortly."),
+        503,
+      );
+      response.headers.set("Retry-After", "1");
+      return response;
+    }
     console.error(`papernook capture failed (${url}):`, err);
     const message =
       err instanceof CaptureError

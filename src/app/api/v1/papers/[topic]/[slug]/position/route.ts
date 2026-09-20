@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { isValidSlug } from "@/lib/library/slug";
-import { activeProfile } from "@/lib/auth/session";
+import {
+  requestIdentity,
+  sharedAccess,
+  accessFailure,
+} from "@/lib/auth/access";
+import { withProfileFiles } from "@/lib/auth/profile-capability";
 import { consumeRequestLimit } from "@/lib/auth/rate-limit";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import {
@@ -32,8 +37,10 @@ interface Params {
 }
 
 export async function GET(_request: NextRequest, { params }: Params) {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const routeParams = paramsSchema.safeParse(await params);
   if (!routeParams.success) {
@@ -42,14 +49,25 @@ export async function GET(_request: NextRequest, { params }: Params) {
   const { topic, slug } = routeParams.data;
   if (!getPaper(topic, slug))
     return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
-  return NextResponse.json({
-    position: readPosition(topic, slug, profile.username),
-  });
+  try {
+    return withProfileFiles(sharedAccess().identity, capability, () =>
+      NextResponse.json(
+        {
+          position: readPosition(topic, slug, profile.username),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      ),
+    );
+  } catch (error) {
+    return accessFailure(error);
+  }
 }
 
 export async function PUT(request: NextRequest, { params }: Params) {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const routeParams = paramsSchema.safeParse(await params);
   if (!routeParams.success) {
@@ -72,6 +90,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
   if (!body.success) {
     return NextResponse.json({ error: "Invalid position." }, { status: 400 });
   }
-  writePosition(topic, slug, profile.username, body.data);
-  return NextResponse.json({ ok: true });
+  try {
+    return withProfileFiles(sharedAccess().identity, capability, () => {
+      writePosition(topic, slug, profile.username, body.data);
+      return NextResponse.json({ ok: true });
+    });
+  } catch (error) {
+    return accessFailure(error);
+  }
 }

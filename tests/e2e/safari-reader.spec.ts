@@ -9,19 +9,18 @@ import { expect, test, type Page } from "@playwright/test";
 const password = "admin-created-password";
 
 async function loginAsAdmin(page: Page): Promise<void> {
+  const capabilities = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/access/capabilities") && response.ok(),
+  );
   await page.goto("/login");
-  const field = page.getByRole("textbox", { name: "Password" });
-  const enter = page.getByRole("button", { name: "Enter" });
-  // A fill() that lands before React hydrates sets the native value without
-  // the component ever seeing it, so the gate's Enter — disabled while its
-  // state holds an empty password — never enables. Reload each retry because
-  // refilling the same pre-hydration node cannot update React's state.
-  await expect(async () => {
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(250);
-    await field.fill(password);
-    await expect(enter).toBeEnabled({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
+  await capabilities;
+  const field = page.getByLabel("Password", { exact: true });
+  const enter = page
+    .locator("form")
+    .getByRole("button", { name: "Enter household", exact: true });
+  await field.fill(password);
+  await expect(field).toHaveValue(password);
   await enter.click();
   await expect(
     page.getByRole("heading", { name: "Who’s reading?" }),

@@ -3,9 +3,7 @@
 # PDFs). data/library (chats, crops, canvases, inbox) is never exposed.
 #
 # Required env (put them in .env next to this file):
-#   AI_PROVIDER=claude-code|codex|anthropic|openai|ollama|llamacpp|vllm
 #   WEBDAV_USER / WEBDAV_PASS      credentials for PDF Expert
-#   PAPERNOOK_PASSWORD             the instance access password (only credential)
 # Optional:
 #   PAPERNOOK_WEBDAV_URL           public WebDAV HTTPS endpoint
 #   APP_HOST / WEBDAV_HOST         both default to 127.0.0.1. Caddy terminates
@@ -14,9 +12,8 @@
 #                                  trust: WebDAV speaks plaintext HTTP, so its
 #                                  password is readable on the wire.
 #   TRUSTED_PROXY_HOPS             proxies in front; 0 when exposed directly
-#   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST, ANTHROPIC_API_KEY, OPENAI_API_KEY
+#   CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST
 #   CLAUDE_AUTH_DIR / CODEX_AUTH_DIR override the Compose user's CLI homes
-#   OLLAMA_HOST / LLAMACPP_BASE_URL / VLLM_BASE_URL (models live in Settings)
 #   WEB_SEARCH_BASE_URL            custom SearXNG endpoint (bundled by default)
 #   SESSION_SECRET                 pin sessions across container rebuilds
 #   PAPERNOOK_IMAGE / PAPERNOOK_IMAGE_TAG
@@ -52,10 +49,6 @@ services:
     environment:
       HOSTNAME: 0.0.0.0
       PAPERNOOK_VERSION: ${PAPERNOOK_VERSION:-dev}
-      PAPERNOOK_PASSWORD: ${PAPERNOOK_PASSWORD:?PAPERNOOK_PASSWORD is required}
-      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
-      LLAMACPP_BASE_URL: ${LLAMACPP_BASE_URL:-http://host.docker.internal:8080}
-      VLLM_BASE_URL: ${VLLM_BASE_URL:-http://host.docker.internal:8000}
       WEB_SEARCH_BASE_URL: ${WEB_SEARCH_BASE_URL:-http://search:8080}
       PAPERNOOK_SSH_KEY_PATH: /home/node/.ssh/id_papernook
       PAPERNOOK_SSH_KNOWN_HOSTS_PATH: /home/node/.ssh/known_hosts

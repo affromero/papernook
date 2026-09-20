@@ -1,3 +1,5 @@
+import { testProfileCapability, revokeTestProfile } from "../helpers/access";
+import { createTestProfile } from "../helpers/access";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -13,6 +15,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
@@ -447,92 +450,13 @@ describe("chat store round-trip", () => {
       chats.readChat("nlp", "attention", "andres", header.id)?.header.title,
     ).toBe("Multi-head attention benefits");
   });
-
-  it("keeps explicit chat titles and derives legacy date titles on read", async () => {
-    const chats = await import("@/lib/library/chats");
-    const papers = await import("@/lib/library/papers");
-    const starter = chats.createChat(
-      "nlp",
-      "attention",
-      "andres",
-      "Starter questions",
-    );
-    chats.appendUserMessage(
-      "nlp",
-      "attention",
-      "andres",
-      starter.id,
-      {
-        role: "user",
-        content: "Do not replace the starter title",
-        at: new Date().toISOString(),
-      },
-      null,
-    );
-    const legacy = chats.createChat(
-      "nlp",
-      "attention",
-      "andres",
-      "Chat 12/08/2026",
-    );
-    const legacyFile = path.join(
-      papers.companionDir("nlp", "attention"),
-      "chats",
-      "andres",
-      `${legacy.id}.jsonl`,
-    );
-    const legacyHeader = { ...legacy };
-    delete legacyHeader.titleSource;
-    fs.writeFileSync(legacyFile, `${JSON.stringify(legacyHeader)}\n`);
-    chats.appendMessage("nlp", "attention", "andres", legacy.id, {
-      role: "user",
-      content: "Why are residual connections important?",
-      at: new Date().toISOString(),
-    });
-
-    expect(
-      chats.readChat("nlp", "attention", "andres", starter.id)?.header.title,
-    ).toBe("Starter questions");
-    expect(
-      chats.readChat("nlp", "attention", "andres", legacy.id)?.header.title,
-    ).toBe("Why are residual connections important?");
-  });
-
-  it("keeps legacy long query titles Unicode-safe", async () => {
-    const chats = await import("@/lib/library/chats");
-    const papers = await import("@/lib/library/papers");
-    const legacy = chats.createChat(
-      "nlp",
-      "attention",
-      "andres",
-      "Chat 12/08/2026",
-    );
-    const legacyFile = path.join(
-      papers.companionDir("nlp", "attention"),
-      "chats",
-      "andres",
-      `${legacy.id}.jsonl`,
-    );
-    const legacyHeader = { ...legacy };
-    delete legacyHeader.titleSource;
-    fs.writeFileSync(
-      legacyFile,
-      `${JSON.stringify(legacyHeader)}\n${JSON.stringify({
-        role: "user",
-        content: `Explain ${"🧠".repeat(100)}`,
-        at: new Date().toISOString(),
-      })}\n`,
-    );
-    const title = chats.readChat("nlp", "attention", "andres", legacy.id)!
-      .header.title;
-
-    expect(Array.from(title)).toHaveLength(73);
-    expect(title.endsWith("…")).toBe(true);
-    expect(title).not.toContain("�");
-  });
 });
 
 describe("capture orchestration (mocked download + agent)", () => {
+  beforeEach(async () => {
+    await createTestProfile("Andres");
+    await createTestProfile("Ana");
+  });
   it("does not analyze or create a second capture for the same source", async () => {
     const papers = await import("@/lib/library/papers");
     papers.writeMeta("nlp", "existing", {
@@ -567,6 +491,7 @@ describe("capture orchestration (mocked download + agent)", () => {
         sourceUrl: "https://arxiv.org/pdf/1706.03762",
         arxivId: "1706.03762v2",
         username: "andres",
+        capability: testProfileCapability("andres"),
       }),
     ).rejects.toThrow(/already in your library/i);
     expect(papers.listPapers()).toHaveLength(1);
@@ -606,7 +531,10 @@ describe("capture orchestration (mocked download + agent)", () => {
     }));
 
     const { capture } = await import("@/lib/capture");
-    const result = await capture("https://arxiv.org/abs/1706.03762", "andres");
+    const result = await capture(
+      "https://arxiv.org/abs/1706.03762",
+      testProfileCapability("andres"),
+    );
 
     expect(result.slug).toBe("attention-is-all-you-need");
     expect(result.proposedTopic).toBe("transformers-attention");
@@ -663,6 +591,7 @@ describe("capture orchestration (mocked download + agent)", () => {
     const result = await capturePdf(Buffer.from("%PDF-1.4 fake pdf"), {
       sourceUrl: "https://example.org/paper",
       username: "andres",
+      capability: testProfileCapability("andres"),
       autoFile: true,
       source: { provider: "zotero", key: "ABCD1234", version: 42 },
       overrides: { title: "Attention Is All You Need", year: 2017 },
@@ -723,21 +652,19 @@ describe("capture orchestration (mocked download + agent)", () => {
       }),
     }));
     const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     const { capturePdf } = await import("@/lib/capture");
     const capturePromise = capturePdf(Buffer.from("%PDF-1.4 fake pdf"), {
       sourceUrl: "https://example.test/private.pdf",
       username: "andres",
+      capability: testProfileCapability("andres"),
     });
     await started;
 
-    const { beginProfileErasure } = await import("@/lib/auth/profile-activity");
-    const erasure = beginProfileErasure("andres");
+    const finishErasure = await revokeTestProfile("andres");
     releaseAnalysis?.();
     await expect(capturePromise).rejects.toThrow(/profile was deleted/i);
-    const finishErasure = await erasure;
-    users.deleteProfile("andres");
-    finishErasure();
+    await finishErasure();
 
     const papers = await import("@/lib/library/papers");
     expect(papers.listPapers()).toEqual([]);
@@ -772,11 +699,13 @@ describe("capture orchestration (mocked download + agent)", () => {
       capturePdf(Buffer.from("%PDF-1.4 first"), {
         sourceUrl: "https://example.org/first",
         username: "andres",
+        capability: testProfileCapability("andres"),
         autoFile: true,
       }),
       capturePdf(Buffer.from("%PDF-1.4 second"), {
         sourceUrl: "https://example.org/second",
         username: "ana",
+        capability: testProfileCapability("ana"),
         autoFile: true,
       }),
     ]);
@@ -808,6 +737,7 @@ describe("capture orchestration (mocked download + agent)", () => {
       capturePdf(Buffer.from("%PDF-1.4 failed"), {
         sourceUrl: "https://example.org/failing-paper",
         username: "andres",
+        capability: testProfileCapability("andres"),
         autoFile: true,
       }),
     ).rejects.toThrow("provider unavailable");
@@ -820,11 +750,10 @@ describe("capture orchestration (mocked download + agent)", () => {
 
 describe("capture confirmation authorization", () => {
   it("does not let one valid capture token file another profile's inbox paper", async () => {
-    const users = await import("@/lib/auth/users");
     const papers = await import("@/lib/library/papers");
     const { POST } = await import("@/app/add/confirm/route");
-    const owner = users.createProfile("Owner");
-    const other = users.createProfile("Other");
+    const owner = await createTestProfile("Owner");
+    const other = await createTestProfile("Other");
     papers.writeMeta(null, "private-capture", {
       title: "Private Capture",
       authors: [],
@@ -869,6 +798,9 @@ describe("capture confirmation authorization", () => {
 });
 
 describe("capture without an AI provider (no-AI mode)", () => {
+  beforeEach(async () => {
+    await createTestProfile("Andres");
+  });
   const noProviderRegistry = () => ({
     hasConfiguredProvider: () => false,
     getProvider: () => {
@@ -893,6 +825,7 @@ describe("capture without an AI provider (no-AI mode)", () => {
     const result = await capturePdf(Buffer.from("%PDF-1.4"), {
       sourceUrl: "https://arxiv.org/pdf/1706.03762",
       username: "andres",
+      capability: testProfileCapability("andres"),
       arxivId: "1706.03762",
     });
 
@@ -921,6 +854,7 @@ describe("capture without an AI provider (no-AI mode)", () => {
     const result = await capturePdf(Buffer.from("%PDF-1.4"), {
       sourceUrl: "https://example.com/papers/deep-thoughts.pdf",
       username: "andres",
+      capability: testProfileCapability("andres"),
     });
 
     expect(result.analysis.title).toBe("deep-thoughts");

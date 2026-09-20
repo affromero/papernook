@@ -1,15 +1,23 @@
 import { z } from "zod";
 import {
-  getProfile,
   listProfiles,
   type ZoteroLibraryTarget,
   type ZoteroProfileConfig,
 } from "../auth/users";
-import { beginProfileActivity } from "../auth/profile-activity";
+import {
+  beginProfileActivity,
+  type ProfileActivity,
+} from "../auth/profile-activity";
+import {
+  profileCapability,
+  type ProfileCapability,
+} from "../auth/profile-capability";
+import { PapernookIdentityStore } from "../auth/identity-store";
+import { dataRoot } from "../data-dir";
 import { rebuildIndex } from "../library/index-db";
 import {
   listPapers,
-  writeMeta,
+  updateMeta,
   type CitationAuthor,
   type CitationMeta,
   type CitationType,
@@ -33,6 +41,13 @@ import {
   type ZoteroCatalogRecord,
 } from "./zotero-catalog";
 import { profileLockKey, withZoteroLock, ZoteroBusyError } from "./zotero-lock";
+import {
+  collectionSchema,
+  groupSchema,
+  itemSchema,
+  keyResponseSchema,
+  type ZoteroItemData,
+} from "./zotero/schemas";
 
 /**
  * Metadata-first Zotero bridge. Scheduled work refreshes only a compact,
@@ -45,103 +60,12 @@ const SYNC_INTERVAL_MS = 30 * 60 * 1000;
 
 export type ZoteroConfig = ZoteroProfileConfig;
 
-const boundedString = z.string().max(10_000);
-const permissionSchema = z
-  .object({
-    library: z.boolean().optional(),
-    files: z.boolean().optional(),
-  })
-  .passthrough();
-const keyResponseSchema = z.object({
-  userID: z.number().int().nonnegative(),
-  username: z.string().max(1_000).optional(),
-  access: z
-    .object({
-      user: permissionSchema.optional(),
-      groups: z.record(z.string(), permissionSchema).optional(),
-    })
-    .optional(),
-});
-
 export interface VerifiedZoteroKey {
   userId: string;
   username: string;
   personalLibrary: boolean;
   personalFiles: boolean;
 }
-
-const itemDataSchema = z.object({
-  key: z.string().min(1).max(64),
-  version: z.number().int().nonnegative(),
-  itemType: z.string().min(1).max(64),
-  parentItem: z.string().min(1).max(64).optional(),
-  contentType: z.string().max(256).optional(),
-  linkMode: z.string().max(64).optional(),
-  filename: z.string().max(1_000).optional(),
-  title: boundedString.optional(),
-  creators: z
-    .array(
-      z.object({
-        creatorType: z.string().max(64).optional(),
-        name: z.string().max(1_000).optional(),
-        firstName: z.string().max(1_000).optional(),
-        lastName: z.string().max(1_000).optional(),
-      }),
-    )
-    .max(500)
-    .optional(),
-  date: z.string().max(256).optional(),
-  publicationTitle: boundedString.optional(),
-  conferenceName: boundedString.optional(),
-  university: boundedString.optional(),
-  institution: boundedString.optional(),
-  url: boundedString.optional(),
-  DOI: z.string().max(1_000).optional(),
-  extra: boundedString.optional(),
-  volume: z.string().max(256).optional(),
-  issue: z.string().max(256).optional(),
-  pages: z.string().max(256).optional(),
-  publisher: boundedString.optional(),
-  place: boundedString.optional(),
-  abstractNote: boundedString.optional(),
-  language: z.string().max(256).optional(),
-  ISBN: z.string().max(256).optional(),
-  ISSN: z.string().max(256).optional(),
-  tags: z
-    .array(z.object({ tag: z.string().max(500) }))
-    .max(1_000)
-    .optional(),
-  collections: z.array(z.string().min(1).max(64)).max(1_000).optional(),
-  annotationType: z.string().max(64).optional(),
-  annotationText: z.string().max(50_000).optional(),
-  annotationComment: z.string().max(50_000).optional(),
-  annotationColor: z.string().max(64).optional(),
-  annotationPageLabel: z.string().max(256).optional(),
-  annotationSortIndex: z.string().max(256).optional(),
-});
-type ZoteroItemData = z.infer<typeof itemDataSchema>;
-
-const itemSchema = z.object({
-  key: z.string().min(1).max(64),
-  version: z.number().int().nonnegative(),
-  data: itemDataSchema,
-});
-const collectionSchema = z.object({
-  data: z.object({
-    key: z.string().min(1).max(64),
-    name: z.string().trim().min(1).max(1_000),
-    parentCollection: z
-      .union([z.string().min(1).max(64), z.literal(false)])
-      .optional(),
-  }),
-});
-
-const groupSchema = z.object({
-  id: z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]),
-  data: z.object({
-    name: z.string().trim().min(1).max(1_000),
-  }),
-});
 
 export interface ZoteroCollectionOption {
   key: string;
@@ -612,17 +536,17 @@ function refreshPaper(
 ): void {
   const overrides = overridesOf(item);
   const source = sourceOf(item, target, collections);
-  writeMeta(paper.topic, paper.slug, {
-    ...paper.meta,
+  updateMeta(paper.topic, paper.slug, (current) => ({
+    ...current,
     ...overrides,
-    sourceUrl: optional(item.url) ?? paper.meta.sourceUrl,
+    sourceUrl: optional(item.url) ?? current.sourceUrl,
     tags: mergeRefreshedTags(
-      paper.meta.tags,
-      paper.meta.source?.tags,
+      current.tags,
+      current.source?.tags,
       source.tags ?? [],
     ),
     source,
-  });
+  }));
 }
 
 function expandedCollectionKeys(
@@ -878,13 +802,14 @@ export function cancelProfileSync(username: string): void {
 }
 
 async function refreshCatalog(
-  username: string,
+  capability: ProfileCapability,
   cfg: ZoteroConfig,
   isCancelled: () => boolean,
 ): Promise<ZoteroSyncResult | null> {
+  const { username } = capability;
   const target = targetOf(cfg);
   const identity = libraryIdentity(target);
-  const catalog = await readZoteroCatalog(username);
+  const catalog = await readZoteroCatalog(capability);
   const previous = catalog.libraries[identity] ?? emptyLibrary(target);
   const previousVisible = previous.refreshedAt
     ? visibleParentRecords(cfg, previous).length
@@ -911,7 +836,7 @@ async function refreshCatalog(
     (item) => storedAttachmentKeys(library, item).length > 0,
   ).length;
   associateMaterializedPapers(username, target, library, catalog);
-  await writeZoteroCatalog(username, catalog);
+  await writeZoteroCatalog(capability, catalog);
   if (isCancelled()) return null;
   const refreshedPapers = refreshMaterializedPapers(username, target, library);
   if (refreshedPapers > 0) rebuildIndex();
@@ -930,18 +855,36 @@ async function refreshCatalog(
 /** Refresh compact metadata only; no PDF bytes or AI provider are touched. */
 export async function syncProfile(
   username: string,
+  admission?: ProfileCapability,
 ): Promise<ZoteroSyncResult | null> {
-  const profile = getProfile(username);
-  const cfg = profile?.zotero;
-  if (!profile || !cfg || inFlight.has(username)) return null;
-  const activity = beginProfileActivity(username);
-  if (!activity) return null;
-  const isCancelled = () => cancelled.has(username) || activity.cancelled();
+  if (inFlight.has(username)) return null;
   cancelled.delete(username);
   inFlight.add(username);
+  let activity: ProfileActivity | null = null;
   try {
-    const result = await withZoteroLock(profileLockKey(username), 0, () =>
-      refreshCatalog(username, cfg, isCancelled),
+    const snapshot = await new PapernookIdentityStore(dataRoot()).read();
+    const profile = snapshot.profiles.find(
+      (entry) => entry.username === username,
+    );
+    if (!profile || (admission && admission.username !== username)) return null;
+    activity = beginProfileActivity(
+      admission ?? profileCapability(snapshot, username),
+    );
+    if (!activity) return null;
+    const lease = activity;
+    const isCancelled = () => cancelled.has(username) || lease.cancelled();
+    const result = await withZoteroLock(
+      profileLockKey(username),
+      0,
+      async () => {
+        const current = await new PapernookIdentityStore(dataRoot()).read();
+        if (isCancelled()) return null;
+        const cfg = current.profiles.find(
+          (entry) => entry.username === username,
+        )?.zotero;
+        if (!cfg) return null;
+        return refreshCatalog(lease.capability, cfg, isCancelled);
+      },
     );
     if (!result || isCancelled()) return null;
     lastResults.set(username, result);
@@ -961,7 +904,7 @@ export async function syncProfile(
   } finally {
     inFlight.delete(username);
     cancelled.delete(username);
-    activity.finish();
+    activity?.finish();
   }
 }
 

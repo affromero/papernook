@@ -9,6 +9,7 @@ import {
   type CitationAuthor,
   type CitationMeta,
   type Paper,
+  type PaperMeta,
 } from "../papers";
 
 export const CITATION_FORMATS = [
@@ -52,7 +53,7 @@ const citationSchema = z.object({
   ISSN: z.string().max(256).optional(),
 });
 
-const legacyCslSchema = z.object({
+const importedCslSchema = z.object({
   type: z.enum(CITATION_TYPES).optional(),
   title: z.string().min(1).max(10_000).optional(),
   author: z.array(authorSchema).max(500).optional(),
@@ -139,39 +140,27 @@ function fromCitation(
   };
 }
 
-function parsedLegacyBibtex(paper: Paper, id: string): CslRecord | null {
-  if (!paper.meta.bibtex) return null;
+function parsedImportedBibtex(meta: PaperMeta): CitationMeta | null {
+  if (!meta.bibtex) return null;
   try {
-    const parsed = legacyCslSchema.safeParse(
-      new Cite(paper.meta.bibtex).data[0],
-    );
+    const parsed = importedCslSchema.safeParse(new Cite(meta.bibtex).data[0]);
     if (!parsed.success) return null;
     const record = parsed.data;
     return {
-      id,
-      "citation-key": id,
       type: record.type ?? "document",
-      title: record.title ?? paper.meta.title,
-      author:
+      authors:
         record.author ??
-        paper.meta.authors.map(
-          (literal) => ({ literal }) satisfies CitationAuthor,
-        ),
-      ...(record.issued
-        ? { issued: record.issued }
-        : paper.meta.year
-          ? { issued: { "date-parts": [[paper.meta.year]] } }
-          : {}),
+        meta.authors.map((literal) => ({ literal }) satisfies CitationAuthor),
       ...(record.DOI ? { DOI: record.DOI } : {}),
       ...(record["container-title"]
-        ? { "container-title": record["container-title"] }
+        ? { containerTitle: record["container-title"] }
         : {}),
       ...(record.volume ? { volume: record.volume } : {}),
       ...(record.issue ? { issue: record.issue } : {}),
-      ...(record.page ? { page: record.page } : {}),
+      ...(record.page ? { pages: record.page } : {}),
       ...(record.publisher ? { publisher: record.publisher } : {}),
       ...(record["publisher-place"]
-        ? { "publisher-place": record["publisher-place"] }
+        ? { publisherPlace: record["publisher-place"] }
         : {}),
       ...(record.abstract ? { abstract: record.abstract } : {}),
       ...(record.URL ? { URL: record.URL } : {}),
@@ -184,27 +173,29 @@ function parsedLegacyBibtex(paper: Paper, id: string): CslRecord | null {
   }
 }
 
-/** Canonical citation > legacy BibTeX > safe top-level display metadata. */
+/** Build the canonical citation object before metadata enters the runtime. */
+export function canonicalCitationMetadata(meta: PaperMeta): CitationMeta {
+  const existing = citationSchema.safeParse(meta.citation);
+  if (existing.success) return existing.data;
+  return (
+    parsedImportedBibtex(meta) ?? {
+      type: "document",
+      authors: meta.authors.map((literal) => ({ literal })),
+      ...(meta.venue ? { containerTitle: meta.venue } : {}),
+      ...(meta.sourceUrl ? { URL: meta.sourceUrl } : {}),
+    }
+  );
+}
+
+/** Convert canonical paper metadata to CSL. */
 export function paperToCsl(paper: Paper): CslRecord {
   const id = recordId(paper);
   const citation = citationSchema.safeParse(paper.meta.citation);
-  if (citation.success) return fromCitation(paper, id, citation.data);
-
-  const legacy = parsedLegacyBibtex(paper, id);
-  if (legacy) return legacy;
-
-  return {
-    id,
-    "citation-key": id,
-    type: "document",
-    title: paper.meta.title,
-    author: paper.meta.authors.map((literal) => ({ literal })),
-    ...(paper.meta.year
-      ? { issued: { "date-parts": [[paper.meta.year]] } }
-      : {}),
-    ...(paper.meta.venue ? { "container-title": paper.meta.venue } : {}),
-    ...(paper.meta.sourceUrl ? { URL: paper.meta.sourceUrl } : {}),
-  };
+  if (!citation.success)
+    throw new Error(
+      `Paper ${paper.slug} requires the canonical citation migration.`,
+    );
+  return fromCitation(paper, id, citation.data);
 }
 
 function records(papers: Paper[]): CslRecord[] {

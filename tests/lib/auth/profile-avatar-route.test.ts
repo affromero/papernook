@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestProfile, mockTestSession } from "../../helpers/access";
 
 let tmpDir: string;
 
@@ -13,20 +14,16 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
   vi.unstubAllEnvs();
   vi.clearAllMocks();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 async function routeAs(username: "ana" | "ben" | null) {
-  const users = await import("@/lib/auth/users");
-  const ana = users.getProfile("ana") ?? users.createProfile("Ana", "jaguar");
-  const ben = users.getProfile("ben") ?? users.createProfile("Ben", "toucan");
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () =>
-      username === "ana" ? ana : username === "ben" ? ben : null,
-  }));
+  await createTestProfile("Ana", "jaguar");
+  await createTestProfile("Ben", "toucan");
+  await mockTestSession(username);
   return import("@/app/api/v1/profiles/[username]/route");
 }
 
@@ -37,7 +34,11 @@ function request(
 ): NextRequest {
   return new NextRequest(`http://localhost/api/v1/profiles/${username}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://localhost",
+      ...headers,
+    },
     body: JSON.stringify(body),
   });
 }

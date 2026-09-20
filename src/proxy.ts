@@ -13,7 +13,6 @@ import { consumeRequestLimit } from "@/lib/auth/rate-limit";
 const PUBLIC_PATHS = new Set([
   "/login",
   "/api/v1/session",
-  "/api/v1/gate",
   "/api/v1/profiles",
   "/api/v1/health",
 ]);
@@ -68,7 +67,7 @@ export const config = {
   ],
 };
 
-export function proxy(request: NextRequest): NextResponse {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const csp = contentSecurityPolicy(nonce);
   const { pathname } = request.nextUrl;
@@ -106,6 +105,7 @@ export function proxy(request: NextRequest): NextResponse {
   }
   if (
     PUBLIC_PATHS.has(pathname) ||
+    /^\/api\/v1\/access\/[a-z-]+$/.test(pathname) ||
     pathname === "/add" ||
     pathname === "/add/confirm" ||
     pathname === "/add/status" ||
@@ -126,7 +126,7 @@ export function proxy(request: NextRequest): NextResponse {
     return response;
   }
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (token && verifySessionToken(token)) {
+  if (token && (await verifySessionToken(token))) {
     return continueRequest(request, csp);
   }
   if (pathname.startsWith("/api/")) {

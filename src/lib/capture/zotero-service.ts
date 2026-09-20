@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import {
   getProfile,
   setZoteroConfig,
@@ -9,6 +10,13 @@ import {
   type ProfileActivity,
 } from "../auth/profile-activity";
 import { listPapers, type Paper } from "../library/papers";
+import {
+  withProfileActivity,
+  withProfileFiles,
+  type ProfileCapability,
+} from "../auth/profile-capability";
+import { PapernookIdentityStore } from "../auth/identity-store";
+import { dataRoot } from "../data-dir";
 import { rebuildIndex } from "../library/index-db";
 import { capturePdf, removeOwnedCapture } from "./index";
 import {
@@ -108,61 +116,65 @@ function emptyPage(page: number, limit: number): ZoteroCatalogPage {
 }
 
 export async function listCatalogItems(
-  username: string,
+  capability: ProfileCapability,
   query: string,
   page: number,
   limit: number,
 ): Promise<ZoteroCatalogPage> {
-  const profile = getProfile(username);
-  if (!profile?.zotero) return emptyPage(page, limit);
-  const target = targetOf(profile.zotero);
-  const catalog = await readZoteroCatalog(username);
-  const library = catalog.libraries[libraryIdentity(target)];
-  if (!library) return emptyPage(page, limit);
-  const counts = annotationCounts(library);
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const entries = visibleParentRecords(profile.zotero, library)
-    .map((item): ZoteroCatalogEntry => {
-      const paper = paperForAssociation(
-        associationFor(catalog.associations, target, item.key),
+  const identity = new PapernookIdentityStore(dataRoot());
+  return withProfileActivity(identity, capability, async () => {
+    const { username } = capability;
+    const profile = getProfile(username);
+    if (!profile?.zotero) return emptyPage(page, limit);
+    const target = targetOf(profile.zotero);
+    const catalog = await readZoteroCatalog(capability);
+    const library = catalog.libraries[libraryIdentity(target)];
+    if (!library) return emptyPage(page, limit);
+    const counts = annotationCounts(library);
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const entries = visibleParentRecords(profile.zotero, library)
+      .map((item): ZoteroCatalogEntry => {
+        const paper = paperForAssociation(
+          associationFor(catalog.associations, target, item.key),
+        );
+        const yearMatch = item.date?.match(/\b(\d{4})\b/);
+        return {
+          key: item.key,
+          title:
+            optional(item.title) ?? optional(item.filename) ?? "Untitled PDF",
+          authors: citationAuthors(item).map(
+            (author) =>
+              author.literal ??
+              [author.given, author.family].filter(Boolean).join(" "),
+          ),
+          year: yearMatch ? Number(yearMatch[1]) : null,
+          annotationCount: counts.get(item.key) ?? 0,
+          hasStoredPdf: storedAttachmentKeys(library, item).length > 0,
+          imported: paper?.topic
+            ? { topic: paper.topic, slug: paper.slug }
+            : null,
+        };
+      })
+      .filter((item) => {
+        if (!normalizedQuery) return true;
+        return `${item.title} ${item.authors.join(" ")}`
+          .toLocaleLowerCase()
+          .includes(normalizedQuery);
+      })
+      .sort(
+        (a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key),
       );
-      const yearMatch = item.date?.match(/\b(\d{4})\b/);
-      return {
-        key: item.key,
-        title:
-          optional(item.title) ?? optional(item.filename) ?? "Untitled PDF",
-        authors: citationAuthors(item).map(
-          (author) =>
-            author.literal ??
-            [author.given, author.family].filter(Boolean).join(" "),
-        ),
-        year: yearMatch ? Number(yearMatch[1]) : null,
-        annotationCount: counts.get(item.key) ?? 0,
-        hasStoredPdf: storedAttachmentKeys(library, item).length > 0,
-        imported: paper?.topic
-          ? { topic: paper.topic, slug: paper.slug }
-          : null,
-      };
-    })
-    .filter((item) => {
-      if (!normalizedQuery) return true;
-      return `${item.title} ${item.authors.join(" ")}`
-        .toLocaleLowerCase()
-        .includes(normalizedQuery);
-    })
-    .sort(
-      (a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key),
-    );
-  const offset = (page - 1) * limit;
-  return {
-    items: entries.slice(offset, offset + limit),
-    total: entries.length,
-    importable: entries.filter((item) => item.hasStoredPdf).length,
-    imported: entries.filter((item) => item.imported).length,
-    page,
-    limit,
-    refreshedAt: library.refreshedAt,
-  };
+    const offset = (page - 1) * limit;
+    return withProfileFiles(identity, capability, () => ({
+      items: entries.slice(offset, offset + limit),
+      total: entries.length,
+      importable: entries.filter((item) => item.hasStoredPdf).length,
+      imported: entries.filter((item) => item.imported).length,
+      page,
+      limit,
+      refreshedAt: library.refreshedAt,
+    }));
+  });
 }
 
 export class ZoteroCatalogItemNotFoundError extends ZoteroError {}
@@ -185,7 +197,7 @@ async function importLocked(
     throw new ZoteroCatalogItemNotFoundError("Zotero is not connected.");
   }
   const target = targetOf(cfg);
-  const catalog = await readZoteroCatalog(username);
+  const catalog = await readZoteroCatalog(activity.capability);
   const library = catalog.libraries[libraryIdentity(target)];
   const item = library
     ? visibleParentRecords(cfg, library).find(
@@ -206,7 +218,7 @@ async function importLocked(
   const existing = existingPaperFor(username, target, item);
   if (existing?.topic) {
     associate(catalog, target, item.key, existing);
-    await writeZoteroCatalog(username, catalog);
+    await writeZoteroCatalog(activity.capability, catalog);
     return { created: false, topic: existing.topic, slug: existing.slug };
   }
   const attachmentKeys = storedAttachmentKeys(library, item);
@@ -241,6 +253,7 @@ async function importLocked(
         `https://www.zotero.org/${target.type === "user" ? "users" : "groups"}/${target.id}/items/${item.key}`,
       username,
       arxivId: arxivIdOf(item),
+      capability: activity.capability,
       autoFile: true,
       source: sourceOf(item, target, collectionMap(library)),
       overrides: overridesOf(item),
@@ -263,16 +276,17 @@ async function importLocked(
     throw new ZoteroError("Imported Zotero paper could not be found.");
   }
   associate(catalog, target, item.key, paper);
-  await writeZoteroCatalog(username, catalog);
+  await writeZoteroCatalog(activity.capability, catalog);
   rebuildIndex();
   return { created: true, topic: paper.topic, slug: paper.slug };
 }
 
 export async function importCatalogItem(
-  username: string,
+  capability: ProfileCapability,
   itemKey: string,
 ): Promise<ZoteroImportResult> {
-  const activity = beginProfileActivity(username);
+  const { username } = capability;
+  const activity = beginProfileActivity(capability);
   if (!activity) {
     throw new ZoteroCatalogItemNotFoundError(
       "The importing profile was deleted.",
@@ -310,85 +324,110 @@ function cleanAnnotation(value: string | undefined): string {
 }
 
 export async function annotationsForPaper(
-  username: string,
+  capability: ProfileCapability,
   paper: Paper,
 ): Promise<ZoteroAnnotationContext[]> {
-  const profile = getProfile(username);
-  const cfg = profile?.zotero;
-  if (!cfg || !paper.topic) return [];
-  const target = targetOf(cfg);
-  const catalog = await readZoteroCatalog(username);
-  const association = Object.values(catalog.associations).find(
-    (candidate) =>
-      candidate.libraryType === target.type &&
-      candidate.libraryId === target.id &&
-      candidate.topic === paper.topic &&
-      candidate.slug === paper.slug,
-  );
-  const library = catalog.libraries[libraryIdentity(target)];
-  if (!association || !library) return [];
-  const item = library.records[association.itemKey];
-  if (
-    !item ||
-    !visibleParentRecords(cfg, library).some(
-      (candidate) => candidate.key === association.itemKey,
-    )
-  ) {
-    return [];
-  }
-  const attachmentKeys = new Set(
-    attachmentsFor(library, item).map((attachment) => attachment.key),
-  );
-  const matching = [];
-  for (const record of Object.values(library.records)) {
+  const identity = new PapernookIdentityStore(dataRoot());
+  return withProfileActivity(identity, capability, async () => {
+    const { username } = capability;
+    const profile = getProfile(username);
+    const cfg = profile?.zotero;
+    if (!cfg || !paper.topic) return [];
+    const target = targetOf(cfg);
+    const catalog = await readZoteroCatalog(capability);
+    const association = Object.values(catalog.associations).find(
+      (candidate) =>
+        candidate.libraryType === target.type &&
+        candidate.libraryId === target.id &&
+        candidate.topic === paper.topic &&
+        candidate.slug === paper.slug,
+    );
+    const library = catalog.libraries[libraryIdentity(target)];
+    if (!association || !library) return [];
+    const item = library.records[association.itemKey];
     if (
-      record.itemType === "annotation" &&
-      record.parentItem &&
-      attachmentKeys.has(record.parentItem)
+      !item ||
+      !visibleParentRecords(cfg, library).some(
+        (candidate) => candidate.key === association.itemKey,
+      )
     ) {
-      matching.push(record);
-      if (matching.length >= MAX_ANNOTATION_RECORDS) break;
+      return [];
     }
-  }
-  matching.sort(
-    (a, b) =>
-      (a.annotationSortIndex ?? "").localeCompare(
-        b.annotationSortIndex ?? "",
-      ) || a.key.localeCompare(b.key),
-  );
-  const annotations: ZoteroAnnotationContext[] = [];
-  let chars = 0;
-  for (const record of matching) {
-    const annotation = {
-      pageLabel: optional(record.annotationPageLabel) ?? null,
-      text: cleanAnnotation(record.annotationText),
-      comment: cleanAnnotation(record.annotationComment),
-    };
-    if (!annotation.text && !annotation.comment) continue;
-    const nextChars =
-      chars +
-      annotation.text.length +
-      annotation.comment.length +
-      (annotation.pageLabel?.length ?? 0);
-    if (nextChars > MAX_ANNOTATION_CHARS) break;
-    chars = nextChars;
-    annotations.push(annotation);
-  }
-  return annotations;
-}
-
-export async function disconnectZotero(username: string): Promise<void> {
-  return withZoteroLock(profileLockKey(username), 0, async () => {
-    await deleteZoteroCatalog(username);
-    setZoteroConfig(username, null);
+    const attachmentKeys = new Set(
+      attachmentsFor(library, item).map((attachment) => attachment.key),
+    );
+    const matching = [];
+    for (const record of Object.values(library.records)) {
+      if (
+        record.itemType === "annotation" &&
+        record.parentItem &&
+        attachmentKeys.has(record.parentItem)
+      ) {
+        matching.push(record);
+        if (matching.length >= MAX_ANNOTATION_RECORDS) break;
+      }
+    }
+    matching.sort(
+      (a, b) =>
+        (a.annotationSortIndex ?? "").localeCompare(
+          b.annotationSortIndex ?? "",
+        ) || a.key.localeCompare(b.key),
+    );
+    const annotations: ZoteroAnnotationContext[] = [];
+    let chars = 0;
+    for (const record of matching) {
+      const annotation = {
+        pageLabel: optional(record.annotationPageLabel) ?? null,
+        text: cleanAnnotation(record.annotationText),
+        comment: cleanAnnotation(record.annotationComment),
+      };
+      if (!annotation.text && !annotation.comment) continue;
+      const nextChars =
+        chars +
+        annotation.text.length +
+        annotation.comment.length +
+        (annotation.pageLabel?.length ?? 0);
+      if (nextChars > MAX_ANNOTATION_CHARS) break;
+      chars = nextChars;
+      annotations.push(annotation);
+    }
+    return withProfileFiles(identity, capability, () => annotations);
   });
 }
 
+export async function disconnectZotero(
+  token: string,
+  capability: ProfileCapability,
+): Promise<void> {
+  const { username } = capability;
+  const identity = new PapernookIdentityStore(dataRoot());
+  return withProfileActivity(identity, capability, () =>
+    withZoteroLock(profileLockKey(username), 0, async () => {
+      await setZoteroConfig(username, null, token);
+      await deleteZoteroCatalog(capability);
+    }),
+  );
+}
+
+export class ZoteroConfigConflictError extends Error {
+  constructor() {
+    super("Zotero settings changed. Refresh and try again.");
+  }
+}
+
 export async function saveZoteroConfig(
-  username: string,
+  token: string,
+  capability: ProfileCapability,
   config: ZoteroProfileConfig,
+  expected: ZoteroProfileConfig | undefined,
 ): Promise<Profile> {
-  return withZoteroLock(profileLockKey(username), 0, async () =>
-    setZoteroConfig(username, config),
+  const { username } = capability;
+  const identity = new PapernookIdentityStore(dataRoot());
+  return withProfileActivity(identity, capability, () =>
+    withZoteroLock(profileLockKey(username), 0, async () => {
+      if (!isDeepStrictEqual(getProfile(username)?.zotero, expected))
+        throw new ZoteroConfigConflictError();
+      return setZoteroConfig(username, config, token);
+    }),
   );
 }

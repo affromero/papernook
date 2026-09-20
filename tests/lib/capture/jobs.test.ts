@@ -1,3 +1,5 @@
+import { testProfileCapability } from "../../helpers/access";
+import { createTestProfile } from "../../helpers/access";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -5,13 +7,15 @@ import path from "node:path";
 
 let tmpDir: string;
 
-beforeEach(() => {
+beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-jobs-"));
   process.env.PAPERNOOK_DATA_DIR = tmpDir;
   vi.resetModules();
+  await createTestProfile("Andres");
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.doUnmock("@/lib/capture/download");
   vi.doUnmock("@/lib/capture/analyze");
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -67,6 +71,46 @@ async function waitFor(check: () => boolean): Promise<void> {
 }
 
 describe("capture job markers", () => {
+  it("erases an interrupted temporary job publication containing a private source URL", async () => {
+    const jobs = await import("@/lib/capture/jobs");
+    jobs.writeCaptureJob({
+      slug: "interrupted",
+      state: "analyzing",
+      sourceUrl: "https://private.example/paper",
+      addedBy: "andres",
+      startedAt: new Date().toISOString(),
+    });
+    const file = path.join(tmpDir, "capture-jobs", "interrupted.json");
+    const temporary = `${file}.11111111-1111-4111-8111-111111111111.tmp`;
+    fs.renameSync(file, temporary);
+    jobs.sweepCaptureJobs("andres");
+    expect(fs.existsSync(temporary)).toBe(false);
+  });
+
+  it("reports incomplete erasure when temporary job ownership cannot be decoded", async () => {
+    const jobs = await import("@/lib/capture/jobs");
+    const root = path.join(tmpDir, "capture-jobs");
+    fs.mkdirSync(root, { recursive: true });
+    const temporary = path.join(
+      root,
+      "interrupted.json.11111111-1111-4111-8111-111111111111.tmp",
+    );
+    fs.writeFileSync(temporary, "{broken");
+    expect(() => jobs.sweepCaptureJobs("andres")).toThrow();
+    expect(fs.existsSync(temporary)).toBe(true);
+  });
+
+  it("does not report erasure complete when a capture record has unreadable ownership", async () => {
+    const jobs = await import("@/lib/capture/jobs");
+    const root = path.join(tmpDir, "capture-jobs");
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, "corrupt.json"), "{broken");
+    expect(() => jobs.sweepCaptureJobs("andres")).toThrow();
+    expect(fs.readFileSync(path.join(root, "corrupt.json"), "utf8")).toBe(
+      "{broken",
+    );
+  });
+
   it("round-trips markers and lists them per profile, newest first", async () => {
     const { ensureDataDirs } = await import("@/lib/data-dir");
     ensureDataDirs();
@@ -100,12 +144,15 @@ describe("capture job markers", () => {
     expect(jobs.readCaptureJob("newer")?.error).toBe("boom");
   });
 
-  it("recovers interrupted captures at boot and drops stale done markers", async () => {
+  it("recovers interrupted captures and preserves completed polling handles", async () => {
     const { ensureDataDirs } = await import("@/lib/data-dir");
     ensureDataDirs();
     const jobs = await import("@/lib/capture/jobs");
     jobs.writeCaptureJob({
       slug: "mid-flight",
+      jobId: "11111111-1111-4111-8111-111111111111",
+      pollingSlug: "mid-flight",
+      generation: testProfileCapability("andres").generation,
       state: "analyzing",
       sourceUrl: "https://a.io/1.pdf",
       addedBy: "andres",
@@ -123,7 +170,7 @@ describe("capture job markers", () => {
     const recovered = jobs.readCaptureJob("mid-flight");
     expect(recovered?.state).toBe("failed");
     expect(recovered?.error).toContain("restart");
-    expect(jobs.readCaptureJob("long-done")).toBeNull();
+    expect(jobs.readCaptureJob("long-done")?.state).toBe("done");
   });
 
   it("erasure sweep removes only the erased profile's markers", async () => {
@@ -190,12 +237,14 @@ describe("captureAsync", () => {
     await mockPipeline();
     const { ensureDataDirs } = await import("@/lib/data-dir");
     ensureDataDirs();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     const { captureAsync } = await import("@/lib/capture");
     const jobs = await import("@/lib/capture/jobs");
 
-    const { slug } = captureAsync("https://arxiv.org/abs/1706.03762", "andres");
+    const { slug } = await captureAsync(
+      "https://arxiv.org/abs/1706.03762",
+      testProfileCapability("andres"),
+    );
     expect(jobs.readCaptureJob(slug)?.state).toBe("analyzing");
 
     await waitFor(() => jobs.readCaptureJob(slug)?.state === "done");
@@ -212,8 +261,7 @@ describe("captureAsync", () => {
     await mockPipeline();
     const { ensureDataDirs } = await import("@/lib/data-dir");
     ensureDataDirs();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     const { capturePdf } = await import("@/lib/capture");
     const jobs = await import("@/lib/capture/jobs");
 
@@ -231,6 +279,7 @@ describe("captureAsync", () => {
     const result = await capturePdf(Buffer.from("%PDF-1.4 fake"), {
       sourceUrl: "https://arxiv.org/pdf/2209.03416",
       username: "andres",
+      capability: testProfileCapability("andres"),
       provisionalSlug: "2209-03416",
     });
     expect(result.slug).toBe("attention-is-all-you-need");
@@ -255,16 +304,27 @@ describe("captureAsync", () => {
     });
     const { ensureDataDirs } = await import("@/lib/data-dir");
     ensureDataDirs();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     const { captureAsync } = await import("@/lib/capture");
     const jobs = await import("@/lib/capture/jobs");
 
-    const first = captureAsync("https://a.io/x.pdf", "andres");
-    const second = captureAsync("https://a.io/x.pdf", "andres");
+    const first = await captureAsync(
+      "https://a.io/x.pdf",
+      testProfileCapability("andres"),
+    );
+    const second = await captureAsync(
+      "https://a.io/x.pdf",
+      testProfileCapability("andres"),
+    );
     expect(second.slug).toBe(first.slug);
+    expect(jobs.readCaptureJob(first.slug)?.generation).toBe(
+      testProfileCapability("andres").generation,
+    );
     release();
     await waitFor(() => jobs.readCaptureJob(first.slug)?.state === "done");
+    expect(jobs.readCaptureJob(first.slug)?.generation).toBe(
+      testProfileCapability("andres").generation,
+    );
   });
 
   it("records download failures as a failed marker with the real reason", async () => {
@@ -278,18 +338,20 @@ describe("captureAsync", () => {
     });
     const { ensureDataDirs } = await import("@/lib/data-dir");
     ensureDataDirs();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     const { captureAsync } = await import("@/lib/capture");
     const jobs = await import("@/lib/capture/jobs");
 
-    const { slug } = captureAsync("https://paywall.example/x.pdf", "andres");
+    const { slug } = await captureAsync(
+      "https://paywall.example/x.pdf",
+      testProfileCapability("andres"),
+    );
     await waitFor(() => jobs.readCaptureJob(slug)?.state === "failed");
     expect(jobs.readCaptureJob(slug)?.error).toBe(
       "The publisher blocks downloads.",
     );
     // The failed marker dir holds no PDF.
     const dir = path.join(tmpDir, "library", "_inbox", slug);
-    expect(fs.readdirSync(dir)).toEqual(["capture.json"]);
+    expect(fs.existsSync(dir)).toBe(false);
   });
 });

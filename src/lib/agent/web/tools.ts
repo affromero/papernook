@@ -70,14 +70,19 @@ function parseArguments(value: unknown): unknown {
   return value;
 }
 
-async function webSearch(argumentsValue: unknown): Promise<string> {
+async function webSearch(
+  argumentsValue: unknown,
+  signal?: AbortSignal,
+): Promise<string> {
   const { query } = searchArgs.parse(parseArguments(argumentsValue));
   const url = new URL("/search", searchBaseUrl());
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
   const response = await fetch(url, {
     headers: { accept: "application/json" },
-    signal: AbortSignal.timeout(20_000),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(20_000)])
+      : AbortSignal.timeout(20_000),
   });
   if (!response.ok) {
     throw new Error(`web_search failed with status ${response.status}`);
@@ -93,9 +98,12 @@ async function webSearch(argumentsValue: unknown): Promise<string> {
   );
 }
 
-async function webFetch(argumentsValue: unknown): Promise<string> {
+async function webFetch(
+  argumentsValue: unknown,
+  signal?: AbortSignal,
+): Promise<string> {
   const { url } = fetchArgs.parse(parseArguments(argumentsValue));
-  const fetched = await fetchPublicUrl(url);
+  const fetched = await fetchPublicUrl(url, signal);
   if (!fetched.response.ok) {
     await fetched.close();
     throw new Error(`web_fetch failed with status ${fetched.response.status}`);
@@ -140,8 +148,10 @@ async function webFetch(argumentsValue: unknown): Promise<string> {
 export async function executeWebTool(
   name: string,
   argumentsValue: unknown,
+  signal?: AbortSignal,
 ): Promise<string> {
-  if (name === "web_search") return webSearch(argumentsValue);
-  if (name === "web_fetch") return webFetch(argumentsValue);
+  signal?.throwIfAborted();
+  if (name === "web_search") return webSearch(argumentsValue, signal);
+  if (name === "web_fetch") return webFetch(argumentsValue, signal);
   throw new Error(`Unsupported web tool: ${name}`);
 }

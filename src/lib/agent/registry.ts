@@ -1,24 +1,25 @@
 import { spawn } from "node:child_process";
+import { ProcessRunner } from "thesidedoor-core/runtime/process";
+import { createHash } from "node:crypto";
+import { dataRoot } from "../data-dir";
+import { ProviderRegistry, type CredentialValues } from "thesidedoor-core/ai";
+import type { AgentConfig, AiState } from "./state";
 import {
   buildAgentInvocation,
+  agentProcessRequest,
+  minimalAgentEnvironment,
   getClaudeSshHost,
   getCodexSshHost,
 } from "./invocation";
 import { createClaudeInvocation, claudeCodeProvider } from "./claude-code";
 import { codexProvider } from "./codex";
+import { apiCredentials, provider as createApiProvider } from "./api";
+import { apiProviders } from "thesidedoor-core/ai/providers";
 import {
-  anthropicProvider,
-  llamacppProvider,
-  ollamaProvider,
-  openaiProvider,
-  vllmProvider,
-} from "./api";
-import {
-  configuredBaseUrl,
   configuredModel,
   configuredProviderOverride,
+  readAiState,
 } from "./config";
-import { compatibleBaseUrl, localProviderResponds } from "./local";
 import {
   PROVIDER_IDS,
   isLocalProvider,
@@ -27,34 +28,33 @@ import {
 } from "./types";
 /**
  * Provider registry. The active provider is chosen at install/wizard time via
- * AI_PROVIDER (never hardcoded; chosen by install.sh or the wizard):
+ * the canonical identity configuration (chosen by install.sh or the wizard):
  *   anthropic | openai      API key in env
  *   claude-code | codex     local CLI (keyless), or over SSH via
  *                           CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST
  *   ollama | llamacpp | vllm OpenAI-compatible local model servers
  */
 
-const PROVIDERS: Record<ProviderId, AgentProvider> = {
-  anthropic: anthropicProvider,
-  openai: openaiProvider,
-  "claude-code": claudeCodeProvider,
-  codex: codexProvider,
-  ollama: ollamaProvider,
-  llamacpp: llamacppProvider,
-  vllm: vllmProvider,
-};
+const PROVIDERS = Object.fromEntries(
+  PROVIDER_IDS.map((id) => [
+    id,
+    id === "claude-code"
+      ? claudeCodeProvider
+      : id === "codex"
+        ? codexProvider
+        : createApiProvider(id),
+  ]),
+) as Record<ProviderId, AgentProvider>;
 
 export function providerIds(): ProviderId[] {
   return [...PROVIDER_IDS];
 }
 
-export function configuredProviderId(): ProviderId {
-  const override = configuredProviderOverride();
+export function configuredProviderId(config?: AgentConfig): ProviderId {
+  const override = configuredProviderOverride(config);
   if (override && override in PROVIDERS) return override;
-  const id = process.env.AI_PROVIDER;
-  if (id && id in PROVIDERS) return id as ProviderId;
   throw new Error(
-    `AI_PROVIDER must be one of ${providerIds().join(", ")}: got ${JSON.stringify(id ?? null)}. Run the setup wizard.`,
+    `Select one of ${providerIds().join(", ")} in the setup wizard.`,
   );
 }
 
@@ -66,10 +66,9 @@ export function configuredProviderId(): ProviderId {
  * still counts as configured on purpose — that misconfiguration must fail
  * loudly through getProvider(), never silently degrade into no-AI mode.
  */
-export function hasConfiguredProvider(): boolean {
-  const override = configuredProviderOverride();
-  const id =
-    override && override in PROVIDERS ? override : process.env.AI_PROVIDER;
+export function hasConfiguredProvider(config?: AgentConfig): boolean {
+  const override = configuredProviderOverride(config);
+  const id = override && override in PROVIDERS ? override : undefined;
   return Boolean(id && id in PROVIDERS);
 }
 
@@ -81,12 +80,29 @@ export function getProvider(id?: ProviderId): AgentProvider {
 /**
  * Lightweight CLI probe locally or over SSH, with a short timeout.
  */
-function cliResponds(
-  cli: string,
+async function cliResponds(
+  cli: "claude" | "codex",
   cliArgs: string[],
   sshHost?: string,
   env?: NodeJS.ProcessEnv,
 ): Promise<boolean> {
+  if (sshHost) {
+    try {
+      await new ProcessRunner().execute(
+        agentProcessRequest({
+          cli,
+          args: cliArgs,
+          input: "",
+          sshHost,
+          environment: minimalAgentEnvironment([]),
+          timeoutMs: 10_000,
+        }),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
   const { command, args } = buildAgentInvocation(cli, cliArgs, sshHost);
   return new Promise((resolve) => {
     const child = spawn(command, args, {
@@ -108,8 +124,11 @@ function cliResponds(
   });
 }
 
-export async function isProviderAvailable(id: ProviderId): Promise<boolean> {
-  return (await providerStatus(id)) === "ready";
+export async function isProviderAvailable(
+  id: ProviderId,
+  state = readAiState(),
+): Promise<boolean> {
+  return (await providerStatus(id, state)) === "ready";
 }
 
 /**
@@ -148,27 +167,13 @@ export type ProviderReadiness =
 
 export async function providerStatus(
   id: ProviderId,
+  state: AiState = readAiState(),
+  credentials?: CredentialValues,
 ): Promise<ProviderReadiness> {
-  if (isLocalProvider(id)) {
-    if (!(await localProviderResponds(id))) return "unreachable";
-    return configuredModel() ? "ready" : "no_model";
-  }
+  const values =
+    credentials ??
+    (id === "codex" || id === "claude-code" ? {} : apiCredentials(id, state));
   switch (id) {
-    case "anthropic":
-      return process.env.ANTHROPIC_API_KEY ? "ready" : "no_key";
-    case "openai":
-      if (configuredBaseUrl("openai")) {
-        try {
-          const response = await fetch(
-            `${compatibleBaseUrl("openai")}/models`,
-            { signal: AbortSignal.timeout(3_000) },
-          );
-          return response.ok ? "ready" : "unreachable";
-        } catch {
-          return "unreachable";
-        }
-      }
-      return process.env.OPENAI_API_KEY ? "ready" : "no_key";
     case "claude-code": {
       const ssh = getClaudeSshHost();
       // The probe spawns the CLI too, so it needs the same isolated config
@@ -196,31 +201,73 @@ export async function providerStatus(
         ? "ready"
         : "not_authenticated";
     }
+    default:
+      return apiProviderStatus(id, values, state);
   }
 }
 
-let statusCache: {
-  at: number;
-  statuses: Record<ProviderId, ProviderReadiness>;
-} | null = null;
+async function apiProviderStatus(
+  id: Exclude<ProviderId, "claude-code" | "codex">,
+  credentials: CredentialValues,
+  state: AiState,
+): Promise<ProviderReadiness> {
+  const registry = new ProviderRegistry({
+    providers: apiProviders(),
+    credentials: {
+      async resolve() {
+        return { ...credentials };
+      },
+    },
+  });
+  const readiness = await registry.readiness(id, AbortSignal.timeout(3_000));
+  if (readiness.code === "missing_credentials") return "no_key";
+  if (readiness.code === "not_authenticated") return "not_authenticated";
+  if (readiness.code !== "ready") return "unreachable";
+  if (isLocalProvider(id) && !configuredModel(state.selection))
+    return "no_model";
+  return "ready";
+}
+
+const statusCache = new Map<
+  string,
+  {
+    at: number;
+    statuses: Record<ProviderId, ProviderReadiness>;
+  }
+>();
 
 /** Statuses for every provider, probed in parallel, cached for 60s. */
-export async function allProviderStatuses(): Promise<
-  Record<ProviderId, ProviderReadiness>
-> {
-  if (statusCache && Date.now() - statusCache.at < 60_000) {
-    return statusCache.statuses;
-  }
+export async function allProviderStatuses(
+  state: AiState = readAiState(),
+): Promise<Record<ProviderId, ProviderReadiness>> {
   const ids = providerIds();
-  const results = await Promise.all(ids.map((id) => providerStatus(id)));
+  const credentials = ids.map((id) =>
+    id === "codex" || id === "claude-code" ? {} : apiCredentials(id, state),
+  );
+  const fingerprint = createHash("sha256")
+    .update(
+      JSON.stringify({
+        credentials,
+        codex: getCodexSshHost(),
+        claude: getClaudeSshHost(),
+      }),
+    )
+    .digest("hex");
+  const key = `${dataRoot()}:${state.revision}:${fingerprint}`;
+  const cached = statusCache.get(key);
+  if (cached && Date.now() - cached.at < 60_000) return cached.statuses;
+  const results = await Promise.all(
+    ids.map((id, index) => providerStatus(id, state, credentials[index])),
+  );
   const statuses = Object.fromEntries(
     ids.map((id, i) => [id, results[i]]),
   ) as Record<ProviderId, ProviderReadiness>;
-  statusCache = { at: Date.now(), statuses };
+  if (statusCache.size > 100) statusCache.clear();
+  statusCache.set(key, { at: Date.now(), statuses });
   return statuses;
 }
 
 /** Test hook / post-save refresh: drop the cached statuses. */
 export function resetProviderStatusCache(): void {
-  statusCache = null;
+  statusCache.clear();
 }

@@ -1,3 +1,8 @@
+import {
+  createTestProfile,
+  mockTestSession,
+  revokeTestProfile,
+} from "../../helpers/access";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -14,7 +19,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -50,10 +55,9 @@ async function placePaper(topic: string, slug: string): Promise<void> {
   fs.writeFileSync(pdf, "%PDF-1.4 fake");
 }
 
-function signedInAs(username: string | null): void {
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => (username ? { username } : null),
-  }));
+async function signedInAs(username: string | null): Promise<void> {
+  if (username) await createTestProfile(username);
+  await mockTestSession(username);
 }
 
 const routeParams = (topic: string, slug: string) => ({
@@ -127,8 +131,43 @@ describe("positions store", () => {
 });
 
 describe("position route", () => {
+  it("does not save a delayed position into a recreated profile", async () => {
+    await placePaper("ml", "paper");
+    await signedInAs("andres");
+    const route =
+      await import("@/app/api/v1/papers/[topic]/[slug]/position/route");
+    let reading!: () => void;
+    const started = new Promise<void>((resolve) => {
+      reading = resolve;
+    });
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const body = new ReadableStream<Uint8Array>({
+      start(value) {
+        controller = value;
+      },
+    });
+    const request = putRequest({});
+    Object.defineProperty(request, "body", {
+      get() {
+        reading();
+        return body;
+      },
+    });
+    const response = route.PUT(request, routeParams("ml", "paper"));
+    await started;
+    await (
+      await revokeTestProfile("andres")
+    )();
+    await createTestProfile("andres");
+    controller.enqueue(new TextEncoder().encode(JSON.stringify(position())));
+    controller.close();
+    expect((await response).status).toBe(401);
+    const { readPosition } = await import("@/lib/library/positions/store");
+    expect(readPosition("ml", "paper", "andres")).toBeNull();
+  });
+
   it("requires a session", async () => {
-    signedInAs(null);
+    await signedInAs(null);
     const route =
       await import("@/app/api/v1/papers/[topic]/[slug]/position/route");
     expect(
@@ -146,7 +185,7 @@ describe("position route", () => {
   });
 
   it("404s for an unknown paper and 400s for bad params", async () => {
-    signedInAs("andres");
+    await signedInAs("andres");
     const route =
       await import("@/app/api/v1/papers/[topic]/[slug]/position/route");
     expect(
@@ -169,7 +208,7 @@ describe("position route", () => {
 
   it("PUT stores and GET returns the profile's position", async () => {
     await placePaper("ml", "paper");
-    signedInAs("andres");
+    await signedInAs("andres");
     const route =
       await import("@/app/api/v1/papers/[topic]/[slug]/position/route");
 
@@ -192,7 +231,7 @@ describe("position route", () => {
 
   it("never shows one profile another profile's position", async () => {
     await placePaper("ml", "paper");
-    signedInAs("andres");
+    await signedInAs("andres");
     let route =
       await import("@/app/api/v1/papers/[topic]/[slug]/position/route");
     await route.PUT(
@@ -200,8 +239,8 @@ describe("position route", () => {
       routeParams("ml", "paper"),
     );
 
-    vi.doUnmock("@/lib/auth/session");
-    signedInAs("guest");
+    vi.doUnmock("next/headers");
+    await signedInAs("guest");
     vi.resetModules();
     route = await import("@/app/api/v1/papers/[topic]/[slug]/position/route");
     const asGuest = await route.GET(
@@ -213,7 +252,7 @@ describe("position route", () => {
 
   it("rejects an invalid body", async () => {
     await placePaper("ml", "paper");
-    signedInAs("andres");
+    await signedInAs("andres");
     const route =
       await import("@/app/api/v1/papers/[topic]/[slug]/position/route");
     for (const body of [

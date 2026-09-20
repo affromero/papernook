@@ -2,7 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { z } from "zod";
-import { usersRoot } from "@/lib/data-dir";
+import { usersRoot, dataRoot } from "@/lib/data-dir";
+import {
+  acquireFileLockSync,
+  FileLockBusyError,
+} from "thesidedoor-core/storage";
 import { assertSlug } from "@/lib/library/slug";
 import type { Chat, ChatMessage } from "@/lib/library/chats";
 
@@ -119,13 +123,18 @@ export function updateConversation(
   );
   return getConversation(username, id)!;
 }
-const busy = new Set<string>();
 export function lockConversation(username: string, id: string): () => void {
-  const key = directory(username, id);
-  if (busy.has(key))
-    throw new Error("A reply is already running. Wait for it to finish.");
-  busy.add(key);
-  return () => busy.delete(key);
+  assertSlug(username);
+  assertSlug(id);
+  try {
+    return acquireFileLockSync(
+      path.join(dataRoot(), "locks", "conversations", username, `${id}.guard`),
+    );
+  } catch (error) {
+    if (error instanceof FileLockBusyError)
+      throw new Error("A reply is already running. Wait for it to finish.");
+    throw error;
+  }
 }
 export function deleteConversation(username: string, id: string): void {
   const release = lockConversation(username, id);

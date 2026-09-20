@@ -12,8 +12,11 @@ let pdfRestore:
 
 async function passGate(page: Page): Promise<void> {
   await page.goto("/login");
-  await page.getByRole("textbox", { name: "Password" }).fill(password);
-  await page.getByRole("button", { name: "Enter" }).click();
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page
+    .locator("form")
+    .getByRole("button", { name: "Enter household", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Who’s reading?" }),
   ).toBeVisible();
@@ -86,10 +89,17 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.goto("/login");
     await expect(page.getByText("Maya")).not.toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Enter the access password" }),
+      page.getByRole("heading", { name: "Open your library" }),
     ).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Password" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Enter" })).toBeDisabled();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await page
+      .locator("form")
+      .getByRole("button", { name: "Enter household", exact: true })
+      .click();
+    await expect(page).toHaveURL("/login");
+    await expect(
+      page.getByRole("button", { name: "Switch to Maya" }),
+    ).toHaveCount(0);
     await expect(page).toHaveScreenshot(["setup", "access-gate.png"], {
       animations: "disabled",
       // Protect the documented layout while allowing Linux/macOS font
@@ -97,15 +107,21 @@ test.describe.serial("documentation journeys and screenshots", () => {
       maxDiffPixelRatio: 0.02,
     });
 
+    await page.getByLabel("Password", { exact: true }).fill("wrong-password");
     await page
-      .getByRole("textbox", { name: "Password" })
-      .fill("wrong-password");
-    await page.getByRole("button", { name: "Enter" }).click();
+      .locator("form")
+      .getByRole("button", { name: "Enter household", exact: true })
+      .click();
     await expect(
-      page.getByText("Wrong password.", { exact: true }),
+      page
+        .getByRole("alert")
+        .filter({ hasText: "The credentials could not be verified." }),
     ).toBeVisible();
-    await page.getByRole("textbox", { name: "Password" }).fill(password);
-    await page.getByRole("button", { name: "Enter" }).click();
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page
+      .locator("form")
+      .getByRole("button", { name: "Enter household", exact: true })
+      .click();
 
     const avatar = page
       .getByRole("button", { name: "Switch to Maya" })

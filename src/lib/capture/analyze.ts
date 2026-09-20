@@ -256,12 +256,14 @@ export async function analyzePaper(
   sourceUrl: string,
   text: string,
   arxivId?: string | null,
+  metricOwner?: import("../auth/profile-capability").ProfileCapability,
 ): Promise<Analysis> {
   if (!hasConfiguredProvider()) {
     return fallbackAnalysis(sourceUrl, text, arxivId ?? null);
   }
   const { system, prompt } = analysisPrompt(sourceUrl, text);
   const raw = await getProvider().execute({
+    metricOwner,
     system,
     prompt,
     responseFormat: "json_object",

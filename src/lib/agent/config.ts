@@ -1,113 +1,114 @@
-import fs from "node:fs";
-import path from "node:path";
 import { dataRoot } from "../data-dir";
 import type { ProviderId } from "./types";
+import {
+  PROVIDER_METADATA,
+  providerDescriptors,
+  modelSuggestions as sharedModelSuggestions,
+} from "thesidedoor-core/ai/catalog";
+import { AccessError, AccessService } from "thesidedoor-core/access";
+import { PapernookIdentityStore } from "../auth/identity-store";
+import { applyAiConfiguration } from "./platform/vault";
+import {
+  AGENT_EFFORTS,
+  AI_STATE_READY,
+  AI_CREDENTIALS_READY,
+  type AgentConfig,
+  type AgentSelectionUpdate,
+  type AgentEffort,
+} from "./state";
+export { AGENT_EFFORTS, type AgentEffort } from "./state";
 
 /**
- * Runtime agent configuration the admin edits from Settings, stored at
- * data/agent-config.json (filesystem truth) — the single source for model
- * and capability choices; install.sh seeds it and Settings edits it. Suggestions are a convenience list, not a restriction; any model
- * string the provider accepts is valid.
+ * Runtime selection shares the identity envelope so owner authorization and
+ * configuration changes commit together. Suggested models remain optional.
  */
-
-interface AgentConfig {
-  provider?: ProviderId;
-  model?: string;
-  effort?: AgentEffort;
-  baseUrl?: string;
-  /** Admin override; web-capable providers default to allowing web search. */
-  webAccess?: boolean;
-}
-
-export const AGENT_EFFORTS = [
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-  "ultra",
-] as const;
-
-export type AgentEffort = (typeof AGENT_EFFORTS)[number];
 
 export function isAgentEffort(value: unknown): value is AgentEffort {
   return AGENT_EFFORTS.includes(value as AgentEffort);
 }
 
-const FILE = () => path.join(dataRoot(), "agent-config.json");
+export function readAiState() {
+  const state = new PapernookIdentityStore(dataRoot()).readSnapshot().ai;
+  if (
+    !state.imports.includes(AI_STATE_READY) ||
+    !state.imports.includes(AI_CREDENTIALS_READY)
+  )
+    throw new Error(
+      "Run the local access migration before using AI configuration.",
+    );
+  return state;
+}
 
 export function readAgentConfig(): AgentConfig {
-  try {
-    return JSON.parse(fs.readFileSync(FILE(), "utf8")) as AgentConfig;
-  } catch {
-    return {};
-  }
+  return readAiState().selection;
 }
 
-function writeConfig(config: AgentConfig): void {
-  fs.mkdirSync(dataRoot(), { recursive: true });
-  const tmp = `${FILE()}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(config, null, 2));
-  fs.renameSync(tmp, FILE());
+export async function updateAgentConfig(
+  update: AgentSelectionUpdate,
+  authorization: { token: string; expectedRevision: number },
+  credentials?: Record<string, string | number | boolean | null>,
+  resetCredentials = false,
+): Promise<void> {
+  const identity = new PapernookIdentityStore(dataRoot());
+  const access = new AccessService({ store: identity.accessStore() });
+  await identity.transact((state) => {
+    access.sessionFromState(
+      state.access,
+      authorization.token,
+      true,
+      resetCredentials ||
+        credentials !== undefined ||
+        update.baseUrl !== undefined ||
+        update.provider !== undefined,
+    );
+    if (!state.ai.imports.includes(AI_STATE_READY))
+      throw new Error(
+        "Run the local access migration before changing AI configuration.",
+      );
+    if (state.ai.revision !== authorization.expectedRevision)
+      throw new AccessError(
+        "conflict",
+        "AI settings changed. Refresh before saving.",
+      );
+    applyAiConfiguration(
+      state.ai,
+      update,
+      dataRoot(),
+      credentials,
+      resetCredentials,
+    );
+  });
 }
 
-export function setAgentModel(model: string | null): void {
-  updateAgentConfig({ model });
-}
-
-/**
- * Apply an admin selection in one atomic filesystem write. Switching provider
- * clears provider-specific model and endpoint values before applying any
- * values included in the same update.
- */
-export function updateAgentConfig(update: {
-  provider?: ProviderId | null;
-  model?: string | null;
-  effort?: AgentEffort | null;
-  baseUrl?: string | null;
-  webAccess?: boolean | null;
-}): void {
-  const config = readAgentConfig();
-  if (update.provider !== undefined) {
-    if (update.provider) config.provider = update.provider;
-    else delete config.provider;
-    delete config.model;
-    delete config.effort;
-    delete config.baseUrl;
-  }
-  if (update.model !== undefined) {
-    delete config.effort;
-    if (update.model) config.model = update.model;
-    else delete config.model;
-  }
-  if (update.effort !== undefined) {
-    if (update.effort) config.effort = update.effort;
-    else delete config.effort;
-  }
-  if (update.baseUrl !== undefined) {
-    if (update.baseUrl) config.baseUrl = update.baseUrl;
-    else delete config.baseUrl;
-  }
-  if (update.webAccess === null) {
-    delete config.webAccess;
-  } else if (update.webAccess !== undefined) {
-    config.webAccess = update.webAccess;
-  }
-  writeConfig(config);
+export async function selectDetectedProvider(
+  token: string,
+  provider: "codex" | "claude-code",
+): Promise<{ selected: boolean; revision: number }> {
+  const identity = new PapernookIdentityStore(dataRoot());
+  const access = new AccessService({ store: identity.accessStore() });
+  return identity.transact((state) => {
+    access.sessionFromState(state.access, token, true);
+    if (!state.ai.imports.includes(AI_STATE_READY))
+      throw new Error(
+        "Run the local access migration before changing AI configuration.",
+      );
+    if (state.ai.selection.provider)
+      return { selected: false, revision: state.ai.revision };
+    applyAiConfiguration(state.ai, { provider }, dataRoot());
+    return { selected: true, revision: state.ai.revision };
+  });
 }
 
 /** Web-capable turns are enabled unless an admin explicitly opts out. */
-export function webAccessEnabled(): boolean {
-  return readAgentConfig().webAccess !== false;
+export function webAccessEnabled(config = readAgentConfig()): boolean {
+  return config.webAccess !== false;
 }
 
-export function setAgentProvider(provider: ProviderId | null): void {
-  updateAgentConfig({ provider });
-}
-
-/** Admin-selected provider, before the AI_PROVIDER env fallback. */
-export function configuredProviderOverride(): ProviderId | undefined {
-  return readAgentConfig().provider;
+/** Admin-selected provider from the canonical identity envelope. */
+export function configuredProviderOverride(
+  config = readAgentConfig(),
+): ProviderId | undefined {
+  return config.provider;
 }
 
 /**
@@ -115,13 +116,17 @@ export function configuredProviderOverride(): ProviderId | undefined {
  * (agent-config.json) is the single source — install.sh seeds the same file,
  * and there are no per-provider env fallbacks.
  */
-export function configuredModel(): string | undefined {
-  return readAgentConfig().model || undefined;
+export function configuredModel(
+  config = readAgentConfig(),
+): string | undefined {
+  return config.model || undefined;
 }
 
 /** Explicit thinking effort, or undefined for the model/provider default. */
-export function configuredEffort(): AgentEffort | undefined {
-  return readAgentConfig().effort || undefined;
+export function configuredEffort(
+  config = readAgentConfig(),
+): AgentEffort | undefined {
+  return config.effort || undefined;
 }
 
 /** Curated fallback when a CLI cannot report model-specific effort levels. */
@@ -133,60 +138,32 @@ export function effortSuggestions(provider: ProviderId): AgentEffort[] {
   return [];
 }
 
-const DEFAULT_BASE_URLS = {
-  ollama: "http://localhost:11434",
-  llamacpp: "http://localhost:8080",
-  vllm: "http://localhost:8000",
-} as const;
-
 /** The explicitly stored URL for the active provider, if one exists. */
-export function storedBaseUrl(provider: ProviderId): string | undefined {
-  const config = readAgentConfig();
+export function storedBaseUrl(
+  provider: ProviderId,
+  config = readAgentConfig(),
+): string | undefined {
   if (config.provider !== provider) return undefined;
   return config.baseUrl;
 }
 
-/** Effective URL: admin file → provider env → local provider default. */
-export function configuredBaseUrl(provider: ProviderId): string | undefined {
-  const stored = storedBaseUrl(provider);
+/** Display the saved endpoint or the shared provider environment/default. */
+export function configuredBaseUrl(
+  provider: ProviderId,
+  config = readAgentConfig(),
+): string | undefined {
+  const stored = storedBaseUrl(provider, config);
   if (stored) return stored;
-  const envVar: Partial<Record<ProviderId, string>> = {
-    openai: "OPENAI_BASE_URL",
-    ollama: "OLLAMA_HOST",
-    llamacpp: "LLAMACPP_BASE_URL",
-    vllm: "VLLM_BASE_URL",
-  };
-  const fromEnv = envVar[provider]
-    ? process.env[envVar[provider] as string]
-    : undefined;
-  if (fromEnv) return fromEnv;
-  return provider in DEFAULT_BASE_URLS
-    ? DEFAULT_BASE_URLS[provider as keyof typeof DEFAULT_BASE_URLS]
+  const descriptor = providerDescriptors().find(
+    (entry) => entry.id === provider,
+  );
+  if (!descriptor) return undefined;
+  return descriptor.transport === "local"
+    ? PROVIDER_METADATA[provider]?.defaultBaseUrl?.replace(/\/v1\/?$/, "")
     : undefined;
 }
 
 /** Suggested models per provider (free-text stays allowed). */
 export function modelSuggestions(provider: ProviderId): string[] {
-  switch (provider) {
-    case "claude-code":
-      // Per `claude --help`, these aliases track the latest release in each
-      // tier. Exact model ids remain available through the custom model field.
-      return ["fable", "opus", "sonnet", "haiku"];
-    case "codex":
-      return ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"];
-    case "anthropic":
-      return [
-        "claude-fable-5",
-        "claude-opus-4-8",
-        "claude-sonnet-5",
-        "claude-haiku-4-5",
-      ];
-    case "openai":
-      return ["gpt-5.5", "gpt-5.5-mini"];
-    case "ollama":
-      return ["qwen3:4b", "qwen3:8b", "gemma3:4b"];
-    case "llamacpp":
-    case "vllm":
-      return [];
-  }
+  return sharedModelSuggestions(provider, "document");
 }

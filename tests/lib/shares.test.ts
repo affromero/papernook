@@ -1,20 +1,34 @@
+import {
+  createTestProfile,
+  deleteTestProfile,
+  mockTestSession,
+  revokeTestProfile,
+  testProfileCapability,
+} from "../helpers/access";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
+import {
+  acquireFileLockSync,
+  FileLockBusyError,
+} from "thesidedoor-core/storage";
 import { renderToStaticMarkup } from "react-dom/server";
 
 let tmpDir: string;
 
-beforeEach(() => {
+beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-share-"));
   process.env.PAPERNOOK_DATA_DIR = tmpDir;
   process.env.SESSION_SECRET = "s".repeat(64);
   vi.resetModules();
+  await createTestProfile("Ana");
 });
 
 afterEach(() => {
+  vi.doUnmock("next/headers");
+  vi.unstubAllEnvs();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -60,12 +74,142 @@ async function conversation(username: string, image?: string) {
 }
 
 describe("view-only paper shares", () => {
+  it("erases private snapshots left in temporary files after interrupted publication", async () => {
+    const paper = await placePaper();
+    const shares = await import("@/lib/library/shares");
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [],
+    );
+    const file = path.join(paper.companionDir, "shares", `${share.id}.json`);
+    const temporary = path.join(
+      paper.companionDir,
+      "shares",
+      `.${share.id}.11111111-1111-4111-8111-111111111111.tmp`,
+    );
+    fs.renameSync(file, temporary);
+    shares.deleteSharesByOwner("ana");
+    expect(fs.existsSync(temporary)).toBe(false);
+  });
+
+  it("erases share snapshots from a companion whose PDF move was interrupted", async () => {
+    const paper = await placePaper();
+    const shares = await import("@/lib/library/shares");
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [],
+    );
+    const destination = path.join(tmpDir, "library", "moved", "attention");
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.renameSync(paper.companionDir, destination);
+    shares.deleteSharesByOwner("ana");
+    expect(
+      fs.existsSync(path.join(destination, "shares", `${share.id}.json`)),
+    ).toBe(false);
+  });
+
+  it("retains unreadable share records and reports incomplete erasure", async () => {
+    const paper = await placePaper();
+    const shares = await import("@/lib/library/shares");
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [],
+    );
+    const file = path.join(paper.companionDir, "shares", `${share.id}.json`);
+    fs.writeFileSync(file, "{broken");
+    expect(() => shares.deleteSharesByOwner("ana")).toThrow();
+    expect(fs.readFileSync(file, "utf8")).toBe("{broken");
+  });
+
+  it("rejects direct share creation using a replaced profile's capability", async () => {
+    await placePaper();
+    const capability = testProfileCapability("ana");
+    await deleteTestProfile("ana");
+    await createTestProfile("Ana");
+    const shares = await import("@/lib/library/shares");
+    expect(() =>
+      shares.createShare("nlp", "attention", capability, []),
+    ).toThrow();
+    expect(shares.listShares("nlp", "attention", "ana")).toEqual([]);
+  });
+
+  it("revokes public links before deferred profile cleanup runs", async () => {
+    await placePaper();
+    const shares = await import("@/lib/library/shares");
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [],
+    );
+    expect(shares.getShare("nlp", "attention", share.id)).not.toBeNull();
+    const erase = await revokeTestProfile("ana");
+    expect(shares.getShare("nlp", "attention", share.id)).toBeNull();
+    await erase();
+  });
+
+  it("rejects a delayed share creation after the profile is recreated", async () => {
+    await placePaper();
+    await createTestProfile("Ana");
+    await mockTestSession("ana");
+    const route =
+      await import("@/app/api/v1/papers/[topic]/[slug]/shares/route");
+    let reading!: () => void;
+    const started = new Promise<void>((resolve) => {
+      reading = resolve;
+    });
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const body = new ReadableStream<Uint8Array>({
+      start(value) {
+        controller = value;
+      },
+    });
+    const request = new NextRequest(
+      "http://localhost/api/v1/papers/nlp/attention/shares",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      },
+    );
+    Object.defineProperty(request, "body", {
+      get() {
+        reading();
+        return body;
+      },
+    });
+    const response = route.POST(request, {
+      params: Promise.resolve({ topic: "nlp", slug: "attention" }),
+    });
+    await started;
+    await deleteTestProfile("ana");
+    await createTestProfile("Ana");
+    controller.enqueue(
+      new TextEncoder().encode(JSON.stringify({ chatIds: [] })),
+    );
+    controller.close();
+    expect((await response).status).toBe(401);
+    const { listShares } = await import("@/lib/library/shares");
+    expect(listShares("nlp", "attention", "ana")).toEqual([]);
+  });
+
   it("stores private atomic records and snapshots selected conversations", async () => {
     const paper = await placePaper();
     const header = await conversation("ana");
     const shares = await import("@/lib/library/shares");
 
-    const share = shares.createShare("nlp", "attention", "ana", [header.id]);
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [header.id],
+    );
     const storedFile = path.join(
       paper.companionDir,
       "shares",
@@ -99,17 +243,26 @@ describe("view-only paper shares", () => {
     const shares = await import("@/lib/library/shares");
 
     expect(() =>
-      shares.createShare("nlp", "attention", "ana", [header.id]),
+      shares.createShare("nlp", "attention", testProfileCapability("ana"), [
+        header.id,
+      ]),
     ).toThrow(/Unknown conversation/);
     expect(() =>
-      shares.createShare("nlp", "attention", "ana", ["../../private"]),
+      shares.createShare("nlp", "attention", testProfileCapability("ana"), [
+        "../../private",
+      ]),
     ).toThrow(/Invalid conversations/);
     expect(
       shares.getShare("nlp", "attention", "../../session-secret"),
     ).toBeNull();
-    expect(() => shares.createShare("_inbox", "attention", "ana", [])).toThrow(
-      /Invalid slug/,
-    );
+    expect(() =>
+      shares.createShare(
+        "_inbox",
+        "attention",
+        testProfileCapability("ana"),
+        [],
+      ),
+    ).toThrow(/Invalid slug/);
   });
 
   it("serves only referenced crops from snapshotted conversations", async () => {
@@ -120,7 +273,12 @@ describe("view-only paper shares", () => {
     fs.writeFileSync(path.join(crops, "private.png"), "secret");
     const header = await conversation("ana", "referenced.png");
     const shares = await import("@/lib/library/shares");
-    const share = shares.createShare("nlp", "attention", "ana", [header.id]);
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [header.id],
+    );
 
     expect(shares.resolveSharedCrop(share, "referenced.png")?.contentType).toBe(
       "image/png",
@@ -162,7 +320,12 @@ describe("view-only paper shares", () => {
   it("ignores malformed records and revocation immediately closes access", async () => {
     const paper = await placePaper();
     const shares = await import("@/lib/library/shares");
-    const share = shares.createShare("nlp", "attention", "ana", []);
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [],
+    );
     fs.writeFileSync(
       path.join(paper.companionDir, "shares", `${"a".repeat(64)}.json`),
       '{"version":1}',
@@ -173,27 +336,77 @@ describe("view-only paper shares", () => {
     expect(shares.getShare("nlp", "attention", share.id)).not.toBeNull();
     expect(shares.deleteShare("nlp", "attention", share.id, "ana")).toBe(true);
     expect(shares.getShare("nlp", "attention", share.id)).toBeNull();
+    expect(() =>
+      shares.withShareFiles(share, () => JSON.stringify(share)),
+    ).toThrow("Unknown share.");
   });
 
   it("revokes a member's links when that profile is deleted", async () => {
     await placePaper();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Admin");
-    users.createProfile("Ana");
+    await createTestProfile("Admin");
+    await createTestProfile("Ana");
     const shares = await import("@/lib/library/shares");
-    const share = shares.createShare("nlp", "attention", "ana", []);
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [],
+    );
 
-    users.deleteProfile("ana");
+    await deleteTestProfile("ana");
 
     expect(shares.getShare("nlp", "attention", share.id)).toBeNull();
   });
 });
 
 describe("public share boundaries", () => {
+  it.each(["cancel", "revoke"])(
+    "releases the PDF lease after %s and never delivers revoked bytes",
+    async (action) => {
+      await placePaper();
+      const shares = await import("@/lib/library/shares");
+      const { PapernookIdentityStore } =
+        await import("@/lib/auth/identity-store");
+      const share = shares.createShare(
+        "nlp",
+        "attention",
+        testProfileCapability("ana"),
+        [],
+      );
+      const route =
+        await import("@/app/api/v1/shares/[topic]/[slug]/[shareId]/pdf/route");
+      const response = await route.GET(
+        new NextRequest("http://localhost/share.pdf"),
+        {
+          params: Promise.resolve({
+            topic: "nlp",
+            slug: "attention",
+            shareId: share.id,
+          }),
+        },
+      );
+      expect(response.status).toBe(200);
+      const anchor = new PapernookIdentityStore(tmpDir).profileLockPath("ana");
+      expect(() => acquireFileLockSync(anchor)).toThrow(FileLockBusyError);
+      if (action === "cancel") await response.body!.cancel();
+      else {
+        shares.deleteShare("nlp", "attention", share.id, "ana");
+        await expect(response.text()).rejects.toThrow("Unknown share.");
+      }
+      const release = acquireFileLockSync(anchor);
+      release();
+    },
+  );
+
   it("serves the current annotated PDF, never to a shared cache", async () => {
     const paper = await placePaper();
     const shares = await import("@/lib/library/shares");
-    const share = shares.createShare("nlp", "attention", "ana", []);
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [],
+    );
     fs.writeFileSync(paper.pdfPath, "%PDF-1.4 newly annotated");
     const route =
       await import("@/app/api/v1/shares/[topic]/[slug]/[shareId]/pdf/route");
@@ -231,21 +444,21 @@ describe("public share boundaries", () => {
 
   it("allows public share reads but keeps share mutations authenticated", async () => {
     const { proxy } = await import("@/proxy");
-    const publicPage = proxy(
+    const publicPage = await proxy(
       new NextRequest(`http://localhost/share/nlp/attention/${"a".repeat(64)}`),
     );
     expect(publicPage.status).toBe(200);
     expect(publicPage.headers.get("referrer-policy")).toBe("no-referrer");
     expect(publicPage.headers.get("x-robots-tag")).toBe("noindex, nofollow");
 
-    const publicAsset = proxy(
+    const publicAsset = await proxy(
       new NextRequest(
         `http://localhost/api/v1/shares/nlp/attention/${"a".repeat(64)}/pdf`,
       ),
     );
     expect(publicAsset.status).toBe(200);
 
-    const mutation = proxy(
+    const mutation = await proxy(
       new NextRequest("http://localhost/api/v1/papers/nlp/attention/shares"),
     );
     expect(mutation.status).toBe(401);
@@ -255,7 +468,12 @@ describe("public share boundaries", () => {
     await placePaper();
     const header = await conversation("ana");
     const shares = await import("@/lib/library/shares");
-    const share = shares.createShare("nlp", "attention", "ana", [header.id]);
+    const share = shares.createShare(
+      "nlp",
+      "attention",
+      testProfileCapability("ana"),
+      [header.id],
+    );
     const { default: SharePage } =
       await import("@/app/share/[topic]/[slug]/[shareId]/page");
 

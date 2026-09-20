@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Paper, PaperMeta } from "@/lib/library/papers";
-import { exportCitations, paperToCsl } from "@/lib/library/citations";
+import {
+  canonicalCitationMetadata,
+  exportCitations,
+  paperToCsl,
+} from "@/lib/library/citations";
 
 function paper(
   slug: string,
@@ -82,21 +86,20 @@ describe("citation exports", () => {
     expect(new Set([apa, harvard, vancouver]).size).toBe(3);
   });
 
-  it("parses legacy BibTeX only when canonical metadata is absent", () => {
-    const legacy = paper("legacy", {
+  it("imports BibTeX into canonical metadata before runtime use", () => {
+    const imported = paper("imported", {
       citation: undefined,
       bibtex:
         "@inproceedings{legacy, author={Lovelace, Ada}, title={Analytical Engines}, year={1843}, booktitle={Proceedings}}",
     });
-    expect(paperToCsl(legacy)).toMatchObject({
-      title: "Analytical Engines",
-      author: [{ family: "Lovelace", given: "Ada" }],
-      issued: { "date-parts": [[1843]] },
-      "container-title": "Proceedings",
+    expect(canonicalCitationMetadata(imported.meta)).toMatchObject({
+      type: "paper-conference",
+      authors: [{ family: "Lovelace", given: "Ada" }],
+      containerTitle: "Proceedings",
     });
   });
 
-  it("falls back safely and assigns stable unique BibTeX keys", () => {
+  it("requires canonical metadata and assigns stable unique keys", () => {
     const first = paper("first", {
       citation: undefined,
       bibtex: "not valid bibtex",
@@ -106,6 +109,9 @@ describe("citation exports", () => {
       { citation: undefined, bibtex: null },
       "other-topic",
     );
+    expect(() => paperToCsl(first)).toThrow("canonical citation migration");
+    first.meta.citation = canonicalCitationMetadata(first.meta);
+    second.meta.citation = canonicalCitationMetadata(second.meta);
     expect(paperToCsl(first).author).toEqual([{ literal: "Legacy Author" }]);
     const bibtex = exportCitations([second, first], "bibtex");
     const firstKey = paperToCsl(first).id;

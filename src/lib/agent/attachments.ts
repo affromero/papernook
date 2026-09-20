@@ -1,11 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { spawn } from "node:child_process";
+import {
+  ProcessRunner,
+  ProcessExecutionError,
+} from "thesidedoor-core/runtime/process";
 import {
   buildAgentInvocation,
   buildScpInvocation,
   shellQuote,
+  minimalAgentEnvironment,
 } from "./invocation";
 
 /**
@@ -40,34 +44,28 @@ export function readImageBase64(filePath: string): {
   };
 }
 
-function run(
+async function run(
   command: string,
   args: string[],
   timeoutMs = 30_000,
+  signal?: AbortSignal,
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "ignore", "pipe"] });
-    let stderr = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      reject(new Error(`${command}: timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
+  try {
+    await new ProcessRunner().execute({
+      command,
+      args,
+      environment: minimalAgentEnvironment([]),
+      timeoutMs,
+      signal,
     });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code === 0) resolve();
-      else
-        reject(
-          new Error(`${command}: exited ${code}: ${stderr.slice(0, 300)}`),
-        );
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
+  } catch (error) {
+    if (error instanceof ProcessExecutionError && error.code === "exit_failed")
+      throw new Error(
+        `${command}: exited ${error.exitCode}: ${error.diagnostics?.stderr.slice(0, 300) ?? ""}`,
+        { cause: error },
+      );
+    throw error;
+  }
 }
 
 /**
@@ -77,11 +75,17 @@ function run(
 export async function stageImagesOverSsh(
   localPaths: string[],
   sshHost: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<{ paths: string[]; cleanup: () => Promise<void> }> {
+  options.signal?.throwIfAborted();
   const remoteDir = `/tmp/papernook-attach-${crypto.randomBytes(6).toString("hex")}`;
+  const files = localPaths.map((file, index) => ({
+    local: path.resolve(file),
+    directory: `${remoteDir}/${index}`,
+  }));
   const mkdir = buildAgentInvocation(
     "mkdir",
-    ["-m", "700", "-p", remoteDir],
+    ["-m", "700", "-p", remoteDir, ...files.map((file) => file.directory)],
     sshHost,
   );
   const cleanup = async (): Promise<void> => {
@@ -93,16 +97,28 @@ export async function stageImagesOverSsh(
     await run(remove.command, remove.args);
   };
   // buildAgentInvocation quotes for the remote shell; mkdir itself is the CLI.
-  await run(mkdir.command, mkdir.args);
   try {
-    const scp = buildScpInvocation(localPaths, sshHost, remoteDir);
-    await run(scp.command, scp.args);
+    await run(mkdir.command, mkdir.args, options.timeoutMs, options.signal);
+    for (const file of files) {
+      const scp = buildScpInvocation([file.local], sshHost, file.directory);
+      await run(scp.command, scp.args, options.timeoutMs, options.signal);
+    }
     return {
-      paths: localPaths.map((p) => `${remoteDir}/${path.basename(p)}`),
+      paths: files.map(
+        (file) => `${file.directory}/${path.basename(file.local)}`,
+      ),
       cleanup,
     };
   } catch (error) {
-    await cleanup().catch(() => undefined);
+    try {
+      await cleanup();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "Image staging failed and remote cleanup did not complete",
+        { cause: error },
+      );
+    }
     throw error;
   }
 }
