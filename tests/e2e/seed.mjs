@@ -144,6 +144,7 @@ fs.writeFileSync(
     JSON.stringify({
       id: "0123456789abcdef",
       title: "Why attention replaced recurrence",
+      titleSource: "manual",
       username: "maya",
       createdAt: "2026-07-18T12:30:00.000Z",
     }),

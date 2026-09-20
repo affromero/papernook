@@ -66,17 +66,35 @@ try {
     throw new Error(`Browser fixture owner claim failed (${response.status})`);
   const ownerCookie = response.headers.get("set-cookie");
   if (!ownerCookie) throw new Error("Browser fixture owner claim did not create a session");
+  const cookie = ownerCookie.split(";", 1)[0];
   const household = await fetch(`${origin}/api/v1/access/configure-household`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Origin: origin,
-      Cookie: ownerCookie,
+      Cookie: cookie,
     },
     body: JSON.stringify({ password: "browser-owner-password-phrase" }),
   });
   if (!household.ok)
     throw new Error(`Browser fixture household setup failed (${household.status})`);
+  const provider = await fetch(`${origin}/api/v1/agent/model`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Cookie: cookie,
+    },
+    body: JSON.stringify({ provider: "codex", revision: 0 }),
+  });
+  if (!provider.ok)
+    throw new Error(`Browser fixture provider setup failed (${provider.status})`);
+  const wizard = await fetch(`${origin}/api/v1/session/wizard-done`, {
+    method: "POST",
+    headers: { Origin: origin, Cookie: cookie },
+  });
+  if (!wizard.ok)
+    throw new Error(`Browser fixture onboarding setup failed (${wizard.status})`);
   console.log("Browser fixture ready");
 } catch (error) {
   server.kill("SIGTERM");
