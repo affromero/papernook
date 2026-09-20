@@ -523,6 +523,10 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(
       device.getByText("sudo tailscale serve 3000", { exact: true }),
     ).toBeVisible();
+    await device.evaluate((element) => {
+      element.style.boxSizing = "border-box";
+      element.style.height = "1220px";
+    });
     await expect(device).toHaveScreenshot(["setup", "connect-device.png"], {
       animations: "disabled",
       // Chromium text rasterization varies slightly after the dynamic panel
