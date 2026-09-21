@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { build } from "esbuild";
 import { loadBindings, minify } from "next/dist/build/swc/index.js";
 
 /**
@@ -29,7 +30,11 @@ for (const [src, dest, shouldMinify] of assets) {
     fs.copyFileSync(path.join(root, src), target);
     continue;
   }
-  const result = await minify(fs.readFileSync(path.join(root, src), "utf8"), {
+  let source = fs.readFileSync(path.join(root, src), "utf8");
+  if (dest === "three.module.min.js") {
+    source = source.replaceAll("./three.core.js", "./three.core.min.js");
+  }
+  const result = await minify(source, {
     compress: true,
     mangle: true,
     module: true,
@@ -42,38 +47,40 @@ for (const [src, dest, shouldMinify] of assets) {
 // Three and OrbitControls into a classic inline runtime so scene execution has
 // no module or network boundary. The committed HTML is regenerated on every
 // install to stay synchronized with the installed Three version.
-const threeCjs = fs.readFileSync(
-  path.join(root, "node_modules/three/build/three.cjs"),
-  "utf8",
-);
-const controlsModule = fs.readFileSync(
-  path.join(root, "node_modules/three/examples/jsm/controls/OrbitControls.js"),
-  "utf8",
-);
-const controlsClassic = controlsModule
-  .replace(
-    /import\s*\{([\s\S]*?)\}\s*from\s*['"]three['"];?/,
-    "const {$1} = THREE;",
-  )
-  .replace(/export\s*\{\s*OrbitControls\s*\};?/, "");
-const runtimeSource = `
+const runtimeBuild = await build({
+  stdin: {
+    contents: `
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+if (!THREE.WebGLRenderer) throw new Error("Three.js runtime is incomplete.");
 (() => {
-  const exports = {};
-  ((exports) => { ${threeCjs} })(exports);
-  const THREE = exports;
-  ${controlsClassic}
   globalThis.THREE = THREE;
   globalThis.OrbitControls = OrbitControls;
   globalThis.papernookThreeRuntimeReady = true;
   globalThis.dispatchEvent(new Event("papernook-three-runtime-ready"));
 })();
-`;
-const minified = await minify(runtimeSource, {
+`,
+    resolveDir: root,
+    sourcefile: "three-sandbox-runtime.js",
+    loader: "js",
+  },
+  bundle: true,
+  format: "iife",
+  minify: true,
+  platform: "browser",
+  supported: { "template-literal": false },
+  target: ["es2022"],
+  write: false,
+});
+const bundledRuntime = runtimeBuild.outputFiles?.[0]?.text;
+if (!bundledRuntime)
+  throw new Error("Could not bundle the Three sandbox runtime.");
+const minifiedRuntime = await minify(bundledRuntime, {
   compress: true,
   mangle: true,
 });
-if (!minified.code)
-  throw new Error("Could not build the Three sandbox runtime.");
+if (!minifiedRuntime.code)
+  throw new Error("Could not minify the Three sandbox runtime.");
 
 const sandboxPath = path.join(root, "public/vendor/three-sandbox.html");
 const sandbox = fs.readFileSync(sandboxPath, "utf8");
@@ -89,6 +96,6 @@ if (startIndex === -1 || endIndex === -1) {
 }
 const generated =
   sandbox.slice(0, startIndex) +
-  `${start}\n${minified.code}\n${end}` +
+  `${start}\n${minifiedRuntime.code}\n${end}` +
   sandbox.slice(endIndex + end.length);
 fs.writeFileSync(sandboxPath, generated);
