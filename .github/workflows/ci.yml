@@ -53,7 +53,6 @@ jobs:
             --publish 127.0.0.1:3000:3000 \
             --env AI_PROVIDER=openai \
             --env OPENAI_API_KEY=test-only \
-            --env PAPERNOOK_PASSWORD=ci-access-password-unique \
             --env SESSION_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
             papernook:ci
           trap 'docker rm --force papernook-ci >/dev/null 2>&1 || true' EXIT
@@ -68,7 +67,16 @@ jobs:
             sleep 1
           done
           test "$(docker exec papernook-ci awk '/^Uid:/{print $2}' /proc/1/status)" = "1000"
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/settings)" = "307"
+          claim_output=$(docker exec papernook-ci node scripts/access.cjs claim)
+          claim_code=$(printf '%s\n' "$claim_output" | node -e \
+            'let value="";process.stdin.on("data",chunk=>value+=chunk).on("end",()=>process.stdout.write(JSON.parse(value).code))')
+          claim_body=$(CLAIM_CODE="$claim_code" node -e \
+            'process.stdout.write(JSON.stringify({token:process.env.CLAIM_CODE,name:"CI Owner",password:"ci-access-password-unique",mode:"household"}))')
+          curl --fail --silent --cookie-jar /tmp/papernook-ci.cookies \
+            --header 'Origin: http://localhost:3000' \
+            --header 'Content-Type: application/json' \
+            --data "$claim_body" http://localhost:3000/api/v1/access/claim >/dev/null
+          test "$(curl --silent --cookie /tmp/papernook-ci.cookies --output /dev/null --write-out '%{http_code}' http://localhost:3000/settings)" = "200"
           test -z "$(docker exec papernook-ci sh -c \
             'find /app -maxdepth 3 \( -name ".env*" -o -name src -o -name tests -o -name docs -o -name AGENTS.md -o -name CLAUDE.md \) -print')"
 

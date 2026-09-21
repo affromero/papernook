@@ -15,6 +15,14 @@ if (!fs.existsSync(root)) {
   throw new Error(`Missing runtime artifact: ${root}`);
 }
 
+const nativeLock = path.join(
+  root,
+  "node_modules/thesidedoor-flock/build/Release/fs_ext.node",
+);
+if (!fs.existsSync(nativeLock)) {
+  throw new Error("Runtime artifact is missing native file locking");
+}
+
 const leaked = [];
 function walk(directory) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {

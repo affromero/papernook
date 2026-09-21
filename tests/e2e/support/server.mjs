@@ -1,4 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { providerDescriptors } from "thesidedoor-core/ai/catalog";
 
@@ -140,14 +142,38 @@ try {
     throw new Error(
       `Browser fixture profile selection failed (${selected.status})`,
     );
+  const memberCookie =
+    selected.headers.get("set-cookie")?.split(";", 1)[0] ?? householdCookie;
   const memberWizard = await fetch(`${origin}/api/v1/session/wizard-done`, {
     method: "POST",
-    headers: { Origin: origin, Cookie: householdCookie },
+    headers: { Origin: origin, Cookie: memberCookie },
   });
   if (!memberWizard.ok)
     throw new Error(
       `Browser fixture profile onboarding failed (${memberWizard.status})`,
     );
+  const separator = memberCookie.indexOf("=");
+  if (separator <= 0)
+    throw new Error("Browser fixture member session cookie is invalid");
+  await writeFile(
+    path.join(env.PAPERNOOK_DATA_DIR, ".maya-storage-state.json"),
+    JSON.stringify({
+      cookies: [
+        {
+          name: memberCookie.slice(0, separator),
+          value: memberCookie.slice(separator + 1),
+          domain: "127.0.0.1",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: false,
+          sameSite: "Lax",
+        },
+      ],
+      origins: [],
+    }),
+    { mode: 0o600 },
+  );
   console.log("Browser fixture ready");
 } catch (error) {
   server.kill("SIGTERM");

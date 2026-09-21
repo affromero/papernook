@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { restoreMayaSession } from "./support/member-session";
 
 const password = "browser-owner-password-phrase";
 let pdfRestore:
@@ -23,8 +24,7 @@ async function passGate(page: Page): Promise<void> {
 }
 
 async function loginAsMaya(page: Page): Promise<void> {
-  await passGate(page);
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
+  await restoreMayaSession(page);
   await expect(page).toHaveURL("/");
   await expect(page.getByText("Attention Is All You Need")).toBeVisible();
 }

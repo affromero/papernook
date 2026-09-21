@@ -1,17 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { restoreMayaSession } from "./support/member-session";
 
-const password = "browser-owner-password-phrase";
 const pasteShortcut = process.platform === "darwin" ? "Meta+V" : "Control+V";
 const copyShortcut = process.platform === "darwin" ? "Meta+C" : "Control+C";
 
 async function login(page: Page): Promise<void> {
-  await page.goto("/login");
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page
-    .locator("form")
-    .getByRole("button", { name: "Enter household", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
+  await restoreMayaSession(page);
   await expect(page).toHaveURL("/");
 }
 

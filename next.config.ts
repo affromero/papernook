@@ -22,6 +22,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: projectRoot,
   outputFileTracingIncludes: {
+    "/*": ["./node_modules/thesidedoor-flock/build/Release/fs_ext.node"],
     "/api/v1/offline/**/*": ["./node_modules/katex/dist/**/*"],
     "/api/v1/conversations/**/*": ["./node_modules/katex/dist/**/*"],
   },
