@@ -1,13 +1,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   AccessService,
   HouseholdProfileService,
   PrincipalManagement,
 } from "thesidedoor-core/access";
 import {
+  CONFIGURED_PASSWORD_READY,
   PapernookIdentityStore,
   type IdentityState,
 } from "@/lib/auth/identity-store";
@@ -216,7 +217,43 @@ beforeEach(async () => {
   });
   profile = structuredClone((await identity.read()).profiles[0]!);
 });
-afterEach(() => fs.rmSync(directory, { recursive: true, force: true }));
+afterEach(() => {
+  vi.unstubAllEnvs();
+  fs.rmSync(directory, { recursive: true, force: true });
+});
+
+it("seeds the configured instance password once and preserves later owner changes", async () => {
+  const configured = "configured instance password";
+  vi.stubEnv("PAPERNOOK_PASSWORD", configured);
+  const store = new PapernookIdentityStore(directory);
+  await store.transact((state) => {
+    state.access.initializations = state.access.initializations.filter(
+      (item) => item !== CONFIGURED_PASSWORD_READY,
+    );
+  });
+  await store.initializeCanonical();
+  const access = new AccessService({ store: store.accessStore() });
+  const configuredSession = await access.enterHousehold(configured);
+  expect((await access.authenticate(configuredSession)).principal).toBeNull();
+  expect((await store.read()).access.initializations).toContain(
+    CONFIGURED_PASSWORD_READY,
+  );
+
+  const owner = await access.login("owner", "owner account password");
+  await access.configureHousehold(owner, "owner replacement password");
+  vi.stubEnv("PAPERNOOK_PASSWORD", "changed environment password");
+  await new PapernookIdentityStore(directory).initializeCanonical();
+  await expect(
+    access.enterHousehold("changed environment password"),
+  ).rejects.toMatchObject({ code: "unauthorized" });
+  expect(
+    (
+      await access.authenticate(
+        await access.enterHousehold("owner replacement password"),
+      )
+    ).principal,
+  ).toBeNull();
+});
 
 it("permits household profile creation and erasure without granting owner-account deletion", async () => {
   const store = new PapernookIdentityStore(directory);

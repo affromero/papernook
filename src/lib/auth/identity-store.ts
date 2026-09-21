@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   AccessError,
   accessStateSchema,
+  hashConfiguredPassword,
   initialAccessState,
   type AccessState,
 } from "thesidedoor-core/access";
@@ -14,6 +15,7 @@ import { FileStateStore, type StateStore } from "thesidedoor-core/storage";
 import { aiStateSchema, initialAiState } from "../agent/state";
 
 export const ERASURE_READY = "papernook-erasure-ownership-v1";
+export const CONFIGURED_PASSWORD_READY = "papernook-configured-password-v1";
 
 const profileSchema = z.object({
   username: z.string().regex(/^[a-z0-9][a-z0-9-]{1,30}$/),
@@ -244,14 +246,40 @@ export class PapernookIdentityStore {
 
   /** Create canonical access and AI state before admitting traffic. */
   async initializeCanonical(): Promise<void> {
-    if (
-      (await this.storage.read()).access.initializations.includes(ACCESS_READY)
-    )
-      return;
-    this.initializing ??= this.createCanonicalState().finally(() => {
+    this.initializing ??= this.prepareCanonicalState().finally(() => {
       this.initializing = undefined;
     });
     await this.initializing;
+  }
+
+  private async prepareCanonicalState(): Promise<void> {
+    if (
+      !(await this.storage.read()).access.initializations.includes(ACCESS_READY)
+    )
+      await this.createCanonicalState();
+    await this.seedConfiguredPassword();
+  }
+
+  private async seedConfiguredPassword(): Promise<void> {
+    const password = process.env.PAPERNOOK_PASSWORD;
+    if (!password) return;
+    if (
+      (await this.storage.read()).access.initializations.includes(
+        CONFIGURED_PASSWORD_READY,
+      )
+    )
+      return;
+    const passwordHash = await hashConfiguredPassword(password);
+    await this.storage.transact((state) => {
+      if (state.access.initializations.includes(CONFIGURED_PASSWORD_READY))
+        return;
+      state.access.householdPasswordHash = passwordHash;
+      state.access.householdEpoch++;
+      state.access.sessions = state.access.sessions.filter(
+        (session) => session.principalId !== null,
+      );
+      state.access.initializations.push(CONFIGURED_PASSWORD_READY);
+    });
   }
 
   private async createCanonicalState(): Promise<void> {
