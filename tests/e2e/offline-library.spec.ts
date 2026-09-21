@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { chromium, expect, test, type Page } from "@playwright/test";
+import { restoreMayaSession } from "./support/member-session";
 
 const paperPath = "/paper/machine-learning/attention-is-all-you-need";
 const paperTitle = "Attention Is All You Need";
@@ -24,7 +25,7 @@ function sessionResponseBoundary(response: {
 }
 
 async function login(page: Page): Promise<void> {
-  await page.goto("/login");
+  await restoreMayaSession(page);
   await expect
     .poll(
       () =>
@@ -32,20 +33,6 @@ async function login(page: Page): Promise<void> {
           .evaluate(() => Boolean(navigator.serviceWorker.controller))
           .catch(() => false),
       { timeout: 60_000 },
-    )
-    .toBe(true);
-  await page
-    .getByLabel("Password", { exact: true })
-    .fill("browser-owner-password-phrase");
-  await page
-    .locator("form")
-    .getByRole("button", { name: "Enter household", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
-  await expect(page).toHaveURL("/");
-  await expect
-    .poll(() =>
-      page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
     )
     .toBe(true);
 }

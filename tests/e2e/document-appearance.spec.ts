@@ -1,19 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { restoreMayaSession } from "./support/member-session";
 
 test("documents follow system colors or stay light without changing the PDF", async ({
   page,
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.goto("/login");
-  await page
-    .getByLabel("Password", { exact: true })
-    .fill("browser-owner-password-phrase");
-  await page
-    .locator("form")
-    .getByRole("button", { name: "Enter household", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
-  await expect(page).toHaveURL("/");
+  await restoreMayaSession(page);
   await page.goto("/paper/machine-learning/attention-is-all-you-need");
   const pdfUrl =
     "/api/v1/papers/machine-learning/attention-is-all-you-need/pdf";
