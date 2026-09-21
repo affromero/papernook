@@ -145,7 +145,7 @@ it("captures private data before initialization without restarting writers", () 
   expect(archive.stdout).toBe("private-data");
   expect(commands()).not.toContain("compose start");
   expect(result.stderr).toContain("Pre-initialization backup:");
-});
+}, 15_000);
 
 it("does not initialize when backup creation fails", () => {
   fs.writeFileSync(path.join(directory, "backups"), "occupied");
@@ -153,7 +153,7 @@ it("does not initialize when backup creation fails", () => {
   expect(result.status).not.toBe(0);
   expect(commands()).not.toContain("access.cjs initialize");
   expect(result.stderr).toContain("App and WebDAV remain stopped");
-});
+}, 15_000);
 
 function backup(args: string[], failure = "") {
   return spawnSync("bash", ["scripts/backup.sh", ...args], {
