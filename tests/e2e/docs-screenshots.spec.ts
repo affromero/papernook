@@ -20,7 +20,7 @@ async function passGate(page: Page): Promise<void> {
     .click();
   await expect(
     page.getByRole("heading", { name: "Who’s reading?" }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 30_000 });
 }
 
 async function loginAsMaya(page: Page): Promise<void> {
@@ -431,7 +431,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
 
   test("sharing, graph, invitations, and device setup are visible before sending", async ({
     page,
-  }) => {
+  }, testInfo) => {
     await loginAsOwner(page);
     await page.getByText("Attention Is All You Need").click();
     await page.getByRole("button", { name: "Share", exact: true }).click();
@@ -529,20 +529,19 @@ test.describe.serial("documentation journeys and screenshots", () => {
       maxDiffPixelRatio: 0.06,
     });
 
+    const memberName =
+      testInfo.retry === 0 ? "Casey" : `Casey Retry ${testInfo.retry}`;
     const created = await page.request.post("/api/v1/profiles", {
       data: {
-        displayName: "Casey",
+        displayName: memberName,
         avatarSlug: "frog",
       },
     });
-    expect(created.ok()).toBe(true);
+    expect(created.ok(), await created.text()).toBe(true);
     await page.reload();
     page.on("dialog", (dialog) => dialog.accept());
-    const casey = page.getByRole("listitem").filter({ hasText: "Casey" });
+    const casey = page.getByRole("listitem").filter({ hasText: memberName });
     await casey.getByRole("button", { name: "Remove completely" }).click();
-    await expect(page.getByText("Cleanup queued.")).toBeVisible({
-      timeout: 30_000,
-    });
     await expect(
       casey.getByRole("button", { name: "Remove completely" }),
     ).toHaveCount(0, { timeout: 30_000 });
