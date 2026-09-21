@@ -500,6 +500,9 @@ test.describe.serial("documentation journeys and screenshots", () => {
     ).toBeVisible();
     await page.goto("/settings");
     await expect(page).toHaveURL("/settings");
+    await expect(
+      page.getByText("Fixture Owner", { exact: true }),
+    ).toBeVisible();
     const invite = page
       .getByRole("heading", { name: "Invite someone" })
       .locator("..");
