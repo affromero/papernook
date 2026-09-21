@@ -73,15 +73,13 @@ tree.
 ## Public deployment checks
 
 - Authentication is always on and identical for every hostname.
-- `PAPERNOOK_PASSWORD` is set to a long, unique instance access password.
-  Docker Compose refuses to start without it, and the login API returns `503`
-  when it is unset.
+- The instance has an owner, a tested recovery code, and at least one passkey.
 - Raw app and WebDAV ports bind to `127.0.0.1`; only the TLS proxy is public.
 - Setting `APP_HOST` or `WEBDAV_HOST` to `0.0.0.0` publishes plaintext HTTP.
   Do this only on a trusted network. WebDAV basic-auth credentials are clear
   on the wire without TLS.
-- `PAPERNOOK_PASSWORD` and `WEBDAV_PASS` are distinct and stored outside Git.
-  `SESSION_SECRET` is optional; when unset, Papernook generates and preserves
+- `WEBDAV_PASS` is unique and stored outside Git. `SESSION_SECRET` is optional;
+  when unset, Papernook generates and preserves
   it in `data/session-secret`.
 - `TRUSTED_PROXY_HOPS` matches the number of reverse proxies in front of the
   app. Keep the default `1` for a single Caddy, and set it to `0` when the app
@@ -89,5 +87,5 @@ tree.
 - CLI AI providers are allowed. The admin's provider selection in Settings is
   the consent to use Claude Code or Codex.
 - Review logs and repeated `429` responses. Put edge rate limiting or fail2ban
-  in front of `/api/v1/gate` and `/api/v1/session` for high-traffic hosts.
+  in front of `/api/v1/access/*` for high-traffic hosts.
 - Rotate a capture token immediately if its bookmarklet or Shortcut is lost.

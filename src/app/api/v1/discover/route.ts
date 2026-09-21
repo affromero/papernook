@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
-import { activeProfile } from "@/lib/auth/session";
+import { requestIdentity } from "@/lib/auth/access";
 import { isValidSlug } from "@/lib/library/slug";
 import { discoverRelated } from "@/lib/capture/discover";
 import { hasConfiguredProvider } from "@/lib/agent/registry";
@@ -14,8 +14,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  if (!admission?.profile || !admission.capability)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const body = bodySchema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) {
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     );
   }
   try {
-    const discovery = await discoverRelated(body.data);
+    const discovery = await discoverRelated(body.data, admission.capability);
     return NextResponse.json(discovery);
   } catch (err) {
     return NextResponse.json(

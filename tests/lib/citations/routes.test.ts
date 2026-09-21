@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
+import { createTestProfile, mockTestSession } from "../../helpers/access";
 import type { PaperMeta } from "@/lib/library/papers";
 
 let tmpDir: string;
@@ -14,7 +15,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
+  vi.unstubAllEnvs();
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -33,6 +35,12 @@ function meta(title: string, tags: string[] = []): PaperMeta {
     sourceUrl: "https://example.org",
     addedAt: "2024-01-01T00:00:00.000Z",
     addedBy: "andres",
+    citation: {
+      type: "document",
+      authors: [{ literal: "Ada Lovelace" }],
+      containerTitle: "Examples",
+      URL: "https://example.org",
+    },
   };
 }
 
@@ -51,15 +59,14 @@ async function place(
   fs.writeFileSync(pdf, "%PDF-1.4");
 }
 
-function signedIn(active: boolean): void {
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => (active ? { username: "andres" } : null),
-  }));
+async function signedIn(active: boolean): Promise<void> {
+  if (active) await createTestProfile("Andres");
+  await mockTestSession(active ? "andres" : null);
 }
 
 describe("citation routes", () => {
   it("requires authentication and validates formats", async () => {
-    signedIn(false);
+    await signedIn(false);
     const paperRoute =
       await import("@/app/api/v1/papers/[topic]/[slug]/citation/route");
     expect(
@@ -73,7 +80,7 @@ describe("citation routes", () => {
 
     vi.doUnmock("@/lib/auth/session");
     vi.resetModules();
-    signedIn(true);
+    await signedIn(true);
     const libraryRoute = await import("@/app/api/v1/citations/route");
     expect(
       (
@@ -111,7 +118,7 @@ describe("citation routes", () => {
 
   it("exports one known paper with safe download headers", async () => {
     await place("ml", "analytical-engine", "Analytical & Engine");
-    signedIn(true);
+    await signedIn(true);
     const route =
       await import("@/app/api/v1/papers/[topic]/[slug]/citation/route");
     const response = await route.GET(
@@ -145,7 +152,7 @@ describe("citation routes", () => {
       "different subject",
     );
     await place(null, "pending", "Pending Transformer", ["computing"]);
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/route");
     const response = await route.GET(
       new NextRequest(
@@ -198,7 +205,7 @@ describe("citations match route by url", () => {
       "https://publisher.example/article/42",
       null,
     );
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/match/route");
 
     const versioned = await route.GET(
@@ -233,7 +240,7 @@ describe("citations match route by url", () => {
       "https://arxiv.org/abs/2308.04079",
       "2308.04079",
     );
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/match/route");
     const response = await route.GET(
       matchUrl(`url=${encodeURIComponent("https://arxiv.org/abs/2308.04079")}`),
@@ -245,7 +252,7 @@ describe("citations match route by url", () => {
     await place("ml", "splatting", "3D Gaussian Splatting for Radiance Fields");
     const { rebuildIndex } = await import("@/lib/library/index-db");
     rebuildIndex();
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/match/route");
 
     const hit = await route.GET(
@@ -278,7 +285,7 @@ describe("citations match route by url", () => {
       ).status,
     ).toBe(400);
 
-    signedIn(false);
+    await signedIn(false);
     vi.resetModules();
     const anonymous = await import("@/app/api/v1/citations/match/route");
     expect(
@@ -331,7 +338,7 @@ describe("citations match route batched", () => {
       "https://publisher.example/article/42",
       null,
     );
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/match/route");
     const response = await route.POST(
       postMatch({
@@ -357,7 +364,7 @@ describe("citations match route batched", () => {
   });
 
   it("rejects malformed, oversized, and anonymous batches", async () => {
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/match/route");
     expect((await route.POST(postMatch({ urls: [] }))).status).toBe(400);
     expect(
@@ -393,7 +400,7 @@ describe("citations match route batched", () => {
       ).status,
     ).toBe(400);
 
-    signedIn(false);
+    await signedIn(false);
     vi.resetModules();
     const anonymous = await import("@/app/api/v1/citations/match/route");
     expect(
@@ -403,7 +410,7 @@ describe("citations match route batched", () => {
   });
 
   it("refuses a batch it cannot afford without burning the remainder", async () => {
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/match/route");
     const urls = Array.from(
       { length: 20 },
@@ -427,7 +434,7 @@ describe("citations match route batched", () => {
   });
 
   it("charges the shared lookup budget once per URL", async () => {
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/match/route");
     const urls = Array.from(
       { length: 20 },
@@ -470,7 +477,7 @@ describe("citations resolve route", () => {
         ? new Response(JSON.stringify({ message: { items: [] } }))
         : new Response("<feed></feed>"),
     );
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/resolve/route");
     const hit = await route.GET(
       resolveUrl(
@@ -505,7 +512,7 @@ describe("citations resolve route", () => {
       400,
     );
 
-    signedIn(false);
+    await signedIn(false);
     vi.resetModules();
     const anonymous = await import("@/app/api/v1/citations/resolve/route");
     expect(
@@ -518,7 +525,7 @@ describe("citations resolve route", () => {
   });
 
   it("throttles a reader after 60 lookups in ten minutes", async () => {
-    signedIn(true);
+    await signedIn(true);
     const route = await import("@/app/api/v1/citations/resolve/route");
     let last = 0;
     for (let i = 0; i < 61; i++) {

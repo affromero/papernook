@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import { isIP } from "node:net";
 import { Agent, fetch, type Response } from "undici";
 import { MAX_PDF_BYTES } from "../pdf-limits";
@@ -129,14 +130,17 @@ export interface FetchedPublicResponse {
 /** Fetch a public HTTP(S) URL with DNS pinning and redirect SSRF guards. */
 export async function fetchPublicUrl(
   url: string,
+  signal?: AbortSignal,
 ): Promise<FetchedPublicResponse> {
+  signal?.throwIfAborted();
   let current = await resolvePublicUrl(url);
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    signal?.throwIfAborted();
     const currentUrl = current.url.toString();
     const host = current.url.hostname;
     const last = lastFetchByHost.get(host) ?? 0;
     const wait = last + HOST_COOLDOWN_MS - Date.now();
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    if (wait > 0) await delay(wait, undefined, { signal });
     lastFetchByHost.set(host, Date.now());
     const dispatcher = new Agent({
       connect: {
@@ -154,11 +158,14 @@ export async function fetchPublicUrl(
       response = await fetch(currentUrl, {
         headers: { "User-Agent": USER_AGENT },
         redirect: "manual",
-        signal: AbortSignal.timeout(60_000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(60_000)])
+          : AbortSignal.timeout(60_000),
         dispatcher,
       });
     } catch (error) {
       await dispatcher.close();
+      signal?.throwIfAborted();
       throw new CaptureError(`Fetch failed for ${currentUrl}`, {
         cause: error,
       });

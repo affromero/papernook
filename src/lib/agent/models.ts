@@ -1,22 +1,20 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { dataRoot } from "../data-dir";
+import type { AiState } from "./state";
 import { codexEnvironment } from "./codex";
-import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
+import { apiProviders } from "thesidedoor-core/ai/providers";
+import { apiCredentials } from "./api";
 import {
-  configuredBaseUrl,
   configuredModel,
+  readAiState,
   effortSuggestions,
   isAgentEffort,
   modelSuggestions,
   type AgentEffort,
 } from "./config";
 import { buildAgentInvocation, getCodexSshHost } from "./invocation";
-import { compatibleBaseUrl, localModelsUrl } from "./local";
-import {
-  isLocalProvider,
-  type LocalProviderId,
-  type ProviderId,
-} from "./types";
+import type { ProviderId } from "./types";
 
 /**
  * The models a provider currently offers. Anthropic, OpenAI, and local HTTP
@@ -31,53 +29,12 @@ const CACHE_MS = 10 * 60 * 1000;
 export interface OfferedModels {
   models: string[];
   live: boolean;
+  discoveryError?: string;
   effortOptions?: AgentEffort[];
   defaultEffort?: AgentEffort | null;
 }
 
 const cache = new Map<string, { at: number; offering: OfferedModels }>();
-
-async function anthropicModels(): Promise<string[]> {
-  const client = new Anthropic();
-  const models: string[] = [];
-  for await (const model of client.models.list()) {
-    models.push(model.id);
-  }
-  return models;
-}
-
-async function openaiModels(
-  provider: "openai" | Exclude<LocalProviderId, "ollama">,
-): Promise<string[]> {
-  const baseURL = compatibleBaseUrl(provider);
-  const client = new OpenAI({
-    apiKey:
-      provider === "openai"
-        ? process.env.OPENAI_API_KEY || (baseURL ? "unused" : undefined)
-        : "unused",
-    baseURL,
-  });
-  const models: string[] = [];
-  for await (const model of client.models.list()) {
-    if (provider !== "openai" || baseURL || /^(gpt|o\d)/.test(model.id)) {
-      models.push(model.id);
-    }
-  }
-  return models.sort().reverse();
-}
-
-async function ollamaModels(): Promise<string[]> {
-  const response = await fetch(localModelsUrl("ollama"), {
-    signal: AbortSignal.timeout(5_000),
-  });
-  if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
-  const data = (await response.json()) as {
-    models?: { name?: string }[];
-  };
-  return (data.models ?? [])
-    .map((model) => model.name)
-    .filter((name): name is string => Boolean(name));
-}
 
 interface CodexModelListResult {
   data?: Array<{
@@ -105,7 +62,9 @@ interface CodexModelOffering {
 }
 
 /** Discover picker-visible Codex models through the supported app-server API. */
-function codexModels(): Promise<Omit<OfferedModels, "live">> {
+function codexModels(
+  model: string | undefined,
+): Promise<Omit<OfferedModels, "live">> {
   const invocation = buildAgentInvocation(
     "codex",
     ["app-server"],
@@ -134,7 +93,7 @@ function codexModels(): Promise<Omit<OfferedModels, "live">> {
       if (error) reject(error);
       else {
         const selected =
-          offerings.find((entry) => entry.model === configuredModel()) ??
+          offerings.find((entry) => entry.model === model) ??
           offerings.find((entry) => entry.isDefault) ??
           offerings[0];
         resolve({
@@ -266,6 +225,7 @@ export function resetModelCache(): void {
 
 export async function listOfferedModels(
   provider: ProviderId,
+  state: AiState = readAiState(),
 ): Promise<OfferedModels> {
   if (provider === "claude-code") {
     return {
@@ -276,11 +236,20 @@ export async function listOfferedModels(
     };
   }
 
-  const cacheKey = `${provider}:${
-    provider === "codex"
-      ? `${getCodexSshHost() ?? "local"}:${configuredModel() ?? "default"}`
-      : (configuredBaseUrl(provider) ?? "")
-  }`;
+  const credentials =
+    provider === "codex" ? undefined : apiCredentials(provider, state);
+  const fingerprint = createHash("sha256")
+    .update(
+      JSON.stringify(
+        credentials ?? {
+          ssh: getCodexSshHost(),
+          model: configuredModel(state.selection),
+        },
+      ),
+    )
+    .digest("hex");
+  const cacheKey = `${dataRoot()}:${state.revision}:${provider}:${fingerprint}`;
+  if (cache.size > 100) cache.clear();
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.at < CACHE_MS) {
     return cached.offering;
@@ -288,20 +257,28 @@ export async function listOfferedModels(
   try {
     let models: string[] | null = null;
     if (provider === "codex") {
-      const offering = { ...(await codexModels()), live: true };
+      const offering = {
+        ...(await codexModels(configuredModel(state.selection))),
+        live: true,
+      };
       cache.set(cacheKey, { at: Date.now(), offering });
       return offering;
-    } else if (provider === "anthropic" && process.env.ANTHROPIC_API_KEY) {
-      models = await anthropicModels();
-    } else if (
-      provider === "openai" &&
-      (process.env.OPENAI_API_KEY || configuredBaseUrl(provider))
-    ) {
-      models = await openaiModels(provider);
-    } else if (provider === "ollama") {
-      models = await ollamaModels();
-    } else if (isLocalProvider(provider)) {
-      models = await openaiModels(provider);
+    } else {
+      const adapter = apiProviders().find(
+        (entry) => entry.descriptor.id === provider,
+      );
+      if (!adapter) throw new Error("Unknown AI provider");
+      if (!credentials) throw new Error("Provider credentials are unavailable");
+      models = (
+        await adapter.models({
+          credentials,
+          signal: AbortSignal.timeout(5_000),
+        })
+      ).map((entry) => entry.id);
+      if (provider === "openai" && !credentials.baseUrl)
+        models = models.filter((id) => /^(gpt|o\d)/.test(id));
+      if (provider !== "anthropic" && provider !== "ollama")
+        models.sort().reverse();
     }
     if (models && models.length > 0) {
       const offering = { models, live: true };
@@ -315,6 +292,8 @@ export async function listOfferedModels(
   return {
     models: modelSuggestions(provider),
     live: false,
+    discoveryError:
+      "Live model discovery failed. Check the provider connection and refresh to retry.",
     ...(effortOptions.length > 0 ? { effortOptions, defaultEffort: null } : {}),
   };
 }

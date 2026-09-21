@@ -1,3 +1,8 @@
+import {
+  createTestProfile,
+  mockTestSession,
+  setTestZoteroConfig,
+} from "../../helpers/access";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -14,20 +19,15 @@ beforeEach(() => {
 
 afterEach(async () => {
   vi.unstubAllGlobals();
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
+  vi.unstubAllEnvs();
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 async function signedInAs(username: string | null) {
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => {
-      if (!username) return null;
-      const { getProfile } = await import("@/lib/auth/users");
-      return getProfile(username);
-    },
-  }));
+  await mockTestSession(username);
 }
 
 function putRequest(body: unknown): NextRequest {
@@ -47,6 +47,52 @@ function patchRequest(body: unknown): NextRequest {
 }
 
 describe("zotero settings route", () => {
+  it("does not reconnect credentials when a pending source update follows a disconnect", async () => {
+    await createTestProfile("Andres");
+    await setTestZoteroConfig("andres", {
+      apiKey: "old-secret-key",
+      userId: "1234567",
+    });
+    await signedInAs("andres");
+    let entered!: () => void;
+    let resume!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const paused = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    vi.stubGlobal("fetch", async (input: URL | string) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/keys/current") {
+        entered();
+        await paused;
+        return Response.json({
+          userID: 1234567,
+          access: { user: { library: true } },
+        });
+      }
+      return Response.json([]);
+    });
+    const route = await import("@/app/api/v1/settings/zotero/route");
+    const updating = route.PATCH(
+      patchRequest({
+        target: { type: "user", id: "1234567" },
+        collectionKeys: [],
+      }),
+    );
+    await started;
+    expect((await route.DELETE()).status).toBe(200);
+    resume();
+    const result = await updating;
+    expect(result.status).toBe(409);
+    expect(await result.json()).toEqual({
+      error: "Zotero settings changed. Refresh and try again.",
+    });
+    const { getProfile } = await import("@/lib/auth/users");
+    expect(getProfile("andres")?.zotero).toBeUndefined();
+  });
+
   it("rejects unauthenticated requests", async () => {
     await signedInAs(null);
     const route = await import("@/app/api/v1/settings/zotero/route");
@@ -70,7 +116,7 @@ describe("zotero settings route", () => {
 
   it("verifies the key with Zotero and never echoes it back", async () => {
     const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     vi.stubGlobal("fetch", async (input: URL | string) => {
       const url = new URL(String(input));
@@ -127,7 +173,7 @@ describe("zotero settings route", () => {
 
   it("rejects malformed bodies and keys Zotero refuses, then rate-limits", async () => {
     const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     vi.stubGlobal(
       "fetch",
@@ -148,7 +194,7 @@ describe("zotero settings route", () => {
 
   it("allows metadata-only connection without personal file permission", async () => {
     const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     vi.stubGlobal("fetch", async (input: URL | string) => {
       const url = new URL(String(input));
@@ -177,8 +223,8 @@ describe("zotero settings route", () => {
 
   it("lists accessible libraries and validates group collection filters", async () => {
     const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
-    users.setZoteroConfig("andres", {
+    await createTestProfile("Andres");
+    await setTestZoteroConfig("andres", {
       apiKey: "secret-key",
       userId: "1234567",
     });
@@ -278,7 +324,7 @@ describe("zotero settings route", () => {
 
   it("connects a group-only key to its first accessible group", async () => {
     const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     vi.stubGlobal("fetch", async (input: URL | string) => {
       const url = new URL(String(input));
@@ -314,13 +360,12 @@ describe("zotero settings route", () => {
   });
 
   it("sync-now requires a connection and cools down", async () => {
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     const route = await import("@/app/api/v1/settings/zotero/route");
     expect((await route.POST()).status).toBe(400);
 
-    users.setZoteroConfig("andres", { apiKey: "key", userId: "1234567" });
+    await setTestZoteroConfig("andres", { apiKey: "key", userId: "1234567" });
     let releaseCollections: ((response: Response) => void) | null = null;
     const pendingCollections = new Promise<Response>((resolve) => {
       releaseCollections = resolve;

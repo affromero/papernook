@@ -11,7 +11,8 @@ import {
 } from "@/lib/agent/registry";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { activeProfile } from "@/lib/auth/session";
-import { isAdmin } from "@/lib/auth/users";
+import { currentOwner } from "@/lib/auth/access";
+import { resetModelCache } from "@/lib/agent/models";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ function json(body: object, status = 200): NextResponse {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const profile = await activeProfile();
   if (!profile) return json({ error: "Not signed in." }, 401);
-  if (!isAdmin(profile)) return json({ error: "Admin only." }, 403);
+  if (!(await currentOwner())) return json({ error: "Admin only." }, 403);
   const body = schema.safeParse(await readBoundedJsonOrNull(request));
   if (!body.success) return json({ error: "Invalid request." }, 400);
   try {
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     const outcome = await reloadProviderCredentials(provider);
     resetProviderStatusCache();
+    resetModelCache();
     return json({
       provider,
       outcome,

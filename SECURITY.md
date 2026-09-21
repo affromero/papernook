@@ -8,16 +8,14 @@ contact the maintainer directly) rather than a public issue.
 
 - Authentication is always on and identical for every hostname. Host headers
   cannot select a passwordless route.
-- `PAPERNOOK_PASSWORD` is the only Papernook credential. It gates the profile
-  picker. Docker Compose refuses to start without it, and the login API returns
-  `503` if it is unset. Authentication is throttled per IP and selected account
-  with exponential backoff.
-- Profiles separate chats, capture tokens, and Zotero connections as a courtesy
-  between people who already share the instance password. They are not a
-  security boundary. Anyone with the instance password can switch profiles and
-  read any profile's chats.
-- Invite links are signed capabilities that open the gate for seven days
-  without revealing the instance password.
+- Sidedoor is the only Papernook access authority. It provides password and
+  passkey authentication, recovery codes, revocable sessions, household
+  admission, individual accounts, and invitations. Password authentication is
+  throttled.
+- Household profiles share an admission credential and can switch profiles.
+  Individual accounts stay bound to their own profile and act as a security
+  boundary.
+- Invitations are short-lived, revocable Sidedoor capabilities.
 - Share links require no login. The unguessable share id is the capability to
   read that one shared paper.
 - Sessions use HMAC-SHA256-signed Secure, HttpOnly, SameSite cookies and expire

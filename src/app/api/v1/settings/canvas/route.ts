@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
-import { isAdmin } from "@/lib/auth/users";
+import { currentOwner } from "@/lib/auth/access";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import {
   CanvasConfigError,
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { status: 401, headers: { "Cache-Control": "no-store" } },
     );
   }
-  return response(isAdmin(profile), licenseRequired(request));
+  return response(await currentOwner(), licenseRequired(request));
 }
 
 export async function PUT(request: NextRequest): Promise<NextResponse> {
@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       { status: 401, headers: { "Cache-Control": "no-store" } },
     );
   }
-  if (!isAdmin(profile)) {
+  if (!(await currentOwner())) {
     return NextResponse.json(
       { error: "Admin only." },
       { status: 403, headers: { "Cache-Control": "no-store" } },

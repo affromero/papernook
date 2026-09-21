@@ -1,3 +1,4 @@
+import { createTestProfile, testProfileCapability } from "../../helpers/access";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import fs from "node:fs";
@@ -13,6 +14,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.doUnmock("@/lib/capture/download");
   vi.doUnmock("@/lib/capture/analyze");
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -30,8 +32,7 @@ function post(pathname: string, fields: Record<string, string>): NextRequest {
 async function makeProfile() {
   const { ensureDataDirs } = await import("@/lib/data-dir");
   ensureDataDirs();
-  const users = await import("@/lib/auth/users");
-  return users.createProfile("Andres");
+  return createTestProfile("Andres");
 }
 
 describe("async /add flow", () => {
@@ -67,6 +68,7 @@ describe("async /add flow", () => {
       state: "analyzing",
       sourceUrl: "https://a.io/x.pdf",
       addedBy: profile.username,
+      generation: testProfileCapability(profile.username).generation,
       startedAt: new Date().toISOString(),
     });
     const { POST } = await import("@/app/add/status/route");
@@ -81,6 +83,7 @@ describe("async /add flow", () => {
       state: "failed",
       sourceUrl: "https://a.io/x.pdf",
       addedBy: profile.username,
+      generation: testProfileCapability(profile.username).generation,
       startedAt: new Date().toISOString(),
       error: "The publisher blocks downloads.",
     });
@@ -123,6 +126,7 @@ describe("async /add flow", () => {
       state: "done",
       sourceUrl: "https://arxiv.org/abs/1706.03762",
       addedBy: profile.username,
+      generation: testProfileCapability(profile.username).generation,
       startedAt: new Date().toISOString(),
       finalSlug: "attention-is-all-you-need",
     });
@@ -152,10 +156,10 @@ describe("async /add flow", () => {
       state: "analyzing",
       sourceUrl: "https://a.io/x.pdf",
       addedBy: profile.username,
+      generation: testProfileCapability(profile.username).generation,
       startedAt: new Date().toISOString(),
     });
-    const users = await import("@/lib/auth/users");
-    const other = users.createProfile("Other");
+    const other = await createTestProfile("Other");
     const { POST } = await import("@/app/add/status/route");
     expect(
       (await POST(post("/add/status", { token: "bogus", slug: "private-job" })))

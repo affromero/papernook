@@ -1,3 +1,4 @@
+import { createTestProfile, mockTestSession } from "../../helpers/access";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -13,9 +14,8 @@ beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-vision-gate-"));
   process.env.PAPERNOOK_DATA_DIR = tmpDir;
   vi.resetModules();
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => ({ username: "andres" }),
-  }));
+  await createTestProfile("Andres");
+  await mockTestSession("andres");
   vi.doMock("@/lib/agent/registry", () => ({
     hasConfiguredProvider: () => true,
     getProvider: () => ({
@@ -47,7 +47,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
+  vi.unstubAllEnvs();
   vi.doUnmock("@/lib/agent/registry");
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();

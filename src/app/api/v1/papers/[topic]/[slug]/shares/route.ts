@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
-import { activeProfile } from "@/lib/auth/session";
+import {
+  requestIdentity,
+  sharedAccess,
+  accessFailure,
+} from "@/lib/auth/access";
+import { withProfileFiles } from "@/lib/auth/profile-capability";
 import { getPaper } from "@/lib/library/papers";
 import {
   createShare,
@@ -33,22 +38,37 @@ function toPublicSummary(share: PaperShare) {
 }
 
 export async function GET(_request: NextRequest, { params }: Params) {
-  const profile = await activeProfile();
-  if (!profile) {
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
   const { topic, slug } = await params;
   if (!getPaper(topic, slug)) {
     return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
   }
-  return NextResponse.json({
-    shares: listShares(topic, slug, profile.username).map(toPublicSummary),
-  });
+  try {
+    return withProfileFiles(sharedAccess().identity, capability, () =>
+      NextResponse.json(
+        {
+          shares: listShares(topic, slug, profile.username).map(
+            toPublicSummary,
+          ),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      ),
+    );
+  } catch (error) {
+    return accessFailure(error);
+  }
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
-  const profile = await activeProfile();
-  if (!profile) {
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
   const { topic, slug } = await params;
@@ -63,7 +83,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
   try {
-    const share = createShare(topic, slug, profile.username, body.data.chatIds);
+    const share = withProfileFiles(sharedAccess().identity, capability, () =>
+      createShare(topic, slug, capability, body.data.chatIds),
+    );
     return NextResponse.json(
       { share: toPublicSummary(share) },
       { status: 201 },
@@ -72,6 +94,6 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (error instanceof ShareError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    throw error;
+    return accessFailure(error);
   }
 }

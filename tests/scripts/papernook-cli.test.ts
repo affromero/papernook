@@ -12,6 +12,7 @@ let stubs = "";
 let composeLog = "";
 let dockerLog = "";
 let healthVersion = "";
+let runningApp = "";
 
 /**
  * Git exports GIT_DIR, GIT_INDEX_FILE and friends to the hooks it runs, and
@@ -55,7 +56,16 @@ beforeAll(() => {
   workspace = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-cli-"));
   const origin = path.join(workspace, "origin");
   fs.mkdirSync(path.join(origin, "scripts"), { recursive: true });
+  fs.mkdirSync(path.join(origin, "scripts/runtime"), { recursive: true });
   fs.copyFileSync(cli, path.join(origin, "scripts", "papernook"));
+  fs.copyFileSync(
+    path.join(path.dirname(cli), "runtime/start-stack.sh"),
+    path.join(origin, "scripts/runtime/start-stack.sh"),
+  );
+  fs.copyFileSync(
+    path.join(path.dirname(cli), "backup.sh"),
+    path.join(origin, "scripts/backup.sh"),
+  );
   fs.chmodSync(path.join(origin, "scripts", "papernook"), 0o755);
   fs.writeFileSync(path.join(origin, "docker-compose.yml"), "services:\n");
   fs.writeFileSync(
@@ -95,10 +105,20 @@ beforeAll(() => {
   composeLog = path.join(workspace, "compose-version");
   // Every compose command, so a test can tell a pull from a build.
   dockerLog = path.join(workspace, "docker-args");
+  runningApp = path.join(workspace, "running-app");
   fs.writeFileSync(
     path.join(stubs, "docker"),
-    `#!/bin/sh\nprintf '%s' "$PAPERNOOK_VERSION" > ${composeLog}\n` +
-      `echo "$*" >> ${dockerLog}\nexit 0\n`,
+    `#!/bin/sh\n` +
+      `if [ "$1 $2" = "image inspect" ]; then echo sha256:prepared; exit 0; fi\n` +
+      `if [ "$1" = compose ]; then\n` +
+      `  printf '%s' "$PAPERNOOK_VERSION" > ${composeLog}\n` +
+      `  shift\n` +
+      `  if [ "$1" = --project-directory ]; then shift 4; fi\n` +
+      `  set -- compose "$@"\n` +
+      `fi\n` +
+      `echo "$*" >> ${dockerLog}\n` +
+      `if [ "$*" = "compose config --format json" ]; then echo '{"name":"fixture","services":{"app":{"image":"papernook-app:local"}}}'; fi\n` +
+      `if [ "$*" = "compose ps --status running --quiet app" ] && [ -f ${runningApp} ]; then cat ${runningApp}; fi\nexit 0\n`,
     { mode: 0o755 },
   );
   // The version the "running" stack reports, which the tests below vary to
@@ -115,6 +135,39 @@ beforeAll(() => {
 
 afterAll(() => {
   fs.rmSync(workspace, { recursive: true, force: true });
+});
+
+describe("papernook access", () => {
+  beforeEach(() => {
+    fs.writeFileSync(dockerLog, "");
+    fs.rmSync(runningApp, { force: true });
+  });
+
+  it("rejects invalid arguments without starting a container", () => {
+    expect(() => run(["access", "recover"])).toThrow();
+    expect(fs.readFileSync(dockerLog, "utf8")).toBe("");
+  });
+
+  it("runs initialization only while the serving app is stopped", () => {
+    run(["access", "initialize"]);
+    expect(fs.readFileSync(dockerLog, "utf8")).toContain(
+      "compose run --rm --no-deps app node scripts/access.cjs initialize",
+    );
+    fs.writeFileSync(dockerLog, "");
+    fs.writeFileSync(runningApp, "container-id\n");
+    expect(() => run(["access", "initialize"])).toThrow(/Stop the app/);
+    expect(fs.readFileSync(dockerLog, "utf8")).not.toContain("compose run");
+    fs.rmSync(runningApp);
+  });
+
+  it("recovers an exact principal through the running application environment", () => {
+    fs.writeFileSync(runningApp, "container-id\n");
+    run(["access", "recover", "principal-123"]);
+    expect(fs.readFileSync(dockerLog, "utf8")).toContain(
+      "compose exec -T --user node app node scripts/access.cjs recover principal-123",
+    );
+    fs.rmSync(runningApp);
+  });
 });
 
 describe("papernook update", () => {
@@ -134,7 +187,11 @@ describe("papernook update", () => {
     const output = run(["update", "--no-backup"]);
     expect(git(["describe", "--tags"], clone).trim()).toBe("v0.9.0");
     expect(output).toContain('{"status":"ok"}');
-    // Re-running is a no-op rather than a second rebuild.
+    fs.writeFileSync(
+      healthVersion,
+      `1.2.3+${git(["rev-parse", "--short", "HEAD"], clone).trim()}`,
+    );
+    // Re-running a healthy current deployment is a no-op.
     expect(run(["update"])).toContain("Already on the newest release");
   });
 
@@ -246,7 +303,7 @@ describe("papernook update (prebuilt image)", () => {
     stackReports("1.2.3+deadbee");
     run(["update", "--main", "--no-backup"]);
     const commands = dockerCommands().join(" ");
-    expect(commands).toContain("--build");
-    expect(commands).not.toContain("pull");
+    expect(commands).toContain("compose build app");
+    expect(commands).not.toContain("compose pull app");
   });
 });

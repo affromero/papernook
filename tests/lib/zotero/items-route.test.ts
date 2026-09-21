@@ -1,3 +1,9 @@
+import {
+  createTestProfile,
+  setTestZoteroConfig,
+  mockTestSession,
+  testProfileCapability,
+} from "../../helpers/access";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -14,8 +20,9 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
   vi.doUnmock("@/lib/agent/registry");
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
@@ -23,19 +30,12 @@ afterEach(async () => {
 });
 
 async function signedInAs(username: string | null) {
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => {
-      if (!username) return null;
-      const { getProfile } = await import("@/lib/auth/users");
-      return getProfile(username);
-    },
-  }));
+  await mockTestSession(username);
 }
 
 async function prepareCatalog() {
-  const users = await import("@/lib/auth/users");
-  users.createProfile("Andres");
-  users.setZoteroConfig("andres", {
+  await createTestProfile("Andres");
+  await setTestZoteroConfig("andres", {
     apiKey: "private-api-key",
     userId: "1234567",
   });
@@ -77,7 +77,7 @@ async function prepareCatalog() {
     associations: {},
   };
   const { writeZoteroCatalog } = await import("@/lib/capture/zotero-catalog");
-  await writeZoteroCatalog("andres", catalog);
+  await writeZoteroCatalog(testProfileCapability("andres"), catalog);
 }
 
 function request(url: string, body?: unknown): NextRequest {

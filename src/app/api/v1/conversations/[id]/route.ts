@@ -1,4 +1,10 @@
-import { activeProfile } from "@/lib/auth/session";
+import {
+  requestIdentity,
+  sharedAccess,
+  accessFailure,
+} from "@/lib/auth/access";
+import { withProfileFiles } from "@/lib/auth/profile-capability";
+import { isAccessError } from "thesidedoor-core/access";
 import { readBoundedJson } from "@/lib/bounded-request";
 import {
   deleteConversation,
@@ -9,11 +15,20 @@ import {
 type Context = { params: Promise<{ id: string }> };
 export async function GET(request: Request, { params }: Context) {
   void request;
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability)
     return Response.json({ error: "Not signed in." }, { status: 401 });
   const { id } = await params;
-  const conversation = getConversation(profile.username, id);
+  let conversation;
+  try {
+    conversation = withProfileFiles(sharedAccess().identity, capability, () =>
+      getConversation(profile.username, id),
+    );
+  } catch (error) {
+    return accessFailure(error);
+  }
   return conversation
     ? Response.json(
         { conversation },
@@ -22,18 +37,21 @@ export async function GET(request: Request, { params }: Context) {
     : Response.json({ error: "Conversation not found." }, { status: 404 });
 }
 export async function PATCH(request: Request, { params }: Context) {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability)
     return Response.json({ error: "Not signed in." }, { status: 401 });
   try {
+    const { id } = await params;
+    const metadata = metadataSchema.parse(await readBoundedJson(request));
     return Response.json({
-      conversation: updateConversation(
-        profile.username,
-        (await params).id,
-        metadataSchema.parse(await readBoundedJson(request)),
+      conversation: withProfileFiles(sharedAccess().identity, capability, () =>
+        updateConversation(profile.username, id, metadata),
       ),
     });
   } catch (error) {
+    if (isAccessError(error)) return accessFailure(error);
     return Response.json(
       { error: error instanceof Error ? error.message : "Update failed." },
       { status: 400 },
@@ -42,13 +60,19 @@ export async function PATCH(request: Request, { params }: Context) {
 }
 export async function DELETE(request: Request, { params }: Context) {
   void request;
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability)
     return Response.json({ error: "Not signed in." }, { status: 401 });
   try {
-    deleteConversation(profile.username, (await params).id);
+    const { id } = await params;
+    withProfileFiles(sharedAccess().identity, capability, () =>
+      deleteConversation(profile.username, id),
+    );
     return Response.json({ ok: true });
   } catch (error) {
+    if (isAccessError(error)) return accessFailure(error);
     return Response.json(
       { error: error instanceof Error ? error.message : "Delete failed." },
       { status: 409 },

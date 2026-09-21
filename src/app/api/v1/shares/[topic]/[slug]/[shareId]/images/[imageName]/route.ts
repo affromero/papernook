@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import { NextResponse, type NextRequest } from "next/server";
-import { getShare, resolveSharedCrop } from "@/lib/library/shares";
+import {
+  getShare,
+  resolveSharedCrop,
+  withShareFiles,
+} from "@/lib/library/shares";
+import { isAccessError } from "thesidedoor-core/access";
 
 export const dynamic = "force-dynamic";
 
@@ -23,22 +28,34 @@ const PRIVATE_HEADERS = {
 export async function GET(_request: NextRequest, { params }: Params) {
   const { topic, slug, shareId, imageName } = await params;
   const share = getShare(topic, slug, shareId);
-  const crop = share ? resolveSharedCrop(share, imageName) : null;
-  if (!crop) {
+  if (!share) {
     return NextResponse.json(
       { error: "Unknown image." },
       { status: 404, headers: PRIVATE_HEADERS },
     );
   }
   try {
-    const bytes = fs.readFileSync(crop.filePath);
-    return new NextResponse(new Uint8Array(bytes), {
-      headers: {
-        ...PRIVATE_HEADERS,
-        "content-type": crop.contentType,
-      },
+    return withShareFiles(share, () => {
+      const crop = resolveSharedCrop(share, imageName);
+      if (!crop)
+        return NextResponse.json(
+          { error: "Unknown image." },
+          { status: 404, headers: PRIVATE_HEADERS },
+        );
+      const bytes = fs.readFileSync(crop.filePath);
+      return new NextResponse(new Uint8Array(bytes), {
+        headers: {
+          ...PRIVATE_HEADERS,
+          "content-type": crop.contentType,
+        },
+      });
     });
-  } catch {
+  } catch (error) {
+    if (isAccessError(error) && error.code === "unauthorized")
+      return NextResponse.json(
+        { error: "Unknown image." },
+        { status: 404, headers: PRIVATE_HEADERS },
+      );
     return NextResponse.json(
       { error: "Image is temporarily unavailable." },
       { status: 503, headers: PRIVATE_HEADERS },

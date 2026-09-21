@@ -1,14 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-
-const password = "admin-created-password";
-
-async function login(page: Page): Promise<void> {
-  await page.goto("/login");
-  await page.getByRole("textbox", { name: "Password" }).fill(password);
-  await page.getByRole("button", { name: "Enter" }).click();
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
-  await expect(page).toHaveURL("/");
-}
+import { expect, test } from "@playwright/test";
+import { restoreMayaSession } from "./support/member-session";
 
 test("an early scene failure stays visible and reports no scene text", async ({
   page,
@@ -63,7 +54,7 @@ test("an early scene failure stays visible and reports no scene text", async ({
     },
   );
 
-  await login(page);
+  await restoreMayaSession(page);
   await page.goto("/paper/machine-learning/attention-is-all-you-need");
   await page
     .getByRole("combobox", { name: "Previous conversations" })
@@ -104,7 +95,7 @@ test("an early scene failure stays visible and reports no scene text", async ({
   );
 });
 
-test("a legacy module scene loads Three.js and creates its canvas", async ({
+test("a module scene loads Three.js and creates its canvas", async ({
   page,
 }) => {
   const diagnostics: unknown[] = [];
@@ -167,7 +158,7 @@ test("a legacy module scene loads Three.js and creates its canvas", async ({
     },
   );
 
-  await login(page);
+  await restoreMayaSession(page);
   await page.goto("/paper/machine-learning/attention-is-all-you-need");
   await page
     .getByRole("combobox", { name: "Previous conversations" })

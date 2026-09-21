@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# papernook installer: interactive .env setup + docker compose up.
-# The AI provider is chosen HERE,
-# never hardcoded in the app.
+# papernook installer: deployment setup + docker compose up.
 
 set -euo pipefail
 umask 077
@@ -21,7 +19,18 @@ fi
 # Loaded only after the self-bootstrap above has entered the cloned repo.
 source ./scripts/install-env.sh
 
-for dependency in docker openssl; do
+print_owner_claim() {
+  local listing owner_count claim code
+  listing=$(./scripts/papernook access list)
+  owner_count=$(printf '%s' "$listing" | python3 -c 'import json,sys; print(sum(p.get("role") == "owner" for p in json.load(sys.stdin)["principals"]))')
+  [ "$owner_count" = 0 ] || return 0
+  claim=$(./scripts/papernook access claim)
+  code=$(printf '%s' "$claim" | python3 -c 'import json,sys; print(json.load(sys.stdin)["code"])')
+  echo "Owner claim code (valid for 15 minutes): $code"
+  echo "Open the app and enter this code to create the owner account."
+}
+
+for dependency in docker openssl python3; do
   command -v "$dependency" >/dev/null 2>&1 || {
     echo "install ${dependency} before running setup" >&2
     exit 1
@@ -35,15 +44,17 @@ docker compose version >/dev/null 2>&1 || {
 # Non-interactive: pull everything from an existing Infisical project.
 #   INFISICAL_TOKEN=... INFISICAL_PROJECT_ID=... ./scripts/install.sh --from-infisical
 if [ "${1:-}" = "--from-infisical" ]; then
+  [ ! -f .env ] || { echo ".env already exists; use papernook update." >&2; exit 1; }
   : "${INFISICAL_TOKEN:?set INFISICAL_TOKEN}"
   : "${INFISICAL_PROJECT_ID:?set INFISICAL_PROJECT_ID}"
   command -v infisical >/dev/null || { echo "install the infisical CLI first" >&2; exit 1; }
   infisical export --projectId "$INFISICAL_PROJECT_ID" --env prod --format dotenv > .env
   chmod 600 .env
   echo "Wrote .env from Infisical. Starting the stack…"
-  docker compose up -d --build
+  bash ./scripts/runtime/start-stack.sh build
   ./scripts/papernook link || true
-  echo "papernook is up: http://localhost:3000"
+  echo "Papernook is up at the configured PAPERNOOK_URL (default http://localhost:3000)."
+  print_owner_claim
   exit 0
 fi
 
@@ -54,99 +65,7 @@ fi
 
 echo "papernook setup"
 echo
-DETECTED_CHOICE=""
-if command -v codex >/dev/null 2>&1 && codex login status >/dev/null 2>&1; then
-  DETECTED_CHOICE="2"
-  echo "Detected Codex CLI and local authentication."
-elif command -v claude >/dev/null 2>&1 && claude auth status >/dev/null 2>&1; then
-  DETECTED_CHOICE="1"
-  echo "Detected Claude Code CLI and local authentication."
-fi
-echo
-echo "How should papernook talk to your AI?"
-echo "  1) claude   : Claude Code CLI on this machine (keyless)"
-echo "  2) codex    : Codex CLI on this machine (keyless)"
-echo "  3) ssh      : Claude Code CLI on another machine, over SSH"
-echo "  4) anthropic : Anthropic API key"
-echo "  5) openai   : OpenAI API key"
-echo "  6) ollama   : Ollama on this machine (keyless)"
-echo "  7) llamacpp : llama.cpp server on this machine (keyless)"
-echo "  8) vllm     : vLLM server on this machine (keyless)"
-echo "  9) none     : no AI for now — capture, read, and annotate still work"
-if [ -n "$DETECTED_CHOICE" ]; then
-  read -r -p "Choice [${DETECTED_CHOICE}, Enter to accept]: " CHOICE < /dev/tty
-  CHOICE=${CHOICE:-$DETECTED_CHOICE}
-else
-  read -r -p "Choice [1-9]: " CHOICE < /dev/tty
-fi
-
-case "$CHOICE" in
-  1)
-    read -r -p "Claude model [opus/sonnet/haiku, empty = CLI default]: " M < /dev/tty
-    AI_BLOCK='AI_PROVIDER=claude-code'
-    [ -f "${HOME}/.claude/.credentials.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CLAUDE_AUTH_DIR=${HOME}/.claude"
-
-    ;;
-  2)
-    read -r -p "Codex model [empty = CLI default]: " M < /dev/tty
-    AI_BLOCK='AI_PROVIDER=codex'
-    [ -f "${HOME}/.codex/auth.json" ] && AI_BLOCK="$AI_BLOCK"$'\n'"CODEX_AUTH_DIR=${HOME}/.codex"
-
-    ;;
-  3)
-    read -r -p "SSH host (user@host): " SSH_HOST < /dev/tty
-    read -r -p "SSH private key path: " SSH_KEY_FILE < /dev/tty
-    read -r -p "SSH known_hosts path [${HOME}/.ssh/known_hosts]: " SSH_KNOWN_HOSTS_FILE < /dev/tty
-    SSH_KNOWN_HOSTS_FILE=${SSH_KNOWN_HOSTS_FILE:-${HOME}/.ssh/known_hosts}
-    [ -f "$SSH_KEY_FILE" ] || { echo "The SSH private key file does not exist." >&2; exit 1; }
-    [ -f "$SSH_KNOWN_HOSTS_FILE" ] || { echo "The SSH known_hosts file does not exist." >&2; exit 1; }
-    read -r -p "Claude model [empty = CLI default]: " M < /dev/tty
-    AI_BLOCK=$'AI_PROVIDER=claude-code\n'"CLAUDE_CODE_SSH_HOST=$(dotenv_quote "$SSH_HOST")"
-    AI_BLOCK="$AI_BLOCK"$'\n'"SSH_KEY_FILE=$(dotenv_quote "$SSH_KEY_FILE")"
-    AI_BLOCK="$AI_BLOCK"$'\n'"SSH_KNOWN_HOSTS_FILE=$(dotenv_quote "$SSH_KNOWN_HOSTS_FILE")"
-
-    ;;
-  4)
-    read -r -s -p "Anthropic API key: " AI_KEY < /dev/tty
-    echo
-    [ -n "$AI_KEY" ] || { echo "An API key is required." >&2; exit 1; }
-    AI_BLOCK=$'AI_PROVIDER=anthropic\n'"ANTHROPIC_API_KEY=$(dotenv_quote "$AI_KEY")"
-    ;;
-  5)
-    read -r -s -p "OpenAI API key: " AI_KEY < /dev/tty
-    echo
-    [ -n "$AI_KEY" ] || { echo "An API key is required." >&2; exit 1; }
-    AI_BLOCK=$'AI_PROVIDER=openai\n'"OPENAI_API_KEY=$(dotenv_quote "$AI_KEY")"
-    ;;
-  6)
-    read -r -p "Ollama model (for example qwen3:4b): " M < /dev/tty
-    [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
-    read -r -p "Ollama URL [http://host.docker.internal:11434]: " ENDPOINT < /dev/tty
-    ENDPOINT=${ENDPOINT:-http://host.docker.internal:11434}
-    AI_BLOCK=$'AI_PROVIDER=ollama\n'"OLLAMA_HOST=$(dotenv_quote "$ENDPOINT")"
-    ;;
-  7)
-    read -r -p "llama.cpp model id: " M < /dev/tty
-    [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
-    read -r -p "llama.cpp URL [http://host.docker.internal:8080]: " ENDPOINT < /dev/tty
-    ENDPOINT=${ENDPOINT:-http://host.docker.internal:8080}
-    AI_BLOCK=$'AI_PROVIDER=llamacpp\n'"LLAMACPP_BASE_URL=$(dotenv_quote "$ENDPOINT")"
-    ;;
-  8)
-    read -r -p "vLLM model id: " M < /dev/tty
-    [ -n "$M" ] || { echo "A local model id is required." >&2; exit 1; }
-    read -r -p "vLLM URL [http://host.docker.internal:8000]: " ENDPOINT < /dev/tty
-    ENDPOINT=${ENDPOINT:-http://host.docker.internal:8000}
-    AI_BLOCK=$'AI_PROVIDER=vllm\n'"VLLM_BASE_URL=$(dotenv_quote "$ENDPOINT")"
-    ;;
-  9)
-    AI_BLOCK='# AI_PROVIDER unset: no-AI mode. Connect one later in Settings.'
-    ;;
-  *)
-    echo "Unknown choice." >&2
-    exit 1
-    ;;
-esac
+echo "AI providers, models, endpoints, and credentials are configured in browser setup."
 
 read -r -p "WebDAV username for PDF Expert [papers]: " WEBDAV_USER < /dev/tty
 WEBDAV_USER=${WEBDAV_USER:-papers}
@@ -156,11 +75,9 @@ if [ "${#WEBDAV_PASS}" -lt 16 ] || [ "${#WEBDAV_PASS}" -gt 200 ]; then
   echo "The WebDAV password must be 16–200 characters." >&2
   exit 1
 fi
-# The access password is papernook's only credential, so every install has
-# one. Everyone who knows it can pick any profile.
-read -r -s -p "Papernook access password (16-200 characters): " PAPERNOOK_PASSWORD < /dev/tty
-echo
-validate_papernook_password "$PAPERNOOK_PASSWORD" || exit 1
+read -r -p "App URL used in your browser [http://localhost:3000]: " PAPERNOOK_URL < /dev/tty
+PAPERNOOK_URL=${PAPERNOOK_URL:-http://localhost:3000}
+echo "Use a stable HTTPS hostname for passkeys on your other devices."
 
 read -r -p "Expose publicly through a custom domain? [y/N]: " PUBLIC < /dev/tty
 
@@ -176,32 +93,26 @@ case "$PUBLIC" in
 esac
 
 {
-  echo "$AI_BLOCK"
   echo "WEBDAV_USER=$(dotenv_quote "$WEBDAV_USER")"
   echo "WEBDAV_PASS=$(dotenv_quote "$WEBDAV_PASS")"
-  echo "PAPERNOOK_PASSWORD=$(dotenv_quote "$PAPERNOOK_PASSWORD")"
+  echo "PAPERNOOK_URL=$(dotenv_quote "$PAPERNOOK_URL")"
   echo "SESSION_SECRET=$(openssl rand -hex 32)"
   [ -z "$PUBLIC_BLOCK" ] || echo "$PUBLIC_BLOCK"
 } > .env
 
-# Seed the runtime AI config (Settings edits the same file). Model lives
-# here, not in env — data/ is the compose-mounted /data volume.
-if [ -n "${M:-}" ] && ! printf '%s' "$AI_BLOCK" | grep -q '^#'; then
-  mkdir -p data
-  printf '{\n  "model": %s\n}\n' "$(printf '%s' "$M" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" > data/agent-config.json
-fi
-
 echo
 echo "Wrote .env. Starting the stack…"
-docker compose up -d --build
+bash ./scripts/runtime/start-stack.sh build
 # The `papernook` command lives on PATH so updates are one word, not a
 # remembered path into the clone.
 ./scripts/papernook link || true
 
 echo
 echo "papernook is up:"
-echo "  app:    http://localhost:3000  (open it and create your profile)"
+echo "  app:    ${PAPERNOOK_URL}"
 echo "  webdav: http://localhost:8080  (PDF Expert → WebDAV, user ${WEBDAV_USER})"
+print_owner_claim
+echo "Then configure AI and register a passkey in the browser."
 case "$PUBLIC" in
   y | Y)
     echo

@@ -1,3 +1,4 @@
+import { createTestProfile, mockTestSession } from "../../helpers/access";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -15,7 +16,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
+  vi.unstubAllEnvs();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -52,13 +54,7 @@ async function placePaper(): Promise<string> {
 }
 
 async function signedInAs(username: string | null): Promise<void> {
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => {
-      if (!username) return null;
-      const { getProfile } = await import("@/lib/auth/users");
-      return getProfile(username);
-    },
-  }));
+  await mockTestSession(username);
 }
 
 describe("versioned PDF files", () => {
@@ -123,8 +119,7 @@ describe("versioned PDF files", () => {
 describe("authenticated PDF route", () => {
   it("reports the current version without returning the PDF body", async () => {
     const pdfPath = await placePaper();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
     const params = {
@@ -168,8 +163,7 @@ describe("authenticated PDF route", () => {
 
   it("serves a byte range so the reader can render before the file lands", async () => {
     await placePaper();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
     const params = {
@@ -196,8 +190,7 @@ describe("authenticated PDF route", () => {
 
   it("answers an unchanged PDF with a 304 instead of the bytes", async () => {
     await placePaper();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
     const params = {
@@ -222,8 +215,7 @@ describe("authenticated PDF route", () => {
 
   it("round-trips a native PDF save and rejects the stale version", async () => {
     await placePaper();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
     const params = {
@@ -291,8 +283,7 @@ describe("authenticated PDF route", () => {
   it("rejects saves that arrive truncated instead of writing them", async () => {
     const pdfPath = await placePaper();
     const before = fs.readFileSync(pdfPath);
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     const route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
     const params = {
@@ -353,8 +344,7 @@ describe("authenticated PDF route", () => {
     expect((await route.PUT(request(), params)).status).toBe(401);
 
     vi.resetModules();
-    const users = await import("@/lib/auth/users");
-    users.createProfile("Andres");
+    await createTestProfile("Andres");
     await signedInAs("andres");
     route = await import("@/app/api/v1/papers/[topic]/[slug]/pdf/route");
     expect((await route.PUT(request(), params)).status).toBe(400);

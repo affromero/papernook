@@ -35,7 +35,6 @@ const server = spawn(
       SESSION_SECRET:
         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       PAPERNOOK_PUBLIC_REQUEST_LIMIT: "1000",
-      PAPERNOOK_PASSWORD: "admin-created-password",
       AI_PROVIDER: "codex",
       WEBDAV_USER: "papers",
       WEBDAV_PASS: "annotate-locally",

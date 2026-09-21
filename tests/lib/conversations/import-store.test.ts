@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createConversation,
@@ -18,6 +20,54 @@ import {
   shareProvider,
 } from "@/lib/conversations/import";
 let directory: string;
+it("blocks conflicting conversation work from another process and recovers after its death", async () => {
+  const record = createConversation("alice", source);
+  const anchor = path.join(
+    directory,
+    "locks",
+    "conversations",
+    "alice",
+    `${record.id}.guard`,
+  );
+  const child = spawn(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `
+    import { acquireFileLockSync } from 'thesidedoor-core/storage';
+    acquireFileLockSync(process.argv[1]);
+    process.send('locked');
+    setInterval(() => {}, 1000);
+  `,
+      anchor,
+    ],
+    { stdio: ["ignore", "ignore", "pipe", "ipc"] },
+  );
+  try {
+    await Promise.race([
+      once(child, "message"),
+      once(child, "exit").then(() => {
+        throw new Error("Conversation worker exited before acquiring its lock");
+      }),
+    ]);
+    expect(() => deleteConversation("alice", record.id)).toThrow(
+      "reply is already running",
+    );
+    expect(getConversation("alice", record.id)?.title).toBe(source.title);
+    const other = createConversation("alice", source);
+    deleteConversation("alice", other.id);
+    expect(getConversation("alice", other.id)).toBeNull();
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, "exit");
+      child.kill("SIGKILL");
+      await exited;
+    }
+  }
+  deleteConversation("alice", record.id);
+  expect(getConversation("alice", record.id)).toBeNull();
+});
 beforeEach(() => {
   directory = fs.mkdtempSync(path.join(os.tmpdir(), "conversation-test-"));
   vi.stubEnv("PAPERNOOK_DATA_DIR", directory);

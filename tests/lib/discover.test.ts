@@ -2,18 +2,21 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { configureTestAgent } from "../helpers/agent";
 
 let tmpDir: string;
 
-beforeEach(() => {
+beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-disc-"));
-  process.env.PAPERNOOK_DATA_DIR = tmpDir;
+  vi.stubEnv("PAPERNOOK_DATA_DIR", tmpDir);
   vi.resetModules();
+  await configureTestAgent({});
 });
 
 afterEach(async () => {
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
+  vi.unstubAllEnvs();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

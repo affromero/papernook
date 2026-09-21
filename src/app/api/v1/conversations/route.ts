@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { activeProfile } from "@/lib/auth/session";
+import {
+  requestIdentity,
+  sharedAccess,
+  accessFailure,
+} from "@/lib/auth/access";
+import { withProfileFiles } from "@/lib/auth/profile-capability";
+import { isAccessError } from "thesidedoor-core/access";
 import { readBoundedJson, RequestBodyError } from "@/lib/bounded-request";
 import {
   createConversation,
@@ -21,17 +27,27 @@ const inputSchema = z
     "Provide either a share URL or a transcript.",
   );
 export async function GET() {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability)
     return Response.json({ error: "Not signed in." }, { status: 401 });
-  return Response.json(
-    { conversations: listConversations(profile.username) },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  try {
+    return withProfileFiles(sharedAccess().identity, capability, () =>
+      Response.json(
+        { conversations: listConversations(profile.username) },
+        { headers: { "Cache-Control": "no-store" } },
+      ),
+    );
+  } catch (error) {
+    return accessFailure(error);
+  }
 }
 export async function POST(request: Request) {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  const capability = admission?.capability;
+  if (!profile || !capability)
     return Response.json({ error: "Not signed in." }, { status: 401 });
   try {
     const input = inputSchema.parse(
@@ -40,14 +56,20 @@ export async function POST(request: Request) {
     const source = input.url
       ? await importShare(input.url)
       : importTranscript(input.content!, input.format);
-    const conversation = createConversation(profile.username, {
-      ...source,
-      title: input.title ?? source.title,
-      topic: input.topic,
-      tags: input.tags,
-    });
+    const conversation = withProfileFiles(
+      sharedAccess().identity,
+      capability,
+      () =>
+        createConversation(profile.username, {
+          ...source,
+          title: input.title ?? source.title,
+          topic: input.topic,
+          tags: input.tags,
+        }),
+    );
     return Response.json({ conversation }, { status: 201 });
   } catch (error) {
+    if (isAccessError(error)) return accessFailure(error);
     return Response.json(
       { error: error instanceof Error ? error.message : "Import failed." },
       { status: error instanceof RequestBodyError ? error.status : 400 },

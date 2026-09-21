@@ -7,19 +7,16 @@
  * see attachments.ts).
  */
 
-export const PROVIDER_IDS = [
-  "anthropic",
-  "openai",
-  "claude-code",
-  "codex",
-  "ollama",
-  "llamacpp",
-  "vllm",
-] as const;
-
-export type ProviderId = (typeof PROVIDER_IDS)[number];
-
-export const LOCAL_PROVIDER_IDS = ["ollama", "llamacpp", "vllm"] as const;
+import {
+  LOCAL_PROVIDER_IDS,
+  type ProviderId,
+} from "thesidedoor-core/ai/catalog";
+import type { ProfileCapability } from "../auth/profile-capability";
+export {
+  PROVIDER_IDS,
+  LOCAL_PROVIDER_IDS,
+  type ProviderId,
+} from "thesidedoor-core/ai/catalog";
 
 export type LocalProviderId = (typeof LOCAL_PROVIDER_IDS)[number];
 
@@ -30,6 +27,8 @@ export function isLocalProvider(
 }
 
 export interface AgentTurn {
+  /** Trusted admission identity. Never populated from user-supplied request fields. */
+  metricOwner?: ProfileCapability | "instance";
   system: string;
   prompt: string;
   /** Absolute local paths to images (crops, pasted screenshots). */
@@ -42,6 +41,7 @@ export interface AgentTurn {
    */
   allowWeb?: boolean;
   timeoutMs?: number;
+  signal?: AbortSignal;
   /** Native token ceiling for API-backed providers. */
   maxOutputTokens?: number;
   /** Streaming character guard for CLI-backed providers. */

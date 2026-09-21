@@ -4,7 +4,12 @@ import { headers } from "next/headers";
 import { Markdown } from "@/components/chat/Markdown";
 import { PdfReader } from "@/components/pdf/PdfReader";
 import { getPaper } from "@/lib/library/papers";
-import { getShare, type PaperShare } from "@/lib/library/shares";
+import {
+  getShare,
+  withShareFiles,
+  type PaperShare,
+} from "@/lib/library/shares";
+import { isAccessError } from "thesidedoor-core/access";
 import styles from "./share.module.css";
 
 export const dynamic = "force-dynamic";
@@ -41,129 +46,134 @@ export default async function SharePage({ params }: SharePageProps) {
     // Direct server-component tests have no request store. Relative links
     // still classify as internal; absolute web links safely open separately.
   }
-  return (
-    <main className={styles.root}>
-      <header className={styles.masthead}>
-        <div className={styles.brand}>papernook</div>
-        <div className={styles.permission}>
-          <span className={styles.lock} aria-hidden="true">
-            ◇
-          </span>
-          View only
-        </div>
-      </header>
-
-      <section className={styles.intro}>
-        <p className={styles.eyebrow}>A shared reading</p>
-        <h1 className={styles.title}>{meta.title}</h1>
-        <p className={styles.meta}>
-          {meta.authors.join(", ")}
-          {meta.year ? ` · ${meta.year}` : ""}
-          {meta.venue ? ` · ${meta.venue}` : ""}
-        </p>
-        <p className={styles.note}>
-          You can read the current annotated paper and the conversation
-          snapshots selected by its owner. This page cannot change the paper or
-          continue the chats.
-        </p>
-      </section>
-
-      <div className={styles.columns}>
-        <section className={styles.paperColumn} aria-label="Annotated paper">
-          <div className={styles.sectionLabel}>
-            <span>Annotated paper</span>
-            <span>Live copy</span>
+  try {
+    return withShareFiles(share, () => (
+      <main className={styles.root}>
+        <header className={styles.masthead}>
+          <div className={styles.brand}>papernook</div>
+          <div className={styles.permission}>
+            <span className={styles.lock} aria-hidden="true">
+              ◇
+            </span>
+            View only
           </div>
-          <div className={styles.pdfFrame}>
-            <PdfReader
-              src={`/api/v1/shares/${topic}/${slug}/${shareId}/pdf`}
-              title={meta.title}
-            />
-          </div>
+        </header>
+
+        <section className={styles.intro}>
+          <p className={styles.eyebrow}>A shared reading</p>
+          <h1 className={styles.title}>{meta.title}</h1>
+          <p className={styles.meta}>
+            {meta.authors.join(", ")}
+            {meta.year ? ` · ${meta.year}` : ""}
+            {meta.venue ? ` · ${meta.venue}` : ""}
+          </p>
+          <p className={styles.note}>
+            You can read the current annotated paper and the conversation
+            snapshots selected by its owner. This page cannot change the paper
+            or continue the chats.
+          </p>
         </section>
 
-        <aside className={styles.studyColumn}>
-          {paper.summary && (
-            <section className={styles.summary}>
-              <h2>Reading note</h2>
-              <p>{paper.summary}</p>
-            </section>
-          )}
-
-          <section className={styles.conversations}>
+        <div className={styles.columns}>
+          <section className={styles.paperColumn} aria-label="Annotated paper">
             <div className={styles.sectionLabel}>
-              <span>Conversations</span>
-              <span>
-                {share.conversations.length} snapshot
-                {share.conversations.length === 1 ? "" : "s"}
-              </span>
+              <span>Annotated paper</span>
+              <span>Live copy</span>
             </div>
-            {share.conversations.length === 0 ? (
-              <p className={styles.empty}>
-                The owner shared the annotated paper without conversations.
-              </p>
-            ) : (
-              share.conversations.map((conversation, conversationIndex) => (
-                <article
-                  className={styles.conversation}
-                  key={conversation.header.id}
-                >
-                  <h2>
-                    <span>
-                      {String(conversationIndex + 1).padStart(2, "0")}
-                    </span>
-                    {conversation.header.title}
-                  </h2>
-                  <div className={styles.messages}>
-                    {conversation.messages.map((message, messageIndex) => (
-                      <div
-                        className={
-                          message.role === "user"
-                            ? styles.readerMessage
-                            : styles.agentMessage
-                        }
-                        key={`${conversation.header.id}-${messageIndex}`}
-                      >
-                        <p className={styles.role}>
-                          {message.role === "user" ? "Reader" : "Papernook"}
-                        </p>
-                        {message.images?.map((imagePath) => {
-                          const src = cropUrl(share, imagePath);
-                          return src ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              className={styles.crop}
-                              src={src}
-                              alt="Conversation attachment"
-                              key={imagePath}
-                            />
-                          ) : null;
-                        })}
-                        {message.role === "assistant" ? (
-                          <Markdown
-                            content={message.content}
-                            currentOrigin={currentOrigin}
-                            paperSourceUrl={meta.sourceUrl ?? undefined}
-                          />
-                        ) : (
-                          <p className={styles.messageText}>
-                            {message.content}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              ))
-            )}
+            <div className={styles.pdfFrame}>
+              <PdfReader
+                src={`/api/v1/shares/${topic}/${slug}/${shareId}/pdf`}
+                title={meta.title}
+              />
+            </div>
           </section>
-        </aside>
-      </div>
 
-      <footer className={styles.footer}>
-        Shared {new Date(share.createdAt).toLocaleDateString()} · The owner can
-        revoke this link at any time.
-      </footer>
-    </main>
-  );
+          <aside className={styles.studyColumn}>
+            {paper.summary && (
+              <section className={styles.summary}>
+                <h2>Reading note</h2>
+                <p>{paper.summary}</p>
+              </section>
+            )}
+
+            <section className={styles.conversations}>
+              <div className={styles.sectionLabel}>
+                <span>Conversations</span>
+                <span>
+                  {share.conversations.length} snapshot
+                  {share.conversations.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              {share.conversations.length === 0 ? (
+                <p className={styles.empty}>
+                  The owner shared the annotated paper without conversations.
+                </p>
+              ) : (
+                share.conversations.map((conversation, conversationIndex) => (
+                  <article
+                    className={styles.conversation}
+                    key={conversation.header.id}
+                  >
+                    <h2>
+                      <span>
+                        {String(conversationIndex + 1).padStart(2, "0")}
+                      </span>
+                      {conversation.header.title}
+                    </h2>
+                    <div className={styles.messages}>
+                      {conversation.messages.map((message, messageIndex) => (
+                        <div
+                          className={
+                            message.role === "user"
+                              ? styles.readerMessage
+                              : styles.agentMessage
+                          }
+                          key={`${conversation.header.id}-${messageIndex}`}
+                        >
+                          <p className={styles.role}>
+                            {message.role === "user" ? "Reader" : "Papernook"}
+                          </p>
+                          {message.images?.map((imagePath) => {
+                            const src = cropUrl(share, imagePath);
+                            return src ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                className={styles.crop}
+                                src={src}
+                                alt="Conversation attachment"
+                                key={imagePath}
+                              />
+                            ) : null;
+                          })}
+                          {message.role === "assistant" ? (
+                            <Markdown
+                              content={message.content}
+                              currentOrigin={currentOrigin}
+                              paperSourceUrl={meta.sourceUrl ?? undefined}
+                            />
+                          ) : (
+                            <p className={styles.messageText}>
+                              {message.content}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))
+              )}
+            </section>
+          </aside>
+        </div>
+
+        <footer className={styles.footer}>
+          Shared {new Date(share.createdAt).toLocaleDateString()} · The owner
+          can revoke this link at any time.
+        </footer>
+      </main>
+    ));
+  } catch (error) {
+    if (isAccessError(error) && error.code === "unauthorized") notFound();
+    throw error;
+  }
 }

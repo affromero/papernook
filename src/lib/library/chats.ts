@@ -1,8 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { libraryRoot } from "../data-dir";
-import { companionDir } from "./papers";
+import { syncDirectory } from "thesidedoor-core/storage";
+import {
+  companionDir,
+  visitPaperCompanions,
+  withPaperMutation,
+} from "./papers";
 import { assertSlug } from "./slug";
 import type { RepositorySourceIdentity } from "../github-source";
 
@@ -16,8 +20,7 @@ import type { RepositorySourceIdentity } from "../github-source";
 export interface ChatHeader {
   id: string;
   title: string;
-  /** Missing only on legacy chat files written before title provenance. */
-  titleSource?: "placeholder" | "generated" | "manual";
+  titleSource: "placeholder" | "generated" | "manual";
   username: string;
   createdAt: string;
 }
@@ -42,31 +45,8 @@ export const NEW_CHAT_TITLE = "New chat";
 const MAX_CHAT_TITLE_LENGTH = 72;
 export const MAX_MANUAL_CHAT_TITLE_LENGTH = 120;
 
-/** Preserve readable titles for legacy date/placeholder chat files only. */
-function legacyTitleFromFirstQuery(query: string): string {
-  const normalized = query.replace(/\s+/g, " ").trim();
-  if (!normalized) return NEW_CHAT_TITLE;
-  const characters = Array.from(normalized);
-  if (characters.length <= MAX_CHAT_TITLE_LENGTH) return normalized;
-
-  const prefix = characters.slice(0, MAX_CHAT_TITLE_LENGTH + 1).join("");
-  const lastSpace = prefix.lastIndexOf(" ");
-  const clipped =
-    lastSpace >= Math.floor(MAX_CHAT_TITLE_LENGTH * 0.6)
-      ? prefix.slice(0, lastSpace)
-      : characters.slice(0, MAX_CHAT_TITLE_LENGTH).join("");
-  return `${clipped.trimEnd()}…`;
-}
-
-function hasLegacyPlaceholderTitle(title: string): boolean {
-  if (title === NEW_CHAT_TITLE) return true;
-  const match = title.match(/^Chat\s+\d{1,4}([./-])\d{1,2}\1\d{1,4}$/);
-  return Boolean(match);
-}
-
 function headerHasPlaceholderTitle(header: ChatHeader): boolean {
-  if (header.titleSource) return header.titleSource === "placeholder";
-  return hasLegacyPlaceholderTitle(header.title);
+  return header.titleSource === "placeholder";
 }
 
 export function chatNeedsGeneratedTitle(chat: Chat): boolean {
@@ -119,6 +99,17 @@ function chatPath(
 }
 
 export function createChat(
+  topic: string | null,
+  slug: string,
+  username: string,
+  title: string,
+): ChatHeader {
+  return withPaperMutation(slug, () =>
+    createChatLocked(topic, slug, username, title),
+  );
+}
+
+function createChatLocked(
   topic: string | null,
   slug: string,
   username: string,
@@ -233,17 +224,10 @@ export function readChat(
   const lines = raw.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length === 0) return null;
   try {
-    let header = JSON.parse(lines[0]) as ChatHeader;
+    const header = JSON.parse(lines[0]) as ChatHeader;
+    if (!["placeholder", "generated", "manual"].includes(header.titleSource))
+      throw new Error("Chat header requires title provenance migration.");
     const messages = lines.slice(1).map((l) => JSON.parse(l) as ChatMessage);
-    if (!header.titleSource && hasLegacyPlaceholderTitle(header.title)) {
-      const firstQuery = messages.find((message) => message.role === "user");
-      if (firstQuery) {
-        header = {
-          ...header,
-          title: legacyTitleFromFirstQuery(firstQuery.content),
-        };
-      }
-    }
     return { header, messages };
   } catch {
     return null;
@@ -391,49 +375,64 @@ export function listChats(
  */
 export function deleteChatsByUser(username: string): void {
   assertSlug(username);
-  const root = libraryRoot();
-  if (!fs.existsSync(root)) return;
-
-  const visit = (directory: string): void => {
-    if (!fs.existsSync(directory)) return;
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const resolved = path.join(directory, entry.name);
-      if (entry.name === username && path.basename(directory) === "chats") {
-        const companion = path.dirname(directory);
-        const imagePaths = new Set<string>();
-        for (const chatFile of fs.readdirSync(resolved)) {
-          if (!chatFile.endsWith(".jsonl")) continue;
-          const raw = fs.readFileSync(path.join(resolved, chatFile), "utf8");
-          for (const line of raw.split("\n").slice(1)) {
-            if (!line.trim()) continue;
-            try {
-              const message = JSON.parse(line) as ChatMessage;
-              for (const image of message.images ?? []) {
-                if (/^crops\/[a-zA-Z0-9._-]+$/.test(image)) {
-                  imagePaths.add(path.join(companion, image));
-                }
-              }
-            } catch {
-              // A malformed chat is still removed; it must not block erasure.
-            }
-          }
-        }
-        fs.rmSync(resolved, { recursive: true, force: true });
-        for (const imagePath of imagePaths) {
-          fs.rmSync(imagePath, { force: true });
-        }
-        const crops = path.join(companion, "crops");
-        try {
-          if (fs.readdirSync(crops).length === 0) fs.rmdirSync(crops);
-        } catch {
-          // Missing/non-empty crops directory: nothing else to remove.
-        }
-        continue;
+  visitPaperCompanions(({ directory }) => {
+    const userChats = path.join(directory, "chats", username);
+    let entries: string[];
+    try {
+      entries = fs.readdirSync(userChats);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        const parent = path.dirname(userChats);
+        syncDirectory(fs.existsSync(parent) ? parent : directory);
+        return;
       }
-      visit(resolved);
+      throw error;
     }
-  };
-
-  visit(root);
+    const images = new Set<string>();
+    for (const file of entries) {
+      if (!/^[a-f0-9]{16}\.jsonl(?:\.tmp(?:-[a-f0-9-]{36})?)?$/.test(file))
+        continue;
+      const lines = fs
+        .readFileSync(path.join(userChats, file), "utf8")
+        .split("\n");
+      const header: unknown = JSON.parse(lines[0] ?? "");
+      if (
+        !header ||
+        typeof header !== "object" ||
+        !("username" in header) ||
+        header.username !== username
+      ) {
+        throw new Error("Chat attachment ownership cannot be read.");
+      }
+      for (const line of lines.slice(1)) {
+        if (!line.trim()) continue;
+        const message: unknown = JSON.parse(line);
+        if (!message || typeof message !== "object")
+          throw new Error("Chat attachment ownership cannot be read.");
+        if (!("images" in message) || message.images === undefined) continue;
+        if (!Array.isArray(message.images))
+          throw new Error("Chat attachment ownership cannot be read.");
+        for (const image of message.images) {
+          if (
+            typeof image !== "string" ||
+            !/^crops\/[a-zA-Z0-9._-]+$/.test(image)
+          )
+            throw new Error("Chat attachment ownership cannot be read.");
+          images.add(path.join(directory, image));
+        }
+      }
+    }
+    // Keep the ownership records until every attachment has been removed.
+    for (const image of images) fs.rmSync(image, { force: true });
+    if (images.size > 0) {
+      const crops = path.join(directory, "crops");
+      syncDirectory(fs.existsSync(crops) ? crops : directory);
+    }
+    fs.rmSync(userChats, { recursive: true, force: true });
+    syncDirectory(path.dirname(userChats));
+  });
 }

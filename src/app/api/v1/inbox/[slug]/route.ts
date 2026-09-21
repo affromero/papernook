@@ -1,6 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { activeProfile } from "@/lib/auth/session";
+import {
+  requestIdentity,
+  sharedAccess,
+  accessFailure,
+} from "@/lib/auth/access";
+import { withProfileFiles } from "@/lib/auth/profile-capability";
+import { isAccessError } from "thesidedoor-core/access";
+import { FileLockBusyError } from "thesidedoor-core/storage";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import {
   acceptInboxCapture,
@@ -20,8 +27,9 @@ const slugSchema = z.string().refine(isValidSlug);
 const acceptSchema = z.object({ topic: slugSchema }).strict();
 
 export async function PATCH(request: NextRequest, { params }: Params) {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const parsedParams = slugSchema.safeParse((await params).slug);
   const body = acceptSchema.safeParse(await readBoundedJsonOrNull(request));
@@ -29,16 +37,24 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
   try {
-    const paper = acceptInboxCapture(
-      parsedParams.data,
-      body.data.topic,
-      profile.username,
+    return withProfileFiles(
+      sharedAccess().identity,
+      admission.capability,
+      () => {
+        const paper = acceptInboxCapture(
+          parsedParams.data,
+          body.data.topic,
+          profile.username,
+        );
+        rebuildIndex();
+        return NextResponse.json({
+          href: `/paper/${paper.topic}/${paper.slug}`,
+        });
+      },
     );
-    rebuildIndex();
-    return NextResponse.json({
-      href: `/paper/${paper.topic}/${paper.slug}`,
-    });
   } catch (error) {
+    if (isAccessError(error) || error instanceof FileLockBusyError)
+      return accessFailure(error);
     return NextResponse.json(
       {
         error:
@@ -54,18 +70,27 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {
-  const profile = await activeProfile();
-  if (!profile)
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const parsedParams = slugSchema.safeParse((await params).slug);
   if (!parsedParams.success) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
   try {
-    discardInboxCapture(parsedParams.data, profile.username);
-    rebuildIndex();
-    return NextResponse.json({ ok: true });
+    return withProfileFiles(
+      sharedAccess().identity,
+      admission.capability,
+      () => {
+        discardInboxCapture(parsedParams.data, profile.username);
+        rebuildIndex();
+        return NextResponse.json({ ok: true });
+      },
+    );
   } catch (error) {
+    if (isAccessError(error) || error instanceof FileLockBusyError)
+      return accessFailure(error);
     return NextResponse.json(
       {
         error:

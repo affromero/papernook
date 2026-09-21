@@ -10,7 +10,6 @@ import { normalizeUrl } from "@/lib/capture/normalize";
 import { findPaperByReference } from "@/lib/library/context/reference-match";
 import {
   findPaperBySource,
-  listInbox,
   listPapers,
   type Paper,
 } from "@/lib/library/papers";
@@ -44,18 +43,14 @@ interface Match {
   title: string;
 }
 
-function matchByUrl(
-  url: string,
-  username: string,
-  pool?: Paper[],
-): Match | null {
+function matchByUrl(url: string, pool: Paper[] = listPapers()): Match | null {
   let arxivId: string | null = null;
   try {
     arxivId = normalizeUrl(url).arxivId;
   } catch {
     arxivId = null;
   }
-  const paper = findPaperBySource(url, arxivId, username, pool);
+  const paper = findPaperBySource(url, arxivId, undefined, pool);
   if (!paper || paper.topic === null) return null;
   return { topic: paper.topic, slug: paper.slug, title: paper.meta.title };
 }
@@ -89,7 +84,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         ? { topic: found.topic, slug: found.slug, title: found.title }
         : null;
   } else {
-    match = matchByUrl(parsed.data.url ?? "", profile.username);
+    match = matchByUrl(parsed.data.url ?? "");
   }
   return NextResponse.json({ match });
 }
@@ -121,9 +116,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Too many lookups." }, { status: 429 });
   }
   // One library walk for the whole batch instead of one per URL.
-  const pool = [...listPapers(), ...listInbox()];
-  const matches = parsed.data.urls.map((url) =>
-    matchByUrl(url, profile.username, pool),
-  );
+  const pool = listPapers();
+  const matches = parsed.data.urls.map((url) => matchByUrl(url, pool));
   return NextResponse.json({ matches });
 }

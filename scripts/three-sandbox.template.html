@@ -1,0 +1,366 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Papernook 3D sandbox</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #101014;
+        color: #eee;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      #sandbox-error {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: none;
+        box-sizing: border-box;
+        place-content: center;
+        padding: 32px;
+        background: #101014;
+        text-align: center;
+      }
+      #sandbox-error.visible {
+        display: grid;
+      }
+      #sandbox-error strong {
+        display: block;
+        margin-bottom: 8px;
+        color: #ff8f87;
+      }
+      #sandbox-error-detail {
+        max-width: 680px;
+        color: #bbb;
+        overflow-wrap: anywhere;
+      }
+    </style>
+    <script>
+      // This document has an opaque origin. Scene code can post arbitrary
+      // messages to the parent, so the bridge deliberately carries fixed
+      // enums and numeric locations only, never error text or URLs.
+      (() => {
+        const protocol = 1;
+        const messageType = "papernook-three-diagnostic";
+        const allowedKinds = new Set([
+          "bootstrap-decode-failed",
+          "module-evaluation-failed",
+          "resource-load-failed",
+          "unhandled-rejection",
+          "console-error",
+          "webgl-unavailable",
+          "webgl-context-lost",
+          "canvas-missing",
+        ]);
+        const backlog = [];
+        const sent = new Set();
+        let parentReady = false;
+
+        function boundedLocation(value) {
+          return Number.isSafeInteger(value) &&
+            value >= 0 &&
+            value <= 10_000_000
+            ? value
+            : undefined;
+        }
+
+        function resourceKind(target) {
+          if (!(target instanceof HTMLScriptElement)) return undefined;
+          const pathname = new URL(target.src || location.href).pathname;
+          if (pathname.endsWith("/three-sandbox.html")) return "sandbox";
+          if (pathname.endsWith("/three.module.min.js")) return "three-module";
+          if (pathname.endsWith("/three.core.min.js")) return "three-core";
+          if (pathname.includes("/three/addons/")) return "three-addon";
+          if (pathname.endsWith("/three-runtime.js")) return "three-runtime";
+          return pathname.startsWith("/vendor/") ? "other-vendor" : undefined;
+        }
+
+        function emit(kind, details = {}) {
+          if (!allowedKinds.has(kind)) return;
+          const event = { protocol, type: messageType, kind };
+          const line = boundedLocation(details.line);
+          const column = boundedLocation(details.column);
+          if (line !== undefined) event.line = line;
+          if (column !== undefined) event.column = column;
+          if (details.resource) event.resource = details.resource;
+          const fingerprint = JSON.stringify(event);
+          if (sent.has(fingerprint) || sent.size >= 8) return;
+          sent.add(fingerprint);
+          if (parentReady) parent.postMessage(event, "*");
+          else backlog.push(event);
+        }
+
+        function showFailure(title, detail) {
+          const overlay = document.getElementById("sandbox-error");
+          if (!overlay) return;
+          overlay.querySelector("strong").textContent = title;
+          document.getElementById("sandbox-error-detail").textContent = detail;
+          overlay.classList.add("visible");
+        }
+
+        window.addEventListener("message", (event) => {
+          if (
+            event.source !== parent ||
+            event.data !== "papernook-three-diagnostics-ready"
+          ) {
+            return;
+          }
+          parentReady = true;
+          for (const diagnostic of backlog.splice(0)) {
+            parent.postMessage(diagnostic, "*");
+          }
+        });
+
+        window.addEventListener(
+          "error",
+          (event) => {
+            const isScriptResourceError =
+              event.target instanceof HTMLScriptElement;
+            const resource = resourceKind(event.target);
+            if (resource) {
+              emit("resource-load-failed", { resource });
+              showFailure(
+                "The 3D viewer could not load.",
+                "A required local Three.js module failed to load. Reload the page and try again.",
+              );
+              return;
+            }
+            // Cloudflare may inject its analytics beacon into this public
+            // static document. Our CSP intentionally blocks it; that is not
+            // a generated-scene failure and must not cover a valid canvas.
+            if (isScriptResourceError) return;
+            const webglFailure = /webgl|graphics context/i.test(
+              event.message || "",
+            );
+            emit(
+              webglFailure ? "webgl-unavailable" : "module-evaluation-failed",
+              {
+                line: event.lineno,
+                column: event.colno,
+              },
+            );
+            showFailure(
+              webglFailure
+                ? "3D graphics are unavailable in this browser."
+                : "The 3D scene could not start.",
+              webglFailure
+                ? "Enable WebGL, leave private browsing or low-power mode if it disables graphics, then reload the scene."
+                : event.message ||
+                    "The generated scene stopped during initialization.",
+            );
+          },
+          true,
+        );
+
+        window.addEventListener("unhandledrejection", (event) => {
+          emit("unhandled-rejection");
+          const detail =
+            event.reason instanceof Error
+              ? event.reason.message
+              : "The generated scene stopped unexpectedly.";
+          showFailure("The 3D scene could not continue.", detail);
+        });
+
+        document.addEventListener(
+          "webglcontextlost",
+          (event) => {
+            event.preventDefault();
+            emit("webgl-context-lost");
+            showFailure(
+              "The 3D graphics context was lost.",
+              "Reload the scene to ask the browser for a new graphics context.",
+            );
+          },
+          true,
+        );
+
+        const originalConsoleError = console.error;
+        console.error = (...args) => {
+          originalConsoleError.apply(console, args);
+          emit("console-error");
+        };
+
+        window.papernookThreeSandbox = { emit, showFailure };
+      })();
+    </script>
+    <script id="papernook-three-runtime">
+      /* THREE_RUNTIME_START */
+      /* THREE_RUNTIME_END */
+    </script>
+  </head>
+  <body>
+    <div id="sandbox-error" role="alert">
+      <div>
+        <strong>The 3D scene could not start.</strong>
+        <div id="sandbox-error-detail">Reload the page and try again.</div>
+      </div>
+    </div>
+    <script>
+      // Host page for AI-emitted ```threejs blocks. Always framed with
+      // sandbox="allow-scripts" (opaque origin — no cookies or app DOM).
+      const bridge = window.papernookThreeSandbox;
+      let code;
+      try {
+        code = decodeURIComponent(location.hash.slice(1));
+      } catch {
+        bridge.emit("bootstrap-decode-failed");
+        bridge.showFailure(
+          "The 3D scene could not be decoded.",
+          "Reload the page to request a fresh copy of the scene.",
+        );
+      }
+
+      if (code !== undefined) {
+        const originalTranslations = new WeakMap();
+        let layoutFrame = 0;
+
+        function sceneOverlays() {
+          return Array.from(document.body.children).filter((element) => {
+            if (!(element instanceof HTMLElement)) return false;
+            if (
+              element.id === "sandbox-error" ||
+              element instanceof HTMLCanvasElement ||
+              element instanceof HTMLScriptElement
+            ) {
+              return false;
+            }
+            const style = getComputedStyle(element);
+            return (
+              (style.position === "fixed" || style.position === "absolute") &&
+              style.display !== "none" &&
+              style.visibility !== "hidden"
+            );
+          });
+        }
+
+        function overlaps(first, second, gap) {
+          return !(
+            first.right + gap <= second.left ||
+            second.right + gap <= first.left ||
+            first.bottom + gap <= second.top ||
+            second.bottom + gap <= first.top
+          );
+        }
+
+        function normalizeSceneOverlays() {
+          const margin = 12;
+          const gap = 12;
+          const placed = [];
+
+          for (const element of sceneOverlays()) {
+            if (!originalTranslations.has(element)) {
+              originalTranslations.set(element, element.style.translate);
+            }
+            element.style.translate = originalTranslations.get(element) || "";
+            element.style.boxSizing = "border-box";
+            element.style.maxWidth = `calc(100vw - ${margin * 2}px)`;
+            element.style.overflowWrap = "anywhere";
+
+            let rect = element.getBoundingClientRect();
+            let offsetX = Math.min(
+              Math.max(0, margin - rect.left),
+              Math.max(0, window.innerWidth - margin - rect.right),
+            );
+            if (rect.right + offsetX > window.innerWidth - margin) {
+              offsetX += window.innerWidth - margin - (rect.right + offsetX);
+            }
+            let offsetY = Math.min(
+              Math.max(0, margin - rect.top),
+              Math.max(0, window.innerHeight - margin - rect.bottom),
+            );
+            if (rect.bottom + offsetY > window.innerHeight - margin) {
+              offsetY += window.innerHeight - margin - (rect.bottom + offsetY);
+            }
+
+            element.style.translate = `${offsetX}px ${offsetY}px`;
+            rect = element.getBoundingClientRect();
+
+            for (const occupied of placed) {
+              if (!overlaps(rect, occupied, gap)) continue;
+              const moveBelow = occupied.bottom + gap - rect.top;
+              const moveAbove = occupied.top - gap - rect.bottom;
+              const fitsBelow =
+                rect.bottom + moveBelow <= window.innerHeight - margin;
+              const fitsAbove = rect.top + moveAbove >= margin;
+              offsetY += fitsBelow || !fitsAbove ? moveBelow : moveAbove;
+              element.style.translate = `${offsetX}px ${offsetY}px`;
+              rect = element.getBoundingClientRect();
+            }
+            placed.push(rect);
+          }
+        }
+
+        function scheduleOverlayLayout() {
+          cancelAnimationFrame(layoutFrame);
+          layoutFrame = requestAnimationFrame(() => {
+            normalizeSceneOverlays();
+            layoutFrame = requestAnimationFrame(normalizeSceneOverlays);
+          });
+        }
+
+        new MutationObserver(scheduleOverlayLayout).observe(document.body, {
+          childList: true,
+        });
+        window.addEventListener("resize", scheduleOverlayLayout);
+
+        function compatibleSceneCode(source) {
+          const withoutThreeImport = source.replace(
+            /import\s+\*\s+as\s+THREE\s+from\s+["']three["']\s*;?/g,
+            "",
+          );
+          const withoutControlsImport = withoutThreeImport.replace(
+            /import\s*\{\s*OrbitControls\s*\}\s*from\s*["']three\/addons\/controls\/OrbitControls\.js["']\s*;?/g,
+            "",
+          );
+          if (/^\s*import\s/m.test(withoutControlsImport)) {
+            throw new Error(
+              "This scene imports a Three.js add-on that the viewer does not provide.",
+            );
+          }
+          return withoutControlsImport;
+        }
+
+        function startScene() {
+          try {
+            const script = document.createElement("script");
+            /* SCENE_EXECUTION_START */
+            /* SCENE_EXECUTION_END */
+            document.body.appendChild(script);
+            scheduleOverlayLayout();
+          } catch (error) {
+            bridge.emit("module-evaluation-failed");
+            bridge.showFailure(
+              "The 3D scene could not start.",
+              error instanceof Error
+                ? error.message
+                : "The generated scene stopped during initialization.",
+            );
+          }
+        }
+
+        if (window.papernookThreeRuntimeReady) startScene();
+        else
+          window.addEventListener("papernook-three-runtime-ready", startScene, {
+            once: true,
+          });
+        window.setTimeout(() => {
+          if (!document.querySelector("canvas")) {
+            bridge.emit("canvas-missing");
+            bridge.showFailure(
+              "The 3D scene did not create a canvas.",
+              "The generated visualization finished without a render surface.",
+            );
+          }
+        }, 4_000);
+      }
+    </script>
+  </body>
+</html>

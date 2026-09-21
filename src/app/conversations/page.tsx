@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { activeProfile } from "@/lib/auth/session";
+import { requestIdentity } from "@/lib/auth/access";
+import { profilePageFiles } from "@/lib/auth/platform/page-access";
 import { listConversations } from "@/lib/conversations/store";
 import { AccountBar } from "@/components/profiles/AccountBar";
 import { LibraryNavigation } from "@/components/conversations/LibraryNavigation";
@@ -17,10 +18,13 @@ export default async function Conversations({
     import?: string;
   }>;
 }) {
-  const profile = await activeProfile();
-  if (!profile) redirect("/login");
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability) redirect("/login");
   const params = await searchParams;
-  const all = listConversations(profile.username);
+  const all = profilePageFiles(admission.capability, () =>
+    listConversations(profile.username),
+  );
   const query = (params.q ?? "").toLowerCase();
   const records = all.filter(
     (record) =>

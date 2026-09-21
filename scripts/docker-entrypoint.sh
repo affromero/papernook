@@ -34,4 +34,5 @@ copy_auth_file /run/host-auth/ssh-key /home/node/.ssh/id_papernook "SSH key"
 copy_auth_file /run/host-auth/known-hosts /home/node/.ssh/known_hosts "SSH known_hosts"
 
 chown -R node:node /data /home/node/.codex /home/node/.claude /home/node/.ssh
+gosu node node /app/scripts/access.cjs initialize >/dev/null
 exec gosu node "$@"

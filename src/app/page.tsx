@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { activeProfile } from "@/lib/auth/session";
+import { requestIdentity } from "@/lib/auth/access";
 import { LibraryView } from "@/components/library/LibraryView";
 import { AccountBar } from "@/components/profiles/AccountBar";
 
@@ -10,8 +10,9 @@ interface HomePageProps {
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  const profile = await activeProfile();
-  if (!profile) redirect("/login");
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability) redirect("/login");
   if (!profile.wizardDone) redirect("/welcome");
   const params = await searchParams;
   return (
@@ -25,7 +26,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         activeTag={params.tag ?? null}
         activeTopic={params.topic ?? null}
         captureToken={profile.captureToken}
-        username={profile.username}
+        capability={admission.capability}
       />
     </main>
   );

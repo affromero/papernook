@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { restoreMayaSession } from "./support/member-session";
 
-const password = "admin-created-password";
+const password = "browser-owner-password-phrase";
 let pdfRestore:
   | {
       path: string;
@@ -12,16 +13,30 @@ let pdfRestore:
 
 async function passGate(page: Page): Promise<void> {
   await page.goto("/login");
-  await page.getByRole("textbox", { name: "Password" }).fill(password);
-  await page.getByRole("button", { name: "Enter" }).click();
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page
+    .locator("form")
+    .getByRole("button", { name: "Enter household", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Who’s reading?" }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 30_000 });
 }
 
-async function loginAsAdmin(page: Page): Promise<void> {
-  await passGate(page);
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
+async function loginAsMaya(page: Page): Promise<void> {
+  await restoreMayaSession(page);
+  await expect(page).toHaveURL("/");
+  await expect(page.getByText("Attention Is All You Need")).toBeVisible();
+}
+
+async function loginAsOwner(page: Page): Promise<void> {
+  await page.goto("/login?account=1");
+  await page.getByLabel("Account name", { exact: true }).fill("Fixture Owner");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page
+    .locator("form")
+    .getByRole("button", { name: "Sign in", exact: true })
+    .click();
   await expect(page).toHaveURL("/");
   await expect(page.getByText("Attention Is All You Need")).toBeVisible();
 }
@@ -31,7 +46,7 @@ async function removeProfileAsAdminIfPresent(
   username: string,
 ): Promise<void> {
   await page.context().clearCookies();
-  await loginAsAdmin(page);
+  await loginAsOwner(page);
   const listed = await page.request.get("/api/v1/profiles");
   expect(listed.ok()).toBe(true);
   const body = (await listed.json()) as {
@@ -86,10 +101,17 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.goto("/login");
     await expect(page.getByText("Maya")).not.toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Enter the access password" }),
+      page.getByRole("heading", { name: "Open your library" }),
     ).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Password" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Enter" })).toBeDisabled();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await page
+      .locator("form")
+      .getByRole("button", { name: "Enter household", exact: true })
+      .click();
+    await expect(page).toHaveURL("/login");
+    await expect(
+      page.getByRole("button", { name: "Switch to Maya" }),
+    ).toHaveCount(0);
     await expect(page).toHaveScreenshot(["setup", "access-gate.png"], {
       animations: "disabled",
       // Protect the documented layout while allowing Linux/macOS font
@@ -97,15 +119,21 @@ test.describe.serial("documentation journeys and screenshots", () => {
       maxDiffPixelRatio: 0.02,
     });
 
+    await page.getByLabel("Password", { exact: true }).fill("wrong-password");
     await page
-      .getByRole("textbox", { name: "Password" })
-      .fill("wrong-password");
-    await page.getByRole("button", { name: "Enter" }).click();
+      .locator("form")
+      .getByRole("button", { name: "Enter household", exact: true })
+      .click();
     await expect(
-      page.getByText("Wrong password.", { exact: true }),
+      page
+        .getByRole("alert")
+        .filter({ hasText: "The credentials could not be verified." }),
     ).toBeVisible();
-    await page.getByRole("textbox", { name: "Password" }).fill(password);
-    await page.getByRole("button", { name: "Enter" }).click();
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page
+      .locator("form")
+      .getByRole("button", { name: "Enter household", exact: true })
+      .click();
 
     const avatar = page
       .getByRole("button", { name: "Switch to Maya" })
@@ -143,7 +171,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     page,
   }) => {
     test.setTimeout(120_000);
-    await loginAsAdmin(page);
+    await loginAsMaya(page);
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
     const readerUrl = page.url();
@@ -304,16 +332,11 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(highlightText).toBeVisible();
     await highlightText.scrollIntoViewIfNeeded();
     await expect(highlightText.locator("xpath=..")).toHaveClass(/highlighting/);
-    const highlightBox = await highlightText.boundingBox();
-    expect(highlightBox).not.toBeNull();
-    await page.mouse.move(highlightBox!.x + 4, highlightBox!.y + 4);
-    await page.mouse.down();
-    await page.mouse.move(
-      highlightBox!.x + highlightBox!.width - 4,
-      highlightBox!.y + highlightBox!.height - 4,
-      { steps: 6 },
-    );
-    await page.mouse.up();
+    await highlightText.selectText();
+    await highlightText.dispatchEvent("pointerup", {
+      button: 0,
+      pointerType: "mouse",
+    });
     await expect(annotator.locator(".highlightEditor").first()).toBeVisible();
     await annotator.getByRole("button", { name: "Text" }).click();
     const annotationPage = annotator.locator(".pdfViewer .page").first();
@@ -393,7 +416,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
   test("manual theme choice persists across navigation and reload", async ({
     page,
   }) => {
-    await loginAsAdmin(page);
+    await loginAsMaya(page);
     const html = page.locator("html");
     const initial = await html.getAttribute("data-theme");
     expect(initial === "light" || initial === "dark").toBe(true);
@@ -408,8 +431,8 @@ test.describe.serial("documentation journeys and screenshots", () => {
 
   test("sharing, graph, invitations, and device setup are visible before sending", async ({
     page,
-  }) => {
-    await loginAsAdmin(page);
+  }, testInfo) => {
+    await loginAsOwner(page);
     await page.getByText("Attention Is All You Need").click();
     await page.getByRole("button", { name: "Share", exact: true }).click();
     await expect(
@@ -473,7 +496,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(setupWizard).toHaveAttribute("href", "/welcome");
     await setupWizard.click();
     await expect(
-      page.getByRole("heading", { name: "Welcome, Maya" }),
+      page.getByRole("heading", { name: "Welcome, Fixture Owner" }),
     ).toBeVisible();
     await page.goto("/settings");
     await expect(page).toHaveURL("/settings");
@@ -495,6 +518,10 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(
       device.getByText("sudo tailscale serve 3000", { exact: true }),
     ).toBeVisible();
+    await device.evaluate((element) => {
+      element.style.boxSizing = "border-box";
+      element.style.height = "1220px";
+    });
     await expect(device).toHaveScreenshot(["setup", "connect-device.png"], {
       animations: "disabled",
       // Chromium text rasterization varies slightly after the dynamic panel
@@ -502,18 +529,22 @@ test.describe.serial("documentation journeys and screenshots", () => {
       maxDiffPixelRatio: 0.06,
     });
 
+    const memberName =
+      testInfo.retry === 0 ? "Casey" : `Casey Retry ${testInfo.retry}`;
     const created = await page.request.post("/api/v1/profiles", {
       data: {
-        displayName: "Casey",
+        displayName: memberName,
         avatarSlug: "frog",
       },
     });
-    expect(created.ok()).toBe(true);
+    expect(created.ok(), await created.text()).toBe(true);
     await page.reload();
     page.on("dialog", (dialog) => dialog.accept());
-    const casey = page.getByRole("listitem").filter({ hasText: "Casey" });
+    const casey = page.getByRole("listitem").filter({ hasText: memberName });
     await casey.getByRole("button", { name: "Remove completely" }).click();
-    await expect(casey).not.toBeVisible();
+    await expect(
+      casey.getByRole("button", { name: "Remove completely" }),
+    ).toHaveCount(0, { timeout: 30_000 });
   });
 
   test("a friend adds their own profile past the gate", async ({ page }) => {
@@ -549,7 +580,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.getByRole("button", { name: "Delete permanently" }).click();
     await expect(page).toHaveURL("/login");
     await expect(
-      page.getByRole("heading", { name: "Enter the access password" }),
+      page.getByRole("heading", { name: "Open your library" }),
     ).toBeVisible();
     await passGate(page);
     await expect(page.getByText("Jordan")).not.toBeVisible();
@@ -566,7 +597,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
         await route.fulfill({ json: { position: null } });
       },
     );
-    await loginAsAdmin(page);
+    await loginAsMaya(page);
     await expect(page).toHaveScreenshot(["product", "library-tablet.png"], {
       animations: "disabled",
       fullPage: true,
@@ -705,7 +736,7 @@ test("a late desktop reading position restores the page without changing tablet 
     });
   });
   try {
-    await loginAsAdmin(page);
+    await loginAsMaya(page);
     await page.getByText("Attention Is All You Need").click();
     await expect(page.getByText("Page 1 of 3")).toBeVisible();
     await expect(page.getByRole("button", { name: "Highlight" })).toBeEnabled();

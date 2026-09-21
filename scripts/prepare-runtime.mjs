@@ -23,4 +23,25 @@ for (const entry of required) {
   });
 }
 
+const operator = path.resolve(".next/operator");
+const dependencies = JSON.parse(
+  fs.readFileSync(path.join(operator, "dependencies.json"), "utf8"),
+);
+for (const relative of dependencies) {
+  if (
+    typeof relative !== "string" ||
+    !relative.startsWith("node_modules/") ||
+    relative.split("/").includes("..")
+  )
+    throw new Error("Invalid operator dependency path");
+  const target = path.join(runtime, relative);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(path.resolve(relative), target);
+}
+fs.mkdirSync(path.join(runtime, "scripts"), { recursive: true });
+fs.copyFileSync(
+  path.join(operator, "access.cjs"),
+  path.join(runtime, "scripts/access.cjs"),
+);
+
 console.log("Prepared allowlisted runtime artifact.");

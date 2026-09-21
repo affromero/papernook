@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { activeProfile } from "@/lib/auth/session";
+import { requestIdentity } from "@/lib/auth/access";
+import { profilePageFiles } from "@/lib/auth/platform/page-access";
 import { findPaperBySource } from "@/lib/library/papers";
 import { normalizeUrl } from "@/lib/capture/normalize";
 import { ViewerShell } from "./ViewerShell";
@@ -46,8 +47,9 @@ function parseHttpUrl(raw: string | undefined): URL | null {
 }
 
 export default async function ViewerPage({ searchParams }: ViewerPageProps) {
-  const profile = await activeProfile();
-  if (!profile) redirect("/login");
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability) redirect("/login");
   const { src } = await searchParams;
   const url = parseHttpUrl(src);
 
@@ -70,7 +72,9 @@ export default async function ViewerPage({ searchParams }: ViewerPageProps) {
   } catch {
     arxivId = null;
   }
-  const existing = findPaperBySource(url.href, arxivId, profile.username);
+  const existing = profilePageFiles(admission.capability, () =>
+    findPaperBySource(url.href, arxivId, profile.username),
+  );
   if (existing?.topic) redirect(`/paper/${existing.topic}/${existing.slug}`);
   if (existing) redirect(`/inbox/${existing.slug}`);
 

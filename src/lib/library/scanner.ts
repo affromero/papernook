@@ -14,6 +14,22 @@ const DEBOUNCE_MS = 1_500;
 
 let watcher: FSWatcher | null = null;
 let timer: NodeJS.Timeout | null = null;
+let recoveryTimer: NodeJS.Timeout | null = null;
+
+function recoverMoves(): void {
+  const pending = recoverInterruptedMoves();
+  if (pending.length === 0) return;
+  recoveryTimer = setTimeout(() => {
+    recoveryTimer = null;
+    try {
+      recoverMoves();
+      rebuildIndex();
+    } catch (error) {
+      console.error("papernook scanner: move recovery failed", error);
+    }
+  }, DEBOUNCE_MS);
+  recoveryTimer.unref();
+}
 
 export function affectsIndex(filePath: string): boolean {
   const normalized = filePath.replaceAll("\\", "/");
@@ -41,7 +57,7 @@ function scheduleRebuild(filePath: string): void {
 export function startScanner(): void {
   if (watcher) return;
   ensureDataDirs();
-  recoverInterruptedMoves();
+  recoverMoves();
   recoverInterruptedCaptures();
   rebuildIndex();
   watcher = chokidar.watch([papersRoot(), libraryRoot()], {
@@ -52,6 +68,10 @@ export function startScanner(): void {
 }
 
 export async function stopScanner(): Promise<void> {
+  if (recoveryTimer) {
+    clearTimeout(recoveryTimer);
+    recoveryTimer = null;
+  }
   if (timer) {
     clearTimeout(timer);
     timer = null;

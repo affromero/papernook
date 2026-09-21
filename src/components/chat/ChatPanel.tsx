@@ -539,6 +539,7 @@ export function ChatPanel({
         setMessages((m) => {
           const next = [...m];
           const last = next[next.length - 1];
+          if (!last || last.role !== "assistant") return m;
           next[next.length - 1] = { ...last, content: last.content + chunk };
           return next;
         });

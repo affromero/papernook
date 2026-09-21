@@ -1,20 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
-
-async function login(page: Page) {
-  await page.goto("/login");
-  await page
-    .getByRole("textbox", { name: "Password" })
-    .fill("admin-created-password");
-  await page.getByRole("button", { name: "Enter", exact: true }).click();
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
-  await expect(page).toHaveURL("/");
-}
+import { expect, test } from "@playwright/test";
+import { restoreMayaSession } from "./support/member-session";
 
 test("system theme follows device changes and can be restored after a manual choice", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "dark" });
-  await login(page);
+  await restoreMayaSession(page);
   const select = page.getByRole("combobox", { name: "Color theme" });
   const html = page.locator("html");
   await expect(select).toHaveValue("system");
@@ -42,7 +33,7 @@ test("theme preference changes and clearing overrides synchronize across tabs", 
   context,
 }) => {
   await page.emulateMedia({ colorScheme: "dark" });
-  await login(page);
+  await restoreMayaSession(page);
   const other = await context.newPage();
   await other.emulateMedia({ colorScheme: "dark" });
   await other.goto("/");
@@ -73,7 +64,7 @@ test("theme controls still work when browser storage is unavailable", async ({
     });
   });
   await page.emulateMedia({ colorScheme: "dark" });
-  await login(page);
+  await restoreMayaSession(page);
   const select = page.getByRole("combobox", { name: "Color theme" });
   await expect(select).toHaveValue("system");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

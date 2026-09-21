@@ -1,6 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { syncDirectory } from "thesidedoor-core/storage";
+import { readCaptureOwner, clearCaptureOwner } from "../capture/jobs/ownership";
 import {
+  acquireFileLockSync,
+  FileLockBusyError,
+} from "thesidedoor-core/storage";
+import {
+  dataRoot,
   papersRoot,
   libraryRoot,
   inboxRoot,
@@ -9,6 +17,7 @@ import {
 import { assertSlug, isValidSlug } from "./slug";
 import {
   readCaptureJob,
+  listCaptureJobs,
   removeCaptureJobDir,
   sweepCaptureJobs,
 } from "../capture/jobs";
@@ -156,16 +165,149 @@ export function readMeta(topic: string | null, slug: string): PaperMeta | null {
   }
 }
 
+function readMetaForMutation(
+  topic: string | null,
+  slug: string,
+  filename = META_FILE,
+): PaperMeta | null {
+  try {
+    const value: unknown = JSON.parse(
+      fs.readFileSync(path.join(companionDir(topic, slug), filename), "utf8"),
+    );
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !("addedBy" in value) ||
+      typeof value.addedBy !== "string" ||
+      !isValidSlug(value.addedBy)
+    ) {
+      throw new Error(`Paper "${slug}" has invalid ownership metadata.`);
+    }
+    return value as PaperMeta;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return null;
+    throw error;
+  }
+}
+
 export function writeMeta(
+  topic: string | null,
+  slug: string,
+  meta: PaperMeta,
+): void {
+  withPaperMutation(slug, () => persistMeta(topic, slug, meta));
+}
+
+/** Acquire after profile/capture locks; callbacks must never await another lock. */
+export function withPaperMutation<Result>(
+  slug: string,
+  operation: () => Result &
+    (Result extends PromiseLike<unknown> ? never : unknown),
+): Result {
+  assertSlug(slug);
+  return withPaperCatalog(() => {
+    const release = acquireFileLockSync(
+      path.join(dataRoot(), "locks", "papers", `${slug}.guard`),
+    );
+    try {
+      return operation();
+    } finally {
+      release();
+    }
+  });
+}
+
+/** Prevent a cleanup scan from losing companions relocated by another worker. */
+export function withPaperCatalog<Result>(
+  operation: () => Result &
+    (Result extends PromiseLike<unknown> ? never : unknown),
+): Result {
+  const release = acquireFileLockSync(
+    path.join(dataRoot(), "locks", "paper-catalog.guard"),
+    "shared",
+  );
+  try {
+    return operation();
+  } finally {
+    release();
+  }
+}
+
+/** Exclusive synchronous traversal. Callbacks must not acquire paper or catalog locks. */
+export function visitPaperCompanions(
+  operation: (paper: {
+    topic: string | null;
+    slug: string;
+    directory: string;
+  }) => undefined,
+): void {
+  const release = acquireFileLockSync(
+    path.join(dataRoot(), "locks", "paper-catalog.guard"),
+  );
+  try {
+    ensureDataDirs();
+    for (const topic of fs.readdirSync(libraryRoot(), {
+      withFileTypes: true,
+    })) {
+      if (
+        !topic.isDirectory() ||
+        (topic.name !== "_inbox" && !isValidSlug(topic.name))
+      )
+        continue;
+      for (const entry of fs.readdirSync(path.join(libraryRoot(), topic.name), {
+        withFileTypes: true,
+      })) {
+        if (!entry.isDirectory() || !isValidSlug(entry.name)) continue;
+        const location = topic.name === "_inbox" ? null : topic.name;
+        operation({
+          topic: location,
+          slug: entry.name,
+          directory: companionDir(location, entry.name),
+        });
+      }
+    }
+  } finally {
+    release();
+  }
+}
+
+/** Update an existing paper from its current metadata without recreating removed content. */
+export function updateMeta(
+  topic: string | null,
+  slug: string,
+  update: (current: PaperMeta) => PaperMeta,
+): void {
+  withPaperMutation(slug, () => {
+    const current = readMetaForMutation(topic, slug);
+    if (!current) throw new Error(`No paper "${slug}" in topic "${topic}".`);
+    persistMeta(topic, slug, update(current));
+  });
+}
+
+function persistMeta(
   topic: string | null,
   slug: string,
   meta: PaperMeta,
 ): void {
   const dir = companionDir(topic, slug);
   fs.mkdirSync(dir, { recursive: true });
-  const tmp = path.join(dir, `.meta.${process.pid}.tmp`);
-  fs.writeFileSync(tmp, JSON.stringify(meta, null, 2));
-  fs.renameSync(tmp, path.join(dir, META_FILE));
+  const tmp = path.join(dir, `.meta.${randomUUID()}.tmp`);
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(meta, null, 2), {
+      flag: "wx",
+      flush: true,
+    });
+    fs.renameSync(tmp, path.join(dir, META_FILE));
+    const descriptor = fs.openSync(dir, "r");
+    try {
+      fs.fsyncSync(descriptor);
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
 }
 
 export function readSummary(topic: string | null, slug: string): string | null {
@@ -184,9 +326,11 @@ export function writeSummary(
   slug: string,
   summary: string,
 ): void {
-  const dir = companionDir(topic, slug);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, SUMMARY_FILE), summary);
+  withPaperMutation(slug, () => {
+    const dir = companionDir(topic, slug);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, SUMMARY_FILE), summary);
+  });
 }
 
 export function textPath(topic: string | null, slug: string): string {
@@ -206,9 +350,11 @@ export function writeText(
   slug: string,
   text: string,
 ): void {
-  const file = textPath(topic, slug);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, text);
+  withPaperMutation(slug, () => {
+    const file = textPath(topic, slug);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+  });
 }
 
 /**
@@ -217,21 +363,48 @@ export function writeText(
  */
 export function anonymizePapersByUser(username: string): void {
   assertSlug(username);
-  for (const paper of listInbox()) {
-    if (paper.meta.addedBy === username) {
-      fs.rmSync(paper.companionDir, { recursive: true, force: true });
+  visitPaperCompanions(({ topic, slug, directory }) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (
+        !entry.isFile() ||
+        !/^\.meta\.(?:[0-9]+|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\.tmp$/.test(
+          entry.name,
+        )
+      )
+        continue;
+      if (readMetaForMutation(topic, slug, entry.name)?.addedBy === username)
+        fs.rmSync(path.join(directory, entry.name));
     }
-  }
-  // Marker-only capture dirs (no meta.json) carry the username too.
+    syncDirectory(directory);
+    const current = readMetaForMutation(topic, slug);
+    const owner = readCaptureOwner(directory);
+    if (
+      topic === null &&
+      !current &&
+      !owner &&
+      fs.readdirSync(directory).length > 0
+    ) {
+      throw new Error(
+        `Capture "${slug}" has unresolved ownership. Run the access migration and repair ownership before retrying erasure.`,
+      );
+    }
+    if (current?.addedBy !== username && owner?.username !== username) return;
+    if (topic === null) {
+      fs.rmSync(directory, { recursive: true, force: true });
+      syncDirectory(inboxRoot());
+      return;
+    }
+    if (!current)
+      throw new Error(
+        `Paper "${slug}" has no metadata for safe anonymization.`,
+      );
+    if (current.addedBy === username)
+      persistMeta(topic, slug, { ...current, addedBy: "deleted-profile" });
+    clearCaptureOwner(directory);
+  });
+  // Marker-only captures have ownership in their durable job record.
+  syncDirectory(inboxRoot());
   sweepCaptureJobs(username);
-  for (const paper of listPapers()) {
-    if (paper.meta.addedBy === username) {
-      writeMeta(paper.topic, paper.slug, {
-        ...paper.meta,
-        addedBy: "deleted-profile",
-      });
-    }
-  }
 }
 
 function loadPaper(topic: string | null, slug: string): Paper | null {
@@ -361,6 +534,7 @@ export function findPaperBySource(
 /** A library-unique slug: appends -2, -3, … on collision anywhere. */
 export function uniqueSlug(base: string): string {
   const taken = new Set<string>();
+  for (const job of listCaptureJobs()) taken.add(job.slug);
   for (const p of listPapers()) taken.add(p.slug);
   for (const p of listInbox()) taken.add(p.slug);
   // In-flight async captures own their dir before meta.json exists —
@@ -384,6 +558,10 @@ export function uniqueSlug(base: string): string {
  * data/library/<topic>/ and the PDF into data/papers/<topic>/<slug>.pdf.
  */
 export function acceptFromInbox(slug: string, topic: string): Paper {
+  return withPaperMutation(slug, () => acceptFromInboxLocked(slug, topic));
+}
+
+function acceptFromInboxLocked(slug: string, topic: string): Paper {
   assertSlug(slug);
   assertSlug(topic);
   const fromDir = companionDir(null, slug);
@@ -398,8 +576,6 @@ export function acceptFromInbox(slug: string, topic: string): Paper {
   }
   fs.mkdirSync(path.dirname(toPdf), { recursive: true });
   fs.mkdirSync(path.dirname(toDir), { recursive: true });
-  // Async-capture status marker must not travel into the library.
-  fs.rmSync(path.join(fromDir, "capture.json"), { force: true });
   // The WebDAV-visible PDF is the commit point. Until this final rename, an
   // interrupted acceptance cannot expose an unconfirmed capture.
   fs.renameSync(fromDir, toDir);
@@ -425,6 +601,10 @@ export function movePaper(
   slug: string,
   newTopic: string,
 ): Paper {
+  return withPaperMutation(slug, () => movePaperLocked(topic, slug, newTopic));
+}
+
+function movePaperLocked(topic: string, slug: string, newTopic: string): Paper {
   assertSlug(topic);
   assertSlug(slug);
   assertSlug(newTopic);
@@ -457,7 +637,8 @@ export function movePaper(
  * companion whose PDF remains under its previous topic. The WebDAV PDF is
  * always moved last, so recovery never publishes metadata-less content.
  */
-export function recoverInterruptedMoves(): void {
+export function recoverInterruptedMoves(): string[] {
+  const pending: string[] = [];
   ensureDataDirs();
   for (const topicEntry of fs.readdirSync(libraryRoot(), {
     withFileTypes: true,
@@ -471,51 +652,71 @@ export function recoverInterruptedMoves(): void {
     })) {
       if (!paperEntry.isDirectory() || !isValidSlug(paperEntry.name)) continue;
       const slug = paperEntry.name;
-      const destination = pdfPath(topic, slug);
-      if (fs.existsSync(destination)) continue;
-
-      const acceptedPdf = path.join(companionDir(topic, slug), INBOX_PDF);
-      if (fs.existsSync(acceptedPdf)) {
-        fs.mkdirSync(path.dirname(destination), { recursive: true });
-        fs.renameSync(acceptedPdf, destination);
-        continue;
+      try {
+        withPaperMutation(slug, () => recoverPaperMove(topic, slug));
+      } catch (error) {
+        if (!(error instanceof FileLockBusyError)) throw error;
+        pending.push(slug);
       }
-
-      const candidates: string[] = [];
-      for (const sourceTopicEntry of fs.readdirSync(papersRoot(), {
-        withFileTypes: true,
-      })) {
-        if (!sourceTopicEntry.isDirectory()) continue;
-        const candidate = path.join(
-          papersRoot(),
-          sourceTopicEntry.name,
-          `${slug}.pdf`,
-        );
-        if (fs.existsSync(candidate)) candidates.push(candidate);
-      }
-      if (candidates.length !== 1) continue;
-      const source = candidates[0];
-      const sourceExercises = source.replace(/\.pdf$/, ".exercises.pdf");
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      if (fs.existsSync(sourceExercises)) {
-        fs.renameSync(sourceExercises, exercisesPdfPath(topic, slug));
-      }
-      fs.renameSync(source, destination);
     }
   }
+  return pending;
+}
+
+function recoverPaperMove(topic: string, slug: string): void {
+  if (!fs.existsSync(companionDir(topic, slug))) return;
+  const destination = pdfPath(topic, slug);
+  if (fs.existsSync(destination)) return;
+
+  const acceptedPdf = path.join(companionDir(topic, slug), INBOX_PDF);
+  if (fs.existsSync(acceptedPdf)) {
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.renameSync(acceptedPdf, destination);
+    return;
+  }
+
+  const candidates: string[] = [];
+  for (const sourceTopicEntry of fs.readdirSync(papersRoot(), {
+    withFileTypes: true,
+  })) {
+    if (!sourceTopicEntry.isDirectory()) continue;
+    const candidate = path.join(
+      papersRoot(),
+      sourceTopicEntry.name,
+      `${slug}.pdf`,
+    );
+    if (fs.existsSync(candidate)) candidates.push(candidate);
+  }
+  if (candidates.length !== 1) return;
+  const source = candidates[0];
+  const sourceExercises = source.replace(/\.pdf$/, ".exercises.pdf");
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  if (fs.existsSync(sourceExercises)) {
+    fs.renameSync(sourceExercises, exercisesPdfPath(topic, slug));
+  }
+  fs.renameSync(source, destination);
 }
 
 /** Clear the sync-review flag once the user keeps or re-files the paper. */
 export function clearNeedsReview(topic: string, slug: string): void {
-  const meta = readMeta(topic, slug);
-  if (!meta) throw new Error(`No paper "${slug}" in topic "${topic}".`);
-  if (!meta.needsReview) return;
-  delete meta.needsReview;
-  writeMeta(topic, slug, meta);
+  updateMeta(topic, slug, (meta) => {
+    delete meta.needsReview;
+    return meta;
+  });
 }
 
 /** Accept an inbox capture only when it belongs to the profile's capture token. */
 export function acceptInboxCapture(
+  slug: string,
+  topic: string,
+  username: string,
+): Paper {
+  return withPaperMutation(slug, () =>
+    acceptInboxCaptureLocked(slug, topic, username),
+  );
+}
+
+function acceptInboxCaptureLocked(
   slug: string,
   topic: string,
   username: string,
@@ -528,11 +729,15 @@ export function acceptInboxCapture(
       "No pending capture is available for this profile.",
     );
   }
-  return acceptFromInbox(slug, topic);
+  return acceptFromInboxLocked(slug, topic);
 }
 
 /** Delete a pending capture only when it belongs to the signed-in profile. */
 export function discardInboxCapture(slug: string, username: string): void {
+  withPaperMutation(slug, () => discardInboxCaptureLocked(slug, username));
+}
+
+function discardInboxCaptureLocked(slug: string, username: string): void {
   assertSlug(slug);
   assertSlug(username);
   const paper = loadPaper(null, slug);

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { activeProfile } from "@/lib/auth/session";
+import { requestIdentity } from "@/lib/auth/access";
+import { profilePageFiles } from "@/lib/auth/platform/page-access";
 import { getPaper, listTopics } from "@/lib/library/papers";
 import { InboxReview } from "./InboxReview";
 import styles from "./inbox.module.css";
@@ -12,10 +13,13 @@ interface InboxPageProps {
 }
 
 export default async function InboxPage({ params }: InboxPageProps) {
-  const profile = await activeProfile();
-  if (!profile) redirect("/login");
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability) redirect("/login");
   const { slug } = await params;
-  const paper = getPaper(null, slug);
+  const paper = profilePageFiles(admission.capability, () =>
+    getPaper(null, slug),
+  );
   if (!paper || paper.meta.addedBy !== profile.username) notFound();
 
   return (

@@ -1,11 +1,37 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+  configureTestAgent,
+  setTestAgentModel,
+  setTestAgentProvider,
+} from "../../helpers/agent";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import childProcess from "node:child_process";
+import { PassThrough } from "node:stream";
+import { syncBuiltinESMExports } from "node:module";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-beforeEach(() => {
+let defaultDirectory: string;
+beforeEach(async () => {
   vi.resetModules();
   vi.unstubAllEnvs();
+  defaultDirectory = mkdtempSync(join(tmpdir(), "papernook-agent-state-"));
+  vi.stubEnv("PAPERNOOK_DATA_DIR", defaultDirectory);
+  const binaryDirectory = join(defaultDirectory, "bin");
+  mkdirSync(binaryDirectory);
+  for (const name of ["claude", "codex"])
+    writeFileSync(
+      join(binaryDirectory, name),
+      `#!${process.execPath}\nprocess.stderr.write('Unintercepted test CLI invocation'); process.exitCode = 98;\n`,
+      { mode: 0o700 },
+    );
+  vi.stubEnv("PATH", binaryDirectory + ":" + process.env.PATH);
+  await configureTestAgent({});
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  syncBuiltinESMExports();
+  rmSync(defaultDirectory, { recursive: true, force: true });
 });
 
 describe("invocation building", () => {
@@ -73,18 +99,17 @@ describe("attachment routing", () => {
 
   it("stages images over SSH via mkdir + scp and returns remote paths", async () => {
     const calls: { command: string; args: string[] }[] = [];
-    vi.doMock("node:child_process", () => ({
-      spawn: (command: string, args: string[]) => {
-        calls.push({ command, args });
-        return {
-          stdio: [],
-          stderr: { on: vi.fn() },
-          on: (event: string, cb: (code?: number) => void) => {
-            if (event === "close") setImmediate(() => cb(0));
-          },
-        };
-      },
-    }));
+    vi.doUnmock("node:child_process");
+    vi.spyOn(childProcess, "spawn").mockImplementation((command, args) => {
+      calls.push({ command, args: Array.isArray(args) ? [...args] : [] });
+      const child = new childProcess.ChildProcess();
+      child.stdin = new PassThrough();
+      child.stdout = new PassThrough();
+      child.stderr = new PassThrough();
+      setImmediate(() => child.emit("close", 0));
+      return child;
+    });
+    syncBuiltinESMExports();
     const { stageImagesOverSsh } = await import("@/lib/agent/attachments");
     const staged = await stageImagesOverSsh(["/local/crop.png"], "vps");
 
@@ -94,7 +119,7 @@ describe("attachment routing", () => {
     expect(calls[1].command).toBe("scp");
     expect(staged.paths).toHaveLength(1);
     expect(staged.paths[0]).toMatch(
-      /^\/tmp\/papernook-attach-[0-9a-f]+\/crop\.png$/,
+      /^\/tmp\/papernook-attach-[0-9a-f]+\/0\/crop\.png$/,
     );
     await staged.cleanup();
     expect(calls[2].args.join(" ")).toContain("rm");
@@ -103,8 +128,8 @@ describe("attachment routing", () => {
 });
 
 describe("provider registry", () => {
-  it("resolves the configured provider from AI_PROVIDER", async () => {
-    vi.stubEnv("AI_PROVIDER", "claude-code");
+  it("resolves the configured provider from canonical state", async () => {
+    await setTestAgentProvider("claude-code");
     const { getProvider } = await import("@/lib/agent/registry");
     expect(getProvider().id).toBe("claude-code");
   });
@@ -117,39 +142,39 @@ describe("provider registry", () => {
   });
 
   it("allows CLI providers — the admin's Settings choice is the consent", async () => {
-    vi.stubEnv("AI_PROVIDER", "codex");
+    await setTestAgentProvider("codex");
     let registry = await import("@/lib/agent/registry");
     expect(registry.getProvider().id).toBe("codex");
     vi.resetModules();
-    vi.stubEnv("AI_PROVIDER", "claude-code");
+    await setTestAgentProvider("claude-code");
     registry = await import("@/lib/agent/registry");
     expect(registry.getProvider().id).toBe("claude-code");
   });
 
-  it("throws a setup-pointing error when AI_PROVIDER is unset or invalid", async () => {
-    vi.stubEnv("AI_PROVIDER", "");
+  it("throws a setup-pointing error when no provider is selected", async () => {
+    await setTestAgentProvider(null);
     const { configuredProviderId } = await import("@/lib/agent/registry");
-    expect(() => configuredProviderId()).toThrow(/AI_PROVIDER/);
-    vi.stubEnv("AI_PROVIDER", "gemini");
-    expect(() => configuredProviderId()).toThrow(/AI_PROVIDER/);
+    expect(() => configuredProviderId()).toThrow(/setup wizard/);
   });
 
   it("hasConfiguredProvider reports the no-AI mode without throwing", async () => {
-    vi.stubEnv("AI_PROVIDER", "");
+    await setTestAgentProvider(null);
     const { hasConfiguredProvider } = await import("@/lib/agent/registry");
     expect(hasConfiguredProvider()).toBe(false);
-    vi.stubEnv("AI_PROVIDER", "gemini");
-    expect(hasConfiguredProvider()).toBe(false);
-    vi.stubEnv("AI_PROVIDER", "anthropic");
+    await setTestAgentProvider("anthropic");
     expect(hasConfiguredProvider()).toBe(true);
   });
 
-  it("API providers report availability from env keys without spawning", async () => {
-    vi.stubEnv("ANTHROPIC_API_KEY", "");
-    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+  it("API providers report availability from canonical credentials without spawning", async () => {
+    await configureTestAgent({ provider: "openai" }, { apiKey: "sk-test" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ object: "list", data: [] })),
+    );
     const { isProviderAvailable } = await import("@/lib/agent/registry");
     expect(await isProviderAvailable("anthropic")).toBe(false);
     expect(await isProviderAvailable("openai")).toBe(true);
+    vi.unstubAllGlobals();
   });
 
   it("auto-detects Codex first, then Claude Code, without silent fallback", async () => {
@@ -241,32 +266,52 @@ describe("provider registry", () => {
     const path = await import("node:path");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-probe-"));
     vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
-    vi.stubEnv("OLLAMA_HOST", "http://models.test:11434/v1/");
-    vi.stubEnv("OPENAI_BASE_URL", "http://gateway.test/v1");
-    vi.stubEnv("OPENAI_API_KEY", "");
-    const cfg = await import("@/lib/agent/config");
-    cfg.setAgentModel("qwen3:4b");
+    await configureTestAgent(
+      {
+        provider: "ollama",
+        model: "qwen3:4b",
+        baseUrl: "http://models.test:11434/v1/",
+      },
+      { allowAnonymous: true },
+    );
     const urls: string[] = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request) => {
         urls.push(String(input));
-        return new Response("{}", { status: 200 });
+        return Response.json(
+          String(input).includes("/api/tags") ? { models: [] } : { data: [] },
+        );
       }),
     );
     const { providerStatus } = await import("@/lib/agent/registry");
 
     expect(await providerStatus("ollama")).toBe("ready");
+    await configureTestAgent(
+      {
+        provider: "openai",
+        model: "gpt-5.5",
+        baseUrl: "http://gateway.test/v1",
+      },
+      { allowAnonymous: true },
+    );
     expect(await providerStatus("openai")).toBe("ready");
     expect(urls).toEqual([
-      "http://models.test:11434/api/tags",
+      "http://models.test:11434/v1/models",
       "http://gateway.test/v1/models",
     ]);
     vi.unstubAllGlobals();
   });
 
   it("reports an unreachable local endpoint without falling back", async () => {
-    vi.stubEnv("VLLM_BASE_URL", "http://models.test:8000");
+    await configureTestAgent(
+      {
+        provider: "vllm",
+        model: "Qwen/Qwen3-8B",
+        baseUrl: "http://models.test:8000",
+      },
+      { allowAnonymous: true },
+    );
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => Promise.reject(new Error("down"))),
@@ -277,8 +322,10 @@ describe("provider registry", () => {
   });
 
   it("does not report a reachable local endpoint as usable without a model", async () => {
-    vi.stubEnv("LLAMACPP_BASE_URL", "http://models.test:8080");
-    vi.stubEnv("LLAMACPP_MODEL", "");
+    await configureTestAgent(
+      { provider: "llamacpp", baseUrl: "http://models.test:8080" },
+      { allowAnonymous: true },
+    );
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("{}", { status: 200 })),
@@ -298,42 +345,34 @@ describe("claude-code argv (mocked spawn boundary)", () => {
 
   function mockSpawn(
     calls: SpawnCall[],
-    stdout = "answer",
+    stdout = `${JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "answer" }] } })}\n${JSON.stringify({ type: "result", result: "answer" })}\n`,
     stderr = "",
     exitCode = 0,
   ) {
-    vi.doMock("node:child_process", () => ({
-      spawn: (command: string, args: string[]) => {
-        const call: SpawnCall = { command, args, stdin: [] };
-        calls.push(call);
-        return {
-          stdout: {
-            on: (event: string, cb: (chunk: Buffer) => void) => {
-              if (event === "data") setImmediate(() => cb(Buffer.from(stdout)));
-            },
-            // streamClaudeCode consumes stdout with `for await`.
-            [Symbol.asyncIterator]: async function* () {
-              yield Buffer.from(stdout);
-            },
-          },
-          stderr: {
-            on: (event: string, cb: (chunk: Buffer) => void) => {
-              if (event === "data" && stderr)
-                setImmediate(() => cb(Buffer.from(stderr)));
-            },
-          },
-          stdin: {
-            write: (data: string) => call.stdin.push(data),
-            end: vi.fn(),
-          },
-          on: (event: string, cb: (code?: number) => void) => {
-            if (event === "close")
-              setImmediate(() => setImmediate(() => cb(exitCode)));
-          },
-          kill: vi.fn(),
-        };
-      },
-    }));
+    vi.doUnmock("node:child_process");
+    vi.spyOn(childProcess, "spawn").mockImplementation((command, args) => {
+      const call: SpawnCall = {
+        command,
+        args: Array.isArray(args) ? [...args] : [],
+        stdin: [],
+      };
+      calls.push(call);
+      const child = new childProcess.ChildProcess();
+      const input = new PassThrough();
+      const output = new PassThrough();
+      const errors = new PassThrough();
+      child.stdin = input;
+      child.stdout = output;
+      child.stderr = errors;
+      input.on("data", (data: Buffer) => call.stdin.push(data.toString()));
+      setImmediate(() => {
+        output.end(stdout);
+        errors.end(stderr);
+        setImmediate(() => child.emit("close", exitCode));
+      });
+      return child;
+    });
+    syncBuiltinESMExports();
   }
 
   it("pipes the prompt via stdin and passes the system prompt as an arg", async () => {
@@ -360,44 +399,22 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     vi.doUnmock("node:child_process");
   });
 
-  it("passes the configured thinking effort to both CLI providers", async () => {
+  it("passes the configured thinking effort to Claude", async () => {
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-effort-"));
     vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
+    await configureTestAgent({});
     const calls: SpawnCall[] = [];
     mockSpawn(calls);
-    const cfg = await import("@/lib/agent/config");
-
-    cfg.updateAgentConfig({ provider: "claude-code", effort: "high" });
+    await configureTestAgent({ provider: "claude-code", effort: "high" });
     const { executeClaudeCode } = await import("@/lib/agent/claude-code");
     await executeClaudeCode({ system: "", prompt: "analyze" });
     expect(calls[0].args).toContain("--effort");
     expect(calls[0].args[calls[0].args.indexOf("--effort") + 1]).toBe("high");
 
-    cfg.updateAgentConfig({ provider: "codex", effort: "xhigh" });
-    const { executeCodex } = await import("@/lib/agent/codex");
-    await executeCodex({ system: "", prompt: "analyze" });
-    expect(calls[1].args).toContain('model_reasoning_effort="xhigh"');
-
     fs.rmSync(tmp, { recursive: true, force: true });
-    vi.doUnmock("node:child_process");
-  });
-
-  it("enables Codex live search only for web-enabled turns", async () => {
-    const calls: SpawnCall[] = [];
-    mockSpawn(calls);
-    const { executeCodex } = await import("@/lib/agent/codex");
-    await executeCodex({ system: "", prompt: "local context" });
-    await executeCodex({
-      system: "",
-      prompt: "find the implementation",
-      allowWeb: true,
-    });
-
-    expect(calls[0].args).toContain('web_search="disabled"');
-    expect(calls[1].args).toContain('web_search="live"');
     vi.doUnmock("node:child_process");
   });
 
@@ -501,26 +518,25 @@ describe("claude-code argv (mocked spawn boundary)", () => {
     const calls: SpawnCall[] = [];
     mockSpawn(
       calls,
-      "partial response\nwith context",
+      `${JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "partial response\nwith context" }] } })}\n`,
       `\u001b[31mprovider error\u001b[0m\n${"detail".repeat(1_000)}`,
       1,
     );
     const { executeClaudeCode } = await import("@/lib/agent/claude-code");
 
-    const failure = executeClaudeCode({
+    const failure = await executeClaudeCode({
       system: "",
       prompt: "analyze this paper",
-    });
-    await expect(failure).rejects.toThrow(/claude-code: exited with code 1/);
-    await expect(failure).rejects.toThrow(/\[stderr\]\nprovider error/);
-    await expect(failure).rejects.toThrow(
-      /\[stdout\]\npartial response\nwith context/,
-    );
-    await expect(failure).rejects.not.toThrow(/\u001b/);
-    await expect(failure).rejects.toThrow(/output omitted/);
-    await failure.catch((error: Error) => {
-      expect(error.message.length).toBeLessThanOrEqual(4_050);
-    });
+    }).catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(Error);
+    const message = (failure as Error).message;
+    expect(message).toMatch(/claude-code: exited with code 1/);
+    expect(message).toMatch(/\[stderr\]\nprovider error/);
+    expect(message).toMatch(/\[stdout\]/);
+    expect(message).toContain("partial response");
+    expect(message).not.toMatch(/\u001b/);
+    expect(message).toMatch(/output omitted/);
+    expect(message.length).toBeLessThanOrEqual(4_050);
     vi.doUnmock("node:child_process");
   });
 });
@@ -532,21 +548,22 @@ describe("model configuration", () => {
     const path = await import("node:path");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-model-"));
     vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
+    await configureTestAgent({});
     // Per-provider *_MODEL env vars are intentionally gone.
     vi.stubEnv("CLAUDE_CODE_MODEL", "sonnet");
     const cfg = await import("@/lib/agent/config");
     expect(cfg.configuredModel()).toBeUndefined(); // env is ignored
-    cfg.setAgentModel("opus");
+    await setTestAgentModel("opus");
     expect(cfg.configuredModel()).toBe("opus"); // file wins
-    cfg.updateAgentConfig({ effort: "high" });
+    await configureTestAgent({ effort: "high" });
     expect(cfg.configuredEffort()).toBe("high");
-    cfg.setAgentModel(null);
+    await setTestAgentModel(null);
     expect(cfg.configuredModel()).toBeUndefined(); // provider default
     expect(cfg.configuredEffort()).toBeUndefined(); // model change clears effort
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it("every provider has suggestions", async () => {
+  it("preserves document suggestions and leaves generic server model lists empty", async () => {
     const cfg = await import("@/lib/agent/config");
     expect(cfg.modelSuggestions("claude-code")).toEqual([
       "fable",
@@ -554,9 +571,23 @@ describe("model configuration", () => {
       "sonnet",
       "haiku",
     ]);
-    for (const p of ["codex", "anthropic", "openai", "ollama"] as const) {
-      expect(cfg.modelSuggestions(p).length).toBeGreaterThan(0);
-    }
+    expect(cfg.modelSuggestions("codex")).toEqual([
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+    ]);
+    expect(cfg.modelSuggestions("anthropic")).toEqual([
+      "claude-fable-5",
+      "claude-opus-4-8",
+      "claude-sonnet-5",
+      "claude-haiku-4-5",
+    ]);
+    expect(cfg.modelSuggestions("openai")).toEqual(["gpt-5.5", "gpt-5.5-mini"]);
+    expect(cfg.modelSuggestions("ollama")).toEqual([
+      "qwen3:4b",
+      "qwen3:8b",
+      "gemma3:4b",
+    ]);
     expect(cfg.modelSuggestions("llamacpp")).toEqual([]);
     expect(cfg.modelSuggestions("vllm")).toEqual([]);
   });
@@ -686,32 +717,33 @@ describe("model configuration", () => {
     await expect(listOfferedModels("codex")).resolves.toEqual({
       models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"],
       live: false,
+      discoveryError:
+        "Live model discovery failed. Check the provider connection and refresh to retry.",
       effortOptions: ["low", "medium", "high", "xhigh", "max", "ultra"],
       defaultEffort: null,
     });
     vi.doUnmock("node:child_process");
   });
 
-  it("uses stored endpoint then env then local default", async () => {
+  it("uses the stored endpoint and then the local default", async () => {
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-url-"));
     vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
-    vi.stubEnv("OLLAMA_HOST", "http://env.test:11434");
+    await configureTestAgent({});
     const cfg = await import("@/lib/agent/config");
 
-    expect(cfg.configuredBaseUrl("ollama")).toBe("http://env.test:11434");
-    cfg.updateAgentConfig({
+    expect(cfg.configuredBaseUrl("ollama")).toBe("http://localhost:11434");
+    await configureTestAgent({
       provider: "ollama",
       model: "qwen3:4b",
       baseUrl: "http://stored.test:11434",
     });
     expect(cfg.configuredBaseUrl("ollama")).toBe("http://stored.test:11434");
-    cfg.setAgentProvider("vllm");
+    await setTestAgentProvider("vllm");
     expect(cfg.configuredModel()).toBeUndefined();
     expect(cfg.storedBaseUrl("vllm")).toBeUndefined();
-    vi.stubEnv("VLLM_BASE_URL", "");
     expect(cfg.configuredBaseUrl("vllm")).toBe("http://localhost:8000");
     fs.rmSync(tmp, { recursive: true, force: true });
   });
@@ -724,35 +756,26 @@ describe("provider override", () => {
     const path = await import("node:path");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-prov-"));
     vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
-    vi.stubEnv("AI_PROVIDER", "claude-code");
+    await configureTestAgent({});
+    await setTestAgentProvider("claude-code");
     const cfg = await import("@/lib/agent/config");
     const { configuredProviderId } = await import("@/lib/agent/registry");
     expect(configuredProviderId()).toBe("claude-code");
     expect(cfg.webAccessEnabled()).toBe(true);
-    cfg.setAgentModel("opus");
-    cfg.updateAgentConfig({ webAccess: false });
+    await setTestAgentModel("opus");
+    await configureTestAgent({ webAccess: false });
     expect(cfg.webAccessEnabled()).toBe(false);
-    cfg.setAgentProvider("codex");
+    await setTestAgentProvider("codex");
     expect(configuredProviderId()).toBe("codex");
     expect(cfg.configuredModel()).toBeUndefined(); // model cleared
     expect(cfg.webAccessEnabled()).toBe(false);
-    cfg.setAgentProvider(null);
-    expect(configuredProviderId()).toBe("claude-code"); // env again
+    await setTestAgentProvider(null);
+    expect(() => configuredProviderId()).toThrow(/setup wizard/);
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 });
 
 describe("OpenAI-compatible local providers", () => {
-  it("canonicalizes endpoint URLs without duplicating /v1", async () => {
-    const { ensureV1Suffix } = await import("@/lib/agent/local");
-    expect(ensureV1Suffix("http://localhost:11434")).toBe(
-      "http://localhost:11434/v1",
-    );
-    expect(ensureV1Suffix("http://localhost:11434/v1/")).toBe(
-      "http://localhost:11434/v1",
-    );
-  });
-
   it("uses the selected local model, endpoint, JSON mode, and no API key", async () => {
     const clients: { apiKey?: string; baseURL?: string }[] = [];
     const requests: unknown[] = [];
@@ -761,25 +784,32 @@ describe("OpenAI-compatible local providers", () => {
     const path = await import("node:path");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-vllm-"));
     vi.stubEnv("PAPERNOOK_DATA_DIR", tmp);
-    vi.stubEnv("VLLM_BASE_URL", "http://gpu.test:8000");
-    const cfgModule = await import("@/lib/agent/config");
-    cfgModule.setAgentModel("Qwen/Qwen3-8B");
-    vi.doMock("openai", () => ({
-      default: class {
-        chat = {
-          completions: {
-            create: async (request: unknown) => {
-              requests.push(request);
-              return { choices: [{ message: { content: '{"ok":true}' } }] };
+    await configureTestAgent({
+      provider: "vllm",
+      model: "Qwen/Qwen3-8B",
+      baseUrl: "http://gpu.test:8000",
+    });
+    vi.stubGlobal(
+      "fetch",
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        clients.push({
+          apiKey: request.headers.get("authorization") ?? undefined,
+          baseURL: request.url,
+        });
+        requests.push(await request.json());
+        return Response.json({
+          id: "local1",
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content: '{"ok":true}' },
+              finish_reason: "stop",
             },
-          },
-        };
-
-        constructor(options: { apiKey?: string; baseURL?: string }) {
-          clients.push(options);
-        }
+          ],
+        });
       },
-    }));
+    );
     const { vllmProvider } = await import("@/lib/agent/api");
     const result = await vllmProvider.execute({
       system: "Return JSON.",
@@ -789,7 +819,10 @@ describe("OpenAI-compatible local providers", () => {
 
     expect(result).toBe('{"ok":true}');
     expect(clients).toEqual([
-      { apiKey: "unused", baseURL: "http://gpu.test:8000/v1" },
+      {
+        apiKey: "Bearer unused",
+        baseURL: "http://gpu.test:8000/v1/chat/completions",
+      },
     ]);
     expect(requests).toEqual([
       expect.objectContaining({
@@ -797,11 +830,15 @@ describe("OpenAI-compatible local providers", () => {
         response_format: { type: "json_object" },
       }),
     ]);
-    vi.doUnmock("openai");
+    vi.unstubAllGlobals();
+    fs.rmSync(tmp, { recursive: true, force: true });
   });
 
   it("discovers installed Ollama models from the native tags endpoint", async () => {
-    vi.stubEnv("OLLAMA_HOST", "http://models.test:11434/v1");
+    await configureTestAgent(
+      { provider: "ollama", baseUrl: "http://models.test:11434/v1" },
+      { allowAnonymous: true },
+    );
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>

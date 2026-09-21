@@ -1,92 +1,25 @@
-import crypto from "node:crypto";
-import { cookies } from "next/headers";
-import { sessionSecret } from "../data-dir";
-import { getProfile, type Profile } from "./users";
+import { ACCESS_COOKIE, requestIdentity } from "./access";
+import type { Profile } from "./users";
 
-/**
- * Cookie sessions include the profile's on-disk epoch. Deleting and recreating
- * the same username therefore invalidates every old device session.
- */
+export const SESSION_COOKIE = ACCESS_COOKIE;
 
-export const SESSION_COOKIE = "papernook_session";
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
-
-function sessionTtlMs(): number {
-  return SESSION_TTL_MS;
-}
-
-function sign(payload: string): string {
-  return crypto
-    .createHmac("sha256", sessionSecret())
-    .update(payload)
-    .digest("hex");
-}
-
-function sessionEpoch(profile: Profile): string {
-  return (
-    profile.sessionEpoch ??
-    crypto
-      .createHash("sha256")
-      .update(profile.createdAt)
-      .digest("hex")
-      .slice(0, 32)
-  );
-}
-
-export function createSessionToken(username: string, now = Date.now()): string {
-  const profile = getProfile(username);
-  if (!profile) throw new Error(`Cannot create a session for ${username}.`);
-  const expiry = now + sessionTtlMs();
-  const payload = `${username}.${expiry}.${sessionEpoch(profile)}`;
-  return `${payload}.${sign(payload)}`;
-}
-
-export function verifySessionToken(
+/** Resolve a persisted Sidedoor session to its selected Papernook profile. */
+export async function verifySessionToken(
   token: string,
-  now = Date.now(),
-): string | null {
-  const parts = token.split(".");
-  if (parts.length !== 4) return null;
-  const [username, expiryRaw, epoch, sig] = parts;
-  const payload = `${username}.${expiryRaw}.${epoch}`;
-  const expected = sign(payload);
-  const sigBuf = Buffer.from(sig);
-  const expectedBuf = Buffer.from(expected);
-  if (
-    sigBuf.length !== expectedBuf.length ||
-    !crypto.timingSafeEqual(sigBuf, expectedBuf)
-  ) {
-    return null;
-  }
-  const expiry = Number(expiryRaw);
-  if (!Number.isFinite(expiry) || expiry < now) return null;
-  const profile = getProfile(username);
-  if (!profile || epoch !== sessionEpoch(profile)) return null;
-  return username;
+): Promise<string | null> {
+  return (await requestIdentity(token))?.profile?.username ?? null;
 }
 
-/** The active profile for the current request, or null when signed out. */
 export async function activeProfile(): Promise<Profile | null> {
-  const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  const username = verifySessionToken(token);
-  if (!username) return null;
-  return getProfile(username);
+  return (await requestIdentity())?.profile ?? null;
 }
 
-export function sessionCookieOptions(): {
-  httpOnly: boolean;
-  sameSite: "strict";
-  secure: boolean;
-  path: string;
-  maxAge: number;
-} {
+export function sessionCookieOptions() {
   return {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "strict" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: sessionTtlMs() / 1000,
+    maxAge: 7 * 24 * 60 * 60,
   };
 }

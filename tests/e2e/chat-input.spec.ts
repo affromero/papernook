@@ -1,14 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { restoreMayaSession } from "./support/member-session";
 
-const password = "admin-created-password";
 const pasteShortcut = process.platform === "darwin" ? "Meta+V" : "Control+V";
 const copyShortcut = process.platform === "darwin" ? "Meta+C" : "Control+C";
 
 async function login(page: Page): Promise<void> {
-  await page.goto("/login");
-  await page.getByRole("textbox", { name: "Password" }).fill(password);
-  await page.getByRole("button", { name: "Enter" }).click();
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
+  await restoreMayaSession(page);
   await expect(page).toHaveURL("/");
 }
 
@@ -360,6 +357,8 @@ test("PDF text can be copied and the chat draft stays editable while answering",
 test("keepalive-only responses do not create blank assistant cards", async ({
   page,
 }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   await login(page);
   let sent = false;
   let releaseReload: (() => void) | undefined;
@@ -401,6 +400,7 @@ test("keepalive-only responses do not create blank assistant cards", async ({
 
   await reloadStarted;
   await expect(assistantCards).toHaveCount(completedAnswers);
+  expect(pageErrors).toEqual([]);
   releaseReload?.();
 });
 

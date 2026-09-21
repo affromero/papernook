@@ -1,7 +1,15 @@
 import fs from "node:fs/promises";
+import { renameSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  withProfileActivity,
+  withProfileFiles,
+  type ProfileCapability,
+} from "../auth/profile-capability";
+import { PapernookIdentityStore } from "../auth/identity-store";
 import path from "node:path";
 import { z } from "zod";
-import { usersRoot } from "../data-dir";
+import { usersRoot, dataRoot } from "../data-dir";
 import type { ZoteroLibraryTarget } from "../auth/users";
 
 const CATALOG_FILE = "zotero-catalog.json";
@@ -146,43 +154,63 @@ function assertByteBudget(catalog: ZoteroCatalog): void {
 }
 
 export async function readZoteroCatalog(
-  username: string,
+  capability: ProfileCapability,
 ): Promise<ZoteroCatalog> {
-  try {
-    const file = catalogPath(username);
-    const stat = await fs.stat(file);
-    if (stat.size > MAX_CATALOG_BYTES) return emptyCatalog();
-    const raw = await fs.readFile(file, "utf8");
-    const parsed = catalogSchema.safeParse(JSON.parse(raw));
-    return parsed.success && withinLimits(parsed.data)
-      ? parsed.data
-      : emptyCatalog();
-  } catch {
-    return emptyCatalog();
-  }
+  const identity = new PapernookIdentityStore(dataRoot());
+  return withProfileActivity(identity, capability, async () => {
+    let catalog = emptyCatalog();
+    try {
+      const file = catalogPath(capability.username);
+      const stat = await fs.stat(file);
+      if (stat.size <= MAX_CATALOG_BYTES) {
+        const raw = await fs.readFile(file, "utf8");
+        const parsed = catalogSchema.safeParse(JSON.parse(raw));
+        if (parsed.success && withinLimits(parsed.data)) catalog = parsed.data;
+      }
+    } catch (error) {
+      if (
+        !(error instanceof SyntaxError) &&
+        !(error instanceof Error && "code" in error && error.code === "ENOENT")
+      )
+        throw error;
+    }
+    return withProfileFiles(identity, capability, () => catalog);
+  });
 }
 
 export async function writeZoteroCatalog(
-  username: string,
+  capability: ProfileCapability,
   catalog: ZoteroCatalog,
 ): Promise<void> {
-  if (!withinLimits(catalog)) {
+  if (!withinLimits(catalog))
     throw new Error("Zotero catalog contains too many records.");
-  }
   assertByteBudget(catalog);
   const serialized = JSON.stringify(catalog);
-  if (Buffer.byteLength(serialized, "utf8") > MAX_CATALOG_BYTES) {
+  if (Buffer.byteLength(serialized, "utf8") > MAX_CATALOG_BYTES)
     throw new Error("Zotero catalog exceeds the 64 MB metadata limit.");
-  }
-  const file = catalogPath(username);
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
-  await fs.writeFile(tmp, serialized, { mode: 0o600 });
-  await fs.rename(tmp, file);
+  const identity = new PapernookIdentityStore(dataRoot());
+  await withProfileActivity(identity, capability, async () => {
+    const file = catalogPath(capability.username);
+    const tmp = file + "." + randomUUID() + ".tmp";
+    try {
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.writeFile(tmp, serialized, { mode: 0o600 });
+      withProfileFiles(identity, capability, () => renameSync(tmp, file));
+    } finally {
+      await fs.rm(tmp, { force: true });
+    }
+  });
 }
 
-export async function deleteZoteroCatalog(username: string): Promise<void> {
-  await fs.rm(catalogPath(username), { force: true });
+export async function deleteZoteroCatalog(
+  capability: ProfileCapability,
+): Promise<void> {
+  const identity = new PapernookIdentityStore(dataRoot());
+  await withProfileActivity(identity, capability, async () => {
+    withProfileFiles(identity, capability, () =>
+      rmSync(catalogPath(capability.username), { force: true }),
+    );
+  });
 }
 
 export function emptyLibrary(

@@ -3,7 +3,9 @@ import { NextRequest } from "next/server";
 import { clientIp } from "@/lib/auth/request-security";
 
 function withHeaders(headers: Record<string, string>): NextRequest {
-  return new NextRequest("http://papernook.test/api/v1/gate", { headers });
+  return new NextRequest("http://papernook.test/api/v1/access/household", {
+    headers,
+  });
 }
 
 afterEach(() => {

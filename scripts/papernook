@@ -30,12 +30,46 @@ papernook — self-hosted paper library
   papernook status
       Show the running version, whether a newer release exists, and health.
 
+  papernook access list|claim|recover <principalId>|initialize|validate-config
+      Manage local access. Stop the app before initialization.
+
   papernook link [--bin-dir DIR]
       (Re)install the `papernook` command on PATH, pointing at this clone.
       Run by scripts/install.sh; run it by hand after moving the clone.
 
   papernook help
 USAGE
+}
+
+cmd_access() {
+  local operation running
+  operation=${1:-}
+  case "${operation}:$#" in
+    list:1 | claim:1 | initialize:1 | validate-config:1) ;;
+    recover:2) [ -n "$2" ] || { usage >&2; exit 1; } ;;
+    *) usage >&2; exit 1 ;;
+  esac
+  if [ "$operation" = validate-config ]; then
+    docker compose run --rm --no-deps --entrypoint node app scripts/access.cjs validate-config
+    return
+  fi
+  running=$(docker compose ps --status running --quiet app)
+  case "$operation" in
+    initialize)
+      if [ -n "$running" ]; then
+        echo "Stop the app before changing stored access: docker compose stop app" >&2
+        exit 1
+      fi
+      docker compose run --rm --no-deps app node scripts/access.cjs "$@"
+      ;;
+    *)
+      if [ -n "$running" ]; then
+        docker compose exec -T --user node app node scripts/access.cjs "$@"
+      else
+        docker compose run --rm --no-deps app node scripts/access.cjs "$@"
+      fi
+      ;;
+  esac
 }
 
 # Sourcing .env would leak every secret in it into this process, so read
@@ -162,7 +196,9 @@ running_version() {
 # cache and intermediate layers. Without it — every self-host install — the
 # checkout builds locally exactly as before.
 deploy_stack() {
-  local version image tag
+  local version image tag backup_mode
+  backup_mode=backup
+  [ "$BACKUP" = 1 ] || backup_mode=no-backup
   # The health endpoint reports this. Between releases the package version
   # alone is ambiguous, so it carries the commit too: 0.2.0+fc26c3f. Ports
   # and every other setting come from .env, which compose interpolates.
@@ -174,18 +210,11 @@ deploy_stack() {
     # health endpoint reports can never disagree.
     [ -n "$tag" ] || tag=$(git rev-parse --short HEAD)
     echo "Pulling ${image}:${tag}…"
-    PAPERNOOK_IMAGE_TAG="$tag" docker compose pull app || {
-      echo "papernook: ${image}:${tag} is not in the registry yet" >&2
-      echo "  (CI publishes it once the container job passes on main)" >&2
-      exit 1
-    }
-    # --no-build so a missing image fails loudly instead of quietly
-    # compiling one here.
     PAPERNOOK_IMAGE_TAG="$tag" PAPERNOOK_VERSION="$version" \
-      docker compose up -d --no-build
+      bash ./scripts/runtime/start-stack.sh pull "$backup_mode"
   else
     echo "Rebuilding…"
-    PAPERNOOK_VERSION="$version" docker compose up -d --build
+    PAPERNOOK_VERSION="$version" bash ./scripts/runtime/start-stack.sh build "$backup_mode"
   fi
 
   printf 'Waiting for health'
@@ -229,17 +258,15 @@ cmd_update() {
   if [ "$(git rev-parse "$target")" = "$(git rev-parse HEAD)" ]; then
     local newest running
     newest="Already on the newest $([ "$TRACK_MAIN" = 1 ] && echo main || echo release) ($(current_ref))"
-    running=$(running_version)
-    # No answer at all is not a contradiction — the stack may be stopped, or
-    # too old to report a version — so only a version that disagrees
-    # triggers a redeploy.
-    if [ -z "$running" ] || [ "$running" = "$(stack_version)" ]; then
+    running=$(running_version) || running=""
+    # A failed startup must remain retryable even after the checkout moved.
+    if [ -n "$running" ] && [ "$running" = "$(stack_version)" ]; then
       echo "${newest}."
       exit 0
     fi
     # The clone moved but the stack did not — a deploy that died between the
     # two (the box ran out of disk mid-build) used to leave the retry with
-    # nothing to do, and the old container serving.
+    # nothing to do, and the current container serving.
     echo "${newest}, but the stack runs ${running:-nothing}; deploying it."
     if [ "$CHECK_ONLY" = "1" ]; then
       echo "(--check: nothing changed)"
@@ -261,11 +288,6 @@ cmd_update() {
     exit 0
   fi
 
-  if [ "$BACKUP" = "1" ] && [ -f .env ]; then
-    echo "Backing up…"
-    ./scripts/backup.sh
-  fi
-
   # Detached at a tag, or fast-forwarding the branch the user tracks —
   # never a merge, so a diverged clone stops here instead of conflicting.
   if [ "$TRACK_MAIN" = "1" ]; then
@@ -284,6 +306,10 @@ BACKUP=1
 BIN_DIR=""
 command=${1:-help}
 shift || true
+if [ "$command" = "access" ]; then
+  cmd_access "$@"
+  exit 0
+fi
 while [ $# -gt 0 ]; do
   argument=$1
   shift

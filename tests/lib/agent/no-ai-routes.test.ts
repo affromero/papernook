@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
+import { createTestProfile, mockTestSession } from "../../helpers/access";
 
 let tmpDir: string;
 
@@ -10,15 +11,9 @@ beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-noai-"));
   process.env.PAPERNOOK_DATA_DIR = tmpDir;
   vi.resetModules();
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => ({ username: "andres" }),
-  }));
-  vi.doMock("@/lib/agent/registry", () => ({
-    hasConfiguredProvider: () => false,
-    getProvider: () => {
-      throw new Error("getProvider must not run in no-AI mode");
-    },
-  }));
+  await createTestProfile("Andres");
+  await mockTestSession("andres");
+  vi.stubEnv("AI_PROVIDER", "");
   const papers = await import("@/lib/library/papers");
   papers.writeMeta("ml", "paper", {
     title: "Paper",
@@ -39,8 +34,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  vi.doUnmock("@/lib/auth/session");
-  vi.doUnmock("@/lib/agent/registry");
+  vi.doUnmock("next/headers");
+  vi.unstubAllEnvs();
   const { closeIndex } = await import("@/lib/library/index-db");
   closeIndex();
   fs.rmSync(tmpDir, { recursive: true, force: true });

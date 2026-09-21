@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { restoreMayaSession } from "./support/member-session";
 
 test("conversation reading shares paper focus controls and renders rich source content", async ({
   page,
@@ -289,12 +290,7 @@ test("consecutive speaker runs collapse together while preserving individual tur
 });
 
 async function login(page: Page) {
-  await page.goto("/login");
-  await page
-    .getByRole("textbox", { name: "Password" })
-    .fill("admin-created-password");
-  await page.getByRole("button", { name: "Enter", exact: true }).click();
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
+  await restoreMayaSession(page);
   await expect(page).toHaveURL("/");
 }
 

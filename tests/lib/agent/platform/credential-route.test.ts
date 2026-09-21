@@ -1,3 +1,4 @@
+import { createTestProfile, mockTestSession } from "../../../helpers/access";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -21,7 +22,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
   vi.doUnmock("@/lib/agent/credentials");
   vi.doUnmock("@/lib/agent/registry");
   vi.unstubAllEnvs();
@@ -30,13 +31,9 @@ afterEach(() => {
 });
 
 async function routeAs(role: "admin" | "member" | "anonymous") {
-  const users = await import("@/lib/auth/users");
-  const admin = users.getProfile("admin") ?? users.createProfile("Admin");
-  const member = users.getProfile("member") ?? users.createProfile("Member");
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () =>
-      role === "admin" ? admin : role === "member" ? member : null,
-  }));
+  await createTestProfile("Admin", undefined, true);
+  await createTestProfile("Member");
+  await mockTestSession(role === "anonymous" ? null : role, role === "admin");
   vi.doMock("@/lib/agent/credentials", () => ({
     credentialReloadAvailable: () => reloadAvailable,
     reloadProviderCredentials,

@@ -1,7 +1,10 @@
 import fs from "node:fs";
+import { writeCaptureOwner } from "./jobs/ownership";
+import { randomUUID } from "node:crypto";
+import { acquireFileLock } from "thesidedoor-core/storage";
 import path from "node:path";
 import { slugify } from "../library/slug";
-import { ensureDataDirs } from "../data-dir";
+import { ensureDataDirs, dataRoot } from "../data-dir";
 import {
   acceptInboxCapture,
   companionDir,
@@ -13,10 +16,12 @@ import {
   writeSummary,
   writeText,
   uniqueSlug,
+  withPaperCatalog,
   type PaperMeta,
   type PaperSource,
 } from "../library/papers";
 import { createChat, appendMessage } from "../library/chats";
+import { canonicalCitationMetadata } from "../library/citations";
 import { hasConfiguredProvider } from "../agent/registry";
 import { rebuildIndex } from "../library/index-db";
 import { downloadPdf } from "./download";
@@ -32,13 +37,17 @@ import {
   type ProfileActivity,
 } from "../auth/profile-activity";
 import { CaptureError } from "./download";
+import {
+  withProfileFiles,
+  type ProfileCapability,
+} from "../auth/profile-capability";
+import { PapernookIdentityStore } from "../auth/identity-store";
 import { captureLockKey, withZoteroLock } from "./zotero-lock";
 import {
-  clearCaptureJob,
   findAnalyzingJobBySource,
-  readCaptureJob,
   removeCaptureJobDir,
   writeCaptureJob,
+  acquireCaptureJob,
 } from "./jobs";
 
 /**
@@ -58,6 +67,7 @@ export interface CapturePdfOptions {
   /** Original URL recorded in meta and given to the analyzer. */
   sourceUrl: string;
   username: string;
+  capability: ProfileCapability;
   /** URL the bytes actually came from; seeds the provisional slug. */
   finalUrl?: string;
   arxivId?: string | null;
@@ -84,21 +94,83 @@ export interface CapturePdfOptions {
  * The marker transitions to "done" (with finalSlug) or "failed" (with the
  * user-facing error); the UI reads markers, never this promise.
  */
-export function captureAsync(url: string, username: string): { slug: string } {
-  ensureDataDirs();
-  const running = findAnalyzingJobBySource(url, username);
-  if (running) return { slug: running.slug };
-  const activity = beginProfileActivity(username);
+function commitCapture<Result>(
+  activity: ProfileActivity,
+  operation: () => Result &
+    (Result extends PromiseLike<unknown> ? never : unknown),
+): Result {
+  return withProfileFiles(
+    new PapernookIdentityStore(dataRoot()),
+    activity.capability,
+    operation,
+  );
+}
+
+async function reserveCapture<Result>(
+  activity: ProfileActivity,
+  operation: () => Result &
+    (Result extends PromiseLike<unknown> ? never : unknown),
+): Promise<Result> {
+  const release = await acquireFileLock(
+    path.join(dataRoot(), "locks", "capture-reservation.guard"),
+  );
+  try {
+    assertActive(activity);
+    return withPaperCatalog(() => commitCapture(activity, operation));
+  } finally {
+    await release();
+  }
+}
+
+export async function captureAsync(
+  url: string,
+  capability: ProfileCapability,
+): Promise<{ slug: string }> {
+  const { username } = capability;
+  const activity = beginProfileActivity(capability);
   if (!activity) throw profileDeletedError();
-  const slug = uniqueSlug(provisionalBase(url));
+  let slug: string;
+  const jobId = randomUUID();
+  let releaseJob: (() => void) | undefined;
   const startedAt = new Date().toISOString();
-  writeCaptureJob({
-    slug,
-    state: "analyzing",
-    sourceUrl: url,
-    addedBy: username,
-    startedAt,
-  });
+  try {
+    const reservation = await reserveCapture(activity, () => {
+      ensureDataDirs();
+      const running = findAnalyzingJobBySource(
+        url,
+        username,
+        capability.generation,
+      );
+      if (running && running.generation === capability.generation) {
+        return { slug: running.pollingSlug ?? running.slug, existing: true };
+      }
+      const slug = uniqueSlug(provisionalBase(url));
+      releaseJob = acquireCaptureJob(jobId);
+      writeCaptureJob({
+        slug,
+        jobId,
+        pollingSlug: slug,
+        state: "analyzing",
+        sourceUrl: url,
+        addedBy: username,
+        generation: capability.generation,
+        startedAt,
+      });
+      return { slug, existing: false };
+    });
+    slug = reservation.slug;
+    if (reservation.existing) {
+      activity.finish();
+      return { slug };
+    }
+  } catch (error) {
+    try {
+      releaseJob?.();
+    } finally {
+      activity.finish();
+    }
+    throw error;
+  }
   void (async () => {
     try {
       const pdf = await downloadPdf(url);
@@ -108,22 +180,27 @@ export function captureAsync(url: string, username: string): { slug: string } {
         {
           sourceUrl: url,
           username,
+          capability,
           finalUrl: pdf.finalUrl,
           arxivId: pdf.arxivId,
           provisionalSlug: slug,
         },
         activity,
       );
-      // The marker stayed at the provisional slug through the title rename
-      // (retargetSlug moves it back) — the caller's stable polling handle.
-      writeCaptureJob({
-        slug,
-        state: "done",
-        sourceUrl: url,
-        addedBy: username,
-        startedAt,
-        finalSlug: result.slug,
-      });
+      // Job records remain outside the renamed paper directories.
+      commitCapture(activity, () =>
+        writeCaptureJob({
+          slug,
+          jobId,
+          pollingSlug: slug,
+          state: "done",
+          sourceUrl: url,
+          addedBy: username,
+          generation: capability.generation,
+          startedAt,
+          finalSlug: result.slug,
+        }),
+      );
     } catch (error) {
       if (activity.cancelled()) {
         // Profile erasure won: leave nothing behind.
@@ -133,29 +210,43 @@ export function captureAsync(url: string, username: string): { slug: string } {
       if (!(error instanceof CaptureError)) {
         console.error(`papernook capture failed (${url}):`, error);
       }
-      writeCaptureJob({
-        slug,
-        state: "failed",
-        sourceUrl: url,
-        addedBy: username,
-        startedAt,
-        error:
-          error instanceof CaptureError
-            ? error.message
-            : "Capture failed unexpectedly on the server. Dismiss and retry.",
-      });
+      commitCapture(activity, () =>
+        writeCaptureJob({
+          slug,
+          jobId,
+          pollingSlug: slug,
+          state: "failed",
+          sourceUrl: url,
+          addedBy: username,
+          generation: capability.generation,
+          startedAt,
+          error:
+            error instanceof CaptureError
+              ? error.message
+              : "Capture failed unexpectedly on the server. Dismiss and retry.",
+        }),
+      );
     } finally {
-      activity.finish();
+      try {
+        releaseJob?.();
+      } finally {
+        activity.finish();
+      }
     }
-  })();
+  })().catch(() => {
+    console.error(
+      "Capture completion could not be persisted. Check identity and job storage.",
+    );
+  });
   return { slug };
 }
 
 export async function capture(
   url: string,
-  username: string,
+  capability: ProfileCapability,
 ): Promise<CaptureResult> {
-  const activity = beginProfileActivity(username);
+  const { username } = capability;
+  const activity = beginProfileActivity(capability);
   if (!activity) throw profileDeletedError();
   try {
     const pdf = await downloadPdf(url);
@@ -165,6 +256,7 @@ export async function capture(
       {
         sourceUrl: url,
         username,
+        capability,
         finalUrl: pdf.finalUrl,
         arxivId: pdf.arxivId,
       },
@@ -180,9 +272,15 @@ export async function capturePdf(
   opts: CapturePdfOptions,
   parentActivity?: ProfileActivity,
 ): Promise<CaptureResult> {
-  const activity = parentActivity ?? beginProfileActivity(opts.username);
+  const activity = parentActivity ?? beginProfileActivity(opts.capability);
   if (!activity) throw profileDeletedError();
   try {
+    if (
+      activity.username !== opts.username ||
+      activity.capability.generation !== opts.capability.generation ||
+      opts.capability.username !== opts.username
+    )
+      throw profileDeletedError();
     return await capturePdfActive(bytes, opts, activity);
   } finally {
     if (!parentActivity) activity.finish();
@@ -220,32 +318,51 @@ async function capturePdfLocked(
   }
 
   // Slug from the analyzed title once we have it; provisional from URL now.
-  const provisional =
-    opts.provisionalSlug ??
-    uniqueSlug(provisionalBase(opts.finalUrl ?? opts.sourceUrl));
+  let allocatedSlug: string | undefined;
+  const provisional = await reserveCapture(activity, () => {
+    const slug =
+      opts.provisionalSlug ??
+      uniqueSlug(provisionalBase(opts.finalUrl ?? opts.sourceUrl));
+    fs.mkdirSync(companionDir(null, slug), { recursive: true });
+    allocatedSlug = slug;
+    writeCaptureOwner(companionDir(null, slug), activity.capability);
+    return slug;
+  }).catch((error: unknown) => {
+    if (allocatedSlug) removeOwnedCapture(opts.username, allocatedSlug, null);
+    throw error;
+  });
   const inboxPdf = pdfPath(null, provisional);
-  fs.mkdirSync(path.dirname(inboxPdf), { recursive: true });
-  fs.writeFileSync(inboxPdf, bytes);
-  // Compress first, linearize second: ghostscript writes its own file
-  // structure, which would undo the fast-web-view layout.
-  await compressPdf(inboxPdf);
-  await linearizePdf(inboxPdf);
-
   let finalSlug = provisional;
   let proposedTopic: string | null = null;
   try {
+    commitCapture(activity, () => fs.writeFileSync(inboxPdf, bytes));
+    // Compress first, linearize second: ghostscript writes its own file
+    // structure, which would undo the fast-web-view layout.
+    await compressPdf(inboxPdf);
+    assertActive(activity);
+    await linearizePdf(inboxPdf);
+    assertActive(activity);
+
     const text = await extractPdfText(inboxPdf);
     assertActive(activity);
-    const analysis = await analyzePaper(opts.sourceUrl, text, opts.arxivId);
+    const analysis = await analyzePaper(
+      opts.sourceUrl,
+      text,
+      opts.arxivId,
+      activity.capability,
+    );
     assertActive(activity);
 
     // Rename to a title-based slug now that the title is known.
-    finalSlug = retargetSlug(
-      provisional,
-      opts.overrides?.title ?? analysis.title,
-    );
+    await reserveCapture(activity, () => {
+      finalSlug = retargetSlug(
+        provisional,
+        opts.overrides?.title ?? analysis.title,
+      );
+    });
 
-    proposedTopic = slugify(analysis.topic) || "unsorted";
+    const topic = slugify(analysis.topic) || "unsorted";
+    proposedTopic = topic;
     const meta: PaperMeta = {
       title: analysis.title,
       authors: analysis.authors,
@@ -263,36 +380,39 @@ async function capturePdfLocked(
     };
     if (opts.source) meta.source = opts.source;
     if (opts.autoFile) meta.needsReview = true;
-    writeMeta(null, finalSlug, meta);
-    writeSummary(null, finalSlug, analysis.summary);
-    if (text) writeText(null, finalSlug, text);
+    meta.citation = canonicalCitationMetadata(meta);
+    commitCapture(activity, () => {
+      writeMeta(null, finalSlug, meta);
+      writeSummary(null, finalSlug, analysis.summary);
+      if (text) writeText(null, finalSlug, text);
 
-    // Seed the capturing profile's first chat with the starter questions.
-    // No-provider mode skips the seed: chats are an AI-only surface there.
-    if (hasConfiguredProvider()) {
-      const chat = createChat(
-        null,
-        finalSlug,
-        opts.username,
-        "Starter questions",
-      );
-      appendMessage(null, finalSlug, opts.username, chat.id, {
-        role: "assistant",
-        content:
-          "Some questions to start studying this paper:\n\n" +
-          analysis.starterQuestions.map((q) => `- ${q}`).join("\n"),
-        at: new Date().toISOString(),
-      });
-    }
+      // Seed the capturing profile's first chat with the starter questions.
+      // No-provider mode skips the seed: chats are an AI-only surface there.
+      if (hasConfiguredProvider()) {
+        const chat = createChat(
+          null,
+          finalSlug,
+          opts.username,
+          "Starter questions",
+        );
+        appendMessage(null, finalSlug, opts.username, chat.id, {
+          role: "assistant",
+          content:
+            "Some questions to start studying this paper:\n\n" +
+            analysis.starterQuestions.map((q) => `- ${q}`).join("\n"),
+          at: new Date().toISOString(),
+        });
+      }
 
-    if (opts.autoFile) {
-      // Same inbox→library path the confirm page uses: the PDF only reaches
-      // data/papers/ (and thus WebDAV) via the accept function's atomic rename.
-      // No per-paper rebuildIndex here — callers may batch one rebuild.
-      acceptInboxCapture(finalSlug, proposedTopic, opts.username);
-    } else {
-      rebuildIndex();
-    }
+      if (opts.autoFile) {
+        // Same inbox→library path the confirm page uses: the PDF only reaches
+        // data/papers/ (and thus WebDAV) via the accept function's atomic rename.
+        // No per-paper rebuildIndex here — callers may batch one rebuild.
+        acceptInboxCapture(finalSlug, topic, opts.username);
+      } else {
+        rebuildIndex();
+      }
+    });
     assertActive(activity);
     return { slug: finalSlug, proposedTopic, analysis };
   } catch (error) {
@@ -315,6 +435,14 @@ function profileDeletedError(): CaptureError {
 }
 
 export function removeOwnedCapture(
+  username: string,
+  slug: string,
+  topic: string | null,
+): void {
+  withPaperCatalog(() => removeOwnedCaptureLocked(username, slug, topic));
+}
+
+function removeOwnedCaptureLocked(
   username: string,
   slug: string,
   topic: string | null,
@@ -359,15 +487,6 @@ function retargetSlug(provisional: string, title: string): string {
   const toDir = companionDir(null, finalSlug);
   if (fs.existsSync(fromDir)) {
     fs.renameSync(fromDir, toDir);
-    // An async-capture marker traveled with the dir. Move it straight back:
-    // the provisional slug is the caller's polling handle, and while the
-    // marker sits at the final slug a status poll reads "job vanished" —
-    // the capture then finishes fine but the UI reports it lost.
-    const job = readCaptureJob(finalSlug);
-    if (job) {
-      writeCaptureJob({ ...job, slug: provisional });
-      clearCaptureJob(finalSlug);
-    }
   } else {
     fs.mkdirSync(toDir, { recursive: true });
     fs.renameSync(pdfPath(null, provisional), pdfPath(null, finalSlug));

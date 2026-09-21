@@ -1,3 +1,5 @@
+import { testProfileCapability, revokeTestProfile } from "../../helpers/access";
+import { createTestProfile, setTestZoteroConfig } from "../../helpers/access";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -12,6 +14,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.doUnmock("@/lib/agent/registry");
   const { closeIndex } = await import("@/lib/library/index-db");
@@ -160,9 +163,8 @@ function mockAgent() {
 }
 
 async function connect(collectionKeys: string[] = []) {
-  const users = await import("@/lib/auth/users");
-  users.createProfile("Andres");
-  users.setZoteroConfig("andres", {
+  await createTestProfile("Andres");
+  await setTestZoteroConfig("andres", {
     apiKey: "key",
     userId: "1234567",
     collectionKeys,
@@ -170,6 +172,27 @@ async function connect(collectionKeys: string[] = []) {
 }
 
 describe("metadata-first Zotero sync", () => {
+  it("does not sync a recreated profile through an earlier request's admission", async () => {
+    await connect();
+    const admission = testProfileCapability("andres");
+    await (
+      await revokeTestProfile("andres")
+    )();
+    await connect();
+    const zotero = await import("@/lib/capture/zotero");
+    expect(await zotero.syncProfile("andres", admission)).toBeNull();
+    const { listCatalogItems } = await import("@/lib/capture/zotero-service");
+    await expect(listCatalogItems(admission, "", 1, 20)).rejects.toMatchObject({
+      code: "unauthorized",
+    });
+    expect(zotero.isSyncing("andres")).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, "users", "andres", "zotero-catalog.json"),
+      ),
+    ).toBe(false);
+  });
+
   it("catalogs metadata and annotations without downloading or invoking AI", async () => {
     const library = fixture();
     const calls = stubZotero(library);
@@ -191,7 +214,9 @@ describe("metadata-first Zotero sync", () => {
     expect(papers.listInbox()).toEqual([]);
 
     const { listCatalogItems } = await import("@/lib/capture/zotero-service");
-    expect(await listCatalogItems("andres", "", 1, 20)).toMatchObject({
+    expect(
+      await listCatalogItems(testProfileCapability("andres"), "", 1, 20),
+    ).toMatchObject({
       total: 1,
       importable: 1,
       imported: 0,
@@ -213,14 +238,20 @@ describe("metadata-first Zotero sync", () => {
     await syncProfile("andres");
     const { importCatalogItem } = await import("@/lib/capture/zotero-service");
 
-    const first = await importCatalogItem("andres", "PARENT01");
+    const first = await importCatalogItem(
+      testProfileCapability("andres"),
+      "PARENT01",
+    );
     expect(first.created).toBe(true);
     expect(execute).toHaveBeenCalledTimes(1);
     expect(
       calls.filter((call) => call.endsWith("/ATTACH01/file")),
     ).toHaveLength(1);
 
-    const second = await importCatalogItem("andres", "PARENT01");
+    const second = await importCatalogItem(
+      testProfileCapability("andres"),
+      "PARENT01",
+    );
     expect(second).toEqual({ ...first, created: false });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(
@@ -315,14 +346,17 @@ describe("metadata-first Zotero sync", () => {
     const { importCatalogItem, listCatalogItems } =
       await import("@/lib/capture/zotero-service");
     await syncProfile("andres");
-    await importCatalogItem("andres", "PARENT01");
+    await importCatalogItem(testProfileCapability("andres"), "PARENT01");
 
     library.deleted = ["PARENT01", "ATTACH01", "ANNOT001"];
     library.deletedVersion = 43;
     library.itemVersion = 43;
     library.items = [];
     await syncProfile("andres");
-    expect((await listCatalogItems("andres", "", 1, 20)).total).toBe(0);
+    expect(
+      (await listCatalogItems(testProfileCapability("andres"), "", 1, 20))
+        .total,
+    ).toBe(0);
     const papers = await import("@/lib/library/papers");
     expect(papers.listPapers()).toHaveLength(1);
   });
@@ -335,7 +369,7 @@ describe("metadata-first Zotero sync", () => {
     const { syncProfile } = await import("@/lib/capture/zotero");
     const { importCatalogItem } = await import("@/lib/capture/zotero-service");
     await syncProfile("andres");
-    await importCatalogItem("andres", "PARENT01");
+    await importCatalogItem(testProfileCapability("andres"), "PARENT01");
     const papers = await import("@/lib/library/papers");
     const before = papers.listPapers()[0];
     const pdf = fs.readFileSync(before.pdfPath);
@@ -363,17 +397,22 @@ describe("metadata-first Zotero sync", () => {
     const { importCatalogItem, annotationsForPaper } =
       await import("@/lib/capture/zotero-service");
     await syncProfile("andres");
-    await importCatalogItem("andres", "PARENT01");
+    await importCatalogItem(testProfileCapability("andres"), "PARENT01");
     const papers = await import("@/lib/library/papers");
     const paper = papers.listPapers()[0];
-    expect(await annotationsForPaper("andres", paper)).toEqual([
+    expect(
+      await annotationsForPaper(testProfileCapability("andres"), paper),
+    ).toEqual([
       {
         pageLabel: "3",
         text: "Attention replaces recurrence.",
         comment: "Important architectural shift.",
       },
     ]);
-    expect(await annotationsForPaper("guest", paper)).toEqual([]);
+    await createTestProfile("guest");
+    expect(
+      await annotationsForPaper(testProfileCapability("guest"), paper),
+    ).toEqual([]);
   });
 
   it("does not recreate profile data when erasure races a catalog refresh", async () => {
@@ -413,15 +452,12 @@ describe("metadata-first Zotero sync", () => {
     const syncing = zotero.syncProfile("andres");
     await started;
 
-    const { beginProfileErasure } = await import("@/lib/auth/profile-activity");
-    const erasure = beginProfileErasure("andres");
+    const finishErasure = await revokeTestProfile("andres");
     zotero.cancelProfileSync("andres");
     releaseItems?.();
     expect(await syncing).toBeNull();
-    const finishErasure = await erasure;
     const users = await import("@/lib/auth/users");
-    users.deleteProfile("andres");
-    finishErasure();
+    await finishErasure();
 
     expect(users.getProfile("andres")).toBeNull();
     expect(fs.existsSync(path.join(tmpDir, "users", "andres"))).toBe(false);

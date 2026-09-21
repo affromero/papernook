@@ -4,15 +4,23 @@ import path from "node:path";
 const root = path.resolve(process.argv[2] ?? ".next/runtime");
 const forbidden = [
   /(^|\/)\.env(?:\.|$)/,
-  /(^|\/)data\//,
-  /(^|\/)docs\//,
-  /(^|\/)src\//,
-  /(^|\/)tests\//,
+  /^data\//,
+  /^docs\//,
+  /^src\//,
+  /^tests\//,
   /(^|\/)(AGENTS|CLAUDE)\.md$/,
 ];
 
 if (!fs.existsSync(root)) {
   throw new Error(`Missing runtime artifact: ${root}`);
+}
+
+const nativeLock = path.join(
+  root,
+  "node_modules/thesidedoor-flock/build/Release/fs_ext.node",
+);
+if (!fs.existsSync(nativeLock)) {
+  throw new Error("Runtime artifact is missing native file locking");
 }
 
 const leaked = [];

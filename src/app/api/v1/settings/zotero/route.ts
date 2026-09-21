@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
-import { activeProfile } from "@/lib/auth/session";
+import { requestIdentity } from "@/lib/auth/access";
 import {
   recordFailure,
   recordSuccess,
@@ -18,6 +18,7 @@ import {
 import {
   disconnectZotero,
   saveZoteroConfig,
+  ZoteroConfigConflictError,
 } from "@/lib/capture/zotero-service";
 import { ZoteroBusyError } from "@/lib/capture/zotero-lock";
 import type {
@@ -62,8 +63,9 @@ const optionsQuerySchema = z.object({
 });
 
 export async function GET(request?: NextRequest): Promise<NextResponse> {
-  const me = await activeProfile();
-  if (!me)
+  const identity = await requestIdentity();
+  const me = identity?.profile;
+  if (!identity?.capability || !me)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const query = optionsQuerySchema.safeParse({
     options: request?.nextUrl.searchParams.get("options") ?? undefined,
@@ -150,8 +152,9 @@ export async function GET(request?: NextRequest): Promise<NextResponse> {
 const schema = z.object({ apiKey: z.string().min(8).max(128) });
 
 export async function PUT(request: NextRequest): Promise<NextResponse> {
-  const me = await activeProfile();
-  if (!me)
+  const identity = await requestIdentity();
+  const me = identity?.profile;
+  if (!identity?.capability || !me)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   if (isSyncing(me.username)) {
     return NextResponse.json(
@@ -198,14 +201,22 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     ? libraries.find((library) => library.type === "user")!
     : libraries[0];
   try {
-    const profile = await saveZoteroConfig(me.username, {
-      ...config,
-      target,
-      collectionKeys: [],
-    });
+    const profile = await saveZoteroConfig(
+      identity.token,
+      identity.capability,
+      {
+        ...config,
+        target,
+        collectionKeys: [],
+      },
+      me.zotero,
+    );
     return NextResponse.json(snapshot(profile));
   } catch (error) {
-    if (error instanceof ZoteroBusyError) {
+    if (
+      error instanceof ZoteroBusyError ||
+      error instanceof ZoteroConfigConflictError
+    ) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
     throw error;
@@ -213,8 +224,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function DELETE(): Promise<NextResponse> {
-  const me = await activeProfile();
-  if (!me)
+  const identity = await requestIdentity();
+  const me = identity?.profile;
+  if (!identity?.capability || !me)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   if (isSyncing(me.username)) {
     return NextResponse.json(
@@ -223,12 +235,15 @@ export async function DELETE(): Promise<NextResponse> {
     );
   }
   try {
-    await disconnectZotero(me.username);
+    await disconnectZotero(identity.token, identity.capability);
     const disconnected = { ...me };
     delete disconnected.zotero;
     return NextResponse.json(snapshot(disconnected));
   } catch (error) {
-    if (error instanceof ZoteroBusyError) {
+    if (
+      error instanceof ZoteroBusyError ||
+      error instanceof ZoteroConfigConflictError
+    ) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
     throw error;
@@ -245,8 +260,9 @@ const updateSchema = z.object({
 });
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
-  const me = await activeProfile();
-  if (!me)
+  const identity = await requestIdentity();
+  const me = identity?.profile;
+  if (!identity?.capability || !me)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   if (!me.zotero) {
     return NextResponse.json(
@@ -300,13 +316,21 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     );
   }
   try {
-    const profile = await saveZoteroConfig(me.username, {
-      ...proposed,
-      collectionKeys,
-    });
+    const profile = await saveZoteroConfig(
+      identity.token,
+      identity.capability,
+      {
+        ...proposed,
+        collectionKeys,
+      },
+      me.zotero,
+    );
     return NextResponse.json(snapshot(profile));
   } catch (error) {
-    if (error instanceof ZoteroBusyError) {
+    if (
+      error instanceof ZoteroBusyError ||
+      error instanceof ZoteroConfigConflictError
+    ) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
     throw error;
@@ -318,8 +342,9 @@ const lastManualSync = new Map<string, number>();
 const MANUAL_SYNC_COOLDOWN_MS = 60_000;
 
 export async function POST(): Promise<NextResponse> {
-  const me = await activeProfile();
-  if (!me)
+  const identity = await requestIdentity();
+  const me = identity?.profile;
+  if (!identity?.capability || !me)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   if (!me.zotero) {
     return NextResponse.json(
@@ -335,7 +360,7 @@ export async function POST(): Promise<NextResponse> {
     );
   }
   lastManualSync.set(me.username, Date.now());
-  void syncProfile(me.username).catch((error) =>
+  void syncProfile(me.username, identity.capability).catch((error) =>
     console.error(`zotero sync now failed for ${me.username}:`, error),
   );
   return NextResponse.json({ ...snapshot(me), syncing: true });

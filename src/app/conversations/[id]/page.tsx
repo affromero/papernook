@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { activeProfile } from "@/lib/auth/session";
+import { requestIdentity } from "@/lib/auth/access";
+import { profilePageFiles } from "@/lib/auth/platform/page-access";
 import {
   getConversation,
   listConversationChats,
@@ -17,11 +18,14 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const profile = await activeProfile();
-  if (!profile) return { title: "papernook" };
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability) return { title: "papernook" };
   const { id } = await params;
   if (!isValidSlug(id)) return { title: "papernook" };
-  const conversation = getConversation(profile.username, id);
+  const conversation = profilePageFiles(admission.capability, () =>
+    getConversation(profile.username, id),
+  );
   return { title: conversation?.title ?? "papernook" };
 }
 
@@ -30,11 +34,18 @@ export default async function ConversationPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const profile = await activeProfile();
-  if (!profile) redirect("/login");
+  const admission = await requestIdentity();
+  const profile = admission?.profile;
+  if (!profile || !admission.capability) redirect("/login");
   const { id } = await params;
   if (!isValidSlug(id)) notFound();
-  const conversation = getConversation(profile.username, id);
+  const { conversation, chats } = profilePageFiles(
+    admission.capability,
+    () => ({
+      conversation: getConversation(profile.username, id),
+      chats: listConversationChats(profile.username, id),
+    }),
+  );
   if (!conversation) notFound();
   return (
     <main className={`${paperStyles.root} ${styles.page}`}>
@@ -46,7 +57,7 @@ export default async function ConversationPage({
           />
         }
         conversation={conversation}
-        initialChats={listConversationChats(profile.username, id)}
+        initialChats={chats}
       />
     </main>
   );

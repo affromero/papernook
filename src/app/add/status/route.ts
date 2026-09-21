@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { profileForCaptureToken } from "@/lib/auth/users";
+import {
+  captureIdentity,
+  withProfileFiles,
+} from "@/lib/auth/profile-capability";
+import { sharedAccess } from "@/lib/auth/access";
 import { recordFailure, retryAfterMs } from "@/lib/auth/rate-limit";
 import { lockoutKey } from "@/lib/auth/request-security";
 import { readBoundedForm, RequestBodyError } from "@/lib/bounded-request";
@@ -39,8 +43,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (ipKey && retryAfterMs(ipKey) > 0) {
     return html(errorPage("Too many attempts. Try again later."), 429);
   }
-  const profile = profileForCaptureToken(token);
-  if (!profile) {
+  const admission = await captureIdentity(sharedAccess().identity, token);
+  const profile = admission?.profile;
+  if (!profile || !admission) {
     if (ipKey) recordFailure(ipKey);
     return html(
       errorPage(
@@ -53,36 +58,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return html(errorPage("Invalid capture reference."), 400);
   }
 
-  const job = readCaptureJob(slug);
-  if (!job || job.addedBy !== profile.username) {
-    return html(
-      errorPage(
-        "This capture is no longer pending — it may already be in your papernook inbox.",
-      ),
-      404,
-    );
-  }
-  if (job.state === "analyzing") {
-    const nonce = request.headers.get("x-nonce") ?? "";
-    return html(pendingPage(slug, token, nonce), 202);
-  }
-  if (job.state === "failed") {
-    return html(errorPage(job.error ?? "Capture failed."), 422);
-  }
-  const paper = job.finalSlug ? getPaper(null, job.finalSlug) : null;
-  if (!paper || paper.meta.addedBy !== profile.username) {
-    return html(
-      errorPage(
-        "This capture is no longer pending — it may already be in your papernook inbox.",
-      ),
-      404,
-    );
-  }
-  // Viewed once: the confirmation form carries everything the accept
-  // endpoint needs, so the provisional handle has done its job.
-  clearCaptureJob(slug);
-  removeCaptureJobDir(slug);
-  return html(confirmationPage(paper, token), 200);
+  return withProfileFiles(sharedAccess().identity, admission.capability, () => {
+    const job = readCaptureJob(slug);
+    if (
+      !job ||
+      job.addedBy !== profile.username ||
+      job.generation !== admission.capability.generation
+    ) {
+      return html(
+        errorPage(
+          "This capture is no longer pending — it may already be in your papernook inbox.",
+        ),
+        404,
+      );
+    }
+    if (job.state === "analyzing") {
+      const nonce = request.headers.get("x-nonce") ?? "";
+      return html(pendingPage(slug, token, nonce), 202);
+    }
+    if (job.state === "failed") {
+      return html(errorPage(job.error ?? "Capture failed."), 422);
+    }
+    const paper = job.finalSlug ? getPaper(null, job.finalSlug) : null;
+    if (!paper || paper.meta.addedBy !== profile.username) {
+      return html(
+        errorPage(
+          "This capture is no longer pending — it may already be in your papernook inbox.",
+        ),
+        404,
+      );
+    }
+    // Viewed once: the confirmation form carries everything the accept
+    // endpoint needs, so the provisional handle has done its job.
+    clearCaptureJob(slug);
+    removeCaptureJobDir(slug);
+    return html(confirmationPage(paper, token), 200);
+  });
 }
 
 function html(body: string, status: number): NextResponse {

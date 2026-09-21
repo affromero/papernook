@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { FileLockBusyError } from "thesidedoor-core/storage";
 import { readBoundedJsonOrNull } from "@/lib/bounded-request";
 import { activeProfile } from "@/lib/auth/session";
 import { isValidSlug } from "@/lib/library/slug";
@@ -37,7 +38,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Review failed." },
-      { status: 404 },
+      { status: error instanceof FileLockBusyError ? 503 : 404 },
     );
   }
   rebuildIndex();

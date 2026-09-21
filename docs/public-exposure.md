@@ -2,7 +2,7 @@
 
 [← Documentation home](README.md)
 
-Papernook requires the same instance access gate on every hostname. A custom
+Papernook requires the same Sidedoor access policy on every hostname. A custom
 domain changes how traffic reaches the server, not how authentication works.
 Caddy should terminate TLS before forwarding the app and WebDAV to their
 loopback-bound ports.
@@ -13,8 +13,6 @@ Add these values to `.env`:
 
 ```dotenv
 PAPERNOOK_WEBDAV_URL=https://dav-papernook.example.com
-PAPERNOOK_PASSWORD=<long unique access password>
-
 # These are already the defaults. Keep them explicit on an internet host.
 APP_HOST=127.0.0.1
 WEBDAV_HOST=127.0.0.1
@@ -32,18 +30,19 @@ Then:
    hostnames. Point both at the server.
 2. Replace `papernook.example.com` with the app hostname in
    [`Caddyfile.example`](../Caddyfile.example). The app itself needs no
-   hostname setting: the access gate applies on every hostname.
+   hostname setting: Sidedoor applies on every hostname.
 3. Replace `dav-papernook.example.com` with the WebDAV hostname routed to the
    sidecar. Set its HTTPS URL in `PAPERNOOK_WEBDAV_URL`.
 4. Put Caddy in front of both loopback services. Start with
    [`Caddyfile.example`](../Caddyfile.example).
 5. Restart with `docker compose up -d`.
-6. Open the HTTPS domain in a private browser window. The access-password
-   screen must appear before any profile names.
+6. Open the HTTPS domain in a private browser window. The Sidedoor sign-in
+   screen must appear before private content.
 
-`PAPERNOOK_PASSWORD` is required. Docker Compose refuses to start without it,
-and the login API returns `503` if it is unset. Authentication remains on for
-the custom domain, Tailscale names, LAN addresses, and direct IP requests.
+Authentication remains on for the custom domain, Tailscale names, LAN
+addresses, and direct IP requests. Passkeys work on the configured HTTPS
+origin and on localhost. Keep a stable hostname so registered passkeys remain
+usable.
 
 ## Keep Tailscale access
 
@@ -70,19 +69,16 @@ if your installed client reports different syntax.
 
 ## What visitors see
 
-The server admin sets the only Papernook credential in `PAPERNOOK_PASSWORD`.
-A visitor enters it before seeing profile names, then may create or select any
-profile without another password. Profiles keep chats, capture tokens, and
-Zotero connections organized by person. They are a courtesy boundary between
-people who already share the instance password, like viewer profiles on a
-streaming service. They are not a security boundary. Anyone with the instance
-password can switch profiles and read any profile's chats.
+The installer prints a one-time owner claim code. The owner completes setup in
+the browser, chooses household or individual access, registers passkeys, and
+stores recovery codes. Household members share admission and can switch
+profiles. Individual accounts authenticate separately and remain bound to one
+profile.
 
-An admin can instead send the signed link from **Settings → Invite a friend**.
-Opening `/invite?t=...` opens the gate for seven days without revealing the
-instance password. Sessions also last seven days. `SESSION_SECRET` is optional;
-Papernook generates it once in `data/session-secret` when it is unset so
-sessions survive container rebuilds.
+The owner can send a short-lived invitation from **Settings → Invite a
+friend**. Sidedoor records, limits, and revokes invitations and sessions.
+`SESSION_SECRET` is optional; Papernook generates it once in
+`data/session-secret` when it is unset so sessions survive container rebuilds.
 
 Share links do not require the gate or a profile session. Their unguessable
 share id is the capability to read that one shared paper.
@@ -112,11 +108,10 @@ share id is the capability to read that one shared paper.
 
 ## Final check
 
-- [ ] `https://papernook.example.com` shows the access gate in a fresh browser.
+- [ ] `https://papernook.example.com` shows Sidedoor sign-in in a fresh browser.
 - [ ] `http://<server>:3000` is not reachable from the public internet.
 - [ ] WebDAV accepts its own credentials and exposes only paper PDFs.
-- [ ] An invite link opens the gate without displaying the instance password.
+- [ ] An invitation admits the intended account and can be revoked.
 - [ ] A share link opens its one paper without a login.
 - [ ] `TRUSTED_PROXY_HOPS` matches the deployed proxy chain.
-- [ ] `PAPERNOOK_PASSWORD` and `WEBDAV_PASS` are backed up in a secret manager
-      and never committed to Git.
+- [ ] Recovery codes and `WEBDAV_PASS` are backed up and never committed to Git.

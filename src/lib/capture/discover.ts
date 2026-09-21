@@ -74,10 +74,12 @@ function discoveryPrompt(focus: DiscoverFocus): {
 
 export async function discoverRelated(
   focus: DiscoverFocus = {},
+  metricOwner?: import("../auth/profile-capability").ProfileCapability,
 ): Promise<Discovery> {
   const { system, prompt } = discoveryPrompt(focus);
   const provider = getProvider();
   const raw = await provider.execute({
+    metricOwner,
     system,
     prompt,
     responseFormat: "json_object",

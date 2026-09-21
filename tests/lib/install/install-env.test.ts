@@ -38,13 +38,6 @@ describe("installer environment values", () => {
     );
   });
 
-  it("matches the access gate's supported password length", () => {
-    expect(run("validate_papernook_password", "a".repeat(15)).status).toBe(1);
-    expect(run("validate_papernook_password", "a".repeat(16)).status).toBe(0);
-    expect(run("validate_papernook_password", "a".repeat(200)).status).toBe(0);
-    expect(run("validate_papernook_password", "a".repeat(201)).status).toBe(1);
-  });
-
   it("accepts only usable public WebDAV HTTPS URLs", () => {
     expect(
       run("validate_public_webdav_url", "https://dav-papernook.example.com")
