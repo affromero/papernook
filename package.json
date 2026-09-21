@@ -20,7 +20,7 @@
     "ci": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build",
     "dev": "node scripts/build-offline.mjs && next dev",
     "format:check": "prettier --check .",
-    "postinstall": "node scripts/patch-tldraw-font-manager.mjs && (node scripts/vendor-three.mjs || true)",
+    "postinstall": "node scripts/patch-tldraw-font-manager.mjs && node scripts/vendor-three.mjs",
     "lint": "eslint",
     "release:chrome": "npm run build:chrome && chrome-webstore-upload upload --source build/papernook-chrome.zip",
     "release:chrome:publish": "chrome-webstore-upload publish",

@@ -11,19 +11,31 @@ import { loadBindings, minify } from "next/dist/build/swc/index.js";
 
 const root = new URL("..", import.meta.url).pathname;
 const out = path.join(root, "public/vendor/three");
-const copies = [
-  ["node_modules/three/build/three.module.min.js", "three.module.min.js"],
-  ["node_modules/three/build/three.core.min.js", "three.core.min.js"],
+const assets = [
+  ["node_modules/three/build/three.module.js", "three.module.min.js", true],
+  ["node_modules/three/build/three.core.js", "three.core.min.js", true],
   [
     "node_modules/three/examples/jsm/controls/OrbitControls.js",
     "addons/controls/OrbitControls.js",
+    false,
   ],
 ];
 
-for (const [src, dest] of copies) {
+await loadBindings();
+for (const [src, dest, shouldMinify] of assets) {
   const target = path.join(out, dest);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.copyFileSync(path.join(root, src), target);
+  if (!shouldMinify) {
+    fs.copyFileSync(path.join(root, src), target);
+    continue;
+  }
+  const result = await minify(fs.readFileSync(path.join(root, src), "utf8"), {
+    compress: true,
+    mangle: true,
+    module: true,
+  });
+  if (!result.code) throw new Error(`Could not minify ${src}.`);
+  fs.writeFileSync(target, result.code);
 }
 
 // Safari rejects external ES modules inside an opaque-origin sandbox. Build
@@ -56,7 +68,6 @@ const runtimeSource = `
   globalThis.dispatchEvent(new Event("papernook-three-runtime-ready"));
 })();
 `;
-await loadBindings();
 const minified = await minify(runtimeSource, {
   compress: true,
   mangle: true,
