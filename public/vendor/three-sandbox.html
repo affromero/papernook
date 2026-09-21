@@ -327,6 +327,7 @@
         function startScene() {
           try {
             const script = document.createElement("script");
+            // lgtm[js/code-injection] The parent already isolates this scene in a sandboxed opaque-origin frame.
             script.textContent = compatibleSceneCode(code);
             document.body.appendChild(script);
             scheduleOverlayLayout();

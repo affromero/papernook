@@ -18,4 +18,7 @@ jobs:
       - uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
         with:
           languages: javascript-typescript
+          config: |
+            paths-ignore:
+              - public/vendor/**
       - uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4

@@ -82,8 +82,12 @@ const minifiedRuntime = await minify(bundledRuntime, {
 if (!minifiedRuntime.code)
   throw new Error("Could not minify the Three sandbox runtime.");
 
+const sandboxTemplatePath = path.join(
+  root,
+  "scripts/three-sandbox.template.html",
+);
 const sandboxPath = path.join(root, "public/vendor/three-sandbox.html");
-const sandbox = fs.readFileSync(sandboxPath, "utf8");
+const sandbox = fs.readFileSync(sandboxTemplatePath, "utf8");
 const start = "/* THREE_RUNTIME_START */";
 const end = "/* THREE_RUNTIME_END */";
 if (!sandbox.includes(start) || !sandbox.includes(end)) {
@@ -98,4 +102,5 @@ const generated =
   sandbox.slice(0, startIndex) +
   `${start}\n${minifiedRuntime.code}\n${end}` +
   sandbox.slice(endIndex + end.length);
+fs.mkdirSync(path.dirname(sandboxPath), { recursive: true });
 fs.writeFileSync(sandboxPath, generated);
