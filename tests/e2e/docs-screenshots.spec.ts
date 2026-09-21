@@ -332,16 +332,11 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(highlightText).toBeVisible();
     await highlightText.scrollIntoViewIfNeeded();
     await expect(highlightText.locator("xpath=..")).toHaveClass(/highlighting/);
-    const highlightBox = await highlightText.boundingBox();
-    expect(highlightBox).not.toBeNull();
-    await page.mouse.move(highlightBox!.x + 4, highlightBox!.y + 4);
-    await page.mouse.down();
-    await page.mouse.move(
-      highlightBox!.x + highlightBox!.width - 4,
-      highlightBox!.y + highlightBox!.height - 4,
-      { steps: 6 },
-    );
-    await page.mouse.up();
+    await highlightText.selectText();
+    await highlightText.dispatchEvent("pointerup", {
+      button: 0,
+      pointerType: "mouse",
+    });
     await expect(annotator.locator(".highlightEditor").first()).toBeVisible();
     await annotator.getByRole("button", { name: "Text" }).click();
     const annotationPage = annotator.locator(".pdfViewer .page").first();
