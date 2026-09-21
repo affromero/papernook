@@ -171,7 +171,7 @@ async function connect(collectionKeys: string[] = []) {
   });
 }
 
-describe("metadata-first Zotero sync", { timeout: 15_000 }, () => {
+describe("metadata-first Zotero sync", () => {
   it("does not sync a recreated profile through an earlier request's admission", async () => {
     await connect();
     const admission = testProfileCapability("andres");
