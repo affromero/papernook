@@ -91,13 +91,14 @@ export function accessFailure(error: unknown): Response {
 export function accessHandler() {
   const { access, profiles } = sharedAccess();
   const origins = accessOrigins();
+  const trustedProxy = new URL(origins.canonicalOrigin).protocol === "https:";
   return createAccessHandler({
     access,
     profiles,
     name: "papernook",
     origin: origins.canonicalOrigin,
     passwordOrigins: origins.passwordOrigins,
-    trustedProxy: process.env.SIDEDOOR_TRUSTED_PROXY === "true",
+    trustedProxy,
     useHostHeader: true,
     allowOriginlessJsonClients: true,
     cookieName: ACCESS_COOKIE,
