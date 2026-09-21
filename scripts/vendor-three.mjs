@@ -35,7 +35,7 @@ for (const [src, dest, shouldMinify] of assets) {
     module: true,
   });
   if (!result.code) throw new Error(`Could not minify ${src}.`);
-  fs.writeFileSync(target, result.code);
+  fs.writeFileSync(target, `${result.code}\n`);
 }
 
 // Safari rejects external ES modules inside an opaque-origin sandbox. Build
