@@ -12,6 +12,7 @@ loopback-bound ports.
 Add these values to `.env`:
 
 ```dotenv
+PAPERNOOK_URL=https://papernook.example.com
 PAPERNOOK_WEBDAV_URL=https://dav-papernook.example.com
 # These are already the defaults. Keep them explicit on an internet host.
 APP_HOST=127.0.0.1
@@ -29,8 +30,9 @@ Then:
 1. Create DNS `A` and, when applicable, `AAAA` records for the app and WebDAV
    hostnames. Point both at the server.
 2. Replace `papernook.example.com` with the app hostname in
-   [`Caddyfile.example`](../Caddyfile.example). The app itself needs no
-   hostname setting: Sidedoor applies on every hostname.
+   [`Caddyfile.example`](../Caddyfile.example), and set the same HTTPS origin in
+   `PAPERNOOK_URL`. Sidedoor binds passkeys and secure sessions to this stable
+   canonical origin.
 3. Replace `dav-papernook.example.com` with the WebDAV hostname routed to the
    sidecar. Set its HTTPS URL in `PAPERNOOK_WEBDAV_URL`.
 4. Put Caddy in front of both loopback services. Start with
@@ -109,6 +111,7 @@ share id is the capability to read that one shared paper.
 ## Final check
 
 - [ ] `https://papernook.example.com` shows Sidedoor sign-in in a fresh browser.
+- [ ] `/api/v1/access/capabilities` reports `"passkeys":true` on that origin.
 - [ ] `http://<server>:3000` is not reachable from the public internet.
 - [ ] WebDAV accepts its own credentials and exposes only paper PDFs.
 - [ ] An invitation admits the intended account and can be revoked.
