@@ -11,7 +11,9 @@
         overflow: hidden;
         background: #101014;
         color: #eee;
-        font: 16px/1.5 system-ui, sans-serif;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
       }
       canvas {
         display: block;
@@ -63,7 +65,9 @@
         let parentReady = false;
 
         function boundedLocation(value) {
-          return Number.isSafeInteger(value) && value >= 0 && value <= 10_000_000
+          return Number.isSafeInteger(value) &&
+            value >= 0 &&
+            value <= 10_000_000
             ? value
             : undefined;
         }
@@ -284,7 +288,8 @@
               if (!overlaps(rect, occupied, gap)) continue;
               const moveBelow = occupied.bottom + gap - rect.top;
               const moveAbove = occupied.top - gap - rect.bottom;
-              const fitsBelow = rect.bottom + moveBelow <= window.innerHeight - margin;
+              const fitsBelow =
+                rect.bottom + moveBelow <= window.innerHeight - margin;
               const fitsAbove = rect.top + moveAbove >= margin;
               offsetY += fitsBelow || !fitsAbove ? moveBelow : moveAbove;
               element.style.translate = `${offsetX}px ${offsetY}px`;
@@ -327,8 +332,10 @@
         function startScene() {
           try {
             const script = document.createElement("script");
-            // lgtm[js/code-injection] The parent already isolates this scene in a sandboxed opaque-origin frame.
+            /* SCENE_EXECUTION_START */
+            // Scene code runs only in this sandboxed opaque-origin frame.
             script.textContent = compatibleSceneCode(code);
+            /* SCENE_EXECUTION_END */
             document.body.appendChild(script);
             scheduleOverlayLayout();
           } catch (error) {

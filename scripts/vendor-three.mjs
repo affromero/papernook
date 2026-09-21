@@ -98,9 +98,18 @@ const endIndex = sandbox.indexOf(end, startIndex + start.length);
 if (startIndex === -1 || endIndex === -1) {
   throw new Error("Three sandbox runtime markers are malformed.");
 }
-const generated =
+let generated =
   sandbox.slice(0, startIndex) +
   `${start}\n${minifiedRuntime.code}\n${end}` +
   sandbox.slice(endIndex + end.length);
+const executionStart = "/* SCENE_EXECUTION_START */";
+const executionEnd = "/* SCENE_EXECUTION_END */";
+if (!generated.includes(executionStart) || !generated.includes(executionEnd)) {
+  throw new Error("Three sandbox execution markers are missing.");
+}
+generated = generated.replace(
+  `${executionStart}\n            ${executionEnd}`,
+  `${executionStart}\n            // Scene code runs only in this sandboxed opaque-origin frame.\n            script.textContent = compatibleSceneCode(code);\n            ${executionEnd}`,
+);
 fs.mkdirSync(path.dirname(sandboxPath), { recursive: true });
 fs.writeFileSync(sandboxPath, generated);
