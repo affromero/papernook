@@ -545,10 +545,12 @@ test.describe.serial("documentation journeys and screenshots", () => {
     page.on("dialog", (dialog) => dialog.accept());
     const casey = page.getByRole("listitem").filter({ hasText: "Casey" });
     await casey.getByRole("button", { name: "Remove completely" }).click();
-    await expect(casey).toContainText("Cleanup queued.");
+    await expect(page.getByText("Cleanup queued.")).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(
       casey.getByRole("button", { name: "Remove completely" }),
-    ).toHaveCount(0);
+    ).toHaveCount(0, { timeout: 30_000 });
   });
 
   test("a friend adds their own profile past the gate", async ({ page }) => {

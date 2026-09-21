@@ -107,7 +107,7 @@ test("an early scene failure stays visible and reports no scene text", async ({
   );
 });
 
-test("a legacy module scene loads Three.js and creates its canvas", async ({
+test("a module scene loads Three.js and creates its canvas", async ({
   page,
 }) => {
   const diagnostics: unknown[] = [];
