@@ -27,9 +27,9 @@ import {
   type ProviderId,
 } from "./types";
 /**
- * Provider registry. The active provider is chosen at install/wizard time via
- * the canonical identity configuration (chosen by install.sh or the wizard):
- *   anthropic | openai      API key in env
+ * Provider registry. The owner selects the active provider in browser setup
+ * or Settings. The welcome page can select a ready CLI when none is set:
+ *   anthropic | openai      API key in the canonical credential vault or env
  *   claude-code | codex     local CLI (keyless), or over SSH via
  *                           CLAUDE_CODE_SSH_HOST / CODEX_SSH_HOST
  *   ollama | llamacpp | vllm OpenAI-compatible local model servers

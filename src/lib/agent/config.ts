@@ -112,9 +112,9 @@ export function configuredProviderOverride(
 }
 
 /**
- * The model to use, or undefined for the provider's own default. Settings
- * (agent-config.json) is the single source — install.sh seeds the same file,
- * and there are no per-provider env fallbacks.
+ * The model to use, or undefined for the provider's own default. The
+ * canonical identity state owns the selection; there are no per-provider
+ * environment fallbacks.
  */
 export function configuredModel(
   config = readAgentConfig(),
@@ -147,7 +147,7 @@ export function storedBaseUrl(
   return config.baseUrl;
 }
 
-/** Display the saved endpoint or the shared provider environment/default. */
+/** Display the saved endpoint or the catalog default for a local provider. */
 export function configuredBaseUrl(
   provider: ProviderId,
   config = readAgentConfig(),

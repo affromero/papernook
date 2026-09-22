@@ -460,7 +460,9 @@ test("Ctrl+R searches only the active chat and Escape preserves the draft", asyn
   await expect(dialog).toBeHidden();
   await expect(input).toHaveValue("An older question about attention.");
 
+  await expect(input).toBeFocused();
   await input.fill("Draft that Escape keeps exactly.");
+  await expect(input).toHaveValue("Draft that Escape keeps exactly.");
   await input.press("Control+r");
   await search.fill("does not exist");
   await expect(
