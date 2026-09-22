@@ -89,6 +89,11 @@ export function useComposerHistory({
     window.requestAnimationFrame(() => {
       const textarea = inputRef.current;
       if (!textarea) return;
+      if (
+        document.activeElement === textarea &&
+        textarea.selectionStart !== textarea.selectionEnd
+      )
+        return;
       textarea.focus();
       textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     });
