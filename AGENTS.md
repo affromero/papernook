@@ -26,12 +26,13 @@ Architecture diagram (code-accurate) in README.md.
 - **SQLite (`data/index.db`) is a rebuildable index, never truth.** Any query
   is only as fresh as the last `rebuildIndex()`; deleting the DB must always
   be safe. The chokidar scanner reconciles from disk; disk always wins.
-- **The AI provider is never hardcoded.** `AI_PROVIDER` env (set by
-  `scripts/install.sh` or `.env`) selects anthropic | openai | claude-code |
-  codex | ollama | llamacpp | vllm; SSH modes via `CLAUDE_CODE_SSH_HOST` /
-  `CODEX_SSH_HOST`. All
-  provider calls go through `src/lib/agent/registry.ts`; never spawn a CLI
-  or hit an AI API from feature code.
+- **The AI provider is never hardcoded.** The owner selects a provider in
+  browser setup or Settings. A ready CLI can be selected automatically on the
+  owner welcome page when no provider is configured. The selection lives in
+  `data/identity.json`; `AI_PROVIDER` does not select it. SSH modes use
+  `CLAUDE_CODE_SSH_HOST` / `CODEX_SSH_HOST`. All provider calls go through
+  `src/lib/agent/registry.ts`; never spawn a CLI or hit an AI API from feature
+  code.
 - **Per-account privacy**: chats and capture tokens belong to a profile;
   the paper library, annotations, and canvases are shared. WebDAV serves
   `data/papers` ONLY (docker-compose); never widen it.
