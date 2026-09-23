@@ -1,4 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import {
+  enterHousehold,
+  selectHouseholdProfile,
+} from "./support/household-access";
 
 /**
  * WebKit smoke test for the PDF reader. The library runs on iPads and Macs,
@@ -6,27 +10,9 @@ import { expect, test, type Page } from "@playwright/test";
  * was the one that shipped — must fail here rather than in production.
  */
 
-const password = "browser-owner-password-phrase";
-
-async function loginAsAdmin(page: Page): Promise<void> {
-  const capabilities = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/v1/access/capabilities") && response.ok(),
-  );
-  await page.goto("/login");
-  await capabilities;
-  const field = page.getByLabel("Password", { exact: true });
-  const enter = page
-    .locator("form")
-    .getByRole("button", { name: "Enter household", exact: true });
-  await field.fill(password);
-  await expect(field).toHaveValue(password);
-  await enter.click();
-  await expect(
-    page.getByRole("heading", { name: "Who’s reading?" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Switch to Maya" }).click();
-  await expect(page).toHaveURL("/");
+async function loginAsMaya(page: Page): Promise<void> {
+  await enterHousehold(page);
+  await selectHouseholdProfile(page, "Maya");
 }
 
 test("the reader renders a paper in WebKit without page errors", async ({
@@ -35,7 +21,7 @@ test("the reader renders a paper in WebKit without page errors", async ({
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(String(error)));
 
-  await loginAsAdmin(page);
+  await loginAsMaya(page);
   await page.goto("/paper/machine-learning/attention-is-all-you-need");
 
   await expect(page.locator(".page canvas").first()).toBeVisible({

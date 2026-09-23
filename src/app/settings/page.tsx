@@ -283,10 +283,15 @@ export default async function SettingsPage() {
                   </div>
                 )}
 
+                {admin && (
+                  <div className={styles.subsection}>
+                    <AccountSecurity />
+                  </div>
+                )}
+
                 <div className={styles.subsection}>
                   {admin ? (
                     <>
-                      <AccountSecurity />
                       <h3>Invite someone</h3>
                       <AccountSecurity invitations />
                       <p>

@@ -81,25 +81,27 @@ try {
   });
   if (!profile.ok)
     throw new Error(`Browser fixture profile setup failed (${profile.status})`);
-  const household = await fetch(`${origin}/api/v1/access/configure-household`, {
+  const selectedOwner = await fetch(`${origin}/api/v1/access/select-profile`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Origin: origin,
       Cookie: cookie,
     },
-    body: JSON.stringify({ password: "browser-owner-password-phrase" }),
+    body: JSON.stringify({ id: "fixture-owner" }),
   });
-  if (!household.ok)
+  if (!selectedOwner.ok)
     throw new Error(
-      `Browser fixture household setup failed (${household.status})`,
+      `Browser fixture Admin selection failed (${selectedOwner.status})`,
     );
+  const adminCookie =
+    selectedOwner.headers.get("set-cookie")?.split(";", 1)[0] ?? cookie;
   const provider = await fetch(`${origin}/api/v1/agent/model`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       Origin: origin,
-      Cookie: cookie,
+      Cookie: adminCookie,
     },
     body: JSON.stringify({ provider: "codex", revision: 0 }),
   });
@@ -109,7 +111,7 @@ try {
     );
   const wizard = await fetch(`${origin}/api/v1/session/wizard-done`, {
     method: "POST",
-    headers: { Origin: origin, Cookie: cookie },
+    headers: { Origin: origin, Cookie: adminCookie },
   });
   if (!wizard.ok)
     throw new Error(
