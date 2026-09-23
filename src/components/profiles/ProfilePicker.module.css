@@ -352,3 +352,79 @@
   opacity: 0.75;
   margin: 0 0 0.75rem;
 }
+
+.accessIntro {
+  max-width: 36rem;
+  margin: 0 0 28px;
+  color: #b9b3a5;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.accessModes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: min(680px, 100%);
+  margin-bottom: 16px;
+}
+
+.accessMode {
+  min-height: 92px;
+  padding: 15px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  color: #b9b3a5;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.accessMode:hover,
+.accessMode:focus-visible {
+  border-color: var(--picker-accent);
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+.accessModeActive {
+  border-color: var(--picker-accent);
+  background: color-mix(in oklab, var(--picker-accent) 13%, #1b1d17);
+  color: #e9e3d3;
+}
+
+.accessModeTitle,
+.accessModeHelp {
+  display: block;
+}
+
+.accessModeTitle {
+  margin-bottom: 7px;
+  font-weight: 600;
+}
+
+.accessModeHelp {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.accessPanel {
+  width: min(520px, 100%);
+}
+
+.hiddenAccessNavigation {
+  display: none;
+}
+
+@media (max-width: 620px) {
+  .accessModes {
+    grid-template-columns: 1fr;
+  }
+
+  .accessMode {
+    min-height: 0;
+  }
+}

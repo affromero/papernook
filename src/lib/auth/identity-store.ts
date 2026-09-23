@@ -263,6 +263,18 @@ export class PapernookIdentityStore {
       !(await this.storage.read()).access.initializations.includes(ACCESS_READY)
     )
       await this.createCanonicalState();
+    const state = await this.storage.read();
+    const owner = state.access.principals.find(
+      (principal) => principal.role === "owner",
+    );
+    const username = owner && state.bindings[owner.id];
+    if (
+      state.access.mode === "household" &&
+      username &&
+      state.access.householdProfiles?.find((profile) => profile.id === username)
+        ?.ownerPrincipalId !== owner.id
+    )
+      await this.storage.transact(synchronizeProfiles);
   }
 
   private async createCanonicalState(): Promise<void> {

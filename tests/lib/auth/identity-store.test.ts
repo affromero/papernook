@@ -243,6 +243,30 @@ it("keeps the first Admin claim as the only shared password", async () => {
   );
 });
 
+it("restores Admin authority for the first profile when its stored owner binding is missing", async () => {
+  const file = path.join(directory, "identity.json");
+  const stored = JSON.parse(fs.readFileSync(file, "utf8")) as IdentityState;
+  stored.access.householdProfiles = stored.access.householdProfiles?.map(
+    (entry) => ({ id: entry.id, name: entry.name, epoch: entry.epoch }),
+  );
+  fs.writeFileSync(file, JSON.stringify(stored));
+
+  const identity = new PapernookIdentityStore(directory);
+  await identity.initializeCanonical();
+  const state = await identity.read();
+  const owner = state.access.principals.find(
+    (principal) => principal.role === "owner",
+  )!;
+  expect(
+    state.access.householdProfiles?.find((entry) => entry.id === "owner"),
+  ).toMatchObject({ ownerPrincipalId: owner.id });
+  const access = new AccessService({ store: identity.accessStore() });
+  const token = await adminSession(access);
+  expect(
+    access.householdOwnerFromState((await identity.read()).access, token),
+  ).toBe(true);
+});
+
 it("permits household profile creation and erasure without granting owner-account deletion", async () => {
   const store = new PapernookIdentityStore(directory);
   await store.initializeCanonical();
