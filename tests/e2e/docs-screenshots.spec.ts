@@ -499,8 +499,17 @@ test.describe.serial("documentation journeys and screenshots", () => {
     const invite = page
       .getByRole("heading", { name: "Invite someone" })
       .locator("..");
-    await expect(invite).toHaveScreenshot(["setup", "invite-domain.png"], {
+    await invite.scrollIntoViewIfNeeded();
+    const inviteBounds = await invite.boundingBox();
+    if (!inviteBounds) throw new Error("Invitation panel is not visible");
+    await expect(page).toHaveScreenshot(["setup", "invite-domain.png"], {
       animations: "disabled",
+      clip: {
+        x: Math.round(inviteBounds.x),
+        y: Math.round(inviteBounds.y),
+        width: Math.round(inviteBounds.width),
+        height: 238,
+      },
       // The signed expiry and QR payload intentionally change every run.
       maxDiffPixelRatio: 0.08,
     });
