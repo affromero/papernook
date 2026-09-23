@@ -15,6 +15,7 @@ export interface PickerProfile {
   username: string;
   displayName: string;
   avatarSlug: string;
+  isAdmin: boolean;
 }
 
 interface ProfilePickerProps {
@@ -195,7 +196,7 @@ export function ProfilePicker({ profiles }: ProfilePickerProps) {
             className={styles.profile}
             onClick={() => pick(p)}
             disabled={busy}
-            aria-label={`Switch to ${p.displayName}`}
+            aria-label={`Switch to ${p.displayName}${p.isAdmin ? " (Admin)" : ""}`}
           >
             <span className={styles.avatar}>
               <Image
@@ -206,6 +207,7 @@ export function ProfilePicker({ profiles }: ProfilePickerProps) {
               />
             </span>
             <span className={styles.name}>{p.displayName}</span>
+            {p.isAdmin && <span className={styles.meta}>Admin</span>}
           </button>
         ))}
         <button

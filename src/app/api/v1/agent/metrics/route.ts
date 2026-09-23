@@ -42,7 +42,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
     if (!query.success) return json({ error: "Invalid metric query." }, 400);
     const instance = query.data.scope === "instance";
-    if (instance && admission.principal?.role !== "owner")
+    if (instance && !admission.isAdmin)
       return json({ error: "Admin only." }, 403);
     const metrics = new AgentMetrics(dataRoot());
     const filter = { since: query.data.since, limit: query.data.limit };
@@ -56,11 +56,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       current.capability.generation !== admission.capability.generation
     )
       return json({ error: "Session changed. Sign in again." }, 401);
-    if (
-      instance &&
-      (current.principal?.role !== "owner" ||
-        current.principal.id !== admission.principal?.id)
-    )
+    if (instance && !current.isAdmin)
       return json({ error: "Admin only." }, 403);
     return json({
       events,

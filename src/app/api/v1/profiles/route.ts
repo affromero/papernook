@@ -25,11 +25,11 @@ export async function GET(): Promise<Response> {
         { headers: { "Cache-Control": "private, no-store" } },
       );
     const state = await sharedAccess().identity.read();
-    const authenticated = sharedAccess().access.sessionFromState(
+    sharedAccess().access.sessionFromState(state.access, identity.token);
+    const owner = sharedAccess().access.householdOwnerFromState(
       state.access,
       identity.token,
     );
-    const owner = authenticated.principal?.role === "owner";
     const worker = owner ? erasureWorkerStatus() : undefined;
     const visible =
       owner || state.access.mode === "household"

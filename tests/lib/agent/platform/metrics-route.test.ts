@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 async function query(username: string | null, search = "") {
-  await mockTestSession(username, username === "admin");
+  await mockTestSession(username);
   const { GET } = await import("@/app/api/v1/agent/metrics/route");
   return GET(new NextRequest("http://localhost/api/v1/agent/metrics" + search));
 }
@@ -80,7 +80,7 @@ it("allows the owner to inspect bounded instance usage and diagnostics", async (
 });
 
 it("withholds instance usage if the owner logs out while storage is being read", async () => {
-  const token = await mockTestSession("admin", true);
+  const token = await mockTestSession("admin");
   const { access } = await testAccess();
   const { GET } = await import("@/app/api/v1/agent/metrics/route");
   const read = promises.readFile.bind(promises);

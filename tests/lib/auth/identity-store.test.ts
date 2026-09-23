@@ -68,6 +68,12 @@ it("holds cleanup until admitted profile activity releases and rejects new stale
 
 const password = "test household password";
 
+async function adminSession(access: AccessService): Promise<string> {
+  const token = await access.enterHousehold(password);
+  await new HouseholdProfileService(access).select(token, "owner");
+  return token;
+}
+
 it("authorizes profile preferences against the current selection and persisted session", async () => {
   const store = new PapernookIdentityStore(directory);
   await store.initializeCanonical();
@@ -207,11 +213,9 @@ beforeEach(async () => {
   await access.claimOwner(
     await access.issueOperatorToken(),
     "owner",
-    "owner account password",
+    password,
     "household",
   );
-  const owner = await access.login("owner", "owner account password");
-  await access.configureHousehold(owner, password);
   await identity.transact((state) => {
     Object.assign(state.profiles[0]!, profilePreferences);
   });
@@ -239,7 +243,8 @@ it("seeds the configured instance password once and preserves later owner change
     CONFIGURED_PASSWORD_READY,
   );
 
-  const owner = await access.login("owner", "owner account password");
+  const owner = await access.enterHousehold(configured);
+  await new HouseholdProfileService(access).select(owner, "owner");
   await access.configureHousehold(owner, "owner replacement password");
   vi.stubEnv("PAPERNOOK_PASSWORD", "changed environment password");
   await new PapernookIdentityStore(directory).initializeCanonical();
@@ -275,11 +280,11 @@ it("permits household profile creation and erasure without granting owner-accoun
   });
 });
 
-it("serializes household erasure against individual credential enrollment", async () => {
+it("allows household erasure while rejecting an individual profile password", async () => {
   const store = new PapernookIdentityStore(directory);
   await store.initializeCanonical();
   const access = new AccessService({ store: store.accessStore() });
-  const owner = await access.login("owner", "owner account password");
+  const owner = await adminSession(access);
   const operations = new ProfileOperations(store);
   const guest = await access.enterHousehold(password);
   const profile = await operations.create(guest, "Reader");
@@ -301,31 +306,28 @@ it("serializes household erasure against individual credential enrollment", asyn
   const current = (await store.read()).access.principals.find(
     (principal) => principal.id === id,
   );
-  if (results[0]?.status === "fulfilled") expect(current).toBeUndefined();
-  else expect(current?.passwordHash).toBeTruthy();
+  expect(results[0]?.status).toBe("fulfilled");
+  expect(results[1]?.status).toBe("rejected");
+  expect(current).toBeUndefined();
 });
 
-it("cannot erase both owners through concurrent account deletion", async () => {
+it("keeps the first Admin and rejects a second Admin account", async () => {
   const store = new PapernookIdentityStore(directory);
   await store.initializeCanonical();
   const access = new AccessService({ store: store.accessStore() });
-  const first = await access.login("owner", "owner account password");
-  const secondId = await new PrincipalManagement(access).mutate(first, {
-    kind: "create",
-    name: "Second Owner",
-    role: "owner",
-    password: "second owner password",
-  });
-  const second = await access.login("Second Owner", "second owner password");
-  const username = (await store.read()).bindings[secondId]!;
+  const first = await adminSession(access);
+  await expect(
+    new PrincipalManagement(access).mutate(first, {
+      kind: "create",
+      name: "Second Owner",
+      role: "owner",
+      password: "second owner password",
+    }),
+  ).rejects.toMatchObject({ code: "forbidden" });
   const operations = new ProfileOperations(store);
-  const results = await Promise.allSettled([
-    operations.remove(first, username),
-    operations.remove(second, "owner"),
-  ]);
-  expect(
-    results.filter((result) => result.status === "fulfilled"),
-  ).toHaveLength(1);
+  await expect(operations.remove(first, "owner")).rejects.toMatchObject({
+    code: "forbidden",
+  });
   expect(
     (await store.read()).access.principals.filter(
       (principal) => principal.role === "owner",
@@ -361,8 +363,10 @@ it("keeps the owner's existing profile and tombstones removed member identities"
   const store = new PapernookIdentityStore(directory);
   await store.initializeCanonical();
   const access = new AccessService({ store: store.accessStore() });
-  const owner = await access.login("owner", "owner account password");
-  expect((await access.authenticate(owner)).principal?.role).toBe("owner");
+  const owner = await adminSession(access);
+  expect((await access.authenticate(owner, true)).principal?.role).toBe(
+    "owner",
+  );
   expect((await store.read()).profiles).toEqual([profile]);
   const management = new PrincipalManagement(access);
   const id = await management.mutate(owner, {

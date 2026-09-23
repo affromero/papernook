@@ -61,17 +61,22 @@ describe("profile selection", () => {
     expect((await response.json()).profile.username).toBe(profile.username);
   });
 
-  it("keeps an individual account bound to its own profile", async () => {
+  it("switches from the first Admin profile to a member without another password", async () => {
     const owner = await createTestProfile("Owner", undefined, true);
     const other = await createTestProfile("Reader");
-    browser.token = await testSession(owner.username, true);
+    browser.token = await testSession(owner.username);
     const route = await import("@/app/api/v1/session/route");
     expect(
       (await route.POST(request({ username: owner.username }))).status,
     ).toBe(200);
     expect(
       (await route.POST(request({ username: other.username }))).status,
-    ).toBe(403);
+    ).toBe(200);
+    expect((await route.GET()).status).toBe(200);
+    expect((await (await route.GET()).json()).profile).toMatchObject({
+      username: other.username,
+      isAdmin: false,
+    });
   });
 
   it("rejects extra credential fields", async () => {

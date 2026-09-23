@@ -43,6 +43,8 @@ export function AccessGate({
         <AccessForm
           endpoint="/api/v1/access"
           initialMode={initialMode}
+          modes={["household", "claim", "recover"]}
+          claimModes={["household"]}
           classes={classes}
           onSignedIn={signedIn}
         />

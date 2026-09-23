@@ -26,7 +26,7 @@ export function AccountSecurity({
       endpoint="/api/v1/access"
       classes={classes}
       onSignInRequired={() => {
-        router.push("/login?account=1");
+        router.push("/login");
         router.refresh();
       }}
     />

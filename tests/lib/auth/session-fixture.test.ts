@@ -18,7 +18,7 @@ it("updates authorization on an already imported route when browser credentials 
   vi.stubEnv("PAPERNOOK_DATA_DIR", directory);
   await createTestProfile("Owner", undefined, true);
   await createTestProfile("Reader");
-  await mockTestSession("owner", true);
+  await mockTestSession("owner");
   const route = await import("@/app/api/v1/session/route");
   expect((await (await route.GET()).json()).profile).toMatchObject({
     username: "owner",

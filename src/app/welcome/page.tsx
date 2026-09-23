@@ -39,10 +39,7 @@ export default async function WelcomePage() {
   } else {
     // Auto-select only when no provider has been configured. An explicitly
     // selected provider that is unavailable remains visible as unavailable.
-    const detected =
-      admission.principal?.role === "owner"
-        ? await detectLocalCliProvider()
-        : null;
+    const detected = admission.isAdmin ? await detectLocalCliProvider() : null;
     if (detected) {
       try {
         const result = await selectDetectedProvider(admission.token, detected);
@@ -75,7 +72,7 @@ export default async function WelcomePage() {
       (entry) => entry.username === capability.username,
     );
     if (!profile) redirect("/login");
-    const admin = authenticated.principal?.role === "owner";
+    const admin = access.householdOwnerFromState(state.access, admission.token);
     const baseUrl = accessOrigins().canonicalOrigin;
     const currentProvider = hasConfiguredProvider(state.ai.selection)
       ? configuredProviderId(state.ai.selection)

@@ -43,7 +43,10 @@ export default async function SettingsPage() {
       (entry) => entry.username === capability.username,
     );
     if (!profile) redirect("/login");
-    const admin = authenticated.principal?.role === "owner";
+    const admin = sharedAccess().access.householdOwnerFromState(
+      state.access,
+      admission.token,
+    );
     const base = accessOrigins().canonicalOrigin;
     const bookmarklet = captureBookmarklet(base, profile.captureToken);
     const shortcutUrl = `${base}/add`;
@@ -281,14 +284,22 @@ export default async function SettingsPage() {
                 )}
 
                 <div className={styles.subsection}>
-                  <AccountSecurity />
-                  <h3>Invite someone</h3>
-                  {admin && <AccountSecurity invitations />}
-                  <p>
-                    {admin
-                      ? "Share the invite link or QR. It opens the gate for seven days without revealing the access password, and their setup wizard starts when they add a profile."
-                      : "Ask the admin for an invite link or the access password."}
-                  </p>
+                  {admin ? (
+                    <>
+                      <AccountSecurity />
+                      <h3>Invite someone</h3>
+                      <AccountSecurity invitations />
+                      <p>
+                        Share the invite link or QR. It opens the gate for seven
+                        days without revealing the access password, and their
+                        setup wizard starts when they add a profile.
+                      </p>
+                    </>
+                  ) : (
+                    <p>
+                      Ask the admin for an invite link or the access password.
+                    </p>
+                  )}
                 </div>
               </section>
 

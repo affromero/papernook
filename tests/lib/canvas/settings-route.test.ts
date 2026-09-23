@@ -23,7 +23,7 @@ afterEach(() => {
 async function routeAs(role: "admin" | "member" | "anonymous") {
   await createTestProfile("Admin", undefined, true);
   await createTestProfile("Member");
-  await mockTestSession(role === "anonymous" ? null : role, role === "admin");
+  await mockTestSession(role === "anonymous" ? null : role);
   return import("@/app/api/v1/settings/canvas/route");
 }
 

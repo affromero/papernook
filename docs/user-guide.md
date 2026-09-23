@@ -136,8 +136,12 @@ The result is the same in both cases:
 - **One authority:** Sidedoor manages passwords, passkeys, recovery, sessions,
   and invitations.
 
-Household profiles share admission and can switch profiles. Individual
-accounts authenticate separately and stay bound to their own profile.
+The first profile is Admin. One shared password admits readers, who then choose
+their own profile. Papernook offers to save a passkey with Apple Passwords or
+another WebAuthn manager after password entry. This step is optional. A saved
+passkey opens the picker on later visits. Anyone admitted can choose Admin and
+manage settings; choosing another profile removes that access. Admin can revoke
+household passkeys in account security.
 
 ### Option A: custom domain
 

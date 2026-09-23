@@ -25,10 +25,7 @@ export async function GET(): Promise<Response> {
   return Response.json(
     {
       profile: identity?.profile
-        ? toPublicProfile(
-            identity.profile,
-            identity.principal?.role === "owner",
-          )
+        ? toPublicProfile(identity.profile, identity.isAdmin)
         : null,
     },
     { headers: { "Cache-Control": "no-store" } },
@@ -58,7 +55,7 @@ export async function POST(request: Request): Promise<Response> {
       {
         profile: toPublicProfile(
           currentIdentity.profile,
-          currentIdentity.principal.role === "owner",
+          currentIdentity.isAdmin,
         ),
       },
       { headers: { "Cache-Control": "no-store" } },
@@ -73,10 +70,7 @@ export async function POST(request: Request): Promise<Response> {
   return Response.json(
     {
       profile: identity?.profile
-        ? toPublicProfile(
-            identity.profile,
-            identity.principal?.role === "owner",
-          )
+        ? toPublicProfile(identity.profile, identity.isAdmin)
         : null,
     },
     { headers: selected.headers },

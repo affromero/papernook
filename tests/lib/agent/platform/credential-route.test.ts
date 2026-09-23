@@ -33,7 +33,7 @@ afterEach(() => {
 async function routeAs(role: "admin" | "member" | "anonymous") {
   await createTestProfile("Admin", undefined, true);
   await createTestProfile("Member");
-  await mockTestSession(role === "anonymous" ? null : role, role === "admin");
+  await mockTestSession(role === "anonymous" ? null : role);
   vi.doMock("@/lib/agent/credentials", () => ({
     credentialReloadAvailable: () => reloadAvailable,
     reloadProviderCredentials,

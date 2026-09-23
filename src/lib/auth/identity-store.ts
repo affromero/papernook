@@ -125,11 +125,19 @@ function initialIdentity(): IdentityState {
 }
 
 function synchronizeProfiles(state: IdentityState): void {
-  state.access.householdProfiles = state.profiles.map((profile) => ({
-    id: profile.username,
-    name: profile.displayName,
-    epoch: state.generations[profile.username]!,
-  }));
+  state.access.householdProfiles = state.profiles.map((profile) => {
+    const owner = state.access.principals.find(
+      (principal) =>
+        principal.role === "owner" &&
+        state.bindings[principal.id] === profile.username,
+    );
+    return {
+      id: profile.username,
+      name: profile.displayName,
+      epoch: state.generations[profile.username]!,
+      ...(owner ? { ownerPrincipalId: owner.id } : {}),
+    };
+  });
 }
 
 function reconcilePrincipals(state: IdentityState): void {

@@ -475,11 +475,13 @@ unconfirmed captures stay private. Connect through
 [Tailscale](https://tailscale.com) or a hardened custom domain. Settings
 generates the correct device QR code for the address in use.
 
-The installer initializes Sidedoor and prints a one-time owner claim code. The
-owner chooses household or individual access in the browser, sets a password,
-and can register Apple passkeys, keep recovery codes, manage sessions, and
-invite other readers. Household access permits profile switching. Individual
-accounts stay bound to their own profiles.
+The installer initializes Sidedoor and prints a one-time Admin claim code. The
+first profile is Admin, and its claim password becomes the one shared password
+for Papernook. After entering it, a reader can save a passkey with Apple
+Passwords or another WebAuthn manager before choosing a profile. This step is
+optional. A saved passkey opens the picker on later visits. Anyone admitted can
+choose Admin and manage settings. Choosing another profile removes Admin access.
+Admin can manage passkeys, recovery codes, sessions, and invitations in settings.
 
 Share links remain readable without a login because the unguessable share id
 is the capability for one paper. For custom domains, Caddy terminates TLS in

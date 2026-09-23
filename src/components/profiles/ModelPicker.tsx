@@ -350,8 +350,7 @@ export function ModelPicker() {
             }}
           />
           <p className={styles.hint}>
-            If your session has ended,{" "}
-            <a href="/login?account=1">sign in again</a>.
+            If your session has ended, <a href="/login">sign in again</a>.
           </p>
         </>
       )}
