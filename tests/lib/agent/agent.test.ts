@@ -624,6 +624,7 @@ describe("model configuration", () => {
           },
           stderr: { on: vi.fn() },
           stdin: {
+            on: vi.fn(),
             write: (data: string) => {
               const message = JSON.parse(data) as {
                 id?: number;
@@ -704,7 +705,7 @@ describe("model configuration", () => {
       spawn: () => ({
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() },
-        stdin: { write: vi.fn(), end: vi.fn() },
+        stdin: { on: vi.fn(), write: vi.fn(), end: vi.fn() },
         kill: vi.fn(),
         on: (event: string, callback: (error: Error) => void) => {
           if (event === "error")
@@ -721,6 +722,28 @@ describe("model configuration", () => {
         "Live model discovery failed. Check the provider connection and refresh to retry.",
       effortOptions: ["low", "medium", "high", "xhigh", "max", "ultra"],
       defaultEffort: null,
+    });
+    vi.doUnmock("node:child_process");
+  });
+
+  it("reports a closed Codex input stream without crashing model discovery", async () => {
+    const stdin = new PassThrough();
+    vi.doMock("node:child_process", () => ({
+      spawn: () => ({
+        stdout: new PassThrough(),
+        stderr: new PassThrough(),
+        stdin,
+        kill: vi.fn(),
+        on: vi.fn(),
+      }),
+    }));
+    const { listOfferedModels } = await import("@/lib/agent/models");
+    const result = listOfferedModels("codex");
+    stdin.destroy(new Error("EPIPE"));
+    await expect(result).resolves.toMatchObject({
+      live: false,
+      discoveryError:
+        "Live model discovery failed. Check the provider connection and refresh to retry.",
     });
     vi.doUnmock("node:child_process");
   });

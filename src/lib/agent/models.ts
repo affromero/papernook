@@ -194,6 +194,7 @@ function codexModels(
     child.stderr.on("data", (chunk: Buffer) => {
       stderr = `${stderr}${chunk.toString()}`.slice(-500);
     });
+    child.stdin.on("error", (error) => finish(error));
     child.on("error", (error) => finish(error));
     child.on("close", (code) => {
       if (!settled) {
