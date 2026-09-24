@@ -1,5 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { restoreMayaSession } from "./support/member-session";
+import {
+  enterHousehold,
+  finishHouseholdAdmission,
+  selectHouseholdProfile,
+} from "./support/household-access";
 
 const password = "browser-owner-password-phrase";
 let pdfRestore:
@@ -12,15 +17,7 @@ let pdfRestore:
   | undefined;
 
 async function passGate(page: Page): Promise<void> {
-  await page.goto("/login");
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page
-    .locator("form")
-    .getByRole("button", { name: "Enter household", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Who’s reading?" }),
-  ).toBeVisible({ timeout: 30_000 });
+  await enterHousehold(page);
 }
 
 async function loginAsMaya(page: Page): Promise<void> {
@@ -30,14 +27,8 @@ async function loginAsMaya(page: Page): Promise<void> {
 }
 
 async function loginAsOwner(page: Page): Promise<void> {
-  await page.goto("/login?account=1");
-  await page.getByLabel("Account name", { exact: true }).fill("Fixture Owner");
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page
-    .locator("form")
-    .getByRole("button", { name: "Sign in", exact: true })
-    .click();
-  await expect(page).toHaveURL("/");
+  await enterHousehold(page);
+  await selectHouseholdProfile(page, "Fixture Owner");
   await expect(page.getByText("Attention Is All You Need")).toBeVisible();
 }
 
@@ -134,6 +125,8 @@ test.describe.serial("documentation journeys and screenshots", () => {
       .locator("form")
       .getByRole("button", { name: "Enter household", exact: true })
       .click();
+
+    await finishHouseholdAdmission(page);
 
     const avatar = page
       .getByRole("button", { name: "Switch to Maya" })
@@ -429,7 +422,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page.locator("html")).toHaveAttribute("data-theme", target);
   });
 
-  test("sharing, graph, invitations, and device setup are visible before sending", async ({
+  test("sharing, graph, household access, and device setup are visible before sending", async ({
     page,
   }, testInfo) => {
     await loginAsOwner(page);
@@ -501,16 +494,12 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.goto("/settings");
     await expect(page).toHaveURL("/settings");
     await expect(
-      page.getByText("Fixture Owner", { exact: true }),
-    ).toBeVisible();
-    const invite = page
-      .getByRole("heading", { name: "Invite someone" })
+      page.getByRole("listitem").filter({ hasText: "Fixture Owner" }),
+    ).toContainText("(admin)");
+    const household = page
+      .getByRole("heading", { name: "Household access" })
       .locator("..");
-    await expect(invite).toHaveScreenshot(["setup", "invite-domain.png"], {
-      animations: "disabled",
-      // The signed expiry and QR payload intentionally change every run.
-      maxDiffPixelRatio: 0.08,
-    });
+    await expect(household).toContainText("shared password");
     const device = page
       .getByRole("heading", { name: "Connect a phone or tablet" })
       .locator("..");

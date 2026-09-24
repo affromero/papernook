@@ -7,7 +7,6 @@ import { z } from "zod";
 import {
   AccessError,
   accessStateSchema,
-  hashConfiguredPassword,
   initialAccessState,
   type AccessState,
 } from "thesidedoor-core/access";
@@ -15,7 +14,6 @@ import { FileStateStore, type StateStore } from "thesidedoor-core/storage";
 import { aiStateSchema, initialAiState } from "../agent/state";
 
 export const ERASURE_READY = "papernook-erasure-ownership-v1";
-export const CONFIGURED_PASSWORD_READY = "papernook-configured-password-v1";
 
 const profileSchema = z.object({
   username: z.string().regex(/^[a-z0-9][a-z0-9-]{1,30}$/),
@@ -125,11 +123,19 @@ function initialIdentity(): IdentityState {
 }
 
 function synchronizeProfiles(state: IdentityState): void {
-  state.access.householdProfiles = state.profiles.map((profile) => ({
-    id: profile.username,
-    name: profile.displayName,
-    epoch: state.generations[profile.username]!,
-  }));
+  state.access.householdProfiles = state.profiles.map((profile) => {
+    const owner = state.access.principals.find(
+      (principal) =>
+        principal.role === "owner" &&
+        state.bindings[principal.id] === profile.username,
+    );
+    return {
+      id: profile.username,
+      name: profile.displayName,
+      epoch: state.generations[profile.username]!,
+      ...(owner ? { ownerPrincipalId: owner.id } : {}),
+    };
+  });
 }
 
 function reconcilePrincipals(state: IdentityState): void {
@@ -257,29 +263,18 @@ export class PapernookIdentityStore {
       !(await this.storage.read()).access.initializations.includes(ACCESS_READY)
     )
       await this.createCanonicalState();
-    await this.seedConfiguredPassword();
-  }
-
-  private async seedConfiguredPassword(): Promise<void> {
-    const password = process.env.PAPERNOOK_PASSWORD;
-    if (!password) return;
+    const state = await this.storage.read();
+    const owner = state.access.principals.find(
+      (principal) => principal.role === "owner",
+    );
+    const username = owner && state.bindings[owner.id];
     if (
-      (await this.storage.read()).access.initializations.includes(
-        CONFIGURED_PASSWORD_READY,
-      )
+      state.access.mode === "household" &&
+      username &&
+      state.access.householdProfiles?.find((profile) => profile.id === username)
+        ?.ownerPrincipalId !== owner.id
     )
-      return;
-    const passwordHash = await hashConfiguredPassword(password);
-    await this.storage.transact((state) => {
-      if (state.access.initializations.includes(CONFIGURED_PASSWORD_READY))
-        return;
-      state.access.householdPasswordHash = passwordHash;
-      state.access.householdEpoch++;
-      state.access.sessions = state.access.sessions.filter(
-        (session) => session.principalId !== null,
-      );
-      state.access.initializations.push(CONFIGURED_PASSWORD_READY);
-    });
+      await this.storage.transact(synchronizeProfiles);
   }
 
   private async createCanonicalState(): Promise<void> {

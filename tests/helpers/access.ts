@@ -2,7 +2,6 @@ import { vi } from "vitest";
 import {
   AccessService,
   HouseholdProfileService,
-  PrincipalManagement,
 } from "thesidedoor-core/access";
 import { PapernookIdentityStore } from "@/lib/auth/identity-store";
 import { ProfileOperations } from "@/lib/auth/profile-operations";
@@ -21,9 +20,8 @@ export function testProfileCapability(username: string) {
 }
 
 export const TEST_ACCESS_PASSWORD = "test household password phrase";
-const accountPassword = "test individual account password";
 
-export async function testAccess() {
+export async function testAccess(ownerName = "Fixture Owner") {
   const directory = process.env.PAPERNOOK_DATA_DIR;
   if (!directory)
     throw new Error("Access fixtures require an isolated PAPERNOOK_DATA_DIR");
@@ -32,13 +30,12 @@ export async function testAccess() {
   await identity.initializeCanonical();
   const access = new AccessService({ store: identity.accessStore() });
   if ((await identity.read()).access.principals.length === 0) {
-    const owner = await access.claimOwner(
+    await access.claimOwner(
       await access.issueOperatorToken(),
-      "Fixture Owner",
-      accountPassword,
+      ownerName,
+      TEST_ACCESS_PASSWORD,
       "household",
     );
-    await access.configureHousehold(owner, TEST_ACCESS_PASSWORD);
   }
   return { identity, access, profiles: new HouseholdProfileService(access) };
 }
@@ -48,7 +45,7 @@ export async function createTestProfile(
   avatar?: string,
   owner = false,
 ) {
-  const { identity, access } = await testAccess();
+  const { identity, access } = await testAccess(owner ? name : "Fixture Owner");
   const username = normalizeUsername(name);
   const state = await identity.read();
   const existing = state.profiles.find(
@@ -56,49 +53,14 @@ export async function createTestProfile(
   );
   if (existing) return existing;
   if (owner) {
-    const administrator = state.access.principals.find(
-      (principal) => principal.role === "owner",
-    );
-    if (administrator) {
-      const token = await access.login(administrator.name, accountPassword);
-      await new PrincipalManagement(access).mutate(token, {
-        kind: "create",
-        name,
-        role: "owner",
-        password: accountPassword,
-      });
-    } else {
-      await access.claimOwner(
-        await access.issueOperatorToken(),
-        name,
-        accountPassword,
-        "household",
-      );
-    }
-    const profile = (await identity.read()).profiles.find(
-      (entry) => entry.username === username,
-    );
-    if (!profile) throw new Error("Owner creation did not create a profile");
-    return profile;
+    throw new Error("The first claimed profile is the only Admin");
   }
   const token = await access.enterHousehold(TEST_ACCESS_PASSWORD);
   return new ProfileOperations(identity).create(token, name, avatar);
 }
 
-export async function testSession(
-  username: string,
-  individual = false,
-): Promise<string> {
-  const { identity, access, profiles } = await testAccess();
-  if (individual) {
-    const state = await identity.read();
-    const id = Object.entries(state.bindings).find(
-      ([, name]) => name === username,
-    )?.[0];
-    const principal = state.access.principals.find((entry) => entry.id === id);
-    if (!principal) throw new Error("Fixture account does not exist");
-    return access.login(principal.name, accountPassword);
-  }
+export async function testSession(username: string): Promise<string> {
+  const { access, profiles } = await testAccess();
   const token = await access.enterHousehold(TEST_ACCESS_PASSWORD);
   await profiles.select(token, username);
   return token;
@@ -149,11 +111,16 @@ const frameworkHeaders = {
 };
 
 /** Mock the framework cookie boundary, never application authorization. */
-export async function mockTestSession(
-  username: string | null,
-  individual = false,
-) {
-  const token = username ? await testSession(username, individual) : null;
+export async function mockTestSession(username: string | null) {
+  const token = username ? await testSession(username) : null;
+  frameworkSession.token = token;
+  vi.doMock("next/headers", () => frameworkHeaders);
+  return token;
+}
+
+export async function mockHouseholdAdmission(): Promise<string> {
+  const { access } = await testAccess();
+  const token = await access.enterHousehold(TEST_ACCESS_PASSWORD);
   frameworkSession.token = token;
   vi.doMock("next/headers", () => frameworkHeaders);
   return token;

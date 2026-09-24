@@ -53,7 +53,9 @@ export async function requestIdentity(suppliedToken?: string) {
     const capability = profile
       ? profileCapability(state, profile.username)
       : null;
-    return { ...authenticated, profile, capability, token };
+    const isAdmin =
+      profile !== null && access.householdOwnerFromState(state.access, token);
+    return { ...authenticated, profile, capability, token, isAdmin };
   } catch (error) {
     if (
       isAccessError(error) &&
@@ -65,7 +67,7 @@ export async function requestIdentity(suppliedToken?: string) {
 }
 
 export async function currentOwner(): Promise<boolean> {
-  return (await requestIdentity())?.principal?.role === "owner";
+  return (await requestIdentity())?.isAdmin === true;
 }
 
 export function accessFailure(error: unknown): Response {

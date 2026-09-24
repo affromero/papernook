@@ -123,7 +123,7 @@ beforeEach(async () => {
   vi.stubEnv("PAPERNOOK_DATA_DIR", directory);
   vi.stubEnv("AI_PROVIDER", undefined);
   await createTestProfile("Owner", undefined, true);
-  token = await testSession("owner", true);
+  token = await testSession("owner");
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -189,21 +189,20 @@ it("commits owner selection and revision together without writing the retired co
   });
 });
 
-it("requires recent owner verification to change secrets", async () => {
+it("allows the selected Admin to change secrets without another password", async () => {
   const { identity } = await testAccess();
   await identity.transact((state) => {
     for (const session of state.access.sessions)
       session.authenticatedAt = Date.now() - 6 * 60 * 1000;
   });
   const before = readAiState();
-  await expect(
-    updateAgentConfig(
-      { provider: "openai" },
-      { token, expectedRevision: before.revision },
-      { apiKey: "fixture-secret" },
-    ),
-  ).rejects.toMatchObject({ code: "unauthorized" });
-  expect(readAiState()).toEqual(before);
+  await updateAgentConfig(
+    { provider: "openai" },
+    { token, expectedRevision: before.revision },
+    { apiKey: "fixture-secret" },
+  );
+  expect(readAiState().revision).toBe(before.revision + 1);
+  expect(apiCredentials("openai").apiKey).toBe("fixture-secret");
 });
 
 it("explicitly removes unreadable credentials without replacing a missing encryption key", async () => {

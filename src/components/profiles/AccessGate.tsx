@@ -1,21 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { AccessForm, AccessInvitation } from "thesidedoor/react";
-import type { AccessFormMode } from "thesidedoor/react";
+import { AccessForm } from "thesidedoor/react";
 import styles from "./ProfilePicker.module.css";
 
-export function AccessGate({
-  invitation = false,
-  initialMode = "household",
-}: {
-  invitation?: boolean;
-  initialMode?: AccessFormMode;
-}) {
+export function AccessGate() {
   const router = useRouter();
   const classes = {
-    form: styles.panel,
-    navigation: styles.panelActions,
+    form: `${styles.panel} ${styles.accessPanel}`,
+    navigation: styles.hiddenAccessNavigation,
     label: styles.fieldLabel,
     input: styles.nameInput,
     button: styles.primaryBtn,
@@ -30,23 +23,18 @@ export function AccessGate({
   return (
     <div className={styles.root}>
       <div className={styles.brand}>papernook</div>
-      <h1 className={styles.heading}>
-        {invitation ? "Join this library" : "Open your library"}
-      </h1>
-      {invitation ? (
-        <AccessInvitation
-          endpoint="/api/v1/access"
-          classes={classes}
-          onSignedIn={signedIn}
-        />
-      ) : (
-        <AccessForm
-          endpoint="/api/v1/access"
-          initialMode={initialMode}
-          classes={classes}
-          onSignedIn={signedIn}
-        />
-      )}
+      <h1 className={styles.heading}>Open your library</h1>
+      <p className={styles.accessIntro}>
+        Enter the shared password, then choose your profile.
+      </p>
+      <AccessForm
+        endpoint="/api/v1/access"
+        initialMode="household"
+        modes={["household"]}
+        claimModes={["household"]}
+        classes={classes}
+        onSignedIn={signedIn}
+      />
     </div>
   );
 }

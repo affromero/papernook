@@ -151,16 +151,11 @@ export class ProfileOperations {
         requiresVerification: true,
       } as const;
     }
-    if (this.household.selectedFromState(state.access, token)?.id !== username)
+    const selected = this.household.selectedFromState(state.access, token)?.id;
+    const admin = this.access.householdOwnerFromState(state.access, token);
+    if (selected !== username && !admin)
       return { allowed: false, reason: "other_profile" } as const;
-    if (
-      principal.role !== "member" ||
-      principal.pendingRole ||
-      principal.passwordHash ||
-      state.access.passkeys.some(
-        (passkey) => passkey.principalId === principal.id,
-      )
-    )
+    if (principal.role !== "member" || principal.pendingRole)
       return { allowed: false, reason: "protected_account" } as const;
     return {
       allowed: true,

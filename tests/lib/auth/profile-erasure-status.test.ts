@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   createTestProfile,
   mockTestSession,
+  mockHouseholdAdmission,
   revokeTestProfile,
   testAccess,
 } from "../../helpers/access";
@@ -27,7 +28,7 @@ afterEach(() => {
 });
 
 it("shows persisted erasures to an authenticated owner with private cache control", async () => {
-  await mockTestSession("owner", true);
+  await mockTestSession("owner");
   const { GET } = await import("@/app/api/v1/profiles/route");
   const response = await GET();
   expect(response.headers.get("cache-control")).toBe("private, no-store");
@@ -45,7 +46,7 @@ it("shows persisted erasures to an authenticated owner with private cache contro
 });
 
 it("does not expose erasures to household admission or signed-out visitors", async () => {
-  await mockTestSession("owner");
+  await mockHouseholdAdmission();
   const { GET } = await import("@/app/api/v1/profiles/route");
   const household = await (await GET()).json();
   expect(household.owner).toBe(false);
@@ -57,7 +58,7 @@ it("does not expose erasures to household admission or signed-out visitors", asy
 });
 
 it("does not expose erasures after the owner's session is revoked", async () => {
-  const token = await mockTestSession("owner", true);
+  const token = await mockTestSession("owner");
   const { identity, access } = await testAccess();
   await access.logout(token!);
   const { GET } = await import("@/app/api/v1/profiles/route");

@@ -76,6 +76,17 @@ jobs:
             --header 'Origin: http://localhost:3000' \
             --header 'Content-Type: application/json' \
             --data "$claim_body" http://localhost:3000/api/v1/access/claim >/dev/null
+          owner_username=$(curl --fail-with-body --show-error --silent \
+            --cookie /tmp/papernook-ci.cookies http://localhost:3000/api/v1/profiles | node -e \
+            'let value="";process.stdin.on("data",chunk=>value+=chunk).on("end",()=>{const profiles=JSON.parse(value).profiles;if(profiles.length!==1)process.exit(1);process.stdout.write(profiles[0].username)})')
+          selection_body=$(OWNER_USERNAME="$owner_username" node -e \
+            'process.stdout.write(JSON.stringify({username:process.env.OWNER_USERNAME}))')
+          curl --fail-with-body --show-error --silent \
+            --cookie /tmp/papernook-ci.cookies \
+            --cookie-jar /tmp/papernook-ci.cookies \
+            --header 'Origin: http://localhost:3000' \
+            --header 'Content-Type: application/json' \
+            --data "$selection_body" http://localhost:3000/api/v1/session >/dev/null
           test "$(curl --silent --cookie /tmp/papernook-ci.cookies --output /dev/null --write-out '%{http_code}' http://localhost:3000/settings)" = "200"
           test "$(docker exec papernook-ci stat -c '%u:%g' /data/identity.json)" = "1000:1000"
           test -z "$(docker exec papernook-ci sh -c \

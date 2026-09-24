@@ -71,14 +71,13 @@ if your installed client reports different syntax.
 
 ## What visitors see
 
-The installer prints a one-time owner claim code. The owner completes setup in
-the browser, chooses household or individual access, registers passkeys, and
-stores recovery codes. Household members share admission and can switch
-profiles. Individual accounts authenticate separately and remain bound to one
-profile.
+The installer creates the first Admin profile and shared password locally.
+Visitors enter the shared password or use a household passkey before choosing
+a profile. The server owner can reset a lost password with
+`papernook access reset`.
 
-The owner can send a short-lived invitation from **Settings → Invite a
-friend**. Sidedoor records, limits, and revokes invitations and sessions.
+Share the app URL and household password through a secure channel. Sidedoor
+manages the shared password, passkeys, and sessions.
 `SESSION_SECRET` is optional; Papernook generates it once in
 `data/session-secret` when it is unset so sessions survive container rebuilds.
 
@@ -114,7 +113,7 @@ share id is the capability to read that one shared paper.
 - [ ] `/api/v1/access/capabilities` reports `"passkeys":true` on that origin.
 - [ ] `http://<server>:3000` is not reachable from the public internet.
 - [ ] WebDAV accepts its own credentials and exposes only paper PDFs.
-- [ ] An invitation admits the intended account and can be revoked.
+- [ ] A fresh browser requires the shared password or a registered household passkey.
 - [ ] A share link opens its one paper without a login.
 - [ ] `TRUSTED_PROXY_HOPS` matches the deployed proxy chain.
-- [ ] Recovery codes and `WEBDAV_PASS` are backed up and never committed to Git.
+- [ ] `WEBDAV_PASS` is backed up and never committed to Git.

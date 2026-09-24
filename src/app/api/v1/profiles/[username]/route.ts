@@ -74,7 +74,7 @@ export async function PATCH(
       identity.token,
     );
     return Response.json({
-      profile: toPublicProfile(profile, identity.principal?.role === "owner"),
+      profile: toPublicProfile(profile, identity.isAdmin),
     });
   } catch (error) {
     return accessFailure(error);

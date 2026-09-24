@@ -73,8 +73,7 @@ async function snapshot(token: string, probe: boolean) {
   ]);
   const { identity, access } = sharedAccess();
   const latest = identity.readSnapshot();
-  const authenticated = access.sessionFromState(latest.access, token);
-  const admin = authenticated.principal?.role === "owner";
+  const admin = access.householdOwnerFromState(latest.access, token);
   const changed = latest.ai.revision !== initial.revision;
   const config = latest.ai.selection;
   if (changed) {
@@ -195,7 +194,7 @@ export async function PUT(request: NextRequest): Promise<Response> {
   const admission = await requestIdentity();
   if (!admission?.capability)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  if (admission.principal?.role !== "owner") {
+  if (!admission.isAdmin) {
     return NextResponse.json({ error: "Admin only." }, { status: 403 });
   }
   const revision = readAiState().revision;

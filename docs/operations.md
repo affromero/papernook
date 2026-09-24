@@ -73,7 +73,7 @@ tree.
 ## Public deployment checks
 
 - Authentication is always on and identical for every hostname.
-- The instance has an owner, a tested recovery code, and at least one passkey.
+- The instance has an Admin profile, a shared password, and at least one passkey.
 - Raw app and WebDAV ports bind to `127.0.0.1`; only the TLS proxy is public.
 - Setting `APP_HOST` or `WEBDAV_HOST` to `0.0.0.0` publishes plaintext HTTP.
   Do this only on a trusted network. WebDAV basic-auth credentials are clear

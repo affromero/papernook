@@ -352,3 +352,19 @@
   opacity: 0.75;
   margin: 0 0 0.75rem;
 }
+
+.accessIntro {
+  max-width: 36rem;
+  margin: 0 0 28px;
+  color: #b9b3a5;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.accessPanel {
+  width: min(520px, 100%);
+}
+
+.hiddenAccessNavigation {
+  display: none;
+}

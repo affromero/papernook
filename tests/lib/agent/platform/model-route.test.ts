@@ -16,6 +16,7 @@ beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-model-route-"));
   vi.stubEnv("PAPERNOOK_DATA_DIR", tmpDir);
   vi.resetModules();
+  await testAccess("Admin");
   const { configureTestAgent } = await import("../../../helpers/agent");
   await configureTestAgent({ provider: "codex" });
 });
@@ -30,7 +31,7 @@ afterEach(() => {
 
 it("keeps saved secrets write-only and rejects stale credential revisions", async () => {
   await createTestProfile("Admin", undefined, true);
-  await mockTestSession("admin", true);
+  await mockTestSession("admin");
   const { GET, PUT } = await import("@/app/api/v1/agent/model/route");
   const initial = await (
     await GET(new NextRequest("http://localhost/api/v1/agent/model"))
@@ -74,7 +75,7 @@ it("keeps saved secrets write-only and rejects stale credential revisions", asyn
 
 it("reports invalid credential fields without changing settings or exposing submitted values", async () => {
   await createTestProfile("Admin", undefined, true);
-  await mockTestSession("admin", true);
+  await mockTestSession("admin");
   const { readAiState } = await import("@/lib/agent/config");
   const before = readAiState();
   const { PUT } = await import("@/app/api/v1/agent/model/route");
@@ -98,7 +99,7 @@ it.each(["change", "revoke"])(
   "revalidates configuration and admission after a delayed probe (%s)",
   async (action) => {
     await createTestProfile("Admin", undefined, true);
-    const token = await mockTestSession("admin", true);
+    const token = await mockTestSession("admin");
     vi.stubEnv("CLAUDE_HOME", tmpDir);
     vi.stubEnv("CODEX_HOME", path.join(tmpDir, "codex"));
     vi.stubEnv("CLAUDE_CODE_SSH_HOST", undefined);
@@ -177,7 +178,7 @@ it.each(["change", "revoke"])(
 
 async function signedInRoute() {
   await createTestProfile("Admin", undefined, true);
-  await mockTestSession("admin", true);
+  await mockTestSession("admin");
   vi.doMock("node:child_process", () => ({
     spawn: () => {
       throw new Error("Configuration requests must not start provider probes.");

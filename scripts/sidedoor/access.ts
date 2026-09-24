@@ -2,6 +2,8 @@ import {
   AccessService,
   executeAccessCommand,
   parseAccessCommand,
+  readLocalSetupInput,
+  readLocalResetInput,
 } from "thesidedoor-core/access";
 import { PapernookIdentityStore } from "../../src/lib/auth/identity-store";
 import { dataRoot } from "../../src/lib/data-dir";
@@ -19,6 +21,8 @@ async function main(): Promise<void> {
   const identity = new PapernookIdentityStore(dataRoot());
   const access = new AccessService({ store: identity.accessStore() });
   const output = await executeAccessCommand(access, args, {
+    setupInput: readLocalSetupInput,
+    resetInput: readLocalResetInput,
     initialize: async () => {
       await identity.initializeCanonical();
       return { warnings: [] };

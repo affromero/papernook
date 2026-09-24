@@ -160,11 +160,11 @@ describe("papernook access", () => {
     fs.rmSync(runningApp);
   });
 
-  it("recovers an exact principal through the running application environment", () => {
+  it("resets the shared password through the running application's terminal", () => {
     fs.writeFileSync(runningApp, "container-id\n");
-    run(["access", "recover", "principal-123"]);
+    run(["access", "reset"]);
     expect(fs.readFileSync(dockerLog, "utf8")).toContain(
-      "compose exec -T --user node app node scripts/access.cjs recover principal-123",
+      "compose exec --user node app node scripts/access.cjs reset",
     );
     fs.rmSync(runningApp);
   });

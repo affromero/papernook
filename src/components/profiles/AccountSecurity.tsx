@@ -2,14 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import "thesidedoor/styles.css";
-import { AccessSecurity, AccessInviteLink } from "thesidedoor/react";
+import { AccessSecurity } from "thesidedoor/react";
 import styles from "./ProfilePicker.module.css";
 
-export function AccountSecurity({
-  invitations = false,
-}: {
-  invitations?: boolean;
-}) {
+export function AccountSecurity() {
   const router = useRouter();
   const classes = {
     label: styles.fieldLabel,
@@ -19,14 +15,13 @@ export function AccountSecurity({
     error: styles.error,
     hint: styles.gateHint,
   };
-  return invitations ? (
-    <AccessInviteLink endpoint="/api/v1/access" classes={classes} />
-  ) : (
+  return (
     <AccessSecurity
       endpoint="/api/v1/access"
+      showRecoveryCodes={false}
       classes={classes}
       onSignInRequired={() => {
-        router.push("/login?account=1");
+        router.push("/login");
         router.refresh();
       }}
     />

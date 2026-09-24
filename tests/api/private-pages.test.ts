@@ -47,6 +47,7 @@ it("renders current private capture credentials using the configured public orig
   expect(html).toContain(current.captureToken);
   expect(html).not.toContain(previous.captureToken);
   expect(html).toContain("papers.example");
+  expect(html).not.toContain("Account security");
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -74,7 +75,7 @@ it("hides the household profile list when admission is revoked before its latest
   syncBuiltinESMExports();
   const { default: LoginPage } = await import("@/app/login/page");
   const { AccessGate } = await import("@/components/profiles/AccessGate");
-  const page = await LoginPage({ searchParams: Promise.resolve({}) });
+  const page = await LoginPage();
   expect(page.type).toBe(AccessGate);
   expect(page.props).not.toHaveProperty("profiles");
 });

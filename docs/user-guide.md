@@ -120,7 +120,7 @@ capability to read that one shared paper.
 
 ![Share dialog showing its view-only boundary](images/product/share-reading.png)
 
-## Invite a friend
+## Share household access
 
 First choose the route that matches your server:
 
@@ -133,28 +133,26 @@ The result is the same in both cases:
 
 - **Shared:** papers, folders, tags, annotations, and exercises.
 - **Organized by profile:** chats, capture token, and Zotero connection.
-- **One authority:** Sidedoor manages passwords, passkeys, recovery, sessions,
-  and invitations.
+- **One authority:** Sidedoor manages the shared password, passkeys, and sessions.
 
-Household profiles share admission and can switch profiles. Individual
-accounts authenticate separately and stay bound to their own profile.
+The first profile is Admin. One shared password admits readers, who then choose
+their own profile. Papernook offers to save a passkey with Apple Passwords or
+another WebAuthn manager after password entry. This step is optional. A saved
+passkey opens the picker on later visits. Anyone admitted can choose Admin and
+manage settings; choosing another profile removes that access. Admin can revoke
+household passkeys in account security.
 
 ### Option A: custom domain
 
-Before inviting anyone, the owner should finish
-[public exposure hardening](public-exposure.md), register a passkey, and store
-the recovery codes.
+Before sharing access, the server owner should finish
+[public exposure hardening](public-exposure.md) and register a passkey.
 
 1. Open Papernook through its public URL, such as
    `https://papernook.example.com`.
-2. Open **Settings → Invite a friend** and send the signed invite link or QR.
-   The invitation is short-lived and revocable. For household access, the
-   owner may instead share the household password through a secure channel.
-3. Your friend opens the invite, selects **Add profile**, and chooses a name
-   and animal.
+2. Send the app URL and shared password through a secure channel.
+3. Your friend enters the password, selects **Add profile**, and chooses a name
+   and animal. They can save a passkey on their device for later visits.
 4. They follow the welcome screen.
-
-![Domain invite card with a QR code and numbered next steps](images/setup/invite-domain.png)
 
 > **Expected result:** the new profile opens its own welcome flow with a
 > personal capture token and reader setup.
@@ -182,9 +180,8 @@ instead of sending raw port `3000`:
    Papernook.
 4. Send the HTTPS app address from `tailscale serve status`, such as
    `https://papernook-server.example-tailnet.ts.net`.
-5. Send an invitation from **Settings → Invite a friend**. For household
-   access, you may instead share the household password securely. They open
-   the address, sign in, choose **Add profile**, and follow the welcome screen.
+5. Share the household password securely. They open the address, enter the
+   password, choose **Add profile**, and follow the welcome screen.
 6. For iPad annotation, use
    `http://papernook-server.example-tailnet.ts.net:8080` as the WebDAV address
    and share the common `WEBDAV_USER` and `WEBDAV_PASS` securely.
@@ -209,8 +206,7 @@ and [machine-sharing steps](https://tailscale.com/docs/features/sharing).
 1. Confirm they can open the app URL before setting up WebDAV.
 2. For Tailscale, confirm the shared machine appears online in their Machines
    list and try its Tailscale IP.
-3. Verify their invitation is valid or they have the current household
-   password or account credential.
+3. Verify they have the current household password.
 4. For Tailscale, run `tailscale serve status` and open the listed HTTPS URL.
    For a domain, confirm HTTPS reaches Caddy.
 5. Test WebDAV separately with the URL for the same route and verify the

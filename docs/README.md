@@ -16,11 +16,10 @@ library.
 | WebDAV: `https://dav-papernook.example.com`                                                          | WebDAV: `http://papernook-server:8080`                                                                               |
 | [Set up a custom domain →](public-exposure.md)                                                       | [Invite over Tailscale →](user-guide.md#option-b-tailscale)                                                          |
 
-The owner claims a new instance with the one-time code printed by the
-installer, then chooses household or individual access. Household members can
-switch profiles after admission. Individual accounts stay bound to one profile.
-Passwords, Apple passkeys, recovery codes, sessions, and invitations all use
-the same Sidedoor authority.
+The installer creates the first Admin profile and shared password locally.
+Readers enter that password or use a household passkey, then choose a profile.
+Passwords, Apple passkeys, and sessions use the same Sidedoor
+authority.
 
 ![Access gate shown before profile names](images/setup/access-gate.png)
 
@@ -37,7 +36,7 @@ passwordless route.
 3. **Write on the PDF:** open the paper in Papernook on desktop or iPad; see
    the [iPad guide](ipad-annotation.md).
 4. **Bring in another reader:** follow the
-   [domain or Tailscale invite flow](user-guide.md#invite-a-friend).
+   [domain or Tailscale sharing steps](user-guide.md#share-household-access).
 
 For backup, restore, upgrades, rollback, and deployment checks, see
 [Operations](operations.md).
@@ -110,15 +109,15 @@ is optional compatibility for external PDF apps.
 
 ## Guides
 
-| Goal                                                        | Guide                                            |
-| ----------------------------------------------------------- | ------------------------------------------------ |
-| Learn the everyday capture, reading, chat, and sharing flow | [User guide](user-guide.md)                      |
-| Invite a friend through a domain or Tailscale               | [Invite a friend](user-guide.md#invite-a-friend) |
-| Install or rebuild the iPhone/iPad Shortcut                 | [Add to papernook Shortcut](shortcut.md)         |
-| Annotate the live PDF with Apple Pencil                     | [iPad annotation guide](ipad-annotation.md)      |
-| Put the app behind a public HTTPS domain safely             | [Custom domain setup](public-exposure.md)        |
-| Back up, restore, upgrade, or roll back the server          | [Operations](operations.md)                      |
-| Understand the security model or report a vulnerability     | [Security policy](../SECURITY.md)                |
+| Goal                                                        | Guide                                                          |
+| ----------------------------------------------------------- | -------------------------------------------------------------- |
+| Learn the everyday capture, reading, chat, and sharing flow | [User guide](user-guide.md)                                    |
+| Share access through a domain or Tailscale                  | [Share household access](user-guide.md#share-household-access) |
+| Install or rebuild the iPhone/iPad Shortcut                 | [Add to papernook Shortcut](shortcut.md)                       |
+| Annotate the live PDF with Apple Pencil                     | [iPad annotation guide](ipad-annotation.md)                    |
+| Put the app behind a public HTTPS domain safely             | [Custom domain setup](public-exposure.md)                      |
+| Back up, restore, upgrade, or roll back the server          | [Operations](operations.md)                                    |
+| Understand the security model or report a vulnerability     | [Security policy](../SECURITY.md)                              |
 
 ## Owner checklist
 
@@ -130,11 +129,10 @@ is optional compatibility for external PDF apps.
   logout. See `.env.example` for `CODEX_AUTH_DIR` and `CLAUDE_AUTH_DIR`.
   Configure both directories only when both local CLIs should be selectable.
 - Use a long, unique `WEBDAV_PASS`.
-- Claim the owner, register a passkey, and store the recovery codes. For a
+- Create the shared password during local setup and register a passkey. For a
   custom domain, set `PAPERNOOK_WEBDAV_URL`, then keep
   the default loopback port bindings behind Caddy.
-- Generate friend links from **Settings → Invite a friend** while visiting the
-  URL the friend will use.
+- Share the app URL and household password securely with each reader.
 - Rotate a capture token in Settings if it appears anywhere it should not.
 - Readers can erase their own per-profile data from Settings; admins can remove
   members completely. Shared confirmed papers remain with anonymized

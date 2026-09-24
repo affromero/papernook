@@ -1,16 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-
-const password = "browser-owner-password-phrase";
+import {
+  enterHousehold,
+  finishHouseholdAdmission,
+  selectHouseholdProfile,
+} from "./support/household-access";
 
 async function loginAsAdmin(page: Page): Promise<void> {
-  await page.goto("/login?account=1");
-  await page.getByLabel("Account name", { exact: true }).fill("Fixture Owner");
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page
-    .locator("form")
-    .getByRole("button", { name: "Sign in", exact: true })
-    .click();
-  await expect(page).toHaveURL("/");
+  await enterHousehold(page);
+  await selectHouseholdProfile(page, "Fixture Owner");
 }
 
 test.afterEach(async ({ page }) => {
@@ -87,6 +84,7 @@ test("household admission preserves Maya's library without granting owner contro
     .locator("form")
     .getByRole("button", { name: "Enter household", exact: true })
     .click();
+  await finishHouseholdAdmission(page);
   await page.getByRole("button", { name: "Switch to Maya" }).click();
   await expect(page).toHaveURL("/");
   await page.goto("/settings");

@@ -20,7 +20,8 @@ afterEach(() => {
 });
 
 it("offers passkeys through the configured HTTPS reverse proxy origin", async () => {
-  const { accessHandler } = await import("@/lib/auth/access");
+  const { accessHandler, sharedAccess } = await import("@/lib/auth/access");
+  await sharedAccess().identity.initializeCanonical();
   const response = await accessHandler()(
     new Request("http://app:3000/api/v1/access/capabilities", {
       headers: {
