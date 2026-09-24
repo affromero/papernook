@@ -290,7 +290,7 @@ export default async function SettingsPage() {
                 )}
 
                 <div className={styles.subsection}>
-                  <h3>Household access</h3>
+                  <h3>Share access</h3>
                   <p>
                     Share the library address and shared password with someone
                     you trust. After entering, they can choose or create a

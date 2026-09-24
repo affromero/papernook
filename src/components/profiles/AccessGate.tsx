@@ -32,6 +32,7 @@ export function AccessGate() {
         initialMode="household"
         modes={["household"]}
         claimModes={["household"]}
+        copy={{ householdAccount: "Papernook" }}
         classes={classes}
         onSignedIn={signedIn}
       />

@@ -7,6 +7,8 @@
     transparent
   );
   --settings-line: rgba(127, 127, 127, 0.22);
+  width: 100%;
+  min-width: 0;
   max-width: 1200px;
   margin: 0 auto;
   padding: 2.5rem 1.5rem 5rem;

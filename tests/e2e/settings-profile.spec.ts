@@ -10,6 +10,72 @@ async function loginAsAdmin(page: Page): Promise<void> {
   await selectHouseholdProfile(page, "Fixture Owner");
 }
 
+for (const width of [375, 1280]) {
+  test(`app access uses one password and keeps security actions clear at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/login");
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await expect(page.locator("input:visible")).toHaveCount(1);
+    await expect(page.locator("input:visible")).toHaveAttribute(
+      "type",
+      "password",
+    );
+    await expect(page.getByText("Shared account", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(page.locator('input[autocomplete="username"]')).toHaveValue(
+      "Papernook",
+    );
+    await expect(page.locator('input[autocomplete="username"]')).toBeHidden();
+    await page
+      .getByLabel("Password", { exact: true })
+      .fill("browser-owner-password-phrase");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await finishHouseholdAdmission(page);
+    await selectHouseholdProfile(page, "Fixture Owner");
+    await page.goto("/settings#profile");
+    await expect(
+      page.getByRole("heading", { name: "App access", exact: true }),
+    ).toBeVisible();
+    const security = page.locator(".sd-access-security");
+    const bounds = await security.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    await expect(page.getByLabel("Passkey name")).toHaveCount(0);
+    await expect(page.getByLabel("New password", { exact: true })).toBeHidden();
+    await page
+      .getByRole("heading", { name: "App access", exact: true })
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath("app-access.png") });
+    await page.getByText("Change shared password", { exact: true }).click();
+    await expect(
+      page.getByLabel("New password", { exact: true }),
+    ).toBeVisible();
+    const button = page.getByRole("button", {
+      name: "Change password",
+      exact: true,
+    });
+    await expect(button).toBeVisible();
+    const paint = await button.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        background: style.backgroundColor,
+        color: style.color,
+        height: element.getBoundingClientRect().height,
+      };
+    });
+    expect(paint.background).not.toBe("rgba(0, 0, 0, 0)");
+    expect(paint.background).not.toBe(paint.color);
+    expect(paint.height).toBeGreaterThanOrEqual(44);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+  });
+}
+
 test.afterEach(async ({ page }) => {
   await page.request.patch("/api/v1/profiles/fixture-owner", {
     data: { avatarSlug: "hummingbird" },
@@ -82,7 +148,7 @@ test("household admission preserves Maya's library without granting owner contro
     .fill("browser-owner-password-phrase");
   await page
     .locator("form")
-    .getByRole("button", { name: "Enter household", exact: true })
+    .getByRole("button", { name: "Continue", exact: true })
     .click();
   await finishHouseholdAdmission(page);
   await page.getByRole("button", { name: "Switch to Maya" }).click();

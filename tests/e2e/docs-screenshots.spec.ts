@@ -95,25 +95,23 @@ test.describe.serial("documentation journeys and screenshots", () => {
       page.getByRole("heading", { name: "Open your library" }),
     ).toBeVisible();
     await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await expect(page).toHaveScreenshot(["setup", "access-gate.png"], {
+      animations: "disabled",
+      // Assertions below verify admission while the image documents the form.
+      maxDiffPixelRatio: 0.02,
+    });
     await page
       .locator("form")
-      .getByRole("button", { name: "Enter household", exact: true })
+      .getByRole("button", { name: "Continue", exact: true })
       .click();
     await expect(page).toHaveURL("/login");
     await expect(
       page.getByRole("button", { name: "Switch to Maya" }),
     ).toHaveCount(0);
-    await expect(page).toHaveScreenshot(["setup", "access-gate.png"], {
-      animations: "disabled",
-      // Protect the documented layout while allowing Linux/macOS font
-      // rasterization differences. Assertions above verify the gate itself.
-      maxDiffPixelRatio: 0.02,
-    });
-
     await page.getByLabel("Password", { exact: true }).fill("wrong-password");
     await page
       .locator("form")
-      .getByRole("button", { name: "Enter household", exact: true })
+      .getByRole("button", { name: "Continue", exact: true })
       .click();
     await expect(
       page
@@ -123,7 +121,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page
       .locator("form")
-      .getByRole("button", { name: "Enter household", exact: true })
+      .getByRole("button", { name: "Continue", exact: true })
       .click();
 
     await finishHouseholdAdmission(page);
@@ -422,7 +420,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await expect(page.locator("html")).toHaveAttribute("data-theme", target);
   });
 
-  test("sharing, graph, household access, and device setup are visible before sending", async ({
+  test("sharing, graph, app access, and device setup are visible before sending", async ({
     page,
   }, testInfo) => {
     await loginAsOwner(page);
@@ -497,7 +495,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
       page.getByRole("listitem").filter({ hasText: "Fixture Owner" }),
     ).toContainText("(admin)");
     const household = page
-      .getByRole("heading", { name: "Household access" })
+      .getByRole("heading", { name: "Share access" })
       .locator("..");
     await expect(household).toContainText("shared password");
     const device = page
