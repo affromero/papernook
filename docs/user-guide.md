@@ -140,7 +140,8 @@ their own profile. Papernook offers to save a passkey with Apple Passwords or
 another WebAuthn manager after password entry. This step is optional. A saved
 passkey opens the picker on later visits. Anyone admitted can choose Admin and
 manage settings; choosing another profile removes that access. Admin can revoke
-household passkeys in account security.
+passkeys in App access. The entry screen shows only Password and Continue;
+there is no account name to enter.
 
 ### Option A: custom domain
 

@@ -1,0 +1,77 @@
+.root {
+  color: var(--foreground);
+  max-width: 42rem;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+  max-width: 28rem;
+  margin-top: 16px;
+}
+
+.fieldLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.nameInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 24%, transparent);
+  border-radius: 8px;
+  background: var(--background);
+  color: inherit;
+  font: inherit;
+}
+
+.primaryBtn,
+.ghostBtn {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 24%, transparent);
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryBtn {
+  background: var(--color-primary, #b88a52);
+  color: var(--color-primary-contrast, #121310);
+  border-color: transparent;
+}
+
+.ghostBtn {
+  background: transparent;
+  color: inherit;
+}
+
+.primaryBtn:disabled,
+.ghostBtn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.nameInput:focus-visible,
+.primaryBtn:focus-visible,
+.ghostBtn:focus-visible {
+  outline: 2px solid var(--color-primary, #b88a52);
+  outline-offset: 3px;
+}
+
+.gateHint {
+  color: color-mix(in srgb, var(--foreground) 72%, var(--background));
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+
+.error {
+  color: var(--color-danger, #e89989);
+  line-height: 1.5;
+  margin: 12px 0;
+}

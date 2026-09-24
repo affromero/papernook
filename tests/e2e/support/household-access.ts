@@ -17,7 +17,7 @@ export async function enterHousehold(page: Page): Promise<void> {
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page
     .locator("form")
-    .getByRole("button", { name: "Enter household", exact: true })
+    .getByRole("button", { name: "Continue", exact: true })
     .click();
   await finishHouseholdAdmission(page);
 }
