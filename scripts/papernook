@@ -30,7 +30,7 @@ papernook — self-hosted paper library
   papernook status
       Show the running version, whether a newer release exists, and health.
 
-  papernook access list|claim|recover <principalId>|initialize|validate-config
+  papernook access list|setup|reset|initialize|validate-config
       Manage local access. Stop the app before initialization.
 
   papernook link [--bin-dir DIR]
@@ -45,8 +45,7 @@ cmd_access() {
   local operation running
   operation=${1:-}
   case "${operation}:$#" in
-    list:1 | claim:1 | initialize:1 | validate-config:1) ;;
-    recover:2) [ -n "$2" ] || { usage >&2; exit 1; } ;;
+    list:1 | setup:1 | reset:1 | initialize:1 | validate-config:1) ;;
     *) usage >&2; exit 1 ;;
   esac
   if [ "$operation" = validate-config ]; then
@@ -61,6 +60,13 @@ cmd_access() {
         exit 1
       fi
       docker compose run --rm --no-deps app node scripts/access.cjs "$@"
+      ;;
+    setup | reset)
+      if [ -n "$running" ]; then
+        docker compose exec --user node app node scripts/access.cjs "$operation"
+      else
+        docker compose run --rm --no-deps app node scripts/access.cjs "$operation"
+      fi
       ;;
     *)
       if [ -n "$running" ]; then

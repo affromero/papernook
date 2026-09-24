@@ -19,15 +19,16 @@ fi
 # Loaded only after the self-bootstrap above has entered the cloned repo.
 source ./scripts/install-env.sh
 
-print_owner_claim() {
-  local listing owner_count claim code
+set_up_owner() {
+  local listing owner_count
   listing=$(./scripts/papernook access list)
   owner_count=$(printf '%s' "$listing" | python3 -c 'import json,sys; print(sum(p.get("role") == "owner" for p in json.load(sys.stdin)["principals"]))')
   [ "$owner_count" = 0 ] || return 0
-  claim=$(./scripts/papernook access claim)
-  code=$(printf '%s' "$claim" | python3 -c 'import json,sys; print(json.load(sys.stdin)["code"])')
-  echo "Owner claim code (valid for 15 minutes): $code"
-  echo "Open the app and enter this code to create the owner account."
+  if [ -t 0 ] || (tty -s </dev/tty 2>/dev/null); then
+    ./scripts/papernook access setup </dev/tty
+  else
+    echo "Before opening the app, run: papernook access setup"
+  fi
 }
 
 for dependency in docker openssl python3; do
@@ -54,7 +55,7 @@ if [ "${1:-}" = "--from-infisical" ]; then
   bash ./scripts/runtime/start-stack.sh build
   ./scripts/papernook link || true
   echo "Papernook is up at the configured PAPERNOOK_URL (default http://localhost:3000)."
-  print_owner_claim
+  set_up_owner
   exit 0
 fi
 
@@ -111,7 +112,7 @@ echo
 echo "papernook is up:"
 echo "  app:    ${PAPERNOOK_URL}"
 echo "  webdav: http://localhost:8080  (PDF Expert → WebDAV, user ${WEBDAV_USER})"
-print_owner_claim
+set_up_owner
 echo "Then configure AI and register a passkey in the browser."
 case "$PUBLIC" in
   y | Y)

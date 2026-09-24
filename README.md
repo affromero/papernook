@@ -241,7 +241,7 @@ flowchart LR
       inboxui["CaptureJobs + ReviewStrip<br/>/inbox, unconfirmed captures"]
     end
 
-    gate["Sidedoor access (src/lib/auth)<br/>passwords · passkeys · recovery · invites"]
+    gate["Sidedoor access (src/lib/auth)<br/>shared password · passkeys · sessions"]
 
     browserext["Safari + Chrome extension<br/>extension/<br/>PDF navigations → /viewer"]
     dav["rclone WebDAV sidecar<br/>docker-compose.yml<br/>serves data/papers ONLY"]
@@ -475,34 +475,34 @@ unconfirmed captures stay private. Connect through
 [Tailscale](https://tailscale.com) or a hardened custom domain. Settings
 generates the correct device QR code for the address in use.
 
-The installer initializes Sidedoor and prints a one-time Admin claim code. The
-first profile is Admin, and its claim password becomes the one shared password
-for Papernook. After entering it, a reader can save a passkey with Apple
+The installer creates the first Admin profile and shared password locally.
+After entering the password, a reader can save a passkey with Apple
 Passwords or another WebAuthn manager before choosing a profile. This step is
 optional. A saved passkey opens the picker on later visits. Anyone admitted can
 choose Admin and manage settings. Choosing another profile removes Admin access.
-Admin can manage passkeys, recovery codes, sessions, and invitations in settings.
+Admin can manage passkeys and sessions in settings. If the shared
+password is lost, the server owner runs `papernook access reset` locally.
 
 Share links remain readable without a login because the unguessable share id
 is the capability for one paper. For custom domains, Caddy terminates TLS in
 front of app and WebDAV ports that bind to `127.0.0.1` by default. See
-[Invite a friend](docs/user-guide.md#invite-a-friend) and
+[share household access](docs/user-guide.md#share-household-access) and
 [custom-domain setup](docs/public-exposure.md).
 
 ## Documentation
 
 Start with the **[visual documentation home](docs/README.md)**.
 
-| I want to…                            | Guide                                                 |
-| ------------------------------------- | ----------------------------------------------------- |
-| Learn the everyday workflow           | [User guide](docs/user-guide.md)                      |
-| Invite someone by domain or Tailscale | [Invite a friend](docs/user-guide.md#invite-a-friend) |
-| Capture from Chrome or Safari desktop | [Browser extension](extension/README.md)              |
-| Capture from an iPhone or iPad        | [Add to papernook Shortcut](docs/shortcut.md)         |
-| Annotate from an iPad                 | [iPad annotation guide](docs/ipad-annotation.md)      |
-| Serve the app on a custom domain      | [Custom domain setup](docs/public-exposure.md)        |
-| Back up, restore, or watch the server | [Operations](docs/operations.md)                      |
-| Understand the security model         | [Security policy](SECURITY.md)                        |
+| I want to…                            | Guide                                                               |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| Learn the everyday workflow           | [User guide](docs/user-guide.md)                                    |
+| Share access by domain or Tailscale   | [Share household access](docs/user-guide.md#share-household-access) |
+| Capture from Chrome or Safari desktop | [Browser extension](extension/README.md)                            |
+| Capture from an iPhone or iPad        | [Add to papernook Shortcut](docs/shortcut.md)                       |
+| Annotate from an iPad                 | [iPad annotation guide](docs/ipad-annotation.md)                    |
+| Serve the app on a custom domain      | [Custom domain setup](docs/public-exposure.md)                      |
+| Back up, restore, or watch the server | [Operations](docs/operations.md)                                    |
+| Understand the security model         | [Security policy](SECURITY.md)                                      |
 
 ## Development
 

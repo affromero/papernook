@@ -290,21 +290,12 @@ export default async function SettingsPage() {
                 )}
 
                 <div className={styles.subsection}>
-                  {admin ? (
-                    <>
-                      <h3>Invite someone</h3>
-                      <AccountSecurity invitations />
-                      <p>
-                        Share the invite link or QR. It opens the gate for seven
-                        days without revealing the access password, and their
-                        setup wizard starts when they add a profile.
-                      </p>
-                    </>
-                  ) : (
-                    <p>
-                      Ask the admin for an invite link or the access password.
-                    </p>
-                  )}
+                  <h3>Household access</h3>
+                  <p>
+                    Share the library address and shared password with someone
+                    you trust. After entering, they can choose or create a
+                    profile.
+                  </p>
                 </div>
               </section>
 

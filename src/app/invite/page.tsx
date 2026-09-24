@@ -1,5 +1,5 @@
-import { AccessGate } from "@/components/profiles/AccessGate";
+import { redirect } from "next/navigation";
 
 export default function InvitePage() {
-  return <AccessGate invitation />;
+  redirect("/login");
 }
