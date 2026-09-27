@@ -10,7 +10,7 @@ import {
 import { assertSlug } from "@/lib/library/slug";
 import type { Chat, ChatMessage } from "@/lib/library/chats";
 
-export const sourceMessageSchema = z.object({
+const sourceMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string().min(1).max(500_000),
 });

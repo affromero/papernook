@@ -525,3 +525,13 @@ dependencies and assets remain subject to their respective licenses.
 <div align="center">
 <sub>Avatars shared with <a href="https://github.com/affromero/Sotto">Sotto</a> · reach by <a href="https://github.com/affromero/sidedoor">sidedoor</a></sub>
 </div>
+
+## Dead-code checks
+
+The `Dead code` workflow runs on pull requests, main-branch pushes, and weekly.
+It uses the pinned [shared maintenance action](https://github.com/affromero/repo-maintenance)
+to reject new findings, stale reviewed exceptions, and scanner failures. Reports
+are attached to each workflow run. Dependabot updates the shared action and Knip.
+
+Keep runtime entry points in `knip.json`. Any retained finding in
+`.maintenance-exceptions.json` needs an exact identity and a review reason.

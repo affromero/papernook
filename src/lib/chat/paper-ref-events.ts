@@ -42,7 +42,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-export function parsePaperRef(
+function parsePaperRef(
   value: unknown,
 ): { kind: PaperRefKind; label: string } | null {
   if (!isRecord(value)) return null;
@@ -53,7 +53,7 @@ export function parsePaperRef(
   return { kind: kind as PaperRefKind, label };
 }
 
-export function parseCitationKey(value: unknown): CitationKey | null {
+function parseCitationKey(value: unknown): CitationKey | null {
   if (!isRecord(value)) return null;
   if (value.kind === "numeric") {
     const { number } = value;

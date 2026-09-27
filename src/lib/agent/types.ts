@@ -12,11 +12,7 @@ import {
   type ProviderId,
 } from "thesidedoor-core/ai/catalog";
 import type { ProfileCapability } from "../auth/profile-capability";
-export {
-  PROVIDER_IDS,
-  LOCAL_PROVIDER_IDS,
-  type ProviderId,
-} from "thesidedoor-core/ai/catalog";
+export { PROVIDER_IDS, type ProviderId } from "thesidedoor-core/ai/catalog";
 
 export type LocalProviderId = (typeof LOCAL_PROVIDER_IDS)[number];
 
@@ -49,7 +45,7 @@ export interface AgentTurn {
 }
 
 /** What a provider can do beyond text-in/text-out. */
-export interface AgentCapabilities {
+interface AgentCapabilities {
   /** Can run web searches inside a turn when allowWeb is set. */
   web: boolean;
   /** Accepts image attachments. */

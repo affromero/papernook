@@ -31,7 +31,7 @@ import {
 } from "@/lib/pdf/text-layer-map";
 import styles from "./PdfReader.module.css";
 
-export interface CitationTarget {
+interface CitationTarget {
   destination: ResolvedPdfDestination;
   entryText: string;
   clientX: number;

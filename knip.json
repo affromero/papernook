@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        "playwright*.config.ts",
+        "scripts/**/*.{ts,mts,js,mjs,cjs}!",
+        "tests/**/*.{ts,mts,js,mjs}",
+        "extension/**/*.js!",
+        "public/**/*.js!",
+        "src/lib/offline/app.ts!",
+        "src/lib/offline/worker.js!"
+      ]
+    }
+  }
+}

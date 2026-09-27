@@ -33,7 +33,7 @@ interface ByteRange {
  * deliberately unsupported — no PDF client sends them, and answering with
  * the full body is a valid response to any range request.
  */
-export function parseByteRange(
+function parseByteRange(
   header: string | null,
   size: number,
 ): ByteRange | "unsatisfiable" | null {

@@ -274,9 +274,6 @@ export function provider(id: ApiProviderId): AgentProvider {
     stream: (turn) => stream(id, turn),
   };
 }
-
-export const anthropicProvider = provider("anthropic");
 export const openaiProvider = provider("openai");
 export const ollamaProvider = provider("ollama");
-export const llamacppProvider = provider("llamacpp");
 export const vllmProvider = provider("vllm");
