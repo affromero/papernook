@@ -64,7 +64,6 @@ const shareRecordSchema = z.object({
 });
 
 export type PaperShare = z.infer<typeof shareRecordSchema>;
-export type SharedConversation = z.infer<typeof sharedConversationSchema>;
 
 export class ShareError extends Error {}
 

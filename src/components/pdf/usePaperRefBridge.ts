@@ -53,9 +53,9 @@ interface UsePaperRefBridgeOptions {
   ): void;
 }
 
-export type PaperRefLocator = Pick<PaperRef, "kind" | "label">;
+type PaperRefLocator = Pick<PaperRef, "kind" | "label">;
 
-export async function resolveRef(
+async function resolveRef(
   pdfDocument: PDFDocumentProxy,
   ref: Pick<PaperRef, "kind" | "label">,
 ): Promise<ResolvedPdfDestination | null> {

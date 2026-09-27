@@ -45,7 +45,7 @@ function localUrl(value: string, prefix: string): boolean {
   );
 }
 
-export function validManifest(value: unknown): value is OfflineManifest {
+function validManifest(value: unknown): value is OfflineManifest {
   if (!value || typeof value !== "object") return false;
   const item = value as OfflineManifest;
   return (

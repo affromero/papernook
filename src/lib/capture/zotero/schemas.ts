@@ -19,7 +19,7 @@ export const keyResponseSchema = z.object({
     .optional(),
 });
 
-export const itemDataSchema = z.object({
+const itemDataSchema = z.object({
   key: z.string().min(1).max(64),
   version: z.number().int().nonnegative(),
   itemType: z.string().min(1).max(64),

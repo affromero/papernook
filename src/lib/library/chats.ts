@@ -43,7 +43,7 @@ export interface Chat {
 const CHAT_ID_RE = /^[a-f0-9]{16}$/;
 export const NEW_CHAT_TITLE = "New chat";
 const MAX_CHAT_TITLE_LENGTH = 72;
-export const MAX_MANUAL_CHAT_TITLE_LENGTH = 120;
+const MAX_MANUAL_CHAT_TITLE_LENGTH = 120;
 
 function headerHasPlaceholderTitle(header: ChatHeader): boolean {
   return header.titleSource === "placeholder";
@@ -56,7 +56,7 @@ export function chatNeedsGeneratedTitle(chat: Chat): boolean {
   );
 }
 
-export function normalizeGeneratedChatTitle(value: string): string {
+function normalizeGeneratedChatTitle(value: string): string {
   const normalized = value
     .replace(/\s+/g, " ")
     .trim()
@@ -68,7 +68,7 @@ export function normalizeGeneratedChatTitle(value: string): string {
   return `${characters.slice(0, MAX_CHAT_TITLE_LENGTH).join("").trimEnd()}…`;
 }
 
-export function normalizeManualChatTitle(value: string): string {
+function normalizeManualChatTitle(value: string): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (!normalized) throw new Error("Conversation title cannot be empty.");
   if (Array.from(normalized).length > MAX_MANUAL_CHAT_TITLE_LENGTH) {

@@ -1,4 +1,4 @@
-import { getPaper, readText, type Paper } from "./papers";
+import { readText, type Paper } from "./papers";
 import { searchChunks } from "./index-db";
 import { relatedLibraryContext } from "./context/related";
 import { annotationsForPaper } from "../capture/zotero-service";
@@ -191,11 +191,5 @@ export function buildChatPrompt(
   return transcript
     ? `${transcript}\n\nUser: ${userMessage}\n\nAssistant:`
     : userMessage;
-}
-
-export function requirePaper(topic: string, slug: string): Paper {
-  const paper = getPaper(topic, slug);
-  if (!paper) throw new Error(`Unknown paper ${topic}/${slug}`);
-  return paper;
 }
 import { RICH_CONTENT_INSTRUCTIONS } from "@/lib/chat/rendering-instructions";

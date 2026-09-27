@@ -1,7 +1,7 @@
 /**
  * Preset profile avatars: cute animals from the Colombian tropics. Each has an illustration at /avatars/{slug}.png shipped in
  * public/avatars. The profile picker, header menu, and settings grid all draw
- * from these via resolveProfileAvatar(). The emoji + hue remain an offline
+ * from these through the validated avatar slug. The emoji and hue remain an offline
  * fallback tile.
  */
 
@@ -27,17 +27,8 @@ export const ANIMAL_AVATARS: AnimalAvatar[] = [
 
 const BY_SLUG = new Map(ANIMAL_AVATARS.map((a) => [a.slug, a]));
 
-/** The image path for an avatar slug, or null for an unknown image. */
-export function avatarImagePath(slug: string): string | null {
-  return BY_SLUG.has(slug) ? `/avatars/${slug}.png` : null;
-}
-
 export function isAnimalSlug(value: string): boolean {
   return BY_SLUG.has(value);
-}
-
-export function getAnimalAvatar(slug: string): AnimalAvatar | undefined {
-  return BY_SLUG.get(slug);
 }
 
 /**
@@ -50,23 +41,4 @@ export function animalForSeed(seed: string): AnimalAvatar {
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   }
   return ANIMAL_AVATARS[hash % ANIMAL_AVATARS.length];
-}
-
-/**
- * Resolve a profile's display avatar to one of the animals. Keeps an
- * explicitly chosen animal image; anything else falls back to a deterministic
- * animal for the seed. Always returns a local `/avatars/*.png` path.
- */
-export function resolveProfileAvatar(
-  seed: string,
-  image: string | null | undefined,
-): { image: string; emoji: string } {
-  if (image && image.startsWith("/avatars/")) {
-    const slug = image.slice("/avatars/".length).replace(/\.png$/, "");
-    const known = getAnimalAvatar(slug);
-    if (known)
-      return { image: `/avatars/${known.slug}.png`, emoji: known.emoji };
-  }
-  const animal = animalForSeed(seed);
-  return { image: `/avatars/${animal.slug}.png`, emoji: animal.emoji };
 }

@@ -43,7 +43,7 @@ export interface PdfReaderEditState {
 
 export type EditMode = "select" | "highlight" | "text" | "draw";
 
-export interface EditorTypes {
+interface EditorTypes {
   NONE: number;
   HIGHLIGHT: number;
   FREETEXT: number;

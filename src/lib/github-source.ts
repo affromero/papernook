@@ -97,7 +97,7 @@ export interface RepositorySourceIdentity {
   path: string;
 }
 
-export interface VerifiedRepositoryFile {
+interface VerifiedRepositoryFile {
   path: string;
   lines: string[];
 }

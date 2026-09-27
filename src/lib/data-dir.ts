@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
 
 /**
  * Filesystem layout: the filesystem is the source of truth.
@@ -42,25 +41,4 @@ export function ensureDataDirs(): void {
   for (const dir of [papersRoot(), libraryRoot(), inboxRoot(), usersRoot()]) {
     fs.mkdirSync(dir, { recursive: true });
   }
-}
-
-/**
- * Session-signing secret. Prefer SESSION_SECRET from env; otherwise generate
- * once into data/session-secret so restarts keep sessions valid without any
- * required env for a first local boot.
- */
-export function sessionSecret(): string {
-  const fromEnv = process.env.SESSION_SECRET;
-  if (fromEnv && fromEnv.length >= 32) return fromEnv;
-  const file = path.join(dataRoot(), "session-secret");
-  try {
-    const existing = fs.readFileSync(file, "utf8").trim();
-    if (existing.length >= 32) return existing;
-  } catch {
-    // fall through to generate
-  }
-  const secret = crypto.randomBytes(32).toString("hex");
-  fs.mkdirSync(dataRoot(), { recursive: true });
-  fs.writeFileSync(file, secret, { mode: 0o600 });
-  return secret;
 }

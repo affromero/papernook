@@ -21,10 +21,7 @@ function descriptorFor(provider: string) {
   return descriptor;
 }
 
-export function normalizeProviderEndpoint(
-  provider: string,
-  baseUrl: string,
-): string {
+function normalizeProviderEndpoint(provider: string, baseUrl: string): string {
   const descriptor = descriptorFor(provider);
   return providerConnection(
     { baseUrl },

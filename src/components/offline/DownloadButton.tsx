@@ -10,7 +10,7 @@ import {
 } from "@/lib/offline/storage";
 import styles from "./Offline.module.css";
 
-export async function ensureOfflineReader(): Promise<void> {
+async function ensureOfflineReader(): Promise<void> {
   if (!("serviceWorker" in navigator) || !window.isSecureContext)
     throw new Error(
       "Offline reading requires HTTPS or localhost and a browser with service worker support.",

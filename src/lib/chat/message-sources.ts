@@ -56,7 +56,7 @@ export function linksToCurrentPaper(
   );
 }
 
-export function sourceKind(url: string): SourceKind {
+function sourceKind(url: string): SourceKind {
   const host = hostOf(url);
   if (host === "arxiv.org") return "arxiv";
   if (host === "doi.org" || host === "dx.doi.org") return "doi";

@@ -664,18 +664,6 @@ export function associationFor(
   return associations[associationIdentity(target, itemKey)];
 }
 
-export function paperForAssociation(
-  association: ZoteroAssociation | undefined,
-): Paper | null {
-  if (!association) return null;
-  return (
-    listPapers().find(
-      (paper) =>
-        paper.topic === association.topic && paper.slug === association.slug,
-    ) ?? null
-  );
-}
-
 export function existingPaperFor(
   username: string,
   target: ZoteroLibraryTarget,

@@ -66,16 +66,3 @@ export function startScanner(): void {
   });
   watcher.on("all", (_event, filePath) => scheduleRebuild(filePath));
 }
-
-export async function stopScanner(): Promise<void> {
-  if (recoveryTimer) {
-    clearTimeout(recoveryTimer);
-    recoveryTimer = null;
-  }
-  if (timer) {
-    clearTimeout(timer);
-    timer = null;
-  }
-  await watcher?.close();
-  watcher = null;
-}

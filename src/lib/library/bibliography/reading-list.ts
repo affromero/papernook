@@ -16,7 +16,7 @@ import {
  * from the same per-paper entry cache in entries.ts.
  */
 
-export interface ReadingListCiter {
+interface ReadingListCiter {
   topic: string;
   slug: string;
   title: string;

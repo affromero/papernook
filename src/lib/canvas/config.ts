@@ -10,7 +10,7 @@ const configSchema = z
   })
   .strict();
 
-export type CanvasLicenseSource = "file" | "environment" | null;
+type CanvasLicenseSource = "file" | "environment" | null;
 
 export interface CanvasLicenseConfig {
   licenseKey: string | null;

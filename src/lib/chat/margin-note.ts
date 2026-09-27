@@ -13,7 +13,7 @@ export const NOTE_FONT_SIZE = 9;
 /** pdf.js LINE_FACTOR: the worker lays FreeText lines out at 1.35 × size. */
 export const NOTE_LINE_HEIGHT = 1.35 * NOTE_FONT_SIZE;
 export const NOTE_WIDTH = 150;
-export const NOTE_MARGIN = 12;
+const NOTE_MARGIN = 12;
 export const NOTE_CHARS_PER_LINE = 30;
 export const NOTE_MAX_LINES = 40;
 
