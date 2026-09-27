@@ -1,6 +1,14 @@
+## Tracking issue
+
+<!-- Required for every PR, including documentation and dependency updates.
+Search existing issues first. Reuse the relevant issue or open one describing
+the problem, expected behavior, and acceptance criteria before opening this PR.
+Link the real issue below. Use "Closes #123" only if this PR fully resolves it;
+use "Related to #123" for partial work and list what remains. -->
+
 ## Summary
 
-<!-- Describe what changes for users. Link related issues or PRs where available. -->
+<!-- Describe what changes for users. -->
 
 ## Problem
 
