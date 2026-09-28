@@ -42,10 +42,7 @@ export function tokenizeTitle(title: string): TitleTokens {
  * in the reference entry. Titles with fewer than two significant words
  * never match: a single common word is not evidence of a citation.
  */
-export function titleOverlaps(
-  tokens: ReferenceTokens,
-  title: TitleTokens,
-): boolean {
+function titleOverlaps(tokens: ReferenceTokens, title: TitleTokens): boolean {
   if (title.words.length < 2) return false;
   const present = title.words.filter((word) => tokens.words.has(word));
   return present.length / title.words.length >= 0.8;

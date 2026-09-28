@@ -50,7 +50,7 @@ const WINDOW_LINES = 3;
  * scanned against every title. Real reference lists are a few hundred
  * entries in well under 200k characters.
  */
-export const MAX_BIBLIOGRAPHY_CHARS = 200_000;
+const MAX_BIBLIOGRAPHY_CHARS = 200_000;
 export const MAX_BIBLIOGRAPHY_ENTRIES = 2_000;
 
 /**

@@ -52,7 +52,7 @@ const IMPORT_LOCK_WAIT_MS = 60_000;
 const MAX_ANNOTATION_CHARS = 20_000;
 const MAX_ANNOTATION_RECORDS = 10_000;
 
-export interface ZoteroCatalogEntry {
+interface ZoteroCatalogEntry {
   key: string;
   title: string;
   authors: string[];

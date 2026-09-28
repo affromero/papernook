@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
 const IP_RE = /^[0-9a-f:.]{2,64}$/i;
 
@@ -78,19 +78,4 @@ export function crossSiteMutation(request: NextRequest): boolean {
   } catch {
     return true;
   }
-}
-
-export function rejectCrossSiteMutation(
-  request: NextRequest,
-): NextResponse | null {
-  if (!crossSiteMutation(request)) return null;
-  return NextResponse.json(
-    { error: "Cross-site request rejected." },
-    { status: 403 },
-  );
-}
-
-export async function authenticationFailureDelay(): Promise<void> {
-  const delay = 350 + Math.floor(Math.random() * 200);
-  await new Promise((resolve) => setTimeout(resolve, delay));
 }

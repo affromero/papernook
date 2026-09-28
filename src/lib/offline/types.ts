@@ -1,7 +1,7 @@
 export type DocumentKind = "paper" | "conversation";
 
 /** Safe, self-contained study HTML. No scripts or remote image dependencies. */
-export interface OfflineChat {
+interface OfflineChat {
   id: string;
   title: string;
   html: string;

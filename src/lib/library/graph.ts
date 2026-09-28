@@ -12,7 +12,7 @@ import { titleCited, tokenizeTitle } from "./context/reference-match";
  * Built fresh from disk on request; personal-library scale makes that cheap.
  */
 
-export interface GraphNode {
+interface GraphNode {
   id: string;
   label: string;
   kind: "paper" | "author" | "topic" | "tag";
@@ -20,7 +20,7 @@ export interface GraphNode {
   href?: string;
 }
 
-export interface GraphEdge {
+interface GraphEdge {
   source: string;
   target: string;
   /** `cites` is directed: source's bibliography names target's title. */

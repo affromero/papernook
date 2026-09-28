@@ -19,10 +19,7 @@ let reloadQueue: Promise<unknown> = Promise.resolve();
  * about to write older than what is already on disk? It cannot see a token
  * retired out of band, which is why an unreadable file always loses.
  */
-export function credentialGeneration(
-  provider: ProviderId,
-  contents: string,
-): number {
+function credentialGeneration(provider: ProviderId, contents: string): number {
   try {
     const parsed = JSON.parse(contents) as {
       claudeAiOauth?: { refreshTokenExpiresAt?: unknown };

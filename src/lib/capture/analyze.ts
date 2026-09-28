@@ -170,7 +170,7 @@ export function linearizePdf(pdfPath: string): Promise<void> {
   });
 }
 
-export const analysisSchema = z.object({
+const analysisSchema = z.object({
   title: z.string().min(1),
   authors: z.array(z.string()).default([]),
   year: z.number().int().nullable().default(null),

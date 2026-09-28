@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "findings": [
+    {
+      "tool": "knip",
+      "mode": "all",
+      "file": "package.json",
+      "kind": "devDependencies",
+      "name": "lint-staged",
+      "reason": "Invoked by the repository pre-commit configuration outside the JavaScript module graph."
+    },
+    {
+      "tool": "knip",
+      "mode": "all",
+      "file": "scripts/store/demo-video.mjs",
+      "kind": "binaries",
+      "name": "ffmpeg",
+      "reason": "External media executable provided by the development and CI system environment."
+    },
+    {
+      "tool": "knip",
+      "mode": "all",
+      "file": "src/lib/capture/analyze.ts",
+      "kind": "binaries",
+      "name": "gs",
+      "reason": "Ghostscript system executable used to process captured PDFs."
+    },
+    {
+      "tool": "knip",
+      "mode": "all",
+      "file": "src/lib/capture/analyze.ts",
+      "kind": "binaries",
+      "name": "pdftotext",
+      "reason": "Poppler system executable used to extract captured PDF text."
+    },
+    {
+      "tool": "knip",
+      "mode": "all",
+      "file": "src/lib/capture/analyze.ts",
+      "kind": "binaries",
+      "name": "qpdf",
+      "reason": "System executable used to linearize and inspect captured PDFs."
+    },
+    {
+      "tool": "knip",
+      "mode": "all",
+      "file": "tests/scripts/papernook-cli.test.ts",
+      "kind": "unresolved",
+      "name": "./scripts/papernook",
+      "reason": "Existing shell entry point invoked by a subprocess test; it is not a JavaScript module."
+    }
+  ]
+}

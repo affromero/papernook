@@ -12,7 +12,7 @@ import { extractJson } from "./analyze";
  * nothing is written to disk here.
  */
 
-export const discoverySchema = z.object({
+const discoverySchema = z.object({
   suggestions: z
     .array(
       z.object({

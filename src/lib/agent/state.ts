@@ -15,7 +15,7 @@ export const AGENT_EFFORTS = [
 ] as const;
 export const AI_STATE_READY = "papernook-ai-configuration-v1";
 export const AI_CREDENTIALS_READY = "papernook-provider-credentials-v1";
-export const agentSelectionSchema = z
+const agentSelectionSchema = z
   .object({
     provider: z.enum(PROVIDER_IDS).optional(),
     model: z.string().optional(),

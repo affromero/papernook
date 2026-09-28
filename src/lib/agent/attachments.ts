@@ -8,7 +8,6 @@ import {
 import {
   buildAgentInvocation,
   buildScpInvocation,
-  shellQuote,
   minimalAgentEnvironment,
 } from "./invocation";
 
@@ -129,5 +128,3 @@ export function imagePromptPreamble(paths: string[]): string {
   const list = paths.map((p) => `- ${p}`).join("\n");
   return `The user attached the following image file(s). Read and look at them before answering:\n${list}\n\n`;
 }
-
-export { shellQuote };

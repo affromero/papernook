@@ -24,7 +24,7 @@ import {
 const ENTRY_MARKER = /^\s*(?:\[\d+\]|\d{1,3}\.)\s*/;
 
 /** A highlightable box in PDF coordinates (origin bottom-left). */
-export interface EntryLineBox {
+interface EntryLineBox {
   x: number;
   y: number;
   width: number;

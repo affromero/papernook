@@ -1,4 +1,4 @@
-export interface PdfAutosaveState {
+interface PdfAutosaveState {
   dirty: boolean;
   saving: boolean;
   error: Error | null;
