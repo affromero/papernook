@@ -29,6 +29,9 @@ for (const width of [375, 1280]) {
       "Papernook",
     );
     await expect(page.locator('input[autocomplete="username"]')).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: "Continue", exact: true }),
+    ).toBeEnabled();
     await page
       .getByLabel("Password", { exact: true })
       .fill("browser-owner-password-phrase");
@@ -142,15 +145,7 @@ test("owner saves write-only credentials and explicitly removes them", async ({
 test("household admission preserves Maya's library without granting owner controls", async ({
   page,
 }) => {
-  await page.goto("/login");
-  await page
-    .getByLabel("Password", { exact: true })
-    .fill("browser-owner-password-phrase");
-  await page
-    .locator("form")
-    .getByRole("button", { name: "Continue", exact: true })
-    .click();
-  await finishHouseholdAdmission(page);
+  await enterHousehold(page);
   await page.getByRole("button", { name: "Switch to Maya" }).click();
   await expect(page).toHaveURL("/");
   await page.goto("/settings");
