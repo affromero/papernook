@@ -14,11 +14,12 @@ export async function finishHouseholdAdmission(page: Page): Promise<void> {
 
 export async function enterHousehold(page: Page): Promise<void> {
   await page.goto("/login");
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page
+  const continueButton = page
     .locator("form")
-    .getByRole("button", { name: "Continue", exact: true })
-    .click();
+    .getByRole("button", { name: "Continue", exact: true });
+  await expect(continueButton).toBeEnabled();
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await continueButton.click();
   await finishHouseholdAdmission(page);
 }
 
