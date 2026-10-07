@@ -15,6 +15,7 @@
 
 .bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
 }
@@ -26,6 +27,32 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+
+.sourceAction {
+  --paper-accent: var(--foreground);
+  --paper-surface: color-mix(in srgb, var(--foreground) 5%, transparent);
+  flex-shrink: 0;
+}
+
+.sourceAction > button {
+  min-height: 44px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--foreground) 25%, transparent);
+  border-radius: 0.5rem;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sourceAction > button:hover {
+  background: var(--paper-surface);
+}
+
+.sourceAction > button:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
 }
 
 .addBtn {
@@ -85,5 +112,9 @@
   .root {
     height: auto;
     padding: 0.75rem;
+  }
+
+  .barTitle {
+    flex-basis: 100%;
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PdfReader } from "@/components/pdf/PdfReader";
+import { CopySourceLinkButton } from "@/components/paper/CopySourceLinkButton";
 import styles from "./viewer.module.css";
 
 interface ViewerShellProps {
@@ -111,6 +112,9 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
         <span className={styles.barTitle} title={displayTitle}>
           {displayTitle}
         </span>
+        <div className={styles.sourceAction}>
+          <CopySourceLinkButton sourceUrl={src} />
+        </div>
         {capture.phase === "added" ? (
           <a
             className={styles.added}

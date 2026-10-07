@@ -276,6 +276,44 @@ test("paper header copies the original source link", async ({
     .toBe("https://arxiv.org/abs/1706.03762");
 });
 
+test("external viewer copies the original URL with its query and fragment", async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await login(page);
+  const sourceUrl = "https://example.com/paper.pdf?download=1#page=2";
+  const pdf = await page.request.get(
+    "/api/v1/papers/machine-learning/attention-is-all-you-need/pdf",
+  );
+  expect(pdf.ok()).toBe(true);
+  await page.route("**/api/v1/viewer/pdf?**", (route) =>
+    route.fulfill({ response: pdf }),
+  );
+  await page.goto(`/viewer?src=${encodeURIComponent(sourceUrl)}`);
+  await expect(page.getByText("Page 1 of 3")).toBeVisible();
+
+  const copy = page.getByRole("button", { name: "Copy original paper link" });
+  await expect(copy).toHaveAttribute("title", sourceUrl);
+  await copy.click();
+  await expect(copy.getByText("Copied", { exact: true })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(sourceUrl);
+
+  await page.setViewportSize({ width: 320, height: 844 });
+  for (const control of [
+    copy,
+    page.getByRole("button", { name: "+ Add to papernook", exact: true }),
+  ]) {
+    await expect(control).toBeVisible();
+    const bounds = await control.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  }
+});
+
 test("code copy reports when clipboard access fails", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
