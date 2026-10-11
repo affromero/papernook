@@ -45,6 +45,8 @@
     ]
   },
   "overrides": {
+    "braces": "https://github.com/affromero/braces/archive/ab55ec393269eeed9af90b2ae9a7c6faa41064df.tar.gz",
+    "katex": "$katex",
     "postcss": "^8.5.17"
   },
   "dependencies": {
@@ -59,7 +61,7 @@
     "html-to-text": "^10.0.1",
     "katex": "^0.18.9",
     "lucide-react": "^1.48.0",
-    "next": "16.3.6",
+    "next": "16.3.8",
     "openai": "^7.23.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.3.289",
@@ -92,7 +94,7 @@
     "chrome-webstore-upload-cli": "4.0.1",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "16.3.8",
     "knip": "6.38.0",
     "lint-staged": "^17.6.0",
     "playwright": "1.63.0",
