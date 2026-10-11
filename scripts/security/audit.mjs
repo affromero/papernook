@@ -1,17 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// No patched braces release exists for this advisory. Accept it only through
-// the development-only Next lint chain. Remove this exception when patched.
-const advisory = "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm";
-const chain = new Map([
-  ["eslint-config-next", "@next/eslint-plugin-next"],
-  ["@next/eslint-plugin-next", "fast-glob"],
-  ["fast-glob", "micromatch"],
-  ["micromatch", "braces"],
-  ["braces", null],
-]);
 const severities = ["info", "low", "moderate", "high", "critical"];
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const result = spawnSync("npm", ["audit", "--json"], {
@@ -98,98 +87,14 @@ try {
     return severity;
   }
   for (const [name] of findings) validateCauses(name);
-  const lock = JSON.parse(
-    readFileSync(new URL("../../package-lock.json", import.meta.url), "utf8"),
-  );
-  const packages = lock.packages;
-  if (!record(packages) || !record(packages[""]))
-    throw new Error("Invalid dependency lockfile");
-
-  const lintOnly =
-    packages[""].devDependencies?.["eslint-config-next"] &&
-    [...chain].every(([name, dependency]) => {
-      const installed = packages[`node_modules/${name}`];
-      return (
-        record(installed) &&
-        installed.dev === true &&
-        (!dependency || installed.dependencies?.[dependency]) &&
-        !packages[""].dependencies?.[name] &&
-        (name === "eslint-config-next" || !packages[""].devDependencies?.[name])
-      );
-    });
-  const parents = new Map(
-    [...chain]
-      .filter(([, child]) => child)
-      .map(([parent, child]) => [child, `node_modules/${parent}`]),
-  );
-  parents.set("eslint-config-next", "");
-  const exclusiveLintChain = Object.entries(packages).every(
-    ([node, installed]) =>
-      record(installed) &&
-      [...chain.keys()].every(
-        (name) =>
-          (!installed.dependencies?.[name] &&
-            !installed.optionalDependencies?.[name] &&
-            !installed.peerDependencies?.[name]) ||
-          (name !== "eslint-config-next" && parents.get(name) === node),
-      ),
-  );
-
-  function excepted(name, visited = new Set()) {
-    if (
-      !lintOnly ||
-      !exclusiveLintChain ||
-      !chain.has(name) ||
-      visited.has(name)
-    )
-      return false;
-    const finding = report.vulnerabilities[name];
-    const node = `node_modules/${name}`;
-    const installed = packages[node];
-    if (
-      !record(finding) ||
-      finding.isDirect !== (name === "eslint-config-next") ||
-      finding.nodes.length !== 1 ||
-      finding.nodes[0] !== node ||
-      !record(installed) ||
-      installed.dev !== true
-    )
-      return false;
-    const dependency = chain.get(name);
-    if (dependency && !installed.dependencies?.[dependency]) return false;
-    if (
-      name === "eslint-config-next" &&
-      (!packages[""].devDependencies?.[name] ||
-        packages[""].dependencies?.[name])
-    )
-      return false;
-    if (name === "braces" && installed.version !== "3.0.3") return false;
-    const path = new Set([...visited, name]);
-    return finding.via.every((cause) => {
-      if (typeof cause === "string")
-        return cause === dependency && excepted(cause, path);
-      return (
-        name === "braces" &&
-        cause.name === "braces" &&
-        cause.dependency === "braces" &&
-        cause.url === advisory
-      );
-    });
-  }
-
-  const blocked = findings.filter(
-    ([name]) => validated.get(name) >= 2 && !excepted(name),
-  );
+  const blocked = findings.filter(([name]) => validated.get(name) >= 2);
   if (blocked.length) {
     throw new Error(
       `Blocking dependency findings: ${blocked.map(([name]) => name).join(", ")}`,
     );
   }
-  const accepted = findings.filter(([name]) => excepted(name));
-  if (accepted.length)
-    console.log(`Accepted development-only lint advisory: ${advisory}`);
   console.log(
-    "Dependency audit passed. All other moderate-or-higher findings remain blocking.",
+    "Dependency audit passed. Moderate-or-higher findings remain blocking.",
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));

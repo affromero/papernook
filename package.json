@@ -45,6 +45,8 @@
     ]
   },
   "overrides": {
+    "braces": "https://github.com/affromero/braces/archive/ab55ec393269eeed9af90b2ae9a7c6faa41064df.tar.gz",
+    "katex": "$katex",
     "postcss": "^8.5.17"
   },
   "dependencies": {
