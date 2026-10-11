@@ -16,10 +16,6 @@ beforeEach(() => {
     path.join(root, "scripts/security/audit.mjs"),
     path.join(directory, "scripts/security/audit.mjs"),
   );
-  fs.copyFileSync(
-    path.join(root, "package-lock.json"),
-    path.join(directory, "package-lock.json"),
-  );
   fs.writeFileSync(
     path.join(directory, "bin/npm"),
     `#!${process.execPath}
@@ -92,10 +88,10 @@ function run(value: unknown, status = 1) {
   });
 }
 
-it("accepts only the unpatched development lint advisory and reports its exception", () => {
+it("blocks the formerly excepted development lint advisory", () => {
   const result = run(report());
-  expect(result.status, result.stderr).toBe(0);
-  expect(result.stdout).toContain(advisory);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("Blocking dependency findings");
 });
 
 it("passes a complete audit report with no vulnerabilities", () => {
@@ -106,98 +102,33 @@ it("passes a complete audit report with no vulnerabilities", () => {
   expect(run(value, 0).status).toBe(0);
 });
 
-it.each(["moderate", "high", "critical"])(
-  "blocks unrelated %s findings alongside the accepted advisory",
-  (severity) => {
-    const value = report();
-    value.vulnerabilities["next"] = {
-      name: "next",
-      severity,
-      isDirect: true,
-      nodes: ["node_modules/next"],
-      via: [
-        {
-          name: "next",
-          dependency: "next",
-          url: "https://github.com/advisories/another-advisory",
-          severity,
-        },
-      ],
-    };
-    value.metadata.vulnerabilities.high += severity === "high" ? 1 : 0;
-    value.metadata.vulnerabilities.moderate += severity === "moderate" ? 1 : 0;
-    value.metadata.vulnerabilities.critical += severity === "critical" ? 1 : 0;
-    value.metadata.vulnerabilities.total++;
-    const result = run(value);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("next");
-  },
-);
-
-it("blocks another advisory in braces even when the accepted advisory is present", () => {
+it.each(["moderate", "high", "critical"])("blocks %s findings", (severity) => {
   const value = report();
-  value.vulnerabilities["braces"]!.via.push({
-    name: "braces",
-    dependency: "braces",
-    url: "https://github.com/advisories/another-advisory",
-    severity: "high",
-  });
-  expect(run(value).status).not.toBe(0);
+  value.vulnerabilities = {};
+  value.metadata.vulnerabilities.high = 0;
+  value.metadata.vulnerabilities.total = 0;
+  value.vulnerabilities["next"] = {
+    name: "next",
+    severity,
+    isDirect: true,
+    nodes: ["node_modules/next"],
+    via: [
+      {
+        name: "next",
+        dependency: "next",
+        url: "https://github.com/advisories/another-advisory",
+        severity,
+      },
+    ],
+  };
+  value.metadata.vulnerabilities.high += severity === "high" ? 1 : 0;
+  value.metadata.vulnerabilities.moderate += severity === "moderate" ? 1 : 0;
+  value.metadata.vulnerabilities.critical += severity === "critical" ? 1 : 0;
+  value.metadata.vulnerabilities.total++;
+  const result = run(value);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("next");
 });
-
-it("blocks the advisory when braces is used by production dependencies", () => {
-  const lockPath = path.join(directory, "package-lock.json");
-  const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
-  delete lock.packages["node_modules/braces"].dev;
-  fs.writeFileSync(lockPath, JSON.stringify(lock));
-  expect(run(report()).status).not.toBe(0);
-});
-
-it("blocks additional nested installations outside the approved lint chain", () => {
-  const value = report();
-  value.vulnerabilities["braces"]!.nodes.push(
-    "node_modules/other/node_modules/braces",
-  );
-  expect(run(value).status).not.toBe(0);
-});
-
-it("blocks direct use of braces outside the Next lint chain", () => {
-  const value = report();
-  value.vulnerabilities["braces"]!.isDirect = true;
-  const lockPath = path.join(directory, "package-lock.json");
-  const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
-  lock.packages[""].devDependencies.braces = "3.0.3";
-  fs.writeFileSync(lockPath, JSON.stringify(lock));
-  expect(run(value).status).not.toBe(0);
-});
-
-it("blocks an exception when the dependency chain is missing from the lockfile", () => {
-  const lockPath = path.join(directory, "package-lock.json");
-  const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
-  delete lock.packages["node_modules/fast-glob"].dependencies.micromatch;
-  fs.writeFileSync(lockPath, JSON.stringify(lock));
-  expect(run(report()).status).not.toBe(0);
-});
-
-it.each([
-  ["braces", "dependencies"],
-  ["micromatch", "dependencies"],
-  ["braces", "optionalDependencies"],
-  ["micromatch", "peerDependencies"],
-])(
-  "blocks other development packages that import %s through %s",
-  (dependency, field) => {
-    const lockPath = path.join(directory, "package-lock.json");
-    const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
-    lock.packages["node_modules/another-tool"] = {
-      version: "1.0.0",
-      dev: true,
-      [field]: { [dependency]: "*" },
-    };
-    fs.writeFileSync(lockPath, JSON.stringify(lock));
-    expect(run(report()).status).not.toBe(0);
-  },
-);
 
 it.each(["missing", "low-package"])(
   "blocks malformed low-severity dependency causes: %s",
@@ -212,7 +143,9 @@ it.each(["missing", "low-package"])(
     };
     value.metadata.vulnerabilities.low++;
     value.metadata.vulnerabilities.total++;
-    expect(run(value).status).not.toBe(0);
+    const result = run(value);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("audit cause");
   },
 );
 
@@ -220,7 +153,9 @@ it("blocks unknown or cyclic dependency causes", () => {
   for (const cause of ["missing", "eslint-config-next"]) {
     const value = report();
     value.vulnerabilities["micromatch"]!.via = [cause];
-    expect(run(value).status).not.toBe(0);
+    const result = run(value);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("audit cause");
   }
 });
 
@@ -236,17 +171,28 @@ it.each(["not JSON", {}, { error: { code: "ENETUNREACH" } }])(
 it("blocks reports with missing vulnerability entries", () => {
   const value = report();
   delete value.vulnerabilities["braces"];
-  expect(run(value).status).not.toBe(0);
+  const result = run(value);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("Inconsistent npm audit report");
 });
 
-it("blocks an audit process failure even if it prints an accepted report", () => {
-  expect(run(report(), 2).status).not.toBe(0);
+it("blocks an audit process failure even if it prints a clean report", () => {
+  const value = report();
+  value.vulnerabilities = {};
+  value.metadata.vulnerabilities.high = 0;
+  value.metadata.vulnerabilities.total = 0;
+  const result = run(value, 2);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("npm audit did not complete successfully");
 });
 
 it.each(["info", "low"])(
   "preserves the moderate threshold for valid %s findings",
   (severity) => {
     const value = report();
+    value.vulnerabilities = {};
+    value.metadata.vulnerabilities.high = 0;
+    value.metadata.vulnerabilities.total = 0;
     value.vulnerabilities["another-package"] = {
       name: "another-package",
       severity,
@@ -279,5 +225,7 @@ it("blocks high-severity causes even when a parent is marked low", () => {
   };
   value.metadata.vulnerabilities.low++;
   value.metadata.vulnerabilities.total++;
-  expect(run(value).status).not.toBe(0);
+  const result = run(value);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr.split("\n")[0]).toContain("another-package");
 });
