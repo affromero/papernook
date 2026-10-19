@@ -20,8 +20,8 @@ RUN npm run build
 
 FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS runtime
 WORKDIR /app
-ARG CLAUDE_CODE_VERSION=2.1.225
-ARG CODEX_VERSION=0.144.6
+ARG CLAUDE_CODE_VERSION=2.1.303
+ARG CODEX_VERSION=0.163.0
 # poppler-utils: pdftotext for capture/FTS. qpdf: linearizes captured PDFs so
 # the reader paints page 1 early. ghostscript: downsamples their oversampled
 # figures. openssh-client: SSH agent mode + scp.

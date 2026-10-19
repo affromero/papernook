@@ -206,6 +206,10 @@ describe("agent model settings route", () => {
 
     expect(body.provider).toBe("codex");
     expect(body.suggestions).toEqual([
+      "gpt-6.1-sol",
+      "gpt-6-astra",
+      "gpt-6-sol",
+      "gpt-6-luna",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
       "gpt-5.6-luna",
@@ -232,23 +236,40 @@ describe("agent model settings route", () => {
     ).toBe(true);
   });
 
-  it("persists a selection without running provider probes", async () => {
-    const route = await signedInRoute();
-    const response = await route.PUT(
-      new NextRequest("http://localhost/api/v1/agent/model", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-5.6-terra",
-          effort: "high",
+  it.each([
+    ["codex", "gpt-6.1-sol", "high"],
+    ["openai", "gpt-6-astra", null],
+    ["anthropic", "claude-opus-5-5", null],
+    ["anthropic", "claude-sonnet-5-5", null],
+    ["anthropic", "claude-haiku-5-5", null],
+    ["anthropic", "claude-fable-5-1", null],
+  ])(
+    "persists %s model %s without running provider probes",
+    async (provider, model, effort) => {
+      const route = await signedInRoute();
+      const response = await route.PUT(
+        new NextRequest("http://localhost/api/v1/agent/model", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider,
+            model,
+            effort,
+          }),
         }),
-      }),
-    );
+      );
 
-    expect(response.ok).toBe(true);
-    const { configuredEffort, configuredModel } =
-      await import("@/lib/agent/config");
-    expect(configuredModel()).toBe("gpt-5.6-terra");
-    expect(configuredEffort()).toBe("high");
-  });
+      expect(response.ok).toBe(true);
+      const { configuredEffort, configuredModel } =
+        await import("@/lib/agent/config");
+      expect(configuredModel()).toBe(model);
+      expect(configuredEffort()).toBe(effort ?? undefined);
+      const saved = await response.json();
+      expect(saved.suggestions).toContain(model);
+      const read = await route.GET(
+        new NextRequest("http://localhost/api/v1/agent/model"),
+      );
+      expect(await read.json()).toMatchObject({ provider, model, effort });
+    },
+  );
 });

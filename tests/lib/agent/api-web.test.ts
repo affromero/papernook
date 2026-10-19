@@ -190,35 +190,44 @@ function mockOpenAI(
 }
 
 describe("API provider web access", () => {
-  it("uses the OpenAI Responses web-search tool without storing the response", async () => {
-    const responseCalls: ApiCall[] = [];
-    mockOpenAI(responseCalls, []);
-    const { openaiProvider } = await import("@/lib/agent/api");
+  it.each(["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna"])(
+    "uses %s with Responses web search without storing the response",
+    async (model) => {
+      await configureTestAgent(
+        { provider: "openai", model },
+        { apiKey: "test-openai-key" },
+      );
+      const responseCalls: ApiCall[] = [];
+      mockOpenAI(responseCalls, []);
+      const { openaiProvider } = await import("@/lib/agent/api");
 
-    await expect(
-      openaiProvider.execute({
+      await expect(
+        openaiProvider.execute({
+          system: "Ground answers in sources.",
+          prompt: "Find the implementation repository.",
+          allowWeb: true,
+        }),
+      ).resolves.toBe("openai answer");
+
+      expect(responseCalls).toHaveLength(1);
+      expect(responseCalls[0].store).toBe(false);
+      expect(responseCalls[0].model).toBe(model);
+      expect(responseCalls[0].tools).toEqual([{ type: "web_search" }]);
+
+      const chunks: string[] = [];
+      for await (const chunk of openaiProvider.stream({
         system: "Ground answers in sources.",
         prompt: "Find the implementation repository.",
         allowWeb: true,
-      }),
-    ).resolves.toBe("openai answer");
-
-    expect(responseCalls).toHaveLength(1);
-    expect(responseCalls[0].store).toBe(false);
-    expect(responseCalls[0].tools).toEqual([{ type: "web_search" }]);
-
-    const chunks: string[] = [];
-    for await (const chunk of openaiProvider.stream({
-      system: "Ground answers in sources.",
-      prompt: "Find the implementation repository.",
-      allowWeb: true,
-    })) {
-      chunks.push(chunk);
-    }
-    expect(chunks.join("")).toBe("streamed answer");
-    expect(responseCalls[1].stream).toBe(true);
-    expect(responseCalls[1].tools).toEqual([{ type: "web_search" }]);
-  });
+      })) {
+        chunks.push(chunk);
+      }
+      expect(chunks.join("")).toBe("streamed answer");
+      expect(responseCalls[1].stream).toBe(true);
+      expect(responseCalls[1].model).toBe(model);
+      expect(responseCalls[1].tools).toEqual([{ type: "web_search" }]);
+    },
+  );
 
   it("runs local-model web tools until the model returns an answer", async () => {
     const toolCalls = webCalls;
