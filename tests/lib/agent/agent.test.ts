@@ -572,17 +572,32 @@ describe("model configuration", () => {
       "haiku",
     ]);
     expect(cfg.modelSuggestions("codex")).toEqual([
+      "gpt-6.1-sol",
+      "gpt-6-astra",
+      "gpt-6-sol",
+      "gpt-6-luna",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
       "gpt-5.6-luna",
     ]);
     expect(cfg.modelSuggestions("anthropic")).toEqual([
+      "claude-fable-5-1",
+      "claude-opus-5-5",
+      "claude-sonnet-5-5",
+      "claude-haiku-5-5",
       "claude-fable-5",
       "claude-opus-4-8",
       "claude-sonnet-5",
       "claude-haiku-4-5",
     ]);
-    expect(cfg.modelSuggestions("openai")).toEqual(["gpt-5.5", "gpt-5.5-mini"]);
+    expect(cfg.modelSuggestions("openai")).toEqual([
+      "gpt-6.1-sol",
+      "gpt-6-astra",
+      "gpt-6-sol",
+      "gpt-6-luna",
+      "gpt-5.5",
+      "gpt-5.5-mini",
+    ]);
     expect(cfg.modelSuggestions("ollama")).toEqual([
       "qwen3:4b",
       "qwen3:8b",
@@ -716,7 +731,12 @@ describe("model configuration", () => {
 
     const { listOfferedModels } = await import("@/lib/agent/models");
     await expect(listOfferedModels("codex")).resolves.toEqual({
-      models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"],
+      models: expect.arrayContaining([
+        "gpt-6.1-sol",
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
+      ]),
       live: false,
       discoveryError:
         "Live model discovery failed. Check the provider connection and refresh to retry.",

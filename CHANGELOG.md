@@ -2,6 +2,27 @@
 
 All notable changes to Papernook are documented in this file.
 
+## [0.3.1] - 2026-10-19
+
+### Fixed
+
+- Settings offer current OpenAI and Claude models before discovery completes
+  and when live discovery reports an error. Containers bundle Claude Code
+  2.1.303 and Codex 0.163.0 to support the current models.
+  ([#68](https://github.com/affromero/papernook/pull/68), closes [#67](https://github.com/affromero/papernook/issues/67))
+- Chat drafts survive navigation, AI setup guidance matches the saved provider
+  configuration, and household sessions resume without repeated passkey offers.
+  ([#44](https://github.com/affromero/papernook/pull/44), [#50](https://github.com/affromero/papernook/pull/50))
+- Apply dependency security fixes and current package and GitHub Actions updates.
+  ([#62](https://github.com/affromero/papernook/pull/62), [#63](https://github.com/affromero/papernook/pull/63), [#64](https://github.com/affromero/papernook/pull/64), [#65](https://github.com/affromero/papernook/pull/65))
+
+### Changed
+
+- Access, credentials, and provider integration use the shared Sidedoor platform.
+  Household access uses one shared password with local Admin setup and clearer
+  security settings.
+  ([#39](https://github.com/affromero/papernook/pull/39), [#43](https://github.com/affromero/papernook/pull/43), [#46](https://github.com/affromero/papernook/pull/46), [#48](https://github.com/affromero/papernook/pull/48))
+
 ## [0.3.0] - 2026-09-09
 
 ### Added
@@ -183,6 +204,7 @@ Papernook v0.1.0 is the first source release of the self-hosted paper library.
   `scripts/install.sh`. The one-line installer on `main` follows current
   development.
 
+[0.3.1]: https://github.com/affromero/papernook/releases/tag/v0.3.1
 [0.3.0]: https://github.com/affromero/papernook/releases/tag/v0.3.0
 [0.2.0]: https://github.com/affromero/papernook/releases/tag/v0.2.0
 [0.1.0]: https://github.com/affromero/papernook/releases/tag/v0.1.0

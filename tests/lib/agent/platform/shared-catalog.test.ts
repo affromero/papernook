@@ -66,3 +66,56 @@ it("reports a missing catalog credential before generation", async () => {
   const { providerStatus } = await import("@/lib/agent/registry");
   expect(await providerStatus("google")).toBe("no_key");
 });
+
+it.each([
+  "claude-fable-5-1",
+  "claude-opus-5-5",
+  "claude-sonnet-5-5",
+  "claude-haiku-5-5",
+])("uses %s with adaptive thinking and native web search", async (model) => {
+  await configureTestAgent(
+    { provider: "anthropic", model },
+    { apiKey: "test-claude-key" },
+  );
+  const requests: Request[] = [];
+  vi.stubGlobal(
+    "fetch",
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      requests.push(request.clone());
+      return Response.json({
+        id: "message1",
+        type: "message",
+        role: "assistant",
+        model,
+        content: [
+          { type: "thinking", thinking: "", signature: "thinking-signature" },
+          { type: "text", text: "Grounded Claude answer" },
+        ],
+        stop_reason: "end_turn",
+        stop_sequence: null,
+        usage: { input_tokens: 10, output_tokens: 5 },
+      });
+    },
+  );
+  const { getProvider } = await import("@/lib/agent/registry");
+  expect(
+    await getProvider().execute({
+      system: "Explain clearly",
+      prompt: "Find a paper",
+      allowWeb: true,
+    }),
+  ).toBe("Grounded Claude answer");
+  const request = requests.at(-1)!;
+  expect(request.url).toBe("https://api.anthropic.com/v1/messages");
+  expect(request.headers.get("x-api-key")).toBe("test-claude-key");
+  const body = await request.json();
+  expect(body).toMatchObject({
+    model,
+    thinking: { type: "adaptive" },
+    tools: expect.arrayContaining([
+      expect.objectContaining({ name: "web_search" }),
+    ]),
+  });
+  expect(body).not.toHaveProperty("temperature");
+});
