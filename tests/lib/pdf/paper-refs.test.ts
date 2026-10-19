@@ -146,6 +146,22 @@ describe("captionPattern", () => {
     expect(pattern.test("4.3.1 More ablations")).toBe(false);
   });
 
+  it("skips author affiliation superscripts when locating Section 1", () => {
+    const pattern = captionPattern({ kind: "section", label: "1" })!;
+    // LoGo's text layer puts affiliation markers on their own lines.
+    const lines = ["1 , 2 ∗ 2 2 2", "1 2", "1 I NTRODUCTION"];
+    expect(lines.find((line) => pattern.test(line))).toBe("1 I NTRODUCTION");
+  });
+
+  it("accepts heading titles with numeric, quoted, and Unicode first words", () => {
+    const section = captionPattern({ kind: "section", label: "1" })!;
+    expect(section.test("1. 3D Consistency")).toBe(true);
+    expect(section.test("1 “World” Models")).toBe(true);
+    const appendix = captionPattern({ kind: "appendix", label: "B" })!;
+    expect(appendix.test("B. Étude complémentaire")).toBe(true);
+    expect(appendix.test("B 1 2")).toBe(false);
+  });
+
   it("returns null for equations", () => {
     expect(captionPattern({ kind: "equation", label: "5" })).toBeNull();
   });
