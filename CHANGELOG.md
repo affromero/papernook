@@ -9,7 +9,7 @@ All notable changes to Papernook are documented in this file.
 - Settings offer current OpenAI and Claude models before discovery completes
   and when live discovery reports an error. Containers bundle Claude Code
   2.1.303 and Codex 0.163.0 to support the current models.
-  ([#67](https://github.com/affromero/papernook/issues/67))
+  ([#68](https://github.com/affromero/papernook/pull/68), closes [#67](https://github.com/affromero/papernook/issues/67))
 - Chat drafts survive navigation, AI setup guidance matches the saved provider
   configuration, and household sessions resume without repeated passkey offers.
   ([#44](https://github.com/affromero/papernook/pull/44), [#50](https://github.com/affromero/papernook/pull/50))
