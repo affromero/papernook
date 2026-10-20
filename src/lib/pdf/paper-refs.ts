@@ -179,8 +179,9 @@ export function captionPattern(ref: {
   const label = escapeLabel(ref.label);
   if (ref.kind === "equation") return null;
   if (ref.kind === "section" || ref.kind === "appendix") {
-    // "4.3  Ablations" / "B.2 Proofs" — a heading line, not a sentence.
-    return new RegExp(`^${label}\\.?\\s+\\S`);
+    // The title's first word must contain a letter: affiliation superscripts
+    // can form lines like "1 , 2 *" or "1 2" above the actual heading.
+    return new RegExp(`^${label}\\.?\\s+\\S*\\p{L}`, "u");
   }
   const word = CAPTION_WORDS[ref.kind];
   if (!word) return null;
