@@ -32,8 +32,14 @@ const DEFAULT_HOSTS = [
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function viewerUrl(baseUrl, targetUrl) {
+  const target = new URL(targetUrl);
+  // The reader adds this marker to query-free PDF links so that opening the
+  // original does not trigger our redirect. Do not save it as the source.
+  if (target.search === "?papernook_original=1") target.search = "";
   return (
-    baseUrl.replace(/\/+$/, "") + "/viewer?src=" + encodeURIComponent(targetUrl)
+    baseUrl.replace(/\/+$/, "") +
+    "/viewer?src=" +
+    encodeURIComponent(target.href)
   );
 }
 
@@ -116,28 +122,32 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
+async function openInPapernook(tab) {
+  const { baseUrl = "" } = await api.storage.sync.get({ baseUrl: "" });
+  if (!baseUrl) {
+    await api.runtime.openOptionsPage();
+    return;
+  }
+  if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
+    // The button is the documented fallback path — never fail invisibly.
+    if (tab && tab.id !== undefined) {
+      await api.action.setBadgeText({ text: "!", tabId: tab.id });
+      await api.action.setTitle({
+        tabId: tab.id,
+        title:
+          "papernook can't read this page's address — reload the tab and try again",
+      });
+    }
+    return;
+  }
+  if (tab.id !== undefined) {
+    await api.action.setBadgeText({ text: "", tabId: tab.id });
+  }
+  if (tab.id !== undefined) {
+    await api.tabs.update(tab.id, { url: viewerUrl(baseUrl, tab.url) });
+  }
+}
+
 api.action.onClicked.addListener((tab) => {
-  (async () => {
-    const { baseUrl = "" } = await api.storage.sync.get({ baseUrl: "" });
-    if (!baseUrl) {
-      await api.runtime.openOptionsPage();
-      return;
-    }
-    if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
-      // The button is the documented fallback path — never fail invisibly.
-      if (tab && tab.id !== undefined) {
-        await api.action.setBadgeText({ text: "!", tabId: tab.id });
-        await api.action.setTitle({
-          tabId: tab.id,
-          title:
-            "papernook can't read this page's address — reload the tab and try again",
-        });
-      }
-      return;
-    }
-    if (tab.id !== undefined) {
-      await api.action.setBadgeText({ text: "", tabId: tab.id });
-    }
-    await api.tabs.create({ url: viewerUrl(baseUrl, tab.url) });
-  })().catch(console.error);
+  openInPapernook(tab).catch(console.error);
 });

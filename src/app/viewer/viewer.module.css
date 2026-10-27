@@ -55,6 +55,26 @@
   outline-offset: 2px;
 }
 
+.original {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--foreground) 25%, transparent);
+  border-radius: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.original:hover {
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+.original:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+
 .addBtn {
   display: inline-flex;
   align-items: center;

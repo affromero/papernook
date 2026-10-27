@@ -4,6 +4,10 @@ The same Manifest V3 extension runs in Chrome and Safari. It redirects supported
 PDF navigations to your papernook `/viewer` page and adds a toolbar button that
 opens any HTTP(S) tab in the reader.
 
+Use **Original** in Papernook to open the paper's source website. On an arXiv
+paper page, select the Papernook extension button to return to the reader in
+the same tab. Browser Back also returns to the previous view.
+
 Interception uses declarativeNetRequest redirect rules on an explicit
 research-host allowlist (see `DEFAULT_HOSTS` in `background.js`), never
 `<all_urls>`. Users can grant additional sites one at a time from the options
@@ -117,6 +121,21 @@ the folder instead of pressing Reload. If a Safari DNR build rejects dynamic
 icon slots, and archives a signed Release build; `scripts/safari/upload.sh`
 exports that archive straight to App Store Connect. `npm run release:safari`
 runs both.
+
+### iPad development
+
+`npm run build:safari:ipad-simulator` generates an iOS wrapper and builds an
+unsigned simulator app under `build/safari-ipad-derived`. This development
+build does not install the extension on an iPad or publish it. The Mac App
+Store app does not provide an iPad download. For capture on iPad, use the
+[Shortcut](../docs/shortcut.md).
+
+`bash scripts/safari/build-ipad.sh` creates a signed iOS archive at
+`build/papernook-ipad.xcarchive`. It requires the Apple Distribution certificate
+and the `papernook iOS App Store` and `papernook Extension iOS App Store`
+provisioning profiles in Xcode. The archive does not upload or submit the app.
+The iOS App Store listing must be approved before the extension is available
+to download on an iPad.
 
 ## Store assets and review
 

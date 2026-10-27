@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { PDFDocument } from "pdf-lib";
 import { restoreMayaSession } from "./support/member-session";
 
-test("documents follow system colors or stay light without changing the PDF", async ({
+test("PDF colors stay unchanged while document appearance changes", async ({
   page,
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: "dark" });
@@ -12,16 +14,47 @@ test("documents follow system colors or stay light without changing the PDF", as
   const before = await page.request.get(pdfUrl);
   expect(before.ok()).toBe(true);
   const originalBytes = await before.body();
+  const fixture = await PDFDocument.load(originalBytes);
+  const picture = await fixture.embedPng(
+    await readFile("public/avatars/macaw.png"),
+  );
+  fixture
+    .getPage(0)
+    .drawImage(picture, { x: 10, y: 692, width: 70, height: 70 });
+  const renderedBytes = await fixture.save();
+  await page.route(`**${pdfUrl}`, async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      body: Buffer.from(renderedBytes),
+      headers: {
+        ...response.headers(),
+        "content-length": String(renderedBytes.byteLength),
+      },
+    });
+  });
+  await page.reload();
   const pdfPage = page.locator(".pdfViewer .page").first();
   await expect(pdfPage.locator("canvas").first()).toBeVisible();
   const appearance = page.getByRole("combobox", {
     name: "Document appearance",
   });
   await expect(appearance).toHaveValue("theme");
-  await expect(pdfPage).not.toHaveCSS("filter", "none");
+  await expect(pdfPage).toHaveCSS("filter", "none");
+  const canvas = pdfPage.locator("canvas").first();
+  const renderedPage = async () => {
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error("PDF canvas is not visible");
+    return page.screenshot({
+      clip: { x: box.x + 20, y: box.y + 50, width: 60, height: 60 },
+    });
+  };
+  const darkPage = await renderedPage();
   await page.screenshot({ path: testInfo.outputPath("paper-dark.png") });
   await appearance.selectOption("light");
   await expect(pdfPage).toHaveCSS("filter", "none");
+  expect((await renderedPage()).equals(darkPage)).toBe(true);
   await page.reload();
   await expect(appearance).toHaveValue("light");
   await expect(pdfPage).toHaveCSS("filter", "none");
@@ -29,7 +62,7 @@ test("documents follow system colors or stay light without changing the PDF", as
   await page.emulateMedia({ colorScheme: "light" });
   await expect(pdfPage).toHaveCSS("filter", "none");
   await page.emulateMedia({ colorScheme: "dark" });
-  await expect(pdfPage).not.toHaveCSS("filter", "none");
+  await expect(pdfPage).toHaveCSS("filter", "none");
   await page.setViewportSize({ width: 320, height: 844 });
   for (const control of [
     appearance,

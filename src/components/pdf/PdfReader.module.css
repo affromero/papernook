@@ -27,16 +27,6 @@
   .stage {
   background: #202020;
 }
-:global(html[data-theme="dark"])
-  .root[data-document-appearance="theme"]
-  :global(.pdfViewer .page),
-:global(html[data-theme="dark"])
-  .root[data-document-appearance="theme"]
-  .previewPage
-  canvas {
-  filter: invert(0.9) hue-rotate(180deg);
-}
-
 .fullscreen {
   position: fixed;
   inset: 0;
@@ -560,4 +550,33 @@
   .editorTools {
     grid-row: 3;
   }
+}
+.commentDialog {
+  position: fixed;
+  z-index: 1000;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  background: var(--surface, white);
+  color: var(--text, black);
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  padding: 1rem;
+  width: min(90vw, 28rem);
+}
+
+.commentDialog textarea {
+  display: block;
+  width: 100%;
+  min-height: 8rem;
+}
+
+.toolbar .commentDialog button {
+  width: auto;
+  padding: 0.4rem 0.7rem;
+  margin: 0.5rem 0.4rem 0 0;
+}
+
+.toolbar .commentTool {
+  width: auto;
+  padding: 0.4rem 0.6rem;
 }

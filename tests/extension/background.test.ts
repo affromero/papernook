@@ -32,7 +32,7 @@ function loadBackground(baseUrl: string) {
       onChanged: { addListener: vi.fn() },
       sync: { get: vi.fn().mockResolvedValue({ baseUrl }) },
     },
-    tabs: { create: vi.fn().mockResolvedValue(undefined) },
+    tabs: { update: vi.fn().mockResolvedValue(undefined) },
   };
   const source = fs.readFileSync(
     path.resolve(import.meta.dirname, "../../extension/background.js"),
@@ -56,10 +56,10 @@ describe("browser extension toolbar", () => {
     await settle();
 
     expect(api.runtime.openOptionsPage).toHaveBeenCalledOnce();
-    expect(api.tabs.create).not.toHaveBeenCalled();
+    expect(api.tabs.update).not.toHaveBeenCalled();
   });
 
-  it("opens the current HTTP page in the configured reader", async () => {
+  it("opens the current HTTP page in the configured reader in the same tab", async () => {
     const { api, clickHandler } = loadBackground("https://papers.example.com/");
 
     clickHandler({ id: 7, url: "https://example.org/paper?id=a&view=pdf" });
@@ -69,8 +69,32 @@ describe("browser extension toolbar", () => {
       text: "",
       tabId: 7,
     });
-    expect(api.tabs.create).toHaveBeenCalledWith({
+    expect(api.tabs.update).toHaveBeenCalledWith(7, {
       url: "https://papers.example.com/viewer?src=https%3A%2F%2Fexample.org%2Fpaper%3Fid%3Da%26view%3Dpdf",
+    });
+  });
+
+  it("returns from an original PDF without retaining the bypass marker", async () => {
+    const { api, clickHandler } = loadBackground("https://papers.example.com");
+    clickHandler({
+      id: 7,
+      url: "https://example.org/paper.pdf?papernook_original=1#page=3",
+    });
+    await settle();
+    expect(api.tabs.update).toHaveBeenCalledWith(7, {
+      url: "https://papers.example.com/viewer?src=https%3A%2F%2Fexample.org%2Fpaper.pdf%23page%3D3",
+    });
+  });
+
+  it("preserves an original PDF's signed query when returning to the reader", async () => {
+    const { api, clickHandler } = loadBackground("https://papers.example.com");
+    clickHandler({
+      id: 7,
+      url: "https://example.org/paper.pdf?signature=a%2Bb#page=2",
+    });
+    await settle();
+    expect(api.tabs.update).toHaveBeenCalledWith(7, {
+      url: "https://papers.example.com/viewer?src=https%3A%2F%2Fexample.org%2Fpaper.pdf%3Fsignature%3Da%252Bb%23page%3D2",
     });
   });
 
@@ -87,6 +111,6 @@ describe("browser extension toolbar", () => {
     expect(api.action.setTitle).toHaveBeenCalledWith(
       expect.objectContaining({ tabId: 9 }),
     );
-    expect(api.tabs.create).not.toHaveBeenCalled();
+    expect(api.tabs.update).not.toHaveBeenCalled();
   });
 });

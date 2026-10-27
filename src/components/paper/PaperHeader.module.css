@@ -44,7 +44,8 @@
 
 .viewToggle {
   display: inline-grid;
-  grid-template-columns: 1fr 1fr;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   padding: 3px;
   border: 1px solid var(--paper-line);
   border-radius: 999px;

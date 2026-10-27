@@ -68,7 +68,15 @@ export default async function ViewerPage({ searchParams }: ViewerPageProps) {
   // pending inbox confirmation — instead of the plain viewer.
   let arxivId: string | null = null;
   try {
-    arxivId = normalizeUrl(url.href).arxivId;
+    const identificationUrl = new URL(url);
+    identificationUrl.hash = "";
+    if (
+      identificationUrl.hostname.toLowerCase().replace(/^www\./, "") ===
+      "arxiv.org"
+    ) {
+      identificationUrl.search = "";
+    }
+    arxivId = normalizeUrl(identificationUrl.href).arxivId;
   } catch {
     arxivId = null;
   }
