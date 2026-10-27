@@ -22,6 +22,7 @@ xcodebuild -project build/safari-ipad/papernook/papernook.xcodeproj \
   -archivePath build/papernook-ipad.xcarchive \
   DEVELOPMENT_TEAM="$TEAM_ID" \
   CODE_SIGN_IDENTITY='Apple Distribution' \
+  INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO \
   MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" archive
 
 echo "iOS archive: build/papernook-ipad.xcarchive (version $VERSION, build $BUILD)"
