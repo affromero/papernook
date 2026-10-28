@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { restoreMayaSession } from "../support/member-session";
 import {
   PDFArray,
@@ -10,7 +10,10 @@ import {
 } from "pdf-lib";
 
 const pdfUrl = "/api/v1/papers/machine-learning/attention-is-all-you-need/pdf";
+const chatsUrl =
+  "/api/v1/papers/machine-learning/attention-is-all-you-need/chats";
 let originalPdf: Buffer;
+let temporaryChatId: string | null = null;
 
 function annotationsOnFirstPage(document: PDFDocument) {
   const array = document.getPage(0).node.Annots();
@@ -35,7 +38,23 @@ function annotationsOnFirstPage(document: PDFDocument) {
 const noteContents =
   "Every token can connect directly to every other token, so long-range relationships need fewer sequential steps and training parallelizes across positions.";
 
+async function openSeededConversation(page: Page): Promise<void> {
+  // Other journeys may have created a newer empty conversation. Exercise
+  // that case explicitly, then select the chat containing the note text.
+  const created = await page.request.post(chatsUrl, { data: {} });
+  expect(created.ok()).toBe(true);
+  const payload = (await created.json()) as { chat: { id: string } };
+  temporaryChatId = payload.chat.id;
+  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  const conversations = page.getByRole("combobox", {
+    name: "Previous conversations",
+  });
+  await conversations.selectOption("0123456789abcdef");
+  await expect(page.getByText(noteContents)).toBeVisible({ timeout: 30_000 });
+}
+
 test.beforeEach(async ({ page }) => {
+  temporaryChatId = null;
   await restoreMayaSession(page);
   const response = await page.request.get(pdfUrl);
   expect(response.ok()).toBe(true);
@@ -43,15 +62,27 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page }) => {
-  const current = await page.request.get(pdfUrl);
-  expect(current.ok()).toBe(true);
-  const etag = current.headers().etag;
-  if (!etag) throw new Error("PDF response has no ETag");
-  const restored = await page.request.put(pdfUrl, {
-    headers: { "content-type": "application/pdf", "if-match": etag },
-    data: originalPdf,
-  });
-  expect(restored.ok()).toBe(true);
+  try {
+    const current = await page.request.get(pdfUrl);
+    expect(current.ok()).toBe(true);
+    const etag = current.headers().etag;
+    if (!etag) throw new Error("PDF response has no ETag");
+    const restored = await page.request.put(pdfUrl, {
+      headers: { "content-type": "application/pdf", "if-match": etag },
+      data: originalPdf,
+    });
+    expect(restored.ok()).toBe(true);
+  } finally {
+    if (temporaryChatId) {
+      const removed = await page.request.delete(
+        `${chatsUrl}/${temporaryChatId}`,
+        {
+          data: { entire: true },
+        },
+      );
+      expect(removed.ok()).toBe(true);
+    }
+  }
 });
 
 test("a reader creates, edits and deletes an attributed PDF comment", async ({
@@ -130,7 +161,7 @@ test("a comment draft is protected when leaving the reader", async ({
 test("chat notes wait until a comment save and reload finish", async ({
   page,
 }) => {
-  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  await openSeededConversation(page);
   const pdfPage = page.locator(".pdfViewer .page").first();
   await expect(pdfPage.locator("canvas").first()).toBeVisible();
   const note = page.getByRole("button", {
@@ -191,7 +222,7 @@ test("chat notes wait until a comment save and reload finish", async ({
 test("a comment waits for an in-flight chat note to save and reload", async ({
   page,
 }) => {
-  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  await openSeededConversation(page);
   const pdfPage = page.locator(".pdfViewer .page").first();
   await expect(pdfPage.locator("canvas").first()).toBeVisible();
   const note = page.getByRole("button", {
