@@ -4,21 +4,28 @@ import { useEffect, useRef, type RefObject } from "react";
 import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 
 /**
- * Pencil mode reserves touch for pinch zoom (the pen owns drawing):
- * capture-phase handlers swallow every touch on the stage and feed
- * two-finger distances into pdf.js's updateScale fast path.
+ * Pencil mode reserves touch for pinch zoom while drawing. Comment mode
+ * allows single-finger placement while retaining two-finger zoom.
  */
 export function usePinchZoom(
   stageRef: RefObject<HTMLDivElement | null>,
   viewerRef: RefObject<PDFViewer | null>,
   active: boolean,
+  allowSingleTouch = false,
 ): void {
   const pinchDistanceRef = useRef<number | null>(null);
+  const pinchGestureRef = useRef(false);
 
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage || !active) return;
     const reserveTouch = (event: TouchEvent) => {
+      if (
+        allowSingleTouch &&
+        event.touches.length < 2 &&
+        !pinchGestureRef.current
+      )
+        return;
       event.preventDefault();
       event.stopPropagation();
     };
@@ -33,6 +40,7 @@ export function usePinchZoom(
       );
     };
     const beginGesture = (event: TouchEvent) => {
+      if (event.touches.length >= 2) pinchGestureRef.current = true;
       reserveTouch(event);
       pinchDistanceRef.current = touchDistance(event);
     };
@@ -60,6 +68,7 @@ export function usePinchZoom(
     const endGesture = (event: TouchEvent) => {
       reserveTouch(event);
       if (event.touches.length < 2) pinchDistanceRef.current = null;
+      if (event.touches.length === 0) pinchGestureRef.current = false;
     };
     const options: AddEventListenerOptions = {
       capture: true,
@@ -71,12 +80,13 @@ export function usePinchZoom(
     stage.addEventListener("touchcancel", endGesture, options);
     return () => {
       pinchDistanceRef.current = null;
+      pinchGestureRef.current = false;
       stage.removeEventListener("touchstart", beginGesture, options);
       stage.removeEventListener("touchmove", updateGesture, options);
       stage.removeEventListener("touchend", endGesture, options);
       stage.removeEventListener("touchcancel", endGesture, options);
     };
-  }, [active, stageRef, viewerRef]);
+  }, [active, allowSingleTouch, stageRef, viewerRef]);
 
   // Desktop trackpad pinch arrives as a wheel event with ctrlKey set
   // (never as touches), so it stays active regardless of pencil mode.

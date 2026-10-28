@@ -61,6 +61,19 @@ test("PDF colors stay unchanged while document appearance changes", async ({
   await appearance.selectOption("theme");
   await page.emulateMedia({ colorScheme: "light" });
   await expect(pdfPage).toHaveCSS("filter", "none");
+  await appearance.selectOption("dark");
+  await expect(pdfPage.locator("../../..")).toHaveCSS(
+    "background-color",
+    "rgb(32, 32, 32)",
+  );
+  expect((await renderedPage()).equals(darkPage)).toBe(true);
+  await page.reload();
+  await expect(appearance).toHaveValue("dark");
+  await expect(pdfPage.locator("../../..")).toHaveCSS(
+    "background-color",
+    "rgb(32, 32, 32)",
+  );
+  await appearance.selectOption("theme");
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(pdfPage).toHaveCSS("filter", "none");
   await page.setViewportSize({ width: 320, height: 844 });
@@ -117,8 +130,9 @@ test("PDF colors stay unchanged while document appearance changes", async ({
     await expect(sheet).toHaveCSS("background-color", "rgb(255, 255, 255)");
     await other
       .getByRole("combobox", { name: "Document appearance" })
-      .selectOption("theme");
-    await expect(appearance).toHaveValue("theme");
+      .selectOption("dark");
+    await page.emulateMedia({ colorScheme: "light" });
+    await expect(appearance).toHaveValue("dark");
     await expect(sheet).toHaveCSS("background-color", "rgb(23, 23, 23)");
     await other.close();
     await expect(sheet).toHaveCSS("color", "rgb(237, 237, 237)");
@@ -131,6 +145,11 @@ test("PDF colors stay unchanged while document appearance changes", async ({
     await page.reload();
     await expect(appearance).toHaveValue("light");
     await expect(sheet).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await appearance.selectOption("dark");
+    await expect(sheet).toHaveCSS("background-color", "rgb(23, 23, 23)");
+    await page.reload();
+    await expect(appearance).toHaveValue("dark");
+    await expect(sheet).toHaveCSS("background-color", "rgb(23, 23, 23)");
     await appearance.selectOption("theme");
     await page.emulateMedia({ colorScheme: "light" });
     await expect(sheet).toHaveCSS("background-color", "rgb(255, 255, 255)");

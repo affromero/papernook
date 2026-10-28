@@ -219,7 +219,7 @@ export function PdfReader({
     setDocumentGeneration,
   });
 
-  usePinchZoom(stageRef, pdfViewerRef, pencilMode);
+  usePinchZoom(stageRef, pdfViewerRef, pencilMode, commentEnabled);
 
   // Read-only readers have no edit mode, yet their text layer is just as
   // selectable; only the ink/highlight tools of an editable reader hide it.
@@ -349,6 +349,7 @@ export function PdfReader({
 
   function enablePencilDrawing(event: PointerEvent<HTMLDivElement>): void {
     captureReferenceAnchor(event);
+    if (commentEnabled) return;
     if (pencilMode && event.pointerType === "touch") {
       event.preventDefault();
       event.stopPropagation();
@@ -578,7 +579,7 @@ export function PdfReader({
           <div className={styles.editorTools} aria-label="Annotation tools">
             <EditorButton
               label="Select"
-              active={editMode === "select"}
+              active={editMode === "select" && !commentEnabled}
               onClick={() => chooseEditMode("select")}
               disabled={!editorReady || commentDraftActive}
             >
@@ -610,6 +611,7 @@ export function PdfReader({
             </EditorButton>
             <PdfComments
               src={src}
+              appearance={appearance}
               pdfDocument={pdfDocument}
               viewer={pdfViewerRef}
               stage={stageRef}
@@ -743,7 +745,10 @@ export function PdfReader({
       <div
         ref={stageRef}
         inert={commentDraftActive}
-        className={`${styles.stage} ${pencilMode ? styles.pencilMode : ""}`}
+        data-comment-placement={
+          commentEnabled && !commentDraftActive ? "true" : undefined
+        }
+        className={`${styles.stage} ${pencilMode && !commentEnabled ? styles.pencilMode : ""}`}
         onPointerDownCapture={enablePencilDrawing}
         onPointerOver={scheduleHoverPreview}
         onPointerOut={cancelHoverPreview}
