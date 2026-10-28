@@ -163,6 +163,7 @@ export function PdfReader({
   } = usePdfDocument({
     src,
     editable,
+    appearance,
     positionKey,
     positionEndpoint,
     onEditStateChange,

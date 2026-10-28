@@ -33,6 +33,7 @@ import {
   type ReadingPosition,
 } from "@/lib/pdf/view/reading-position";
 import type { ViewerEventBus } from "./useCitationHotspots";
+import { installDarkPdfRendering } from "./rendering/darkPdfRendering";
 
 const READING_POSITION_WRITE_DELAY_MS = 500;
 
@@ -107,6 +108,7 @@ function uiManagerFromEvent(event: unknown): AnnotationEditorUIManager | null {
 interface UsePdfDocumentOptions {
   src: string;
   editable: boolean;
+  appearance: "theme" | "light" | "dark";
   /**
    * localStorage key under which the last page and zoom are remembered and
    * restored on the next open. Omitted on surfaces (share links, the
@@ -187,6 +189,7 @@ export interface PdfDocumentHandle {
 export function usePdfDocument({
   src,
   editable,
+  appearance,
   positionKey,
   positionEndpoint,
   onEditStateChange,
@@ -196,6 +199,7 @@ export function usePdfDocument({
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const pdfViewerRef = useRef<PDFViewer | null>(null);
   const documentRef = useRef<PDFDocumentProxy | null>(null);
+  const darkRef = useRef(false);
   const etagRef = useRef<string | null>(null);
   const editorTypesRef = useRef<EditorTypes | null>(null);
   const autosaveRef = useRef<PdfAutosaveCoordinator | null>(null);
@@ -240,6 +244,38 @@ export function usePdfDocument({
   const noteUserMove = () => {
     userMovedRef.current = true;
   };
+
+  useEffect(() => {
+    const updateAppearance = () => {
+      const dark =
+        appearance === "dark" ||
+        (appearance === "theme" &&
+          document.documentElement.dataset.theme === "dark");
+      if (darkRef.current === dark) return;
+      darkRef.current = dark;
+      const viewer = pdfViewerRef.current;
+      if (!viewer) return;
+      // refresh() skips re-rendering pages with restricted canvas scaling.
+      // Keep the editor and annotation layers alive while replacing the paint.
+      for (let index = 0; index < viewer.pagesCount; index++) {
+        viewer.getPageView(index)?.reset({
+          keepAnnotationLayer: true,
+          keepAnnotationEditorLayer: true,
+          keepXfaLayer: true,
+          keepTextLayer: true,
+          keepCanvasWrapper: true,
+        });
+      }
+      viewer.update();
+    };
+    updateAppearance();
+    const observer = new MutationObserver(updateAppearance);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, [appearance]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -695,6 +731,10 @@ export function usePdfDocument({
           };
           storage.onResetModified = null;
         }
+        const removeDarkRendering = installDarkPdfRendering(
+          document,
+          () => darkRef.current,
+        );
         linkService.setDocument(document);
         pdfViewer.setDocument(document);
 
@@ -722,6 +762,7 @@ export function usePdfDocument({
             autosaveRef.current = null;
           }
           pdfViewer.cleanup();
+          removeDarkRendering();
         };
       } catch (error) {
         if (
