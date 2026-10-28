@@ -18,6 +18,25 @@ type PdfBox = { x: number; y: number; width: number; height: number };
 
 async function screenshotRegion(page: Page, region: PdfBox): Promise<Buffer> {
   const pdfPage = page.locator(".pdfViewer .page").first();
+  await pdfPage.evaluate(
+    (element, sample) => {
+      const container = element.closest(".pdfViewer")?.parentElement;
+      if (!container) throw new Error("PDF viewport is missing");
+      const pageBox = element.getBoundingClientRect();
+      const viewport = container.getBoundingClientRect();
+      const scale = pageBox.width / sample.pageWidth;
+      const x = pageBox.left + sample.region.x * scale;
+      const y =
+        pageBox.top +
+        (sample.pageHeight - sample.region.y - sample.region.height) * scale;
+      container.scrollBy({
+        left: x - viewport.left - 20,
+        top: y - viewport.top - 20,
+        behavior: "instant",
+      });
+    },
+    { region, pageWidth, pageHeight },
+  );
   const box = await pdfPage.boundingBox();
   if (!box) throw new Error("PDF page is not visible");
   const scale = box.width / pageWidth;
@@ -70,6 +89,22 @@ test("dark PDF pages keep photos and readable text while preserving drafts", asy
 }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await restoreMayaSession(page);
+  // The high-zoom part of this test must not change Maya's saved position for
+  // other browser journeys, even if the test fails midway through.
+  await page
+    .context()
+    .route(
+      "**/api/v1/papers/machine-learning/attention-is-all-you-need/position",
+      async (route) => {
+        if (route.request().method() === "GET") {
+          await route.fulfill({ json: { position: null } });
+        } else if (route.request().method() === "PUT") {
+          await route.fulfill({ json: { ok: true } });
+        } else {
+          await route.continue();
+        }
+      },
+    );
   const original = await page.request.get(pdfUrl);
   expect(original.ok()).toBe(true);
   const originalBytes = await original.body();
