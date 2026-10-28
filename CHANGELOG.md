@@ -2,6 +2,32 @@
 
 All notable changes to Papernook are documented in this file.
 
+## [0.4.0] - 2026-10-27
+
+### Added
+
+- Add PDF comment bubbles with profile names, and edit or delete your own
+  comments. Comment changes rewrite unsigned PDFs; signed and encrypted PDFs
+  cannot be edited. ([#77](https://github.com/affromero/papernook/pull/77))
+- Build a Safari extension wrapper for iPhone and iPad.
+  ([#77](https://github.com/affromero/papernook/pull/77))
+
+### Changed
+
+- Open the original paper from the reader and use the extension button to
+  return to Papernook in the same tab.
+  ([#77](https://github.com/affromero/papernook/pull/77))
+
+### Fixed
+
+- Preserve PDF figure colors in dark mode and show the password screen
+  immediately after logging out.
+  ([#77](https://github.com/affromero/papernook/pull/77))
+- Resolve section references without mistaking author affiliations for
+  headings. ([#70](https://github.com/affromero/papernook/pull/70), closes [#69](https://github.com/affromero/papernook/issues/69)) (reported by @affromero)
+- Update dependencies and apply security fixes.
+  ([#73](https://github.com/affromero/papernook/pull/73), [#71](https://github.com/affromero/papernook/pull/71), [#74](https://github.com/affromero/papernook/pull/74), [#75](https://github.com/affromero/papernook/pull/75), closes [#72](https://github.com/affromero/papernook/issues/72)) (reported by @affromero)
+
 ## [0.3.1] - 2026-10-19
 
 ### Fixed
