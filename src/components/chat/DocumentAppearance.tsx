@@ -3,12 +3,12 @@
 import { useSyncExternalStore } from "react";
 import styles from "./DocumentAppearance.module.css";
 
-type Appearance = "theme" | "light";
+type Appearance = "theme" | "light" | "dark";
 const KEY = "papernook:document-appearance";
 const EVENT = "papernook:document-appearance-changed";
 
 function normalize(value: string | null | undefined): Appearance {
-  return value === "light" ? "light" : "theme";
+  return value === "light" || value === "dark" ? value : "theme";
 }
 
 function current(): Appearance {
@@ -70,6 +70,7 @@ export function DocumentAppearanceSelect({ value }: { value: Appearance }) {
       >
         <option value="theme">Follow theme</option>
         <option value="light">Always light</option>
+        <option value="dark">Always dark</option>
       </select>
     </label>
   );

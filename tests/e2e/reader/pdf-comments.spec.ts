@@ -103,6 +103,7 @@ test("a reader creates, edits and deletes an attributed PDF comment", async ({
     .fill("A useful observation");
   await dialog.getByRole("button", { name: "Save comment" }).click();
   await expect(dialog).toBeHidden();
+  await expect(comment).toBeFocused({ timeout: 30_000 });
   const marker = pdfPage.locator(".textAnnotation").last();
   await expect(marker).toBeVisible();
   await marker.hover();

@@ -10,21 +10,22 @@
   background: #d9dcda;
   box-shadow: 0 12px 32px rgba(27, 34, 29, 0.12);
 }
-:global(html[data-theme="dark"]) .root[data-document-appearance="theme"] {
+:global(html[data-theme="dark"]) .root[data-document-appearance="theme"],
+.root[data-document-appearance="dark"] {
   border-color: #444;
   background: #202020;
   color-scheme: dark;
 }
 :global(html[data-theme="dark"])
   .root[data-document-appearance="theme"]
-  .toolbar {
+  .toolbar,
+.root[data-document-appearance="dark"] .toolbar {
   color: #ededed;
   background: #1a1a1a;
   border-color: #444;
 }
-:global(html[data-theme="dark"])
-  .root[data-document-appearance="theme"]
-  .stage {
+:global(html[data-theme="dark"]) .root[data-document-appearance="theme"] .stage,
+.root[data-document-appearance="dark"] .stage {
   background: #202020;
 }
 .fullscreen {
@@ -81,7 +82,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.2rem;
+  gap: 0.15rem;
+  padding: 3px;
+  border: 1px solid #d0d6d0;
+  border-radius: 8px;
+  background: #e9eee9;
 }
 
 .toolbar .editorButton,
@@ -107,6 +112,50 @@
   border-color: #8cab9b;
 }
 
+:global(html[data-theme="dark"])
+  .root[data-document-appearance="theme"]
+  .editorTools,
+.root[data-document-appearance="dark"] .editorTools {
+  background: #252c28;
+  border-color: #435149;
+}
+
+:global(html[data-theme="dark"])
+  .root[data-document-appearance="theme"]
+  .toolbar
+  button:hover:not(:disabled),
+.root[data-document-appearance="dark"] .toolbar button:hover:not(:disabled),
+:global(html[data-theme="dark"])
+  .root[data-document-appearance="theme"]
+  .originalLink:hover,
+.root[data-document-appearance="dark"] .originalLink:hover {
+  background: #35443b;
+  border-color: #60786a;
+}
+
+:global(html[data-theme="dark"])
+  .root[data-document-appearance="theme"]
+  .toolbar
+  .activeTool,
+:global(html[data-theme="dark"])
+  .root[data-document-appearance="theme"]
+  .toolbar
+  .activeTool:hover:not(:disabled),
+.root[data-document-appearance="dark"] .toolbar .activeTool,
+.root[data-document-appearance="dark"]
+  .toolbar
+  .activeTool:hover:not(:disabled) {
+  background: #dcebe2;
+  border-color: #a8c2b2;
+  color: #214d3a;
+}
+
+.toolbar button:focus-visible,
+.originalLink:focus-visible {
+  outline: 2px solid #679878;
+  outline-offset: 2px;
+}
+
 .toolbar .saveButton {
   margin-left: 0.2rem;
   color: #fff;
@@ -121,9 +170,18 @@
 }
 
 .toolbar .saveButton:disabled {
-  color: #59635d;
-  background: #e2e5e1;
+  color: #596b5f;
+  background: transparent;
   border-color: transparent;
+  opacity: 0.65;
+}
+
+:global(html[data-theme="dark"])
+  .root[data-document-appearance="theme"]
+  .toolbar
+  .saveButton:disabled,
+.root[data-document-appearance="dark"] .toolbar .saveButton:disabled {
+  color: #a4b3a8;
 }
 
 .toolbar button:hover,
@@ -204,6 +262,50 @@
   min-height: 0;
   background:
     linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)), #d9dcda;
+}
+
+.stage[data-comment-placement="true"] :global(.pdfViewer .page),
+.stage[data-comment-placement="true"] :global(.pdfViewer .page *) {
+  cursor: crosshair !important;
+}
+
+.toolbar .keyboardPlace {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.toolbar .keyboardPlace:focus {
+  position: static;
+  width: auto;
+  height: 32px;
+  padding: 0 0.6rem;
+  overflow: visible;
+  clip-path: none;
+  border: 1px solid #8cab9b;
+  border-radius: 7px;
+  outline: 2px solid #679878;
+  outline-offset: 2px;
+  color: #fff;
+  background: #315f4c;
+  box-shadow: 0 4px 14px rgba(20, 32, 24, 0.25);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@container (max-width: 650px) {
+  .editorTools:has(.keyboardPlace:focus) {
+    flex-wrap: wrap;
+  }
+  .toolbar .keyboardPlace:focus {
+    width: 100%;
+    min-height: 44px;
+  }
 }
 
 .pencilMode {
@@ -550,33 +652,127 @@
   .editorTools {
     grid-row: 3;
   }
+  .editorButton span,
+  .saveButton span {
+    display: none;
+  }
+  .toolbar .editorButton,
+  .toolbar .saveButton {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
 }
-.commentDialog {
+.commentOverlay {
   position: fixed;
   z-index: 1000;
-  inset: 50% auto auto 50%;
-  transform: translate(-50%, -50%);
-  background: var(--surface, white);
-  color: var(--text, black);
-  border: 1px solid currentColor;
-  border-radius: 8px;
-  padding: 1rem;
-  width: min(90vw, 28rem);
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.commentDialog {
+  width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  padding: 0.9rem;
+  color: #27322b;
+  background: #f7f8f4;
+  border: 1px solid #a9b7ac;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 32, 24, 0.25);
+  pointer-events: auto;
+  font-size: 0.8rem;
+  color-scheme: light;
+}
+
+.commentDialog label {
+  display: block;
+  font-weight: 700;
 }
 
 .commentDialog textarea {
   display: block;
   width: 100%;
-  min-height: 8rem;
+  min-height: 7rem;
+  margin-top: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #a9b7ac;
+  border-radius: 6px;
+  color: #1f2822;
+  background: #fff;
+  font: inherit;
+  resize: vertical;
 }
 
-.toolbar .commentDialog button {
-  width: auto;
-  padding: 0.4rem 0.7rem;
-  margin: 0.5rem 0.4rem 0 0;
+.commentDialog textarea:focus-visible {
+  outline: 2px solid #679878;
+  outline-offset: 1px;
 }
 
-.toolbar .commentTool {
-  width: auto;
-  padding: 0.4rem 0.6rem;
+.commentDialog button {
+  min-height: 34px;
+  padding: 0.35rem 0.65rem;
+  margin: 0.6rem 0.35rem 0 0;
+  border: 1px solid #a9b7ac;
+  border-radius: 6px;
+  color: #27322b;
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.commentDialog button:first-of-type {
+  color: #fff;
+  background: #315f4c;
+  border-color: #315f4c;
+}
+
+.commentDialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.commentDialog button:focus-visible {
+  outline: 2px solid #679878;
+  outline-offset: 2px;
+}
+
+:global(html[data-theme="dark"])
+  .commentDialog[data-document-appearance="theme"],
+.commentDialog[data-document-appearance="dark"] {
+  color: #ededed;
+  background: #202722;
+  border-color: #65766b;
+  color-scheme: dark;
+}
+
+:global(html[data-theme="dark"])
+  .commentDialog[data-document-appearance="theme"]
+  textarea,
+.commentDialog[data-document-appearance="dark"] textarea {
+  color: #ededed;
+  background: #151c17;
+  border-color: #65766b;
+}
+
+:global(html[data-theme="dark"])
+  .commentDialog[data-document-appearance="theme"]
+  button,
+.commentDialog[data-document-appearance="dark"] button {
+  color: #ededed;
+  background: #303d34;
+  border-color: #65766b;
+}
+
+:global(html[data-theme="dark"])
+  .commentDialog[data-document-appearance="theme"]
+  button:first-of-type,
+.commentDialog[data-document-appearance="dark"] button:first-of-type {
+  color: #fff;
+  background: #315f4c;
+  border-color: #6d9b7f;
 }

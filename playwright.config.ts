@@ -31,11 +31,14 @@ export default defineConfig({
       testIgnore: "**/safari-reader.spec.ts",
     },
     {
-      // Safari-only smoke test for the reader; the screenshot journeys stay
-      // on chromium because their snapshots are engine-specific.
+      // Reader and comment placement smoke tests also run in Safari. The
+      // screenshot journeys stay on Chromium because snapshots are engine-specific.
       name: "webkit",
       use: { ...devices["Desktop Safari"] },
-      testMatch: "**/safari-reader.spec.ts",
+      testMatch: [
+        "**/safari-reader.spec.ts",
+        "**/reader/comment-position.spec.ts",
+      ],
     },
   ],
   webServer: {

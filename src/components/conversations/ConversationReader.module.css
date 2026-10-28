@@ -169,13 +169,15 @@
 :global(html[data-theme="dark"])
   .page
   [data-document-appearance="theme"]
-  .documentScroll {
+  .documentScroll,
+.page [data-document-appearance="dark"] .documentScroll {
   background: #171717;
 }
 :global(html[data-theme="dark"])
   .page
   [data-document-appearance="theme"]
-  .paper {
+  .paper,
+.page [data-document-appearance="dark"] .paper {
   --reader-ink: #ededed;
   --reader-muted: #aaa;
   --reader-accent: #a7b1f2;
