@@ -114,6 +114,27 @@ describe("versioned PDF files", () => {
     ).rejects.toThrow(PdfConflictError);
     expect(fs.readFileSync(pdfPath)).toEqual(Buffer.from(external));
   });
+
+  it("rejects a rewrite when another editor saves during the transform", async () => {
+    const pdfPath = await placePaper();
+    const { PdfConflictError, readVersionedPdf, rewritePdf } =
+      await import("@/lib/library/pdf/file");
+    const opened = await readVersionedPdf("nlp", "attention");
+    const external = await makePdf("new Pencil ink");
+    const rewritten = await makePdf("browser comment");
+    await expect(
+      rewritePdf(
+        "nlp",
+        "attention",
+        async () => {
+          fs.writeFileSync(pdfPath, external);
+          return rewritten;
+        },
+        opened!.etag,
+      ),
+    ).rejects.toThrow(PdfConflictError);
+    expect(fs.readFileSync(pdfPath)).toEqual(Buffer.from(external));
+  });
 });
 
 describe("authenticated PDF route", () => {

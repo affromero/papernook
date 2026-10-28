@@ -1,5 +1,5 @@
 // Private documents live in IndexedDB. HTTP caches contain only a generic reader.
-const SHELL_CACHE = "papernook-shell-3e8506cb1146ca17";
+const SHELL_CACHE = "papernook-shell-54987676a55764da";
 const STATIC_CACHE = "papernook-static-v1";
 const PREFIX = "papernook-";
 

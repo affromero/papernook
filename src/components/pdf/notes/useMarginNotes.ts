@@ -25,6 +25,7 @@ import {
 } from "@/lib/chat/paper-ref-events";
 import { NOTE_FONT_SIZE, noteRect } from "@/lib/chat/margin-note";
 import type { PdfAutosaveCoordinator } from "@/lib/pdf/autosave";
+import type { PdfEditGate } from "@/lib/pdf/reader/edit-gate";
 import { locateRef, type LineCache } from "../usePaperRefBridge";
 import type { EditMode } from "../usePdfDocument";
 
@@ -45,6 +46,7 @@ interface UseMarginNotesOptions {
   /** Another session saved first; the coordinator is paused until the
    * reader reloads, so a note written now could never reach the file. */
   remoteUpdate: boolean;
+  editGate: RefObject<PdfEditGate>;
   setEditMode: Dispatch<SetStateAction<EditMode>>;
   setSaveStatus: Dispatch<SetStateAction<string>>;
   setDocumentGeneration: Dispatch<SetStateAction<number>>;
@@ -81,6 +83,7 @@ export function useMarginNotes({
   autosaveRef,
   restoreViewRef,
   remoteUpdate,
+  editGate,
   setEditMode,
   setSaveStatus,
   setDocumentGeneration,
@@ -166,6 +169,7 @@ export function useMarginNotes({
       // The rebuilt viewer starts in select mode; keep the toolbar honest.
       setEditMode("select");
       setSaveStatus(`Note saved on page ${pageNumber}`);
+      editGate.current.reloadingDocument = pdfDocument;
       setDocumentGeneration((generation) => generation + 1);
     };
 
@@ -174,10 +178,24 @@ export function useMarginNotes({
         (event as CustomEvent<unknown>).detail,
       );
       if (!detail) return;
-      saveNote(detail).catch((error: unknown) => {
-        console.error("papernook: margin note failed", error);
-        if (!disposed) setSaveStatus("The note could not be saved.");
-      });
+      const gate = editGate.current;
+      if (gate.commentActive) {
+        setSaveStatus("Finish the comment before saving a note.");
+        return;
+      }
+      if (gate.notesInFlight || gate.reloadingDocument) {
+        setSaveStatus("Wait for the note to finish saving.");
+        return;
+      }
+      gate.notesInFlight += 1;
+      void saveNote(detail)
+        .catch((error: unknown) => {
+          console.error("papernook: margin note failed", error);
+          if (!disposed) setSaveStatus("The note could not be saved.");
+        })
+        .finally(() => {
+          gate.notesInFlight -= 1;
+        });
     };
 
     window.addEventListener(MARGIN_NOTE_EVENT, onMarginNote);
@@ -193,6 +211,7 @@ export function useMarginNotes({
     autosaveRef,
     restoreViewRef,
     remoteUpdate,
+    editGate,
     setEditMode,
     setSaveStatus,
     setDocumentGeneration,

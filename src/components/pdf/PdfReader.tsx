@@ -20,6 +20,8 @@ import {
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { ResolvedPdfDestination } from "@/lib/pdf/destinations";
 import { resolvePdfDocumentTitle } from "@/lib/pdf/title";
+import { originalPdfUrl } from "@/lib/pdf/reader/source-link";
+import type { PdfEditGate } from "@/lib/pdf/reader/edit-gate";
 import { usePdfVersionPoll } from "./usePdfVersionPoll";
 import "pdfjs-dist/web/pdf_viewer.css";
 import styles from "./PdfReader.module.css";
@@ -39,6 +41,7 @@ import {
   type PdfReaderEditState,
 } from "./usePdfDocument";
 import { useMarginNotes } from "./notes/useMarginNotes";
+import { PdfComments } from "./PdfComments";
 import { usePinchZoom } from "./usePinchZoom";
 import { useSaveOnLeave } from "./useSaveOnLeave";
 import {
@@ -117,6 +120,14 @@ export function PdfReader({
   const bibliographyPutRef = useRef<PDFDocumentProxy | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [commentDraftActive, setCommentDraftActive] = useState(false);
+  const [commentEnabled, setCommentEnabled] = useState(false);
+  const editGate = useRef<PdfEditGate>({
+    commentActive: false,
+    notesInFlight: 0,
+    reloadingDocument: null,
+  });
+  const commentDirtyRef = useRef(false);
   const {
     containerRef,
     viewerRef,
@@ -179,7 +190,20 @@ export function PdfReader({
     };
   }, [pdfDocument]);
 
-  useSaveOnLeave(editable, dirtyRef, autosaveRef);
+  useSaveOnLeave(editable, dirtyRef, autosaveRef, commentDirtyRef);
+
+  useEffect(() => {
+    const gate = editGate.current;
+    if (
+      !gate.reloadingDocument ||
+      !pdfDocument ||
+      gate.reloadingDocument === pdfDocument
+    )
+      return;
+    gate.reloadingDocument = null;
+    gate.commentActive = false;
+    setCommentDraftActive(false);
+  }, [pdfDocument]);
 
   useMarginNotes({
     pdfDocument,
@@ -189,6 +213,7 @@ export function PdfReader({
     autosaveRef,
     restoreViewRef,
     remoteUpdate,
+    editGate,
     setEditMode,
     setSaveStatus,
     setDocumentGeneration,
@@ -211,7 +236,7 @@ export function PdfReader({
   }
 
   usePdfVersionPoll({
-    enabled: editable && !!pdfDocument && !remoteUpdate,
+    enabled: editable && !!pdfDocument && !remoteUpdate && !commentDraftActive,
     src,
     etagRef,
     savingRef,
@@ -234,6 +259,7 @@ export function PdfReader({
   });
 
   function chooseEditMode(nextMode: EditMode): void {
+    setCommentEnabled(false);
     const viewer = pdfViewerRef.current;
     const editorTypes = editorTypesRef.current;
     if (!viewer || !editorTypes) return;
@@ -340,6 +366,7 @@ export function PdfReader({
       pendingPenRef.current = true;
       return;
     }
+    setCommentEnabled(false);
     viewer.annotationEditorMode = { mode: editorTypes.INK };
     setEditMode("draw");
     setSaveStatus(
@@ -553,7 +580,7 @@ export function PdfReader({
               label="Select"
               active={editMode === "select"}
               onClick={() => chooseEditMode("select")}
-              disabled={!editorReady}
+              disabled={!editorReady || commentDraftActive}
             >
               <MousePointer2 aria-hidden="true" />
             </EditorButton>
@@ -561,7 +588,7 @@ export function PdfReader({
               label="Highlight"
               active={editMode === "highlight"}
               onClick={() => chooseEditMode("highlight")}
-              disabled={!editorReady}
+              disabled={!editorReady || commentDraftActive}
             >
               <Highlighter aria-hidden="true" />
             </EditorButton>
@@ -569,7 +596,7 @@ export function PdfReader({
               label="Text"
               active={editMode === "text"}
               onClick={() => chooseEditMode("text")}
-              disabled={!editorReady}
+              disabled={!editorReady || commentDraftActive}
             >
               <TypeIcon aria-hidden="true" />
             </EditorButton>
@@ -577,15 +604,54 @@ export function PdfReader({
               label="Draw"
               active={editMode === "draw"}
               onClick={() => chooseEditMode("draw")}
-              disabled={!editorReady}
+              disabled={!editorReady || commentDraftActive}
             >
               <PenLine aria-hidden="true" />
             </EditorButton>
+            <PdfComments
+              src={src}
+              pdfDocument={pdfDocument}
+              viewer={pdfViewerRef}
+              stage={stageRef}
+              etag={etagRef}
+              autosave={autosaveRef}
+              enabled={commentEnabled}
+              setEnabled={setCommentEnabled}
+              disabled={
+                !editorReady || saving || remoteUpdate || commentDraftActive
+              }
+              onEnable={() => chooseEditMode("select")}
+              editGate={editGate}
+              commentDirtyRef={commentDirtyRef}
+              onBlocked={() =>
+                setSaveStatus("Wait for the note to finish saving.")
+              }
+              onDraftChange={(active) => {
+                editGate.current.commentActive = active;
+                setCommentDraftActive(active);
+              }}
+              refresh={() => {
+                editGate.current.reloadingDocument = pdfDocument;
+                const viewer = pdfViewerRef.current;
+                if (viewer)
+                  restoreViewRef.current = {
+                    page: viewer.currentPageNumber,
+                    scale: viewer.currentScale,
+                  };
+                setDocumentGeneration((generation) => generation + 1);
+              }}
+            />
             <button
               className={styles.saveButton}
               type="button"
               onClick={() => void saveAnnotations()}
-              disabled={!editorReady || !dirty || saving || remoteUpdate}
+              disabled={
+                !editorReady ||
+                !dirty ||
+                saving ||
+                remoteUpdate ||
+                commentDraftActive
+              }
               aria-label="Save annotations in PDF"
               title="Save annotations in PDF"
             >
@@ -635,7 +701,7 @@ export function PdfReader({
           </button>
           <a
             className={styles.originalLink}
-            href={originalHref ?? src}
+            href={originalPdfUrl(originalHref ?? src)}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Open original PDF in a new tab"
@@ -647,7 +713,7 @@ export function PdfReader({
             <button
               type="button"
               onClick={() => void closeReader()}
-              disabled={saving || remoteUpdate}
+              disabled={saving || remoteUpdate || commentDraftActive}
               aria-label={
                 dirty ? "Save annotations and close" : "Close annotator"
               }
@@ -676,6 +742,7 @@ export function PdfReader({
       )}
       <div
         ref={stageRef}
+        inert={commentDraftActive}
         className={`${styles.stage} ${pencilMode ? styles.pencilMode : ""}`}
         onPointerDownCapture={enablePencilDrawing}
         onPointerOver={scheduleHoverPreview}

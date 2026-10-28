@@ -292,6 +292,7 @@ export function usePdfDocument({
           eventBus,
           linkService,
           removePageBorders: true,
+          imageResourcesPath: "/offline/pdf/images/",
           annotationEditorMode: editable
             ? pdfjs.AnnotationEditorType.NONE
             : pdfjs.AnnotationEditorType.DISABLE,

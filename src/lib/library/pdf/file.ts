@@ -148,6 +148,7 @@ async function assertNotRecentlyWritten(
 async function atomicReplace(
   pdfPath: string,
   bytes: Uint8Array,
+  expectedEtag?: string,
 ): Promise<string> {
   const stat = await fs.stat(pdfPath);
   const tempPath = path.join(
@@ -156,6 +157,14 @@ async function atomicReplace(
   );
   try {
     await fs.writeFile(tempPath, bytes, { mode: stat.mode & 0o777 });
+    if (
+      expectedEtag &&
+      pdfEtag(new Uint8Array(await fs.readFile(pdfPath))) !== expectedEtag
+    ) {
+      throw new PdfConflictError(
+        "The PDF changed while it was being saved. Reload and try again.",
+      );
+    }
     await fs.rename(tempPath, pdfPath);
     const identity = statIdentity(await fs.stat(pdfPath));
     const etag = pdfEtag(bytes);
@@ -217,15 +226,23 @@ export async function rewritePdf(
   topic: string,
   slug: string,
   transform: (bytes: Uint8Array) => Promise<Uint8Array>,
-): Promise<void> {
-  await withPdfWriteLock(topic, slug, async (pdfPath) => {
-    await assertNotRecentlyWritten(pdfPath);
-    const next = await transform(new Uint8Array(await fs.readFile(pdfPath)));
+  expectedEtag?: string,
+): Promise<{ etag: string }> {
+  return withPdfWriteLock(topic, slug, async (pdfPath) => {
+    const current = new Uint8Array(await fs.readFile(pdfPath));
+    if (expectedEtag && pdfEtag(current) !== expectedEtag) {
+      throw new PdfConflictError(
+        "The PDF changed after you opened it. Reload before saving.",
+      );
+    }
+    await assertNotRecentlyWritten(pdfPath, expectedEtag);
+    const next = await transform(current);
     assertWritablePdf(next);
-    const etag = await atomicReplace(pdfPath, next);
+    const etag = await atomicReplace(pdfPath, next, pdfEtag(current));
     recentAppWrites.set(pdfPath, {
       etag,
       writtenAt: Date.now(),
     });
+    return { etag };
   });
 }

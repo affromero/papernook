@@ -17,6 +17,7 @@
     "build": "node scripts/build-offline.mjs && next build && node scripts/sidedoor/build-access.mjs && node scripts/prepare-runtime.mjs && node scripts/assert-standalone-safe.mjs",
     "build:chrome": "node scripts/extension/build-chrome.mjs",
     "build:safari": "./scripts/safari/build.sh",
+    "build:safari:ipad-simulator": "bash ./scripts/safari/build-ipad-simulator.sh",
     "ci": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build",
     "dev": "node scripts/build-offline.mjs && next dev",
     "format:check": "prettier --check .",
@@ -30,6 +31,7 @@
     "test": "vitest run",
     "test:chrome": "npm run build:chrome && node tests/chrome.e2e.mjs",
     "test:e2e": "playwright test",
+    "test:passkey": "playwright test --config=playwright.passkey.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },

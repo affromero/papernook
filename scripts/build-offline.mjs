@@ -34,6 +34,11 @@ for (const folder of ["cmaps", "standard_fonts", "wasm"])
     path.join(destination, "pdf", folder),
     { recursive: true },
   );
+await fs.cp(
+  "node_modules/pdfjs-dist/web/images",
+  path.join(destination, "pdf", "images"),
+  { recursive: true },
+);
 const files = (
   await fs.readdir(destination, { recursive: true, withFileTypes: true })
 )

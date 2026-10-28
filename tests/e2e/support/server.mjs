@@ -12,7 +12,7 @@ for (const descriptor of providerDescriptors()) {
 }
 delete env.OPENAI_COMPATIBLE_API_KEY;
 const origin = env.PAPERNOOK_URL;
-if (origin !== "http://127.0.0.1:3107")
+if (origin !== "http://127.0.0.1:3107" && origin !== "http://localhost:3107")
   throw new Error("Unexpected browser fixture origin");
 const run = (args) =>
   execFileSync(process.execPath, args, { env, encoding: "utf8" });

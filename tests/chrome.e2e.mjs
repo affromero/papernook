@@ -42,6 +42,7 @@ const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 if (!manifest.host_permissions.includes("http://127.0.0.1/*")) {
   manifest.host_permissions.push("http://127.0.0.1/*");
 }
+manifest.host_permissions.push("http://localhost/*");
 await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
 const context = await chromium.launchPersistentContext("", {
@@ -83,6 +84,46 @@ try {
   }
   if (!requests.some((request) => request.startsWith("/viewer?src="))) {
     throw new Error("Papernook test server never received the viewer request");
+  }
+
+  // A separate origin exercises user-added hosts without excluding the
+  // Papernook server from the redirect rules.
+  await options.evaluate(async (port) => {
+    await chrome.storage.sync.set({ extraHosts: ["localhost"] });
+    const result = await chrome.runtime.sendMessage("rebuild-rules");
+    if (!result.ok) throw new Error(`Could not rebuild rules: ${result.error}`);
+    const rules = await chrome.declarativeNetRequest.getDynamicRules();
+    const rule = rules.find((item) =>
+      item.condition.regexFilter.includes("localhost"),
+    );
+    // The test HTTP server uses an ephemeral port; add it to this fixture's
+    // rule while retaining the production matching and redirect behavior.
+    rule.condition.regexFilter = rule.condition.regexFilter.replace(
+      "localhost/",
+      `localhost:${port}/`,
+    );
+    await chrome.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: [rule.id],
+      addRules: [rule],
+    });
+  }, address.port);
+  const source = `http://localhost:${address.port}/sample.pdf`;
+  const original = await context.newPage();
+  await original.goto(`${source}?papernook_original=1#page=3`);
+  if (new URL(original.url()).pathname !== "/sample.pdf") {
+    throw new Error(`original PDF was intercepted: ${original.url()}`);
+  }
+  const signed = `${source}?signature=a%2Bb#page=2`;
+  await original.goto(signed);
+  if (original.url() !== signed)
+    throw new Error(`signed source was intercepted: ${original.url()}`);
+
+  await original.goto(source);
+  await original.waitForURL(
+    (url) => url.origin === baseUrl && url.pathname === "/viewer",
+  );
+  if (new URL(original.url()).searchParams.get("src") !== source) {
+    throw new Error(`PDF interception changed source: ${original.url()}`);
   }
   console.log("chrome extension options + PDF redirect passed ✓");
 } finally {

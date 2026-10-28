@@ -3,7 +3,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
 import { clearOfflineForAuthentication } from "@/lib/offline/storage";
 import styles from "./AccountBar.module.css";
@@ -22,8 +21,9 @@ interface AccountBarProps {
 
 export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
   const menuId = useId();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,13 +36,21 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
   }, [open]);
 
   async function logout(): Promise<void> {
-    await clearOfflineForAuthentication();
-    await fetch("/api/v1/session", {
-      method: "DELETE",
-      credentials: "include",
-    });
-    router.push("/login");
-    router.refresh();
+    if (loggingOut) return;
+    setLoggingOut(true);
+    setLogoutError(null);
+    try {
+      const response = await fetch("/api/v1/session", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Could not log out. Try again.");
+      await clearOfflineForAuthentication();
+      window.location.replace("/login");
+    } catch {
+      setLogoutError("Could not log out. Try again.");
+      setLoggingOut(false);
+    }
   }
 
   return (
@@ -98,9 +106,14 @@ export function AccountBar({ displayName, avatarSlug }: AccountBarProps) {
           <Link href="/login" onClick={() => setOpen(false)}>
             Switch profile
           </Link>
-          <button type="button" onClick={() => void logout()}>
+          <button
+            type="button"
+            disabled={loggingOut}
+            onClick={() => void logout()}
+          >
             Log out
           </button>
+          {logoutError && <p role="alert">{logoutError}</p>}
         </div>
       )}
     </div>

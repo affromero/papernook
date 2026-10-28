@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CitationActions } from "@/components/citations/CitationActions";
 import { ShareButton } from "@/components/share/ShareButton";
 import { ThemeToggle } from "@/components/profiles/ThemeToggle";
+import { originalWebUrl } from "@/lib/pdf/reader/source-link";
 import type { PaperMeta } from "@/lib/library/papers";
 import { CopySourceLinkButton } from "./CopySourceLinkButton";
 import styles from "./PaperHeader.module.css";
@@ -15,6 +16,7 @@ interface PaperHeaderProps {
 
 export function PaperHeader({ topic, slug, meta, view }: PaperHeaderProps) {
   const paperHref = `/paper/${topic}/${slug}`;
+  const sourceHref = originalWebUrl(meta.sourceUrl);
   return (
     <header className={styles.header}>
       <div className={styles.utilityRow}>
@@ -35,6 +37,7 @@ export function PaperHeader({ topic, slug, meta, view }: PaperHeaderProps) {
           >
             Canvas
           </Link>
+          {sourceHref && <a href={sourceHref}>Original</a>}
         </nav>
         <nav className={styles.actions} aria-label="Paper actions">
           <CopySourceLinkButton sourceUrl={meta.sourceUrl} />

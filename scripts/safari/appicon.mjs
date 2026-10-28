@@ -1,16 +1,18 @@
-// Populate the macOS AppIcon.appiconset in the (regenerated) Safari wrapper.
+// Populate the AppIcon.appiconset in the regenerated Safari wrapper.
 // safari-web-extension-converter leaves the icon slots empty, which App Store
 // review rejects, so scripts/safari/build.sh calls this after the converter
 // and before the archive. Renders src/app/icon.svg on a warm paper tile at
 // every required size using the repo's Playwright Chromium.
-//   node scripts/safari/appicon.mjs <path-to-AppIcon.appiconset>
+//   node scripts/safari/appicon.mjs <path-to-AppIcon.appiconset> [mac|ios]
 import { chromium } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const ROOT = new URL("../..", import.meta.url).pathname;
 const iconset = process.argv[2];
-if (!iconset) throw new Error("usage: appicon.mjs <AppIcon.appiconset dir>");
+const platform = process.argv[3] ?? "mac";
+if (!iconset || !["mac", "ios"].includes(platform))
+  throw new Error("usage: appicon.mjs <AppIcon.appiconset dir> [mac|ios]");
 
 const svg = await readFile(join(ROOT, "src", "app", "icon.svg"), "utf8");
 
@@ -29,14 +31,15 @@ const SLOTS = [
   [512, 1],
   [512, 2],
 ];
-const pixels = [...new Set(SLOTS.map(([s, sc]) => s * sc))];
+const pixels =
+  platform === "ios" ? [1024] : [...new Set(SLOTS.map(([s, sc]) => s * sc))];
 
 const page = await (await chromium.launch()).newPage();
 const render = async (px) => {
   await page.setViewportSize({ width: px, height: px });
   await page.setContent(
     `<style>*{margin:0}html,body{width:${px}px;height:${px}px}
-     .tile{width:${px}px;height:${px}px;border-radius:${Math.round(px * 0.2237)}px;
+     .tile{width:${px}px;height:${px}px;border-radius:${platform === "ios" ? 0 : Math.round(px * 0.2237)}px;
        background:linear-gradient(160deg,#f7f2e8,#ece1cc);
        display:flex;align-items:center;justify-content:center;overflow:hidden}
      .tile svg{width:${Math.round(px * 0.62)}px;height:${Math.round(px * 0.62)}px;display:block}</style>
@@ -51,12 +54,22 @@ for (const px of pixels) await render(px);
 await page.context().browser().close();
 
 // Rewrite Contents.json to reference the generated files.
-const images = SLOTS.map(([size, scale]) => ({
-  idiom: "mac",
-  size: `${size}x${size}`,
-  scale: `${scale}x`,
-  filename: `icon_${size * scale}.png`,
-}));
+const images =
+  platform === "ios"
+    ? [
+        {
+          idiom: "universal",
+          platform: "ios",
+          size: "1024x1024",
+          filename: "icon_1024.png",
+        },
+      ]
+    : SLOTS.map(([size, scale]) => ({
+        idiom: "mac",
+        size: `${size}x${size}`,
+        scale: `${scale}x`,
+        filename: `icon_${size * scale}.png`,
+      }));
 await writeFile(
   join(iconset, "Contents.json"),
   JSON.stringify({ images, info: { version: 1, author: "xcode" } }, null, 2) +

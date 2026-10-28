@@ -10,23 +10,24 @@ export function useSaveOnLeave(
   editable: boolean,
   dirtyRef: RefObject<boolean>,
   autosaveRef: RefObject<PdfAutosaveCoordinator | null>,
+  commentDirtyRef: RefObject<boolean>,
 ): void {
   useEffect(() => {
     if (!editable) return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
-      if (!dirtyRef.current) return;
+      if (!dirtyRef.current && !commentDirtyRef.current) return;
       event.preventDefault();
       event.returnValue = true;
     };
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [editable, dirtyRef]);
+  }, [editable, dirtyRef, commentDirtyRef]);
 
   useEffect(() => {
     if (!editable) return;
     const saveBeforeClientNavigation = (event: MouseEvent) => {
       if (
-        !dirtyRef.current ||
+        (!dirtyRef.current && !commentDirtyRef.current) ||
         event.defaultPrevented ||
         event.button !== 0 ||
         event.metaKey ||
@@ -55,6 +56,19 @@ export function useSaveOnLeave(
       ) {
         return;
       }
+      if (commentDirtyRef.current) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!window.confirm("Discard your unsaved comment?")) return;
+        if (!dirtyRef.current) {
+          commentDirtyRef.current = false;
+          window.location.assign(destination.href);
+          return;
+        }
+      }
+      if (!dirtyRef.current) {
+        return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       void (async () => {
@@ -62,6 +76,7 @@ export function useSaveOnLeave(
         await autosave?.flush();
         const state = autosave?.state();
         if (state && !state.dirty && !state.saving && !state.error) {
+          commentDirtyRef.current = false;
           window.location.assign(destination.href);
         }
       })();
@@ -69,5 +84,5 @@ export function useSaveOnLeave(
     document.addEventListener("click", saveBeforeClientNavigation, true);
     return () =>
       document.removeEventListener("click", saveBeforeClientNavigation, true);
-  }, [editable, dirtyRef, autosaveRef]);
+  }, [editable, dirtyRef, autosaveRef, commentDirtyRef]);
 }

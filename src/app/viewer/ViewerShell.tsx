@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PdfReader } from "@/components/pdf/PdfReader";
 import { CopySourceLinkButton } from "@/components/paper/CopySourceLinkButton";
+import { originalWebUrl } from "@/lib/pdf/reader/source-link";
 import styles from "./viewer.module.css";
 
 interface ViewerShellProps {
@@ -115,6 +116,9 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
         <div className={styles.sourceAction}>
           <CopySourceLinkButton sourceUrl={src} />
         </div>
+        <a className={styles.original} href={originalWebUrl(src) ?? src}>
+          Original
+        </a>
         {capture.phase === "added" ? (
           <a
             className={styles.added}
