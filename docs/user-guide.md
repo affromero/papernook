@@ -88,6 +88,11 @@ On desktop, select **Focus reading** to give the PDF the full workspace and
 **Show chat** to restore it. On a tablet, use the persistent **Reading** and
 **Chat** tabs.
 
+Use **Document** in the reader toolbar to choose light or dark pages. Dark
+appearance recolors text and vector drawings while keeping embedded images in
+their original colors. Some PDF effects may render differently; choose
+**Always light** to see the original page. The PDF file itself is unchanged.
+
 ![Full-width paper view with chat hidden](images/product/paper-focus.png)
 
 Switch to **Canvas** to arrange notes, drawings, screenshots, links, and video
