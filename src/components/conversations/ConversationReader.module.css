@@ -242,8 +242,33 @@
   background: var(--reader-user-bg);
 }
 .sourceMessage > div:last-child {
-  font-family: Georgia, "Times New Roman", serif;
-  line-height: 1.65;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  line-height: 1.75;
+}
+.sourceMessage[data-message-role="assistant"] {
+  width: 100%;
+  padding: 24px 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.sourceMessage > div:last-child h1 {
+  font-size: clamp(1.4rem, 2.2vw, 1.85rem);
+  line-height: 1.3;
+  margin-block: 1.2em 0.8em;
+}
+.sourceMessage > div:last-child h2 {
+  font-size: 1.25em;
+  margin-block: 1.7em 0.8em;
+}
+.sourceMessage > div:last-child h3 {
+  font-size: 1.1em;
+}
+.sourceMessage > div:last-child p {
+  margin-block: 0.9em;
+}
+.sourceMessage > div:last-child [data-share-layout] > p {
+  margin: 0;
 }
 .turnGroup {
   margin-top: 16px;
@@ -267,6 +292,11 @@
 }
 .groupMessages > .sourceMessage:last-child {
   margin-bottom: 18px;
+}
+.groupMessages > .sourceMessage[data-message-role="assistant"] {
+  width: 100%;
+  margin-left: 0;
+  padding-inline: 0;
 }
 .messageHeading {
   display: flex;

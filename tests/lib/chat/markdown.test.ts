@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Markdown } from "@/components/chat/Markdown";
 import { normalizeMath } from "@/lib/chat/normalize-math";
+import { normalizeProviderText } from "@/lib/chat/normalize-provider-text";
 import { importTranscript } from "@/lib/conversations/import";
 import { convert } from "html-to-text";
 
@@ -80,7 +81,7 @@ describe("imported formula rendering", () => {
     expect(html).not.toContain("<table>");
     expect(html.split("&lt;table&gt;")).toHaveLength(3);
   });
-  it("renders shared ChatGPT layouts as readable text and named source links", () => {
+  it("renders shared ChatGPT layouts as native containers with readable text and source links", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {
         content: `<box padding={3}>
@@ -107,6 +108,96 @@ describe("imported formula rendering", () => {
     expect(html).not.toContain("&lt;box");
     expect(html).not.toContain("<img");
     expect(html).not.toContain("<pre>");
+    expect(html).toContain('data-share-layout="grid"');
+    expect(html).toContain('data-share-columns="2"');
+    expect(html).toContain('data-share-padding="3"');
+  });
+
+  it("preserves nested cards, flow arrows, labels, formulas and inline citation runs", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: `<box border radius="xl" padding={3} gap={2}>
+<grid columns={2} gap={2}>
+<grid-item><box background="surface-secondary" radius="lg" padding={3}>
+<text color="secondary" size="2xs">STATIC INPUT</text>
+**Road map** and <Entity value="simulator"/> remain one paragraph.
+</box></grid-item>
+<grid-item><box border padding={3}><text weight="medium">Dynamic input</text></box></grid-item>
+</grid>
+<icon name="arrow-down"/>
+<box background="rgba(18,120,165,0.07)" width="100%" align="center" padding={3}>
+**Scenario execution**
+<text>Compute $x^2$. Read <Cite refs={["turn1search0","turn2search0"]}/>.</text>
+</box></box>`,
+        citations: [
+          {
+            ref: "turn1search0",
+            title: "Scenario reference",
+            url: "https://example.com/scenario",
+          },
+        ],
+      }),
+    );
+    expect(html).toContain('data-share-border="true"');
+    expect(html).toContain('data-share-background="surface"');
+    expect(html).toContain('data-share-background="blue"');
+    expect(html).toContain('data-share-size="2xs"');
+    expect(html).toContain('data-share-icon="arrow-down"');
+    expect(html).toContain(
+      "<strong>Road map</strong> and simulator remain one paragraph.",
+    );
+    expect(html).toContain('class="katex"');
+    expect(html).toContain('href="https://example.com/scenario"');
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain("turn1search0");
+  });
+
+  it("ignores executable attributes, arbitrary styles and unsupported layout expressions", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content:
+          '<box onclick="alert(1)" style="background:url(https://example.com/leak)" background="url(https://example.com/leak)"><grid columns={alert(1)}><text>Safe content</text></grid><script>alert(1)</script><img src="https://example.com/leak"/></box>',
+      }),
+    );
+    expect(html).toContain('data-share-layout="box"');
+    expect(html).toContain("Safe content");
+    expect(html).not.toContain("onclick=");
+    expect(html).not.toContain("style=");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("data-share-columns=");
+  });
+
+  it("shows unbalanced or excessive layouts as source with an explicit error", () => {
+    for (const content of [
+      "<box><grid>Saved content</box>",
+      "<box>Saved content</unknown></box>",
+      "<box>".repeat(35) + "Saved content" + "</box>".repeat(35),
+    ]) {
+      const html = renderToStaticMarkup(
+        createElement(Markdown, { content, highlightCode: false }),
+      );
+      expect(html).toContain('role="alert"');
+      expect(html).toContain("Saved content");
+      expect(html).toContain("&lt;box&gt;");
+      expect(html).not.toContain("data-share-layout=");
+    }
+  });
+
+  it("keeps provider controls and whitespace literal inside code examples", () => {
+    const code =
+      '```text\n:::writing{variant="email"}\n\n\n\\boxed{\\text{literal}} \uE200cite\uE202turn1search0\uE201\n::: mostly literal\n```';
+    expect(normalizeProviderText(code)).toBe(code);
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: `<box><text>Literal example:</text>\n${code}\n</box>`,
+        highlightCode: false,
+      }),
+    );
+    expect(html).toContain(":::writing");
+    expect(html).toContain("turn1search0");
+    expect(html).toContain("\\boxed");
+    expect(html).toContain('data-share-layout="box"');
   });
 
   it("preserves literal provider tags and XML inside inline and fenced code", () => {
@@ -213,6 +304,7 @@ Thanks for sharing the schedule.
     );
     expect(html.match(/<details/g)).toHaveLength(2);
     expect(html).toContain("18. Preferred answer");
+    expect(html).toContain("<h2>18. Preferred answer</h2>");
     expect(html).toContain("Use the hybrid approach.");
     expect(html).toContain("19. Camera space");
   });

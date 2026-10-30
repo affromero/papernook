@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { imageMime } from "./images";
 import { formatTableCell } from "@/lib/chat/format/table";
+import { fenceCode as fence } from "@/lib/chat/format/code";
 
 const publicUrl = z
   .string()
@@ -44,12 +45,6 @@ function http(value: unknown): string | undefined {
     ? value
     : undefined;
 }
-function fence(text: string, language: string): string {
-  const runs = [...text.matchAll(/`+/g)].map((match) => match[0].length);
-  const marker = "`".repeat(Math.max(3, ...runs.map((length) => length + 1)));
-  return `${marker}${language.replace(/[^\w+-]/g, "")}\n${text}\n${marker}`;
-}
-
 /** Keep visible multimodal content and the metadata needed to resolve it. */
 export function richMessage(value: unknown, metadata?: unknown): RichMessage {
   const assets: ConversationAsset[] = [];

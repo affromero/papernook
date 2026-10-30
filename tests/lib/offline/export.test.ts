@@ -37,6 +37,21 @@ afterEach(() => {
 });
 
 describe("portable study exports", () => {
+  it("preserves native shared layouts and applies attachment safety within their nested content", () => {
+    const body = renderMarkdown(
+      '<box border padding={3}><grid columns={2}><grid-item><text>Road map</text></grid-item><grid-item><text>Moving actors</text></grid-item></grid><icon name="arrow-down"/><text>**Execution** with $x^2$ and ![Remote](https://example.com/leak).</text></box>',
+    );
+    const html = studyHtml("Imported layout", body);
+    expect(body).toContain('data-share-layout="grid"');
+    expect(body).toContain('data-share-columns="2"');
+    expect(body).toContain('data-share-icon="arrow-down"');
+    expect(body).toContain("<strong>Execution</strong>");
+    expect(body).toContain('class="katex"');
+    expect(body).toContain("Image unavailable offline: Remote");
+    expect(body).not.toContain("<img");
+    expect(body).not.toContain("<script");
+    expect(html).toContain("grid-template-columns:repeat(2,minmax(0,1fr))");
+  });
   it("embeds imported images and SVG diagrams with the same readable source content offline", () => {
     const data =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6i0AAAAASUVORK5CYII=";

@@ -27,6 +27,19 @@ Markdown and JSON exports are also available.
 A shortcut can open `/conversations?import=<encoded-share-url>` on your instance
 to prefill the import form. Opening this address alone does not create a document.
 
+#### Shared layouts
+
+Supported shared layouts retain their cards, columns, arrows, labels, and text
+hierarchy. Columns stack on small screens. Existing imports use their saved
+markup, so a layout improvement does not require importing the conversation again.
+HTML exports retain the layout structure too.
+
+![Shared cards and a flow diagram in light appearance](images/conversations/imported-layout-light.png)
+
+![The same layout in dark appearance](images/conversations/imported-layout-dark.png)
+
+![Shared cards stacked on a phone](images/conversations/imported-layout-mobile.png)
+
 ### Read without internet
 
 While online, open a paper or conversation and choose **Available offline**.

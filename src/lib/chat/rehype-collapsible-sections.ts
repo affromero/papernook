@@ -74,7 +74,7 @@ export function rehypeCollapsibleNumberedSections() {
             type: "element",
             tagName: "summary",
             properties: {},
-            children: node.children,
+            children: headingLevel(node) === null ? node.children : [node],
           },
           ...section,
         ],
