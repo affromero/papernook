@@ -7,6 +7,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { z } from "zod";
+import { guardStream } from "thesidedoor-core/runtime/stream";
 import {
   acquireFileLock,
   acquireFileLockSync,
@@ -308,10 +309,9 @@ export function leaveCollaboration(
 }
 
 /** Bound aggregate buffering and PDF parsing across requests and processes. */
-export async function withSharingTransfer<Result>(
-  operation: () => Promise<Result>,
-  direction: "incoming" | "outgoing" = "incoming",
-): Promise<Result> {
+function acquireSharingTransfer(
+  direction: "incoming" | "outgoing",
+): () => void {
   for (let slot = 0; slot < 2; slot++) {
     let release: () => void;
     try {
@@ -327,13 +327,134 @@ export async function withSharingTransfer<Result>(
       if (error instanceof FileLockBusyError) continue;
       throw error;
     }
-    try {
-      return await operation();
-    } finally {
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
       release();
-    }
+    };
   }
   throw new SharingError("Sharing is busy. Try again in a moment.", 429);
+}
+
+export async function withSharingTransfer<Result>(
+  operation: () => Promise<Result>,
+  direction: "incoming" | "outgoing" = "incoming",
+): Promise<Result> {
+  const release = acquireSharingTransfer(direction);
+  try {
+    return await operation();
+  } finally {
+    release();
+  }
+}
+
+/** Keep large response buffers admitted until the transport drains or cancels. */
+export async function withSharingResponse(
+  operation: () => Promise<Response>,
+): Promise<Response> {
+  const release = acquireSharingTransfer("incoming");
+  try {
+    const response = await operation();
+    if (!response.ok || !response.body) {
+      release();
+      return response;
+    }
+    return streamTransferResponse(response, release);
+  } catch (error) {
+    release();
+    throw error;
+  }
+}
+
+function streamTransferResponse(
+  response: Response,
+  release: () => void,
+): Response {
+  const reader = response.body!.getReader();
+  let pending: Uint8Array | null = null;
+  let offset = 0;
+  let stopped = false;
+  let cleanup: Promise<void> | null = null;
+  let released = false;
+  let deadline: ReturnType<typeof setTimeout>;
+  const releaseOnce = () => {
+    if (released) return;
+    released = true;
+    clearTimeout(deadline);
+    release();
+  };
+  const stop = (reason: unknown): Promise<void> => {
+    stopped = true;
+    pending = null;
+    offset = 0;
+    cleanup ??= (async () => {
+      try {
+        await reader.cancel(reason);
+      } finally {
+        reader.releaseLock();
+      }
+    })();
+    return cleanup;
+  };
+  const copied = new ReadableStream<Uint8Array>(
+    {
+      start(controller) {
+        deadline = setTimeout(() => {
+          if (stopped) return;
+          const error = new SharingError("Sharing response timed out.", 408);
+          controller.error(error);
+          void stop(error)
+            .finally(releaseOnce)
+            .catch(() => {
+              console.error("papernook sharing: response cleanup failed");
+            });
+        }, 60_000);
+      },
+      async pull(controller) {
+        try {
+          if (stopped) return;
+          if (!pending) {
+            const next = await reader.read();
+            if (stopped) return;
+            if (next.done) {
+              stopped = true;
+              reader.releaseLock();
+              controller.close();
+              return;
+            }
+            pending = next.value;
+            offset = 0;
+          }
+          const end = Math.min(pending.byteLength, offset + 64 * 1024);
+          // A view would keep the entire serialized response alive in Node's
+          // blocked write. Each socket may retain only its bounded copy.
+          const chunk = Uint8Array.from(pending.subarray(offset, end));
+          offset = end;
+          if (offset === pending.byteLength) {
+            pending = null;
+            offset = 0;
+          }
+          controller.enqueue(chunk);
+        } catch (error) {
+          await stop(error).catch(() => undefined);
+          throw error;
+        }
+      },
+      cancel(reason) {
+        return stop(reason);
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  return new Response(
+    guardStream(copied, { validate: () => undefined, release: releaseOnce }),
+    {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    },
+  );
 }
 
 export function publicParticipant(participant: Participant) {

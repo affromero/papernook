@@ -89,7 +89,7 @@ export async function post(
 ) {
   const { POST } =
     await import("@/app/api/v1/shares/[topic]/[slug]/[shareId]/exchange/route");
-  return POST(
+  const response = await POST(
     new Request(
       "https://papers.example/api/v1/shares/nlp/attention/" +
         shareId +
@@ -106,6 +106,11 @@ export async function post(
     ),
     { params: Promise.resolve({ topic: "nlp", slug: "attention", shareId }) },
   );
+  // Match an HTTP client, which drains the server response before returning.
+  return new Response(await response.arrayBuffer(), {
+    status: response.status,
+    headers: response.headers,
+  });
 }
 
 export async function annotated(

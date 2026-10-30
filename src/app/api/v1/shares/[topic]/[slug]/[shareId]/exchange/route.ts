@@ -14,7 +14,7 @@ import {
   publicParticipant,
   requireCollaboration,
   withCollaboration,
-  withSharingTransfer,
+  withSharingResponse,
   leaveCollaboration,
 } from "@/lib/sharing/storage";
 import {
@@ -127,7 +127,7 @@ async function handleExchange(request: Request, { params }: Params) {
         );
       if (!body.success)
         throw new SharingError("A collaboration credential is required.", 401);
-      return withSharingTransfer(async () =>
+      return withSharingResponse(async () =>
         sharedResponse(share, "", await exportBundle(share)),
       );
     }
@@ -185,7 +185,7 @@ async function handleExchange(request: Request, { params }: Params) {
           false,
         );
       if (body.action === "threads")
-        return withSharingTransfer(async () =>
+        return withSharingResponse(async () =>
           sharedResponse(
             share,
             token,
@@ -200,7 +200,7 @@ async function handleExchange(request: Request, { params }: Params) {
           ),
         );
       if (body.action === "version" || body.action === "changes")
-        return withSharingTransfer(async () => {
+        return withSharingResponse(async () => {
           const pdf = await readVersionedPdfFile(topic, slug);
           if (!pdf) throw new SharingError("Unknown paper.", 404);
           return sharedResponse(share, token, {
@@ -215,7 +215,7 @@ async function handleExchange(request: Request, { params }: Params) {
           });
         });
       if (body.action === "pdf")
-        return withSharingTransfer(async () => {
+        return withSharingResponse(async () => {
           const pdf = await readVersionedPdf(topic, slug);
           if (!pdf) throw new SharingError("Unknown paper.", 404);
           return withShareFiles(share, () => {
@@ -238,7 +238,7 @@ async function handleExchange(request: Request, { params }: Params) {
         return Response.json({ unpublished: true }, { headers });
       }
       if (body.action === "read")
-        return withSharingTransfer(async () =>
+        return withSharingResponse(async () =>
           sharedResponse(
             share,
             token,
@@ -332,7 +332,7 @@ export async function POST(request: Request, context: Params) {
       ["save-pdf", "publish", "comment"].includes(
         request.headers.get("x-sharing-operation") ?? "",
       )
-        ? await withSharingTransfer(() => handleExchange(request, context))
+        ? await withSharingResponse(() => handleExchange(request, context))
         : await handleExchange(request, context),
     );
   } catch (error) {
