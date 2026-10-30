@@ -7,6 +7,7 @@ interface SyntaxNode {
   type: string;
   position?: { start: { offset?: number }; end: { offset?: number } };
   children?: SyntaxNode[];
+  value?: string;
 }
 
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
@@ -23,24 +24,29 @@ const protectedTypes = new Set([
   "inlineMath",
 ]);
 
-/** Accept exported LaTeX delimiters without changing code or saved source. */
-export function normalizeMath(content: string): string {
-  if (!/\\[([]/.test(content)) return content;
-  const protectedRanges: [number, number][] = [];
+export function markdownRanges(
+  content: string,
+  types: ReadonlySet<string>,
+): { start: number; end: number; type: string; value?: string }[] {
+  const ranges: { start: number; end: number; type: string; value?: string }[] =
+    [];
   function visit(node: SyntaxNode) {
     const start = node.position?.start.offset;
     const end = node.position?.end.offset;
-    if (
-      protectedTypes.has(node.type) &&
-      start !== undefined &&
-      end !== undefined
-    ) {
-      protectedRanges.push([start, end]);
+    if (types.has(node.type) && start !== undefined && end !== undefined) {
+      ranges.push({ start, end, type: node.type, value: node.value });
       return;
     }
     node.children?.forEach(visit);
   }
   visit(parser.parse(content));
+  return ranges;
+}
+
+/** Accept exported LaTeX delimiters without changing code or saved source. */
+export function normalizeMath(content: string): string {
+  if (!/\\[([]/.test(content)) return content;
+  const protectedRanges = markdownRanges(content, protectedTypes);
   function convert(text: string) {
     return text.replace(
       /(?<!\\)\\\(([\s\S]*?)(?<!\\)\\\)|(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]/g,
@@ -70,7 +76,7 @@ export function normalizeMath(content: string): string {
   }
   let cursor = 0;
   let result = "";
-  for (const [start, end] of protectedRanges) {
+  for (const { start, end } of protectedRanges) {
     result += convert(content.slice(cursor, start)) + content.slice(start, end);
     cursor = end;
   }

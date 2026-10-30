@@ -23,6 +23,7 @@
 # production
 /build
 /public/offline/
+/public/vendor/conversations/
 
 # misc
 .DS_Store

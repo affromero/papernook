@@ -16,6 +16,7 @@ import {
   renderMessages,
 } from "@/lib/offline/server";
 import { escapeHtml, MAX_STUDY_BYTES, studyHtml } from "@/lib/offline/render";
+import { conversationDirectory } from "@/lib/conversations/assets";
 
 export const dynamic = "force-dynamic";
 const querySchema = z.object({
@@ -67,7 +68,7 @@ export async function GET(
       } else {
         body = studyHtml(
           source.title,
-          `${renderMessages(source.messages)}${chats.map((chat) => `<section><h2>Follow-up: ${escapeHtml(chat.header.title)}</h2>${renderMessages(chat.messages)}</section>`).join("")}`,
+          `${renderMessages(source.messages, conversationDirectory(profile.username, id))}${chats.map((chat) => `<section><h2>Follow-up: ${escapeHtml(chat.header.title)}</h2>${renderMessages(chat.messages, conversationDirectory(profile.username, id))}</section>`).join("")}`,
         );
         mime = "text/html";
         extension = "html";

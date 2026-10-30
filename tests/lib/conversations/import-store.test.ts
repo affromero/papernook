@@ -13,6 +13,7 @@ import {
   saveConversationTurn,
   listConversationChats,
   lockConversation,
+  refreshConversationContent,
 } from "@/lib/conversations/store";
 import {
   importTranscript,
@@ -88,6 +89,40 @@ const source = {
   ],
 };
 describe("private conversations", () => {
+  it("refreshes rich metadata without changing the saved transcript or follow-up histories", () => {
+    const record = createConversation("alice", source);
+    const file = path.join(
+      directory,
+      "users",
+      "alice",
+      "conversations",
+      record.id,
+      "source.json",
+    );
+    const saved = fs.readFileSync(file, "utf8");
+    saveConversationTurn("alice", record.id, undefined, "Follow-up", "Reply");
+    const refreshed = refreshConversationContent("alice", record.id, {
+      ...source,
+      messages: source.messages.map((message) => ({
+        ...message,
+        citations: [
+          { ref: "source1", title: "Reference", url: "https://example.com" },
+        ],
+      })),
+    });
+    expect(refreshed.messages[0].citations?.[0].title).toBe("Reference");
+    expect(fs.readFileSync(file, "utf8")).toBe(saved);
+    expect(
+      listConversationChats("alice", record.id)[0].messages[0].content,
+    ).toBe("Follow-up");
+    expect(() =>
+      refreshConversationContent("alice", record.id, {
+        ...source,
+        messages: [{ role: "user", content: "Changed conversation" }],
+      }),
+    ).toThrow(/no longer matches/);
+    expect(fs.readFileSync(file, "utf8")).toBe(saved);
+  });
   it("retains a private source copy independently of its original URL and metadata edits", () => {
     const record = createConversation("alice", source);
     const original = fs.readFileSync(
@@ -191,7 +226,7 @@ describe("transcript import", () => {
       { role: "assistant", content: "Visible Claude reply" },
     ]);
   });
-  it("preserves image-only turns with explicit unavailable attachment markers", () => {
+  it("preserves image and document assets together with their surrounding text", () => {
     const payload = {
       messages: [
         {
@@ -215,11 +250,18 @@ describe("transcript import", () => {
         },
       ],
     };
-    expect(importTranscript(JSON.stringify(payload), "json").messages).toEqual([
-      { role: "user", content: "[Attachment unavailable in imported share]" },
+    expect(
+      importTranscript(JSON.stringify(payload), "json").messages,
+    ).toMatchObject([
+      {
+        role: "user",
+        content: "![Image attachment](#asset-0)",
+        assets: [{ kind: "image", url: "https://example.com/private.png" }],
+      },
       {
         role: "assistant",
-        content: "Explanation\n\n[Attachment unavailable in imported share]",
+        content: "Explanation\n\n[File attachment](#asset-0)",
+        assets: [{ kind: "file", url: "https://example.com/document" }],
       },
     ]);
   });

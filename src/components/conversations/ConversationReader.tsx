@@ -21,6 +21,10 @@ import {
 import { DownloadButton } from "@/components/offline/DownloadButton";
 import { useConnection } from "@/components/offline/useConnection";
 import type { Conversation } from "@/lib/conversations/store";
+import type {
+  ConversationAsset,
+  ConversationCitation,
+} from "@/lib/conversations/content";
 import type { Chat } from "@/lib/library/chats";
 import styles from "./ConversationView.module.css";
 import readerStyles from "./ConversationReader.module.css";
@@ -35,6 +39,8 @@ type TurnMessage = {
   role: "user" | "assistant";
   content: string;
   images?: string[];
+  assets?: ConversationAsset[];
+  citations?: ConversationCitation[];
 };
 
 function ConversationInput({
@@ -282,7 +288,19 @@ function ConversationTurn({
           />
         ) : null;
       })}
-      <Markdown content={message.content} renderThree currentOrigin="" />
+      <Markdown
+        content={message.content}
+        renderThree
+        renderArtifacts
+        currentOrigin=""
+        assets={message.assets}
+        citations={message.citations}
+        assetBase={
+          conversationId
+            ? `/api/v1/conversations/${conversationId}/assets/${index}`
+            : undefined
+        }
+      />
     </details>
   );
 }
@@ -305,19 +323,38 @@ export function ConversationReader({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [readingProgress, setReadingProgress] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const progressRef = useRef<HTMLProgressElement>(null);
+  const followChatRef = useRef(true);
   const sourceRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const base = `/api/v1/conversations/${conversation.id}`;
+  async function refreshContent(): Promise<void> {
+    if (busy || refreshing) return;
+    setRefreshing(true);
+    setError("");
+    try {
+      const response = await fetch(`${base}/refresh`, { method: "POST" });
+      if (!response.ok)
+        throw new Error((await response.json()).error || "Refresh failed.");
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Refresh failed.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
   useEffect(() => {
     const key = `papernook:offline-position:conversation:${conversation.id}:source`;
     const scrollElement = sourceRef.current;
     if (!scrollElement) return;
     const updateProgress = () => {
       const maximum = scrollElement.scrollHeight - scrollElement.clientHeight;
-      setReadingProgress(
-        maximum > 0 ? Math.round((scrollElement.scrollTop / maximum) * 100) : 0,
-      );
+      const progress = progressRef.current;
+      if (!progress) return;
+      progress.value =
+        maximum > 0 ? Math.round((scrollElement.scrollTop / maximum) * 100) : 0;
+      progress.setAttribute("aria-valuetext", `${progress.value}%`);
     };
     try {
       const value = Number(localStorage.getItem(key));
@@ -338,7 +375,7 @@ export function ConversationReader({
   }, [conversation.id]);
   useEffect(() => {
     const element = chatScrollRef.current;
-    if (element)
+    if (element && followChatRef.current)
       element.scrollTop =
         draft ||
         chats.find((chat) => chat.header.id === chatId)?.messages.length
@@ -352,6 +389,7 @@ export function ConversationReader({
       return;
     }
     setBusy(true);
+    followChatRef.current = true;
     setError("");
     setPendingQuery(query);
     setPendingImages(images);
@@ -515,8 +553,26 @@ export function ConversationReader({
                     <ExternalLink size={16} aria-hidden="true" /> Original share
                   </a>
                 )}
+                {conversation.sourceUrl &&
+                  (conversation.provider === "chatgpt" ||
+                    conversation.provider === "claude") && (
+                    <button
+                      type="button"
+                      onClick={() => void refreshContent()}
+                      disabled={busy || refreshing || !connected}
+                    >
+                      {refreshing
+                        ? "Refreshing shared content…"
+                        : "Refresh shared content"}
+                    </button>
+                  )}
               </div>
             </div>
+            {refreshing && (
+              <p role="status">
+                Fetching images and source references from the original share…
+              </p>
+            )}
             <details className={readerStyles.metadata}>
               <summary>Edit title, topic and tags</summary>
               <form
@@ -573,10 +629,11 @@ export function ConversationReader({
               <DocumentAppearanceSelect value={appearance} />
             </div>
             <progress
+              ref={progressRef}
               className={readerStyles.readingProgress}
               max={100}
-              value={readingProgress}
-              aria-label={`Reading progress: ${readingProgress}%`}
+              defaultValue={0}
+              aria-label="Reading progress"
             />
             <div
               ref={sourceRef}
@@ -622,7 +679,10 @@ export function ConversationReader({
                 aria-label="Follow-up chat"
                 disabled={busy}
                 value={chatId}
-                onChange={(event) => setChatId(event.target.value)}
+                onChange={(event) => {
+                  followChatRef.current = true;
+                  setChatId(event.target.value);
+                }}
               >
                 <option value="">New chat</option>
                 {chats.map((chat) => (
@@ -635,12 +695,28 @@ export function ConversationReader({
                 type="button"
                 className={chatStyles.newBtn}
                 disabled={busy}
-                onClick={() => setChatId("")}
+                onClick={() => {
+                  followChatRef.current = true;
+                  setChatId("");
+                }}
               >
                 + New
               </button>
             </div>
-            <div ref={chatScrollRef} className={chatStyles.messages}>
+            <div
+              ref={chatScrollRef}
+              aria-label="Scroll follow-up chat"
+              tabIndex={0}
+              className={chatStyles.messages}
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                followChatRef.current =
+                  element.scrollHeight -
+                    element.clientHeight -
+                    element.scrollTop <
+                  80;
+              }}
+            >
               {!active?.messages.length && !busy && (
                 <p className={chatStyles.empty}>
                   Ask a question to explore the saved conversation.
