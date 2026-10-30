@@ -1,29 +1,34 @@
 import { z } from "zod";
+import {
+  base64Schema,
+  revisionSchema,
+  labelSchema,
+  SharingError,
+} from "./protocol/values";
+import { artifactSnapshotSchema } from "./artifacts/schema";
+import { CanvasError } from "../canvas/errors";
+import { ExerciseError } from "../library/exercises/schema";
+import { RequestBodyError } from "../bounded-request";
+import { isAccessError } from "thesidedoor-core/access";
+import { accessErrorStatus } from "thesidedoor-core/access/http";
+export {
+  base64Schema,
+  revisionSchema,
+  MAX_BUNDLE_BYTES,
+  MAX_CHAT_BYTES,
+  SharingError,
+  labelSchema,
+} from "./protocol/values";
 
-export const MAX_BUNDLE_BYTES = 150 * 1024 * 1024;
-export const MAX_CHAT_BYTES = 8 * 1024 * 1024;
 export const sharingStatusSchema = z
   .object({ error: z.string().max(300).nullable(), at: z.string().datetime() })
   .strict();
 export const secretSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const idSchema = z.string().regex(/^[a-f0-9]{16}$/);
 export const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
-export const labelSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(80)
-  .regex(/^[^\p{C}]+$/u);
 const imageNameSchema = z
   .string()
   .regex(/^[a-f0-9]{64}\.(png|jpg|jpeg|webp|gif)$/);
-export const base64Schema = z
-  .string()
-  .refine(
-    (value) => value.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(value),
-    "Invalid base64 payload.",
-  );
-export const revisionSchema = z.string().regex(/^"[a-f0-9]{64}"$/);
 
 export const conversationSchema = z
   .object({
@@ -103,21 +108,27 @@ export const bundleSchema = z
     pdf: base64Schema,
     etag: revisionSchema,
     conversations: z.array(publishedThreadSchema).max(100),
+    artifacts: artifactSnapshotSchema,
   })
   .strict();
 export type PaperBundle = z.infer<typeof bundleSchema>;
 
-export class SharingError extends Error {
-  constructor(
-    message: string,
-    readonly status = 400,
-  ) {
-    super(message);
-  }
-}
-
 export function sharingFailure(error: unknown): Response {
-  if (error instanceof SharingError)
+  if (isAccessError(error)) {
+    return Response.json(
+      { error: error.message, code: error.code },
+      {
+        status: accessErrorStatus(error),
+        headers: { "cache-control": "private, no-store" },
+      },
+    );
+  }
+  if (
+    error instanceof SharingError ||
+    error instanceof CanvasError ||
+    error instanceof ExerciseError ||
+    error instanceof RequestBodyError
+  )
     return Response.json(
       { error: error.message },
       {

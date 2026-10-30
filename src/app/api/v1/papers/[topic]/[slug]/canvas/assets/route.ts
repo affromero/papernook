@@ -1,84 +1,67 @@
-import { createHash, randomUUID } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
 import { activeProfile } from "@/lib/auth/session";
-import { getPaper } from "@/lib/library/papers";
+import { readBoundedBytes, RequestBodyError } from "@/lib/bounded-request";
+import { storeCanvasAsset } from "@/lib/canvas/assets";
+import { MAX_CANVAS_ASSET_BYTES } from "@/lib/canvas/media";
+import { uploadConnectedCanvasAsset } from "@/lib/sharing/artifacts/gateway";
+import {
+  hasCollaboration,
+  localArtifactAuthority,
+} from "@/lib/sharing/artifacts/local";
+import { uploadSourceAsset } from "@/lib/sharing/artifacts/source";
+import { sharingFailure } from "@/lib/sharing/schema";
 
 export const dynamic = "force-dynamic";
-
 interface Params {
   params: Promise<{ topic: string; slug: string }>;
 }
-
-const MAX_ASSET_BYTES = 50 * 1024 * 1024;
-const MIME_EXTENSIONS: Record<string, string> = {
-  "image/gif": "gif",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "video/mp4": "mp4",
-  "video/quicktime": "mov",
-  "video/webm": "webm",
-};
-
-async function readLimitedBody(request: NextRequest): Promise<Buffer | null> {
-  const declaredLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_ASSET_BYTES) {
-    return null;
-  }
-  if (!request.body) return Buffer.alloc(0);
-  const reader = request.body.getReader();
-  const chunks: Buffer[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > MAX_ASSET_BYTES) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(Buffer.from(value));
-  }
-  return Buffer.concat(chunks, total);
-}
-
 export async function POST(request: NextRequest, { params }: Params) {
   const profile = await activeProfile();
   if (!profile)
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const { topic, slug } = await params;
-  const paper = getPaper(topic, slug);
-  if (!paper)
-    return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
-
-  const mime = request.headers.get("content-type")?.split(";")[0] ?? "";
-  const extension = MIME_EXTENSIONS[mime];
-  if (!extension) {
-    return NextResponse.json(
-      { error: "Only images and common video files can be added." },
-      { status: 415 },
+  try {
+    const mime = request.headers.get("content-type")?.split(";")[0] ?? "";
+    const bytes = await readBoundedBytes(
+      request,
+      MAX_CANVAS_ASSET_BYTES,
+      AbortSignal.timeout(30_000),
     );
-  }
-  const bytes = await readLimitedBody(request);
-  if (!bytes || bytes.length === 0) {
-    return NextResponse.json(
-      { error: "Canvas assets must be between 1 byte and 50 MB." },
-      { status: 413 },
+    const connected = await uploadConnectedCanvasAsset(
+      topic,
+      slug,
+      bytes,
+      mime,
     );
+    if (connected) return NextResponse.json(connected);
+    let name: string;
+    if (hasCollaboration(topic, slug)) {
+      const authority = await localArtifactAuthority();
+      name = uploadSourceAsset(
+        topic,
+        slug,
+        bytes,
+        mime,
+        authority.actor,
+        authority.commit,
+      );
+    } else
+      name = storeCanvasAsset(
+        topic,
+        slug,
+        bytes,
+        mime,
+        `profile:${profile.username}`,
+      );
+    return NextResponse.json({
+      src: `/api/v1/papers/${topic}/${slug}/canvas/assets/${name}`,
+    });
+  } catch (error) {
+    if (error instanceof RequestBodyError && error.status === 413)
+      return NextResponse.json(
+        { error: "Canvas assets must be between 1 byte and 50 MB." },
+        { status: 413 },
+      );
+    return sharingFailure(error);
   }
-
-  const filename = `${createHash("sha256").update(bytes).digest("hex")}.${extension}`;
-  const directory = path.join(paper.companionDir, "canvas-assets");
-  fs.mkdirSync(directory, { recursive: true });
-  const file = path.join(directory, filename);
-  if (!fs.existsSync(file)) {
-    const tmp = `${file}.${process.pid}.${randomUUID()}.tmp`;
-    fs.writeFileSync(tmp, bytes);
-    fs.renameSync(tmp, file);
-  }
-  return NextResponse.json({
-    src: `/api/v1/papers/${topic}/${slug}/canvas/assets/${filename}`,
-  });
 }

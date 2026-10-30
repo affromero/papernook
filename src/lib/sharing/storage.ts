@@ -29,6 +29,7 @@ import {
 } from "../library/papers";
 import { getShare, withShareFiles, type PaperShare } from "../library/shares";
 import { pdfEtag } from "../library/pdf/file";
+import { artifactVersionsSchema } from "./artifacts/schema";
 import {
   idSchema,
   labelSchema,
@@ -59,6 +60,13 @@ const connectionSchema = z
     username: slugSchema,
     generation: z.number().int().nonnegative(),
     mirrorEtag: revisionSchema,
+    artifacts: z
+      .object({
+        source: artifactVersionsSchema.nullable(),
+        mirror: artifactVersionsSchema,
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type Connection = z.infer<typeof connectionSchema>;
@@ -533,6 +541,7 @@ export function saveConnection(
   capability: ProfileCapability,
   connection: Connection,
   initial = false,
+  before?: () => void,
 ): void {
   withProfileFiles(new PapernookIdentityStore(dataRoot()), capability, () =>
     withPaperMutation(slug, () => {
@@ -549,6 +558,7 @@ export function saveConnection(
           "The local PDF changed while syncing. Try again.",
           409,
         );
+      before?.();
       writeJson(
         connectionPath(topic, slug),
         connectionSchema.parse(connection),
@@ -610,6 +620,23 @@ export function eraseSharingConnections(username: string): void {
     const folder = path.join(directory, "collaboration");
     if (!fs.existsSync(folder)) return;
     for (const name of fs.readdirSync(folder)) {
+      if (/^artifacts-pending\.json(?:\.[a-f0-9-]{36}\.tmp)?$/.test(name)) {
+        const file = path.join(folder, name);
+        const stat = fs.lstatSync(file);
+        if (!stat.isFile() || stat.size > 100 * 1024 * 1024)
+          throw new SharingError(
+            "Artifact recovery ownership is unavailable during profile erasure.",
+            503,
+          );
+        const owner = z
+          .object({
+            username: slugSchema,
+            generation: z.number().int().nonnegative(),
+          })
+          .parse(JSON.parse(fs.readFileSync(file, "utf8")));
+        if (owner.username === username) fs.unlinkSync(file);
+        continue;
+      }
       if (
         name !== "connection.json" &&
         !/^connection\.json\.[a-f0-9-]{36}\.tmp$/.test(name)

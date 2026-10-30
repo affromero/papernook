@@ -12,6 +12,8 @@ import {
 import { isAccessError } from "thesidedoor-core/access";
 import styles from "./share.module.css";
 import { ImportOnInstance } from "@/components/share/ImportReading";
+import { PublicStudyArtifacts } from "@/components/share/StudyArtifacts";
+import { configuredCanvasLicense } from "@/lib/canvas/config";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,9 @@ export default async function SharePage({ params }: SharePageProps) {
   if (!share || !paper) notFound();
 
   const meta = paper.meta;
+  const licenseKey = share.includeArtifacts
+    ? configuredCanvasLicense().licenseKey
+    : null;
   let currentOrigin: string | undefined;
   try {
     const headerStore = await headers();
@@ -90,6 +95,12 @@ export default async function SharePage({ params }: SharePageProps) {
           </section>
 
           <aside className={styles.studyColumn}>
+            {share.includeArtifacts && (
+              <PublicStudyArtifacts
+                endpoint={`/api/v1/shares/${topic}/${slug}/${shareId}/artifacts`}
+                licenseKey={licenseKey}
+              />
+            )}
             {paper.summary && (
               <section className={styles.summary}>
                 <h2>Reading note</h2>

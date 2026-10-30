@@ -20,7 +20,8 @@ import {
   acceptFromInbox,
 } from "../library/papers";
 import { readVersionedPdf, pdfEtag } from "../library/pdf/file";
-import { MAX_PDF_BYTES } from "../pdf-limits";
+import { validateSharedPdf } from "./protocol/pdf";
+export { validateSharedPdf } from "./protocol/pdf";
 import { dataRoot } from "../data-dir";
 import { getProfile } from "../auth/users";
 import { writeCaptureOwner } from "../capture/jobs/ownership";
@@ -31,6 +32,12 @@ import {
   type ProfileCapability,
 } from "../auth/profile-capability";
 import { digest, ownerActorId } from "./storage";
+import {
+  snapshotArtifacts,
+  stageArtifacts,
+  validateArtifacts,
+} from "./artifacts/snapshot";
+import { readPublishedArtifacts } from "./artifacts/publication";
 import {
   bundleSchema,
   conversationSchema,
@@ -185,6 +192,10 @@ export async function exportBundle(
     throw new SharingError("This link permits viewing only.", 403);
   const pdf = await readVersionedPdf(share.topic, share.slug);
   if (!pdf) throw new SharingError("Unknown paper.", 404);
+  const artifacts =
+    conversations !== undefined
+      ? await snapshotArtifacts(share.topic, share.slug)
+      : readPublishedArtifacts(share);
   return withShareFiles(share, () => {
     const paper = getPaper(share.topic, share.slug);
     if (!paper) throw new SharingError("Unknown paper.", 404);
@@ -200,6 +211,7 @@ export async function exportBundle(
       pdf: Buffer.from(pdf.bytes).toString("base64"),
       etag: pdf.etag,
       conversations: conversations ?? sourceThreads(share, false),
+      artifacts,
     });
     if (Buffer.byteLength(JSON.stringify(bundle)) > MAX_BUNDLE_BYTES)
       throw new SharingError(
@@ -220,6 +232,7 @@ export async function importBundle(
   const pdf = Buffer.from(parsed.pdf, "base64");
   validateSharedPdf(pdf, parsed.etag);
   for (const thread of parsed.conversations) validateAssets(thread);
+  const artifacts = validateArtifacts(parsed.artifacts);
   const identity = new PapernookIdentityStore(dataRoot());
   return withProfileActivity(identity, capability, async () => {
     const base = uniqueSlug(parsed.slug);
@@ -256,6 +269,7 @@ export async function importBundle(
         });
         if (parsed.summary) writeSummary(null, slug, parsed.summary);
         if (parsed.text) writeText(null, slug, parsed.text);
+        stageArtifacts(directory, artifacts, topic, slug);
         if (!linked)
           for (const thread of parsed.conversations) {
             const header = createChat(
@@ -290,15 +304,4 @@ export async function importBundle(
       throw error;
     }
   });
-}
-
-export function validateSharedPdf(pdf: Uint8Array, etag: string): void {
-  const bytes = Buffer.from(pdf);
-  if (
-    bytes.byteLength > MAX_PDF_BYTES ||
-    pdfEtag(bytes) !== etag ||
-    !bytes.subarray(0, 1024).toString("latin1").includes("%PDF-") ||
-    !bytes.subarray(-1024).toString("latin1").includes("%%EOF")
-  )
-    throw new SharingError("The shared PDF is invalid or incomplete.", 422);
 }

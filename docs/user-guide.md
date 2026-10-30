@@ -125,18 +125,21 @@ capability to read that one shared paper.
 
 The sharing dialog offers three modes:
 
-| Mode             | What the recipient can do                                                                    |
-| ---------------- | -------------------------------------------------------------------------------------------- |
-| View only        | Read the current annotated PDF and selected conversation snapshots without an account.       |
-| Independent fork | Import the PDF and selected snapshots into another Papernook. Future edits stay separate.    |
-| Collaborate      | Request approval to annotate the same paper and exchange explicitly published conversations. |
+| Mode             | What the recipient can do                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| View only        | Read the current annotated PDF and selected conversation snapshots without an account.               |
+| Independent fork | Import the PDF and selected snapshots into another Papernook. Future edits stay separate.            |
+| Collaborate      | Request approval to sync annotations, the canvas, exercises, and explicitly published conversations. |
 
 ![Sharing choices on a phone](images/product/share-reading-mobile.png)
 
 For a fork or collaboration, the recipient enters their Papernook address on
 the shared reading and opens its import page. They choose a topic and import
 mode. The receiving server needs a valid HTTPS connection to the source.
-Forks preserve the annotated PDF and selected chat images. They exclude private
+Forks preserve the annotated PDF and selected chat images. **Include canvas and
+exercise snapshots** also copies the saved canvas, its uploaded media, exercise
+markdown, and annotated exercise PDF. This option starts enabled for forks.
+They exclude private
 chats, instance credentials, capture tokens, integration settings, and sharing
 permissions. Revoking a link cannot recall an imported or downloaded copy.
 
@@ -157,6 +160,20 @@ Annotation processing runs in a separate process with a restricted filesystem,
 a 15-second timeout, a bounded heap, and explicit decompression allocation
 limits. Unsupported or oversized edits fail before replacing the canonical PDF.
 
+Approved participants also share the canvas and exercises. Canvas changes carry
+their creator and latest editor; selecting an object shows its latest editor.
+Concurrent saves require a reload and preserve unsaved changes. Shared canvases
+support uploaded images and videos, text, drawings, and HTTP or HTTPS links.
+Remote embeds, bookmarks, session records, and external media sources are
+rejected. Canvas documents are limited to 4 MB, each media upload to 8 MB, and
+referenced media to 32 MB per canvas.
+
+Open **Exercises** beside the reader to save a question or open its annotated
+PDF. New exercises show the contributor's approved name. Generation appends
+pages, preserving existing ink and page coordinates. A paper can share up to
+100 exercises and 2 MB of markdown, with a 32 MB exercise PDF limit. Retrying
+an interrupted save recovers the accepted operation without adding it twice.
+
 Open **Collaboration** beside the reader to publish one of your conversations.
 **Publish and sync** shares its current content and future turns with approved
 participants. **Stop sharing conversation** withdraws the shared copy. Personal
@@ -171,16 +188,20 @@ the last published revision and shows a sync error. Private conversations can
 continue; withdraw an oversized publication before sharing it again.
 
 The public preview keeps the conversation snapshots selected when the link was
-created. Later collaborative annotations appear in the same live PDF, including
+created. Canvas and exercise snapshots require their own inclusion checkbox;
+approval always enables their live collaboration independently of that checkbox.
+The public canvas and exercise PDF have no editing tools, and conversations
+cannot be continued. Later collaborative annotations appear in the same live paper PDF, including
 through existing public reading links. Both parties confirm that visibility
 before connecting.
 
-The receiving instance refreshes its PDF mirror and published conversations
+The receiving instance refreshes its PDF, canvas, exercises, and published conversations
 every 30 seconds. WebDAV cannot identify individual editors, so its mirror is
 for reading. Unexpected local edits are preserved as conflicts and are never
 uploaded under someone else's name. **Keep an independent copy** stops syncing
-and retains the local PDF and personal chats. Canvas content and exercises stay
-local.
+and retains the local artifacts and personal chats. Interrupted mirror writes
+have a durable recovery record. Recovery accepts only the expected files or
+the already committed replacements; conflicting local edits remain untouched.
 
 Sharing blocks private network destinations by default. An administrator can
 allow an exact private HTTPS origin with

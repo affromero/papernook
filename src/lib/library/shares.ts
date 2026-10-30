@@ -28,6 +28,8 @@ import {
   visitPaperCompanions,
   withPaperMutation,
 } from "./papers";
+import { validateArtifacts } from "../sharing/artifacts/snapshot";
+import type { ArtifactSnapshot } from "../sharing/artifacts/schema";
 
 /**
  * Revocable view-only shares live beside the paper they expose:
@@ -73,6 +75,7 @@ const shareRecordSchema = z.object({
   conversations: z.array(sharedConversationSchema).max(MAX_CONVERSATIONS),
   mode: z.enum(["view", "fork", "collaborate"]).default("view"),
   revoked: z.boolean().default(false),
+  includeArtifacts: z.boolean().default(false),
 });
 
 export type PaperShare = z.infer<typeof shareRecordSchema>;
@@ -184,6 +187,7 @@ export function createShare(
   capability: ProfileCapability,
   chatIds: string[],
   mode: PaperShare["mode"] = "view",
+  artifacts?: ArtifactSnapshot,
 ): PaperShare {
   const ownerUsername = capability.username;
   return withProfileFiles(
@@ -229,8 +233,9 @@ export function createShare(
         conversations,
         mode,
         revoked: false,
+        includeArtifacts: artifacts !== undefined,
       };
-      if (mode !== "collaborate") return persistShare(share);
+      if (mode !== "collaborate" && !artifacts) return persistShare(share);
       const release = acquireFileLockSync(
         path.join(dataRoot(), "locks", "collaboration", `${id}.guard`),
       );
@@ -238,7 +243,19 @@ export function createShare(
         persistShare(share);
         ensureCollaborationOwner(share);
         try {
-          synchronizeOwnerThreads(share);
+          if (artifacts)
+            withShareFiles(share, () =>
+              writeJson(
+                path.join(
+                  companionDir(topic, slug),
+                  "collaboration",
+                  id,
+                  "artifacts.json",
+                ),
+                validateArtifacts(artifacts),
+              ),
+            );
+          if (mode === "collaborate") synchronizeOwnerThreads(share);
         } catch (error) {
           deleteShare(topic, slug, id, ownerUsername);
           throw error;

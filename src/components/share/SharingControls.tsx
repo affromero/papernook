@@ -337,8 +337,8 @@ export function CollaborationPanel({
         </p>
         {connected && (
           <p>
-            Browser edits use your approved identity. The WebDAV copy is a
-            reading mirror. Canvas and exercises stay local.
+            Browser edits use your approved identity. Canvas and exercises sync
+            with this reading. The WebDAV PDFs are reading mirrors.
           </p>
         )}
         <button type="button" disabled={busy} onClick={() => void refresh()}>

@@ -13,6 +13,7 @@ import { DownloadButton } from "@/components/offline/DownloadButton";
 import styles from "./paper.module.css";
 import { readConnection } from "@/lib/sharing/storage";
 import { CollaborationPanel } from "@/components/share/SharingControls";
+import { PaperExercises } from "@/components/share/StudyArtifacts";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,11 @@ export default async function PaperPage({ params }: PaperPageProps) {
               topic={topic}
               slug={slug}
               connected={connection !== null}
+            />
+            <PaperExercises
+              topic={topic}
+              slug={slug}
+              editable={!connection || connection.username === profile.username}
             />
             {paper.summary && <p className={styles.summary}>{paper.summary}</p>}
             <ChatPanel

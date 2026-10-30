@@ -1,10 +1,26 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
-import { renameSync } from "node:fs";
+import fsSync from "node:fs";
 import path from "node:path";
+import { syncDirectory } from "thesidedoor-core/storage";
 import { FilesystemBusyError, withFilesystemLock } from "../../filesystem-lock";
 import { MAX_PDF_BYTES } from "../../pdf-limits";
-import { getPaper } from "../papers";
+import { getPaper, exercisesPdfPath } from "../papers";
+
+export type PdfKind = "paper" | "exercises";
+
+function paperPdfPath(
+  topic: string,
+  slug: string,
+  kind: PdfKind,
+): string | null {
+  const paper = getPaper(topic, slug);
+  return paper
+    ? kind === "paper"
+      ? paper.pdfPath
+      : exercisesPdfPath(topic, slug)
+    : null;
+}
 
 const RECENT_WRITE_MS = 5_000;
 const PDF_LOCK_WAIT_MS = 2_000;
@@ -55,10 +71,22 @@ async function readStableFile(pdfPath: string): Promise<VersionedPdf> {
 export async function readVersionedPdf(
   topic: string,
   slug: string,
+  kind: PdfKind = "paper",
 ): Promise<VersionedPdf | null> {
-  const paper = getPaper(topic, slug);
-  if (!paper) return null;
-  return readStableFile(paper.pdfPath);
+  const file = paperPdfPath(topic, slug, kind);
+  if (!file) return null;
+  try {
+    return await readStableFile(file);
+  } catch (error) {
+    if (
+      kind === "exercises" &&
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "ENOENT"
+    )
+      return null;
+    throw error;
+  }
 }
 
 /**
@@ -69,20 +97,25 @@ export async function readVersionedPdf(
 export async function readVersionedPdfFile(
   topic: string,
   slug: string,
+  kind: PdfKind = "paper",
 ): Promise<{ path: string; size: number; etag: string } | null> {
-  const paper = getPaper(topic, slug);
-  if (!paper) return null;
+  const file = paperPdfPath(topic, slug, kind);
+  if (!file) return null;
 
-  const stat = await fs.stat(paper.pdfPath).catch(() => null);
+  const stat = await fs.stat(file).catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return null;
+    throw error;
+  });
   if (!stat) return null;
-  const cached = versionCache.get(paper.pdfPath);
+  const cached = versionCache.get(file);
   if (cached?.identity === statIdentity(stat)) {
-    return { path: paper.pdfPath, size: stat.size, etag: cached.etag };
+    return { path: file, size: stat.size, etag: cached.etag };
   }
 
-  const version = await readStableFile(paper.pdfPath);
+  const version = await readStableFile(file);
   return {
-    path: paper.pdfPath,
+    path: file,
     size: version.bytes.byteLength,
     etag: version.etag,
   };
@@ -91,22 +124,38 @@ export async function readVersionedPdfFile(
 export async function readStablePdfVersion(
   topic: string,
   slug: string,
+  kind: PdfKind = "paper",
 ): Promise<{ etag: string } | null> {
-  const paper = getPaper(topic, slug);
-  if (!paper) return null;
+  const file = paperPdfPath(topic, slug, kind);
+  if (!file) return null;
 
-  const stat = await fs.stat(paper.pdfPath);
+  const stat = await fs.stat(file).catch((error: unknown) => {
+    if (
+      kind === "exercises" &&
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "ENOENT"
+    )
+      return null;
+    throw error;
+  });
+  if (!stat) return null;
   const identity = statIdentity(stat);
-  const cached = versionCache.get(paper.pdfPath);
+  const cached = versionCache.get(file);
   if (cached?.identity === identity) return { etag: cached.etag };
 
   if (Date.now() - stat.mtimeMs < RECENT_WRITE_MS) {
+    const known = recentAppWrites.get(file);
+    if (known && Date.now() - known.writtenAt < RECENT_WRITE_MS) {
+      const version = await readStableFile(file);
+      if (version.etag === known.etag) return { etag: version.etag };
+    }
     throw new PdfBusyError(
       "The PDF is still being written. Try again in a moment.",
     );
   }
 
-  const version = await readStableFile(paper.pdfPath);
+  const version = await readStableFile(file);
   return { etag: version.etag };
 }
 
@@ -124,6 +173,43 @@ function assertWritablePdf(bytes: Uint8Array): void {
   if (!trailer.includes("%%EOF")) {
     throw new InvalidPdfError("The saved PDF is incomplete. Try saving again.");
   }
+}
+
+function assertFileVersion(file: string, expected: string | null): void {
+  let current: Buffer | null;
+  try {
+    current = fsSync.readFileSync(file);
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !("code" in error) ||
+      error.code !== "ENOENT"
+    )
+      throw error;
+    current = null;
+  }
+  if ((current ? pdfEtag(current) : null) !== expected)
+    throw new PdfConflictError(
+      "The PDF changed at the final commit. Reload and try again.",
+    );
+}
+
+/** Hold the canonical writer lease while committing metadata against unchanged bytes. */
+export async function verifyPdfVersion(
+  topic: string,
+  slug: string,
+  expected: string,
+  commit: (verify: () => void) => void,
+  kind: PdfKind = "paper",
+): Promise<void> {
+  await withPdfWriteLock(
+    topic,
+    slug,
+    async (file) => {
+      commit(() => assertFileVersion(file, expected));
+    },
+    kind,
+  );
 }
 
 async function assertNotRecentlyWritten(
@@ -149,29 +235,51 @@ async function assertNotRecentlyWritten(
 async function atomicReplace(
   pdfPath: string,
   bytes: Uint8Array,
-  expectedEtag?: string,
+  expectedEtag?: string | null,
   commit?: (operation: () => void) => void,
 ): Promise<string> {
-  const stat = await fs.stat(pdfPath);
+  const stat = await fs.stat(pdfPath).catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return null;
+    throw error;
+  });
   const tempPath = path.join(
     path.dirname(pdfPath),
     `.${path.basename(pdfPath)}.${process.pid}.${crypto.randomUUID()}.tmp`,
   );
   try {
-    await fs.writeFile(tempPath, bytes, { mode: stat.mode & 0o777 });
+    await fs.writeFile(tempPath, bytes, {
+      mode: stat ? stat.mode & 0o777 : 0o600,
+      flush: true,
+    });
+    const existing = await fs.readFile(pdfPath).catch((error: unknown) => {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT")
+        return null;
+      throw error;
+    });
     if (
-      expectedEtag &&
-      pdfEtag(new Uint8Array(await fs.readFile(pdfPath))) !== expectedEtag
+      expectedEtag !== undefined &&
+      (existing ? pdfEtag(existing) : null) !== expectedEtag
     ) {
       throw new PdfConflictError(
         "The PDF changed while it was being saved. Reload and try again.",
       );
     }
-    if (commit) commit(() => renameSync(tempPath, pdfPath));
-    else await fs.rename(tempPath, pdfPath);
-    const identity = statIdentity(await fs.stat(pdfPath));
+    if (commit)
+      commit(() => {
+        if (expectedEtag !== undefined)
+          assertFileVersion(pdfPath, expectedEtag);
+        fsSync.renameSync(tempPath, pdfPath);
+        syncDirectory(path.dirname(pdfPath));
+      });
+    else {
+      await fs.rename(tempPath, pdfPath);
+      syncDirectory(path.dirname(pdfPath));
+    }
     const etag = pdfEtag(bytes);
-    versionCache.set(pdfPath, { identity, etag });
+    // A WebDAV writer may save immediately after our rename. Do not attach
+    // our digest to a later writer's file identity.
+    versionCache.delete(pdfPath);
     return etag;
   } finally {
     await fs.rm(tempPath, { force: true }).catch(() => undefined);
@@ -182,16 +290,17 @@ async function withPdfWriteLock<T>(
   topic: string,
   slug: string,
   operation: (pdfPath: string) => Promise<T>,
+  kind: PdfKind = "paper",
 ): Promise<T> {
-  const paper = getPaper(topic, slug);
-  if (!paper) throw new PdfFileError(`Unknown paper ${topic}/${slug}`);
+  const file = paperPdfPath(topic, slug, kind);
+  if (!file) throw new PdfFileError(`Unknown paper ${topic}/${slug}`);
 
   try {
     return await withFilesystemLock(
       "pdf",
-      `${topic}/${slug}`,
+      kind === "paper" ? `${topic}/${slug}` : `${topic}/${slug}/exercises`,
       PDF_LOCK_WAIT_MS,
-      () => operation(paper.pdfPath),
+      () => operation(file),
     );
   } catch (error) {
     if (error instanceof FilesystemBusyError) {
@@ -206,24 +315,40 @@ async function withPdfWriteLock<T>(
 export async function replacePdf(
   topic: string,
   slug: string,
-  expectedEtag: string,
+  expectedEtag: string | null,
   bytes: Uint8Array,
   commit?: (operation: () => void) => void,
+  kind: PdfKind = "paper",
 ): Promise<{ etag: string }> {
   assertWritablePdf(bytes);
 
-  return withPdfWriteLock(topic, slug, async (pdfPath) => {
-    const current = new Uint8Array(await fs.readFile(pdfPath));
-    if (pdfEtag(current) !== expectedEtag) {
-      throw new PdfConflictError(
-        "The PDF changed after you opened it. Reload before saving so newer annotations are not overwritten.",
-      );
-    }
-    await assertNotRecentlyWritten(pdfPath, expectedEtag);
-    const etag = await atomicReplace(pdfPath, bytes, expectedEtag, commit);
-    recentAppWrites.set(pdfPath, { etag, writtenAt: Date.now() });
-    return { etag };
-  });
+  return withPdfWriteLock(
+    topic,
+    slug,
+    async (pdfPath) => {
+      const current = await fs.readFile(pdfPath).catch((error: unknown) => {
+        if (
+          kind === "exercises" &&
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "ENOENT"
+        )
+          return null;
+        throw error;
+      });
+      if ((current ? pdfEtag(current) : null) !== expectedEtag) {
+        throw new PdfConflictError(
+          "The PDF changed after you opened it. Reload before saving so newer annotations are not overwritten.",
+        );
+      }
+      if (current)
+        await assertNotRecentlyWritten(pdfPath, expectedEtag ?? undefined);
+      const etag = await atomicReplace(pdfPath, bytes, expectedEtag, commit);
+      recentAppWrites.set(pdfPath, { etag, writtenAt: Date.now() });
+      return { etag };
+    },
+    kind,
+  );
 }
 
 export async function rewritePdf(
@@ -232,22 +357,28 @@ export async function rewritePdf(
   transform: (bytes: Uint8Array) => Promise<Uint8Array>,
   expectedEtag?: string,
   commit?: (operation: () => void) => void,
+  kind: PdfKind = "paper",
 ): Promise<{ etag: string }> {
-  return withPdfWriteLock(topic, slug, async (pdfPath) => {
-    const current = new Uint8Array(await fs.readFile(pdfPath));
-    if (expectedEtag && pdfEtag(current) !== expectedEtag) {
-      throw new PdfConflictError(
-        "The PDF changed after you opened it. Reload before saving.",
-      );
-    }
-    await assertNotRecentlyWritten(pdfPath, expectedEtag);
-    const next = await transform(current);
-    assertWritablePdf(next);
-    const etag = await atomicReplace(pdfPath, next, pdfEtag(current), commit);
-    recentAppWrites.set(pdfPath, {
-      etag,
-      writtenAt: Date.now(),
-    });
-    return { etag };
-  });
+  return withPdfWriteLock(
+    topic,
+    slug,
+    async (pdfPath) => {
+      const current = new Uint8Array(await fs.readFile(pdfPath));
+      if (expectedEtag && pdfEtag(current) !== expectedEtag) {
+        throw new PdfConflictError(
+          "The PDF changed after you opened it. Reload before saving.",
+        );
+      }
+      await assertNotRecentlyWritten(pdfPath, expectedEtag);
+      const next = await transform(current);
+      assertWritablePdf(next);
+      const etag = await atomicReplace(pdfPath, next, pdfEtag(current), commit);
+      recentAppWrites.set(pdfPath, {
+        etag,
+        writtenAt: Date.now(),
+      });
+      return { etag };
+    },
+    kind,
+  );
 }

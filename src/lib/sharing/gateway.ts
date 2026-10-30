@@ -17,7 +17,12 @@ import {
   sharingFailure,
   publishedThreadSchema,
 } from "./schema";
-import { pdfEtag, readVersionedPdf, replacePdf } from "../library/pdf/file";
+import {
+  pdfEtag,
+  readVersionedPdf,
+  replacePdf,
+  type PdfKind,
+} from "../library/pdf/file";
 import { getPaper, withPaperMutation } from "../library/papers";
 import { PapernookIdentityStore } from "../auth/identity-store";
 import { withProfileFiles } from "../auth/profile-capability";
@@ -26,6 +31,7 @@ import { validateSharedPdf, validateAssets } from "./bundle";
 import type { PdfCommentAction } from "../library/pdf/comments";
 import type { ProfileCapability } from "../auth/profile-capability";
 import { MAX_COLLABORATIVE_PDF_BYTES } from "./sandbox";
+import { syncConnectedArtifacts } from "./artifacts/gateway";
 
 const saveResultSchema = z
   .object({
@@ -78,34 +84,56 @@ export async function updateMirror(
   bytes: Uint8Array,
   etag: string,
   capability: ProfileCapability,
+  kind: PdfKind = "paper",
 ) {
   validateSharedPdf(bytes, etag);
-  const current = await readVersionedPdf(topic, slug);
+  const current = await readVersionedPdf(topic, slug, kind);
   if (!current) throw new SharingError("The local paper was removed.", 404);
-  if (current.etag !== connection.mirrorEtag && current.etag !== etag)
+  const expected =
+    kind === "paper"
+      ? connection.mirrorEtag
+      : connection.artifacts?.mirror.exercisePdf;
+  if (current.etag !== expected && current.etag !== etag)
     throw new SharingError(
       "The local PDF changed outside collaboration. Preserve that copy before reconnecting; it has not been uploaded.",
       409,
     );
   if (current.etag !== etag)
-    await replacePdf(topic, slug, current.etag, bytes, (commit) =>
-      withProfileFiles(new PapernookIdentityStore(dataRoot()), capability, () =>
-        withPaperMutation(slug, () => {
-          assertCurrentConnection(topic, slug, capability, connection);
-          commit();
-        }),
-      ),
+    await replacePdf(
+      topic,
+      slug,
+      current.etag,
+      bytes,
+      (commit) =>
+        withProfileFiles(
+          new PapernookIdentityStore(dataRoot()),
+          capability,
+          () =>
+            withPaperMutation(slug, () => {
+              assertCurrentConnection(topic, slug, capability, connection);
+              commit();
+            }),
+        ),
+      kind,
     );
-  saveConnection(topic, slug, capability, {
-    ...connection,
-    mirrorEtag: etag,
-  });
+  const next = { ...connection };
+  if (kind === "paper") next.mirrorEtag = etag;
+  else if (next.artifacts)
+    next.artifacts = {
+      mirror: { ...next.artifacts.mirror, exercisePdf: etag },
+      source: next.artifacts.source
+        ? { ...next.artifacts.source, exercisePdf: etag }
+        : null,
+    };
+  saveConnection(topic, slug, capability, next);
+  Object.assign(connection, next);
 }
 
 export async function connectedPdfResponse(
   request: Request,
   topic: string,
   slug: string,
+  kind: PdfKind = "paper",
 ): Promise<Response | null> {
   if (!readConnection(topic, slug)) return null;
   try {
@@ -116,6 +144,13 @@ export async function connectedPdfResponse(
       slug,
       admission.capability,
       async (connection) => {
+        if (kind === "exercises" && request.method !== "HEAD")
+          await syncConnectedArtifacts(
+            topic,
+            slug,
+            admission.capability!,
+            connection,
+          );
         if (request.method === "HEAD") {
           const version = z
             .object({ etag: revisionSchema })
@@ -126,7 +161,7 @@ export async function connectedPdfResponse(
                 slug,
                 admission.capability!,
                 connection,
-                { action: "version" },
+                { action: "version", kind },
               ),
             );
           return new Response(null, {
@@ -145,7 +180,7 @@ export async function connectedPdfResponse(
               slug,
               admission.capability!,
               connection,
-              { action: "pdf" },
+              { action: "pdf", kind },
             ),
           );
         const bytes = Buffer.from(bundle.pdf, "base64");
@@ -161,6 +196,7 @@ export async function connectedPdfResponse(
           bytes,
           bundle.etag,
           admission.capability!,
+          kind,
         );
         return new Response(request.method === "HEAD" ? null : bytes, {
           headers: {
@@ -181,6 +217,7 @@ export async function saveConnectedPdf(
   slug: string,
   expected: string,
   bytes: Uint8Array,
+  kind: PdfKind = "paper",
 ): Promise<{ etag: string; canonicalized: true } | null> {
   if (!readConnection(topic, slug)) return null;
   if (bytes.byteLength > MAX_COLLABORATIVE_PDF_BYTES)
@@ -188,11 +225,17 @@ export async function saveConnectedPdf(
       "Collaborative annotation saves support PDFs up to 32 MB.",
       413,
     );
-  return saveConnected(topic, slug, {
-    action: "save-pdf",
-    etag: expected,
-    pdf: Buffer.from(bytes).toString("base64"),
-  });
+  return saveConnected(
+    topic,
+    slug,
+    {
+      action: "save-pdf",
+      etag: expected,
+      pdf: Buffer.from(bytes).toString("base64"),
+      kind,
+    },
+    kind,
+  );
 }
 
 export async function saveConnectedComment(
@@ -212,6 +255,7 @@ async function saveConnected(
   topic: string,
   slug: string,
   operation: unknown,
+  kind: PdfKind = "paper",
 ): Promise<{ etag: string; canonicalized: true } | null> {
   if (!readConnection(topic, slug)) return null;
   const admission = await requestIdentity();
@@ -243,6 +287,7 @@ async function saveConnected(
         canonical,
         result.etag,
         admission.capability!,
+        kind,
       );
       return { etag: result.etag, canonicalized: true };
     },

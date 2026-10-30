@@ -4,6 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 import { base64Schema, SharingError } from "./schema";
 import type { PdfCommentAction } from "../library/pdf/comments";
+import type { ExerciseRenderEntry } from "../library/exercises/render";
 
 export const MAX_COLLABORATIVE_PDF_BYTES = 32 * 1024 * 1024;
 
@@ -35,6 +36,18 @@ export function reconstructComment(
   return runWorker(current, { action: "comment", comment, actor });
 }
 
+export function renderSharedExercises(
+  current: Uint8Array | null,
+  title: string,
+  entries: ExerciseRenderEntry[],
+): Promise<Uint8Array> {
+  return runWorker(current ?? new Uint8Array(), {
+    action: "exercises",
+    title,
+    entries,
+  });
+}
+
 type WorkerOperation =
   | {
       action: "annotations";
@@ -46,7 +59,8 @@ type WorkerOperation =
       action: "comment";
       comment: PdfCommentAction;
       actor: { id: string; name: string };
-    };
+    }
+  | { action: "exercises"; title: string; entries: ExerciseRenderEntry[] };
 
 async function runWorker(
   current: Uint8Array,

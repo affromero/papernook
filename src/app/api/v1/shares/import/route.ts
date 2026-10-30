@@ -10,6 +10,7 @@ import {
 } from "@/lib/sharing/schema";
 import { exchange, parseShareUrl } from "@/lib/sharing/transport";
 import { importBundle } from "@/lib/sharing/bundle";
+import { artifactVersions } from "@/lib/sharing/artifacts/snapshot";
 import {
   newSecret,
   participantId,
@@ -62,7 +63,8 @@ export async function POST(request: Request) {
       admission.capability,
       body.mode === "collaborate",
     );
-    if (body.mode === "collaborate")
+    if (body.mode === "collaborate") {
+      const mirror = await artifactVersions(body.topic, paper.slug);
       saveConnection(
         body.topic,
         paper.slug,
@@ -75,9 +77,11 @@ export async function POST(request: Request) {
           username: admission.capability.username,
           generation: admission.capability.generation,
           mirrorEtag: bundle.etag,
+          artifacts: { source: null, mirror },
         },
         true,
       );
+    }
     return Response.json(
       {
         href: `/paper/${body.topic}/${paper.slug}`,

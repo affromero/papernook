@@ -1,12 +1,16 @@
 import { z } from "zod";
 import DecodeStream from "pdf-lib/cjs/core/streams/DecodeStream";
 import { applyCollaborativeAnnotations } from "./annotations";
-import { base64Schema, labelSchema, SharingError } from "./schema";
+import { base64Schema, labelSchema, SharingError } from "./protocol/values";
 import {
   pdfCommentActionSchema,
   updatePdfComment,
   PdfCommentError,
 } from "../library/pdf/comments";
+import {
+  renderExerciseDocument,
+  ExerciseRenderError,
+} from "../library/exercises/render";
 
 const descriptor = Object.getOwnPropertyDescriptor(
   DecodeStream.prototype,
@@ -73,6 +77,23 @@ const inputSchema = z.discriminatedUnion("action", [
     action: z.literal("comment"),
     comment: pdfCommentActionSchema,
   }),
+  z
+    .object({
+      action: z.literal("exercises"),
+      current: base64Schema,
+      title: z.string().max(2000),
+      entries: z
+        .array(
+          z
+            .object({
+              operationId: z.string().regex(/^[a-zA-Z0-9._-]{1,100}$/),
+              markdown: z.string().min(1).max(100_000),
+            })
+            .strict(),
+        )
+        .max(100),
+    })
+    .strict(),
 ]);
 const chunks: Buffer[] = [];
 let size = 0;
@@ -88,19 +109,25 @@ process.stdin.on("end", () => {
         JSON.parse(Buffer.concat(chunks).toString("utf8")),
       );
       const pdf =
-        input.action === "comment"
-          ? await updatePdfComment(
-              Buffer.from(input.current, "base64"),
-              input.comment,
-              input.actor.name,
-              input.actor.id,
+        input.action === "exercises"
+          ? await renderExerciseDocument(
+              input.title,
+              input.entries,
+              input.current ? Buffer.from(input.current, "base64") : undefined,
             )
-          : await applyCollaborativeAnnotations(
-              Buffer.from(input.current, "base64"),
-              Buffer.from(input.proposed, "base64"),
-              input.actor,
-              input.owner,
-            );
+          : input.action === "comment"
+            ? await updatePdfComment(
+                Buffer.from(input.current, "base64"),
+                input.comment,
+                input.actor.name,
+                input.actor.id,
+              )
+            : await applyCollaborativeAnnotations(
+                Buffer.from(input.current, "base64"),
+                Buffer.from(input.proposed, "base64"),
+                input.actor,
+                input.owner,
+              );
       if (decodingRejected)
         throw new SharingError(
           "The PDF exceeds the decompression budget.",
@@ -120,7 +147,9 @@ process.stdin.on("end", () => {
               : 422,
           message: decodingRejected
             ? "The PDF exceeds the decompression budget."
-            : error instanceof SharingError || error instanceof PdfCommentError
+            : error instanceof SharingError ||
+                error instanceof PdfCommentError ||
+                error instanceof ExerciseRenderError
               ? error.message
               : "The PDF contains unsupported or invalid annotation data.",
         }),

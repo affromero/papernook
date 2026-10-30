@@ -30,6 +30,7 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
   const [chats, setChats] = useState<ChatHeader[]>([]);
   const [shares, setShares] = useState<ShareSummary[]>([]);
   const [includeChats, setIncludeChats] = useState(false);
+  const [includeArtifacts, setIncludeArtifacts] = useState(false);
   const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(
     new Set(),
   );
@@ -104,6 +105,7 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
         body: JSON.stringify({
           chatIds: includeChats ? [...selectedChatIds] : [],
           mode,
+          includeArtifacts,
           acknowledgePublicAnnotations: acknowledged,
         }),
       });
@@ -196,7 +198,7 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                     [
                       "collaborate",
                       "Collaborate",
-                      "Approve each participant. Annotations and published chats stay in sync.",
+                      "Approve each participant. Annotations, canvas, exercises and published chats stay in sync.",
                     ],
                   ] as const
                 ).map(([value, label, description]) => (
@@ -208,6 +210,7 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                       checked={mode === value}
                       onChange={() => {
                         setMode(value);
+                        setIncludeArtifacts(value === "fork");
                         setAcknowledged(false);
                       }}
                     />
@@ -239,6 +242,24 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                   </p>
                 </div>
               </section>
+
+              <label className={styles.includeRow}>
+                <input
+                  type="checkbox"
+                  checked={includeArtifacts}
+                  onChange={(event) =>
+                    setIncludeArtifacts(event.target.checked)
+                  }
+                />
+                <span>
+                  <strong>Include canvas and exercise snapshots</strong>
+                  <small>
+                    {mode === "collaborate"
+                      ? "Approved participants always sync these. This also includes initial snapshots in the public preview and independent copies."
+                      : "Include saved canvas media, exercises and their annotated PDF. Later changes stay private."}
+                  </small>
+                </span>
+              </label>
 
               <label className={styles.includeRow}>
                 <input

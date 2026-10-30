@@ -10,7 +10,7 @@ import {
   PDFString,
 } from "pdf-lib";
 import { z } from "zod";
-import { SharingError, labelSchema } from "./schema";
+import { SharingError, labelSchema } from "./protocol/values";
 
 const point = z.number().finite().min(-100_000).max(100_000);
 const annotationSchema = z.object({

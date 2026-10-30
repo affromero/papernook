@@ -47,15 +47,35 @@ import {
   rewritePdf,
 } from "@/lib/library/pdf/file";
 import { pdfCommentActionSchema } from "@/lib/library/pdf/comments";
+import {
+  artifactOperations,
+  exchangeArtifact,
+} from "@/lib/sharing/artifacts/exchange";
+import { artifactVersions } from "@/lib/sharing/artifacts/snapshot";
+import { CanvasError } from "@/lib/canvas/errors";
+import { ExerciseError } from "@/lib/library/exercises/schema";
+import { recoverSourceExercises } from "@/lib/sharing/artifacts/source";
+import { FilesystemBusyError } from "@/lib/filesystem-lock";
 
 const operationSchema = z.discriminatedUnion("action", [
+  ...artifactOperations,
   z.object({ action: z.literal("bundle") }).strict(),
   z.object({ action: z.literal("request"), name: labelSchema }).strict(),
   z.object({ action: z.literal("status") }).strict(),
   z.object({ action: z.literal("threads") }).strict(),
-  z.object({ action: z.literal("version") }).strict(),
+  z
+    .object({
+      action: z.literal("version"),
+      kind: z.enum(["paper", "exercises"]).default("paper"),
+    })
+    .strict(),
   z.object({ action: z.literal("changes") }).strict(),
-  z.object({ action: z.literal("pdf") }).strict(),
+  z
+    .object({
+      action: z.literal("pdf"),
+      kind: z.enum(["paper", "exercises"]).default("paper"),
+    })
+    .strict(),
   z.object({ action: z.literal("leave") }).strict(),
   z.object({ action: z.literal("unpublish"), id: idSchema }).strict(),
   z.object({ action: z.literal("read") }).strict(),
@@ -64,6 +84,7 @@ const operationSchema = z.discriminatedUnion("action", [
       action: z.literal("save-pdf"),
       etag: revisionSchema,
       pdf: base64Schema,
+      kind: z.enum(["paper", "exercises"]).default("paper"),
     })
     .strict(),
   z
@@ -147,13 +168,27 @@ async function handleExchange(request: Request, { params }: Params) {
         ? Math.ceil((MAX_COLLABORATIVE_PDF_BYTES * 4) / 3) + 64 * 1024
         : action === "publish"
           ? MAX_CHAT_BYTES
-          : 2048;
+          : action === "save-canvas"
+            ? 4 * 1024 * 1024 + 2048
+            : action === "upload-canvas-asset"
+              ? 12 * 1024 * 1024
+              : action === "create-exercise"
+                ? 600 * 1024
+                : 2048;
     const parsed = operationSchema.safeParse(
       await readBoundedJson(
         request,
         limit,
         AbortSignal.timeout(
-          action === "save-pdf" || action === "publish" ? 30_000 : 2000,
+          [
+            "save-pdf",
+            "publish",
+            "save-canvas",
+            "upload-canvas-asset",
+            "create-exercise",
+          ].includes(action ?? "")
+            ? 30_000
+            : 2000,
         ),
       ),
     );
@@ -177,6 +212,16 @@ async function handleExchange(request: Request, { params }: Params) {
           body.action !== "leave" &&
           body.action !== "threads",
       );
+      if (
+        artifactOperations.some(
+          (operation) => operation.shape.action.value === body.action,
+        )
+      )
+        return sharedResponse(
+          share,
+          token,
+          await exchangeArtifact(share, token, participant, body),
+        );
       if (body.action === "status")
         return sharedResponse(
           share,
@@ -201,7 +246,18 @@ async function handleExchange(request: Request, { params }: Params) {
         );
       if (body.action === "version" || body.action === "changes")
         return withSharingResponse(async () => {
-          const pdf = await readVersionedPdfFile(topic, slug);
+          if (body.action === "changes")
+            await recoverSourceExercises(topic, slug, (operation) =>
+              withShareFiles(share, () => {
+                authenticateParticipant(share, token);
+                operation();
+              }),
+            );
+          const pdf = await readVersionedPdfFile(
+            topic,
+            slug,
+            body.action === "version" ? body.kind : "paper",
+          );
           if (!pdf) throw new SharingError("Unknown paper.", 404);
           return sharedResponse(share, token, {
             etag: pdf.etag,
@@ -210,13 +266,14 @@ async function handleExchange(request: Request, { params }: Params) {
                   threads: collaborationThreads(share).map(
                     ({ id, actorId, revision }) => ({ id, actorId, revision }),
                   ),
+                  artifacts: await artifactVersions(topic, slug),
                 }
               : {}),
           });
         });
       if (body.action === "pdf")
         return withSharingResponse(async () => {
-          const pdf = await readVersionedPdf(topic, slug);
+          const pdf = await readVersionedPdf(topic, slug, body.kind);
           if (!pdf) throw new SharingError("Unknown paper.", 404);
           return withShareFiles(share, () => {
             authenticateParticipant(share, token);
@@ -279,9 +336,14 @@ async function handleExchange(request: Request, { params }: Params) {
               authenticateParticipant(share, token);
               commit();
             }),
+          body.action === "save-pdf" ? body.kind : "paper",
         );
         withShareFiles(share, () => authenticateParticipant(share, token));
-        const pdf = await readVersionedPdf(topic, slug);
+        const pdf = await readVersionedPdf(
+          topic,
+          slug,
+          body.action === "save-pdf" ? body.kind : "paper",
+        );
         if (!pdf) throw new SharingError("Unknown paper.", 404);
         return withShareFiles(share, () => {
           authenticateParticipant(share, token);
@@ -309,6 +371,11 @@ async function handleExchange(request: Request, { params }: Params) {
       throw new SharingError("Invalid sharing operation.");
     });
   } catch (error) {
+    if (error instanceof CanvasError || error instanceof ExerciseError)
+      return Response.json(
+        { error: error.message },
+        { status: error.status, headers },
+      );
     if (error instanceof RequestBodyError)
       return Response.json(
         { error: error.message },
@@ -316,7 +383,7 @@ async function handleExchange(request: Request, { params }: Params) {
       );
     if (error instanceof PdfConflictError)
       return Response.json({ error: error.message }, { status: 412, headers });
-    if (error instanceof PdfBusyError)
+    if (error instanceof PdfBusyError || error instanceof FilesystemBusyError)
       return Response.json({ error: error.message }, { status: 409, headers });
     return sharingFailure(error);
   }
@@ -329,9 +396,12 @@ export async function POST(request: Request, context: Params) {
   if (denied) return denied;
   try {
     return secure(
-      ["save-pdf", "publish", "comment"].includes(
-        request.headers.get("x-sharing-operation") ?? "",
-      )
+      [
+        "save-pdf",
+        "publish",
+        "comment",
+        ...artifactOperations.map((operation) => operation.shape.action.value),
+      ].includes(request.headers.get("x-sharing-operation") ?? "")
         ? await withSharingResponse(() => handleExchange(request, context))
         : await handleExchange(request, context),
     );

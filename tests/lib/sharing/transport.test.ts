@@ -207,6 +207,8 @@ it("refreshes unchanged collaborations without downloading PDFs or resending pub
   const { publicationRevision } = await import("@/lib/sharing/threads");
   const { packageConversation } = await import("@/lib/sharing/bundle");
   const original = fs.readFileSync(f.pdf);
+  const { artifactVersions } = await import("@/lib/sharing/artifacts/snapshot");
+  const artifacts = await artifactVersions("nlp", "attention");
   const connection = {
     version: 1 as const,
     url: link,
@@ -215,6 +217,7 @@ it("refreshes unchanged collaborations without downloading PDFs or resending pub
     username: "ana",
     generation: f.capability.generation,
     mirrorEtag: pdfEtag(fs.readFileSync(f.pdf)),
+    artifacts: { source: artifacts, mirror: artifacts },
   };
   f.storage.saveConnection("nlp", "attention", f.capability, connection, true);
   const chat = chats.createChat(
@@ -233,6 +236,7 @@ it("refreshes unchanged collaborations without downloading PDFs or resending pub
     if (body.action === "changes")
       return Response.json({
         etag: connection.mirrorEtag,
+        artifacts,
         threads: revision
           ? [{ id: chat.id, actorId: f.participant.id, revision }]
           : [],
@@ -241,6 +245,7 @@ it("refreshes unchanged collaborations without downloading PDFs or resending pub
       revision = publicationRevision(body, f.participant.id);
       return Response.json({ published: true });
     }
+    if (body.action === "artifact-versions") return Response.json(artifacts);
     throw new Error(
       "Unexpected transfer of unchanged PDF or conversation data",
     );
@@ -248,7 +253,17 @@ it("refreshes unchanged collaborations without downloading PDFs or resending pub
   const { syncConnectedPaper } = await import("@/lib/sharing/worker");
   await syncConnectedPaper("nlp", "attention");
   await syncConnectedPaper("nlp", "attention");
-  expect(transmitted).toEqual(["changes", "publish", "changes"]);
+  const { syncConnectedArtifacts } =
+    await import("@/lib/sharing/artifacts/gateway");
+  await f.storage.withConnection("nlp", "attention", f.capability, (current) =>
+    syncConnectedArtifacts("nlp", "attention", f.capability, current),
+  );
+  expect(transmitted).toEqual([
+    "changes",
+    "publish",
+    "changes",
+    "artifact-versions",
+  ]);
   const expected = publicationRevision(
     packageConversation(
       chats.readChat("nlp", "attention", "ana", chat.id)!,

@@ -9,6 +9,8 @@ import {
 import { withProfileFiles } from "@/lib/auth/profile-capability";
 import { getPaper } from "@/lib/library/papers";
 import { readConnection } from "@/lib/sharing/storage";
+import { snapshotArtifacts } from "@/lib/sharing/artifacts/snapshot";
+import { sharingFailure } from "@/lib/sharing/schema";
 import {
   createShare,
   listShares,
@@ -27,6 +29,7 @@ const createSchema = z
     chatIds: z.array(z.string().regex(/^[a-f0-9]{16}$/)).max(20),
     mode: z.enum(["view", "fork", "collaborate"]).default("view"),
     acknowledgePublicAnnotations: z.boolean().default(false),
+    includeArtifacts: z.boolean().default(false),
   })
   .strict();
 
@@ -37,6 +40,7 @@ function toPublicSummary(share: PaperShare) {
     createdAt: share.createdAt,
     mode: share.mode,
     revoked: share.revoked,
+    includeArtifacts: share.includeArtifacts,
     conversations: share.conversations.map((conversation) => ({
       id: conversation.header.id,
       title: conversation.header.title,
@@ -109,8 +113,20 @@ export async function POST(request: NextRequest, { params }: Params) {
         },
         { status: 400 },
       );
+    const snapshot =
+      body.data.includeArtifacts || body.data.mode === "collaborate"
+        ? await snapshotArtifacts(topic, slug)
+        : undefined;
+    const artifacts = body.data.includeArtifacts ? snapshot : undefined;
     const share = withProfileFiles(sharedAccess().identity, capability, () =>
-      createShare(topic, slug, capability, body.data.chatIds, body.data.mode),
+      createShare(
+        topic,
+        slug,
+        capability,
+        body.data.chatIds,
+        body.data.mode,
+        artifacts,
+      ),
     );
     return NextResponse.json(
       { share: toPublicSummary(share) },
@@ -120,6 +136,6 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (error instanceof ShareError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    return accessFailure(error);
+    return sharingFailure(error);
   }
 }

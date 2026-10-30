@@ -571,7 +571,12 @@ function acceptFromInboxLocked(slug: string, topic: string): Paper {
   }
   const toDir = companionDir(topic, slug);
   const toPdf = pdfPath(topic, slug);
-  if (fs.existsSync(toDir) || fs.existsSync(toPdf)) {
+  const toExercises = exercisesPdfPath(topic, slug);
+  if (
+    fs.existsSync(toDir) ||
+    fs.existsSync(toPdf) ||
+    fs.existsSync(toExercises)
+  ) {
     throw new Error(`A paper named "${slug}" already exists in "${topic}".`);
   }
   fs.mkdirSync(path.dirname(toPdf), { recursive: true });
@@ -581,7 +586,11 @@ function acceptFromInboxLocked(slug: string, topic: string): Paper {
   fs.renameSync(fromDir, toDir);
   try {
     fs.renameSync(path.join(toDir, INBOX_PDF), toPdf);
+    const stagedExercises = path.join(toDir, "paper.exercises.pdf");
+    if (fs.existsSync(stagedExercises))
+      fs.renameSync(stagedExercises, toExercises);
   } catch (error) {
+    if (fs.existsSync(toPdf)) fs.renameSync(toPdf, path.join(toDir, INBOX_PDF));
     fs.renameSync(toDir, fromDir);
     throw error;
   }
@@ -666,12 +675,29 @@ export function recoverInterruptedMoves(): string[] {
 function recoverPaperMove(topic: string, slug: string): void {
   if (!fs.existsSync(companionDir(topic, slug))) return;
   const destination = pdfPath(topic, slug);
-  if (fs.existsSync(destination)) return;
+  const stagedExercises = path.join(
+    companionDir(topic, slug),
+    "paper.exercises.pdf",
+  );
+  const promoteExercises = () => {
+    if (!fs.existsSync(stagedExercises)) return;
+    const exercises = exercisesPdfPath(topic, slug);
+    if (fs.existsSync(exercises))
+      throw new Error(
+        `An exercise PDF already exists for "${slug}". Preserve both copies before recovery.`,
+      );
+    fs.renameSync(stagedExercises, exercises);
+  };
+  if (fs.existsSync(destination)) {
+    promoteExercises();
+    return;
+  }
 
   const acceptedPdf = path.join(companionDir(topic, slug), INBOX_PDF);
   if (fs.existsSync(acceptedPdf)) {
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.renameSync(acceptedPdf, destination);
+    promoteExercises();
     return;
   }
 

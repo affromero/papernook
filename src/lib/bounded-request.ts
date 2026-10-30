@@ -7,16 +7,16 @@ export class RequestBodyError extends Error {
   }
 }
 
-export async function readBoundedText(
+export async function readBoundedBytes(
   request: Request,
   maxBytes: number,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<Uint8Array> {
   const declared = request.headers.get("content-length");
   if (declared && Number(declared) > maxBytes) {
     throw new RequestBodyError("Request body too large.", 413);
   }
-  if (!request.body) return "";
+  if (!request.body) return new Uint8Array();
 
   const reader = request.body.getReader();
   let bytes = new Uint8Array(Math.min(maxBytes, 16 * 1024));
@@ -54,8 +54,16 @@ export async function readBoundedText(
     signal?.removeEventListener("abort", abortRead);
     reader.releaseLock();
   }
+  return bytes.subarray(0, total);
+}
+
+export async function readBoundedText(
+  request: Request,
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<string> {
   return new TextDecoder("utf-8", { fatal: true }).decode(
-    bytes.subarray(0, total),
+    await readBoundedBytes(request, maxBytes, signal),
   );
 }
 

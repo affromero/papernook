@@ -20,10 +20,13 @@ import {
   setConnectionSyncStatus,
 } from "./storage";
 import { synchronizeOwnerThreads, publicationRevision } from "./threads";
+import { artifactVersionsSchema } from "./artifacts/schema";
+import { syncConnectedArtifacts } from "./artifacts/gateway";
 
 const changesSchema = z
   .object({
     etag: revisionSchema,
+    artifacts: artifactVersionsSchema,
     threads: z
       .array(
         z
@@ -88,6 +91,17 @@ export async function syncConnectedPaper(
         );
       }
       const identity = new PapernookIdentityStore(dataRoot());
+      if (
+        JSON.stringify(connection.artifacts?.source) !==
+        JSON.stringify(changes.artifacts)
+      )
+        await syncConnectedArtifacts(
+          topic,
+          slug,
+          capability,
+          connection,
+          changes.artifacts,
+        );
       for (const id of publicationIds(topic, slug)) {
         const packaged = withProfileFiles(identity, capability, () => {
           const chat = readChat(topic, slug, capability.username, id);
@@ -127,7 +141,7 @@ export async function syncConnectedPaper(
         slug,
         capability,
         connection,
-        "A published conversation or PDF could not sync. Check access, local PDF changes, and sharing limits.",
+        "A paper, canvas, exercise or published conversation could not sync. Check access, local changes, and sharing limits.",
       );
       throw error;
     }
