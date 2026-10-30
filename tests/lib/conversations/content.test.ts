@@ -4,6 +4,36 @@ import { normalizeProviderText } from "@/lib/chat/normalize-provider-text";
 import { prepareSvg } from "@/lib/conversations/preview";
 
 describe("rich conversation imports", () => {
+  it("retains large code samples with many literal backticks and their following text", () => {
+    const code = "`x` ".repeat(70_000);
+    const result = importTranscript(
+      JSON.stringify({
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "code", language: "text", code },
+              { type: "text", text: "Following explanation" },
+            ],
+          },
+        ],
+      }),
+      "json",
+    );
+    expect(result.messages[0].content).toContain(code);
+    expect(result.messages[0].content).toMatch(
+      /\n```\n\nFollowing explanation$/,
+    );
+  });
+  it("retains structured layout source verbatim so existing imports can be rendered without refetching", () => {
+    const content =
+      '<box border padding={3}><grid columns={2}><grid-item><text>Road map</text></grid-item><grid-item><text>Actors</text></grid-item></grid><icon name="arrow-down"/></box>';
+    const result = importTranscript(
+      JSON.stringify({ messages: [{ role: "assistant", content }] }),
+      "json",
+    );
+    expect(result.messages[0].content).toBe(content);
+  });
   it("imports nested provider files, input audio and transcriptions while excluding internal records", () => {
     const source = importTranscript(
       JSON.stringify({

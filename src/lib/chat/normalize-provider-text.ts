@@ -3,14 +3,16 @@ import {
   providerCitations,
   type ShareMarkupContext,
 } from "./normalize-share-markup";
+import { protectMarkdownCode } from "./format/code";
 
 /** Remove provider control markup that is not valid Markdown. */
 export function normalizeProviderText(
   content: string,
   context?: ShareMarkupContext,
 ): string {
-  return (
-    normalizeShareMarkup(content, context)
+  const code = protectMarkdownCode(normalizeShareMarkup(content, context));
+  return code.restore(
+    code.text
       // OpenAI's writing blocks are instructions for its own client. Keep the
       // authored body and discard the client-only wrapper and metadata.
       .replace(/:::writing(?:\{[^}\n]*\})?\s*/gi, "")
@@ -29,6 +31,6 @@ export function normalizeProviderText(
       .replace(/□(?:mem)?cite□/gi, "")
       .replace(/[\uFFFC]/g, "")
       .replace(/\n{3,}/g, "\n\n")
-      .trim()
+      .trim(),
   );
 }

@@ -7,6 +7,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { rehypePaperRefs } from "@/lib/chat/ref-decorations";
 import { rehypeCollapsibleNumberedSections } from "@/lib/chat/rehype-collapsible-sections";
+import { rehypeShareLayouts } from "@/lib/chat/layout/rehype-share-layouts";
 import { linksToCurrentPaper } from "@/lib/chat/message-sources";
 import { externalLinkProps } from "@/lib/external-link";
 import { normalizeMath } from "@/lib/chat/normalize-math";
@@ -23,6 +24,8 @@ import type {
   ConversationCitation,
 } from "@/lib/conversations/content";
 import styles from "./Markdown.module.css";
+import layoutStyles from "./shared-layout/SharedLayout.module.css";
+import { SharedLayoutIcon } from "./shared-layout/SharedLayoutIcon";
 
 /** Source of a ```threejs fence, if that's what this <pre> wraps. */
 function threeCode(children: ReactNode): string | null {
@@ -120,9 +123,10 @@ export const Markdown = memo(function Markdown({
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
   const rehypePlugins: Options["rehypePlugins"] = [
-    rehypeCollapsibleNumberedSections,
-    rehypeKatex,
+    [rehypeShareLayouts, { assets, citations }],
   ];
+  rehypePlugins.push(rehypeCollapsibleNumberedSections);
+  rehypePlugins.push(rehypeKatex);
   if (decorateRefs && (paperRefs || bibliography)) {
     rehypePlugins.push([rehypePaperRefs, { bibliography, refs: paperRefs }]);
   }
@@ -133,11 +137,22 @@ export const Markdown = memo(function Markdown({
     ]);
   }
   return (
-    <div className={styles.root}>
+    <div className={`${styles.root} ${layoutStyles.root}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={rehypePlugins}
         components={{
+          span(props) {
+            const { node, ...spanProps } = props;
+            const icon = node?.properties.dataShareIcon;
+            return typeof icon === "string" ? (
+              <span {...spanProps}>
+                <SharedLayoutIcon name={icon} />
+              </span>
+            ) : (
+              <span {...spanProps} />
+            );
+          },
           a(props) {
             const { node, ...anchorProps } = props;
             void node;

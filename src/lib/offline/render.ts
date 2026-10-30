@@ -14,6 +14,7 @@ import { normalizeProviderText } from "@/lib/chat/normalize-provider-text";
 import type { ShareMarkupContext } from "@/lib/chat/normalize-share-markup";
 import { readAsset } from "@/lib/conversations/assets";
 import { prepareSvg } from "@/lib/conversations/preview";
+import { rehypeShareLayouts } from "@/lib/chat/layout/rehype-share-layouts";
 
 export const STUDY_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; media-src data:; base-uri 'none'; form-action 'none'";
@@ -152,6 +153,7 @@ function processor(context: ExportMessageContext) {
     .use(remarkGfm)
     .use(remarkMath)
     .use(remarkRehype)
+    .use(rehypeShareLayouts, context)
     .use(safeLinks, context)
     .use(rehypeKatex, { trust: false, strict: "ignore" })
     .use(rehypeHighlight, { detect: false, plainText: ["threejs"] })
@@ -187,8 +189,50 @@ function mathCss(): string {
   return embeddedCss;
 }
 
+const sharedLayoutCss = `
+[data-share-document]{margin:24px 0;font:inherit}
+[data-share-layout]{min-width:0;max-width:100%;box-sizing:border-box}
+[data-share-layout="box"]{display:flex;flex-direction:column}
+[data-share-layout="grid"]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+[data-share-columns="1"]{grid-template-columns:minmax(0,1fr)}
+[data-share-columns="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+[data-share-columns="4"]{grid-template-columns:repeat(4,minmax(0,1fr))}
+[data-share-layout="row"]{display:flex;flex-wrap:wrap;align-items:center}
+[data-share-layout] > p{margin:0}
+[data-share-border]{border:1px solid #ccc}
+[data-share-radius]{border-radius:12px}
+[data-share-padding]{padding:20px}
+[data-share-padding="1"]{padding:6px}
+[data-share-padding="2"]{padding:12px}
+[data-share-gap]{gap:16px}
+[data-share-gap="1"]{gap:8px}
+[data-share-gap="3"]{gap:24px}
+[data-share-align="center"]{align-items:center}
+[data-share-align="end"]{align-items:flex-end}
+[data-share-justify="center"]{justify-content:center}
+[data-share-justify="between"]{justify-content:space-between}
+[data-share-textalign="center"]{text-align:center}
+[data-share-width="full"]{width:100%}
+[data-share-flex]{flex:1 1 0}
+[data-share-background="surface"]{background:#f5f5f5}
+[data-share-background="blue"]{background:#edf5f8}
+[data-share-background="orange"]{background:#fbf3e9}
+[data-share-background="green"]{background:#edf6f1}
+[data-share-color="secondary"],[data-share-color="tertiary"]{color:#666}
+[data-share-size="2xs"]{font-size:.72em;letter-spacing:.04em}
+[data-share-size="xs"],[data-share-layout="caption"]{font-size:.82em}
+[data-share-size="sm"]{font-size:.94em}
+[data-share-weight="medium"]{font-weight:550}
+[data-share-weight="bold"]{font-weight:700}
+[data-share-layout="title"]{font-size:1.4em;font-weight:650}
+[data-share-layout="badge"]{border:1px solid #bbb;border-radius:999px;padding:3px 10px;font-size:.8em;align-self:flex-start}
+[data-share-swatch]{width:10px;height:10px}
+[data-share-icon]{font-size:1.4em;line-height:1.3}
+@media(max-width:600px){[data-share-layout="grid"]{grid-template-columns:minmax(0,1fr)}}
+`;
+
 export function studyHtml(title: string, body: string): string {
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${escapeHtml(STUDY_CSP)}"><title>${escapeHtml(title)}</title><style>${mathCss()}body{max-width:900px;margin:auto;padding:24px;font:17px/1.6 system-ui,sans-serif;overflow-wrap:anywhere;color:#202020;background:white}pre{white-space:pre-wrap;background:#f4f4f4;padding:16px}code{font-family:monospace}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #aaa;padding:8px}img{max-width:100%;height:auto}.source-text{white-space:pre-wrap}.katex-display{overflow:auto}article{border-top:1px solid #bbb;margin-top:24px}@media print{body{padding:0;font-size:11pt}pre,table{overflow:visible}a{color:inherit}}</style></head><body><h1>${escapeHtml(title)}</h1>${body}</body></html>`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${escapeHtml(STUDY_CSP)}"><title>${escapeHtml(title)}</title><style>${mathCss()}${sharedLayoutCss}body{max-width:900px;margin:auto;padding:24px;font:17px/1.6 system-ui,sans-serif;overflow-wrap:anywhere;color:#202020;background:white}pre{white-space:pre-wrap;background:#f4f4f4;padding:16px}code{font-family:monospace}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #aaa;padding:8px}img{max-width:100%;height:auto}.source-text{white-space:pre-wrap}.katex-display{overflow:auto}article{border-top:1px solid #bbb;margin-top:24px}@media print{body{padding:0;font-size:11pt}pre,table{overflow:visible}a{color:inherit}}</style></head><body><h1>${escapeHtml(title)}</h1>${body}</body></html>`;
   if (Buffer.byteLength(html) > MAX_STUDY_BYTES)
     throw new Error("Study export exceeds the 32 MB limit.");
   return html;

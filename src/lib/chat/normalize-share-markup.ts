@@ -3,6 +3,8 @@ import type {
   ConversationCitation,
 } from "@/lib/conversations/content";
 import { htmlTableMarkdown } from "./format/table";
+import { protectMarkdownCode } from "./format/code";
+import { preserveShareLayouts } from "./layout/share-layout-source";
 
 export interface ShareMarkupContext {
   assets?: ConversationAsset[];
@@ -40,7 +42,7 @@ export function providerCitations(
     .join(" · ");
 }
 
-/** Translate ChatGPT's display components to inert Markdown, preserving code. */
+/** Preserve display containers and translate inline provider components. */
 export function normalizeShareMarkup(
   content: string,
   context: ShareMarkupContext = {},
@@ -51,13 +53,8 @@ export function normalizeShareMarkup(
     )
   )
     return content;
-  const code: string[] = [];
-  let prefix = "\u0000papernook-code:";
-  while (content.includes(prefix)) prefix += ":";
-  function protect(value: string): string {
-    code.push(value);
-    return `${prefix}${code.length - 1}\u0000`;
-  }
+  const code = protectMarkdownCode(content);
+  const protect = code.protect;
   let depth = 0;
   function prose(value: string): string {
     return value
@@ -120,31 +117,11 @@ export function normalizeShareMarkup(
       })
       .join("\n");
   }
-  const lines = content.split("\n");
-  let result = "";
-  let start = 0;
-  for (let index = 0; index < lines.length; index++) {
-    const fence = /^ {0,3}(`{3,}|~{3,})/.exec(lines[index])?.[1];
-    if (!fence) continue;
-    result += lines.slice(start, index).join("\n");
-    if (index > start) result += "\n";
-    start = index;
-    const closing = new RegExp(`^ {0,3}${fence[0]}{${fence.length},}[ \\t]*$`);
-    while (++index < lines.length && !closing.test(lines[index])) {
-      /* Preserve the complete code block. */
-    }
-    result += protect(lines.slice(start, index + 1).join("\n"));
-    if (index < lines.length - 1) result += "\n";
-    start = index + 1;
-  }
-  result += lines.slice(start).join("\n");
-  const tables = result.replace(
+  const layouts = preserveShareLayouts(code.text, protect, code.restore);
+  const tables = layouts.replace(
     /(`+)[\s\S]*?\1(?!`)|<table\b[^>]*>[\s\S]*?<\/table>/gi,
-    (match) => (match.startsWith("`") ? match : htmlTableMarkdown(match)),
+    (match) =>
+      match.startsWith("`") ? match : htmlTableMarkdown(code.restore(match)),
   );
-  const rendered = prose(tables.replace(/(`+)[\s\S]*?\1(?!`)/g, protect));
-  return rendered.replace(
-    new RegExp(`${prefix}(\\d+)\u0000`, "g"),
-    (_match, index: string) => code[Number(index)],
-  );
+  return code.restore(prose(tables.replace(/(`+)[\s\S]*?\1(?!`)/g, protect)));
 }
