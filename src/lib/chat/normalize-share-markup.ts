@@ -3,7 +3,11 @@ import type {
   ConversationCitation,
 } from "@/lib/conversations/content";
 import { htmlTableMarkdown } from "./format/table";
-import { protectMarkdownCode } from "./format/code";
+import {
+  fenceCode,
+  protectIndentedCode,
+  protectMarkdownCode,
+} from "./format/code";
 import { preserveShareLayouts } from "./layout/share-layout-source";
 
 export interface ShareMarkupContext {
@@ -48,7 +52,7 @@ export function normalizeShareMarkup(
   context: ShareMarkupContext = {},
 ): string {
   if (
-    !/<(?:box|grid|row|Link|Entity|AsyncImage|Cite|MemoryCite|svg|table)\b/i.test(
+    !/<(?:box|grid|row|favicon|Link|Entity|AsyncImage|Cite|MemoryCite|svg|table)\b/i.test(
       content,
     )
   )
@@ -60,7 +64,8 @@ export function normalizeShareMarkup(
     return value
       .replace(
         /<svg\b[^>]*>[\s\S]*?<\/svg>/g,
-        (svg) => `\n\n${protect(`\`\`\`svg-preview\n${svg}\n\`\`\``)}\n\n`,
+        (svg) =>
+          `\n\n${protect(fenceCode(code.restore(svg), "svg-preview"))}\n\n`,
       )
       .split("\n")
       .map((line) => {
@@ -118,7 +123,8 @@ export function normalizeShareMarkup(
       .join("\n");
   }
   const layouts = preserveShareLayouts(code.text, protect, code.restore);
-  const tables = layouts.replace(
+  const remaining = protectIndentedCode(layouts, protect);
+  const tables = remaining.replace(
     /(`+)[\s\S]*?\1(?!`)|<table\b[^>]*>[\s\S]*?<\/table>/gi,
     (match) =>
       match.startsWith("`") ? match : htmlTableMarkdown(code.restore(match)),

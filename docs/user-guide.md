@@ -40,6 +40,45 @@ HTML exports retain the layout structure too.
 
 ![Shared cards stacked on a phone](images/conversations/imported-layout-mobile.png)
 
+Site icons stay compact beside reading-list links. Click an icon to load the
+linked site's declared favicon. Failed loads show a retry control. HTML and
+offline exports keep a local icon marker.
+
+![Reading-list icons beside their references](images/conversations/reading-list-desktop.png)
+
+![Reading-list icons and wrapped descriptions on a phone](images/conversations/reading-list-mobile.png)
+
+#### Imported content coverage
+
+The source must include the content or a usable attachment URL. A feature being
+visible in the original chat does not establish that its share includes the file
+or application behind it.
+
+| Content                                              | Current support                                                                                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Markdown, code, formulas, lists and tables           | Rendered, including HTML tables and supported provider table blocks.                                                                 |
+| Cards, columns, flow arrows and reading lists        | Native layouts with responsive spacing and headings.                                                                                 |
+| Site icons                                           | Compact controls with explicit loading and retry.                                                                                    |
+| Images                                               | Supported embedded images and provider attachments. Arbitrary Markdown image URLs remain links.                                      |
+| SVG, Mermaid and Three.js                            | Isolated previews for recognized diagrams and code.                                                                                  |
+| HTML applications                                    | Isolated previews with included scripts and styles. External script dependencies are unsupported.                                    |
+| React/JSX artifacts                                  | Source is preserved. React artifact previews are unsupported.                                                                        |
+| Charts and maps                                      | Supported as images, SVG, Mermaid or included HTML. Dedicated chart specifications and provider map widgets have no native renderer. |
+| PDF, Word, spreadsheets, presentations and notebooks | Available as downloads when attached. Conversation attachment previews are unsupported.                                              |
+| Audio and video                                      | Players for supported attachments and MIME types. Raw PCM and additional provider media encodings need conversion.                   |
+| Citations                                            | Supported source links and ChatGPT citation metadata. Other providers' structured document locations and annotations need adapters.  |
+| Quizzes, flashcards, simulations and dashboards      | Can render as included HTML. Native provider Canvas state and connected services are unsupported.                                    |
+| Other provider share URLs                            | ChatGPT and Claude share links are supported. Other services need a compatible transcript export.                                    |
+
+Portable exports retain native layouts, formulas and saved attachments.
+Interactive HTML, Mermaid and Three.js previews retain their source.
+
+The output categories are documented in [ChatGPT Visualizations](https://learn.chatgpt.com/docs/visualizations),
+[ChatGPT file previews](https://learn.chatgpt.com/docs/artifacts-viewer),
+[Claude artifacts](https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them)
+and [Gemini Canvas](https://support.google.com/gemini/answer/16047321?hl=en).
+The table describes Papernook's current support for those categories.
+
 ### Read without internet
 
 While online, open a paper or conversation and choose **Available offline**.

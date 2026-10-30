@@ -7,7 +7,11 @@ import {
   createConversation,
   refreshConversationContent,
 } from "@/lib/conversations/store";
-import { conversationDirectory, assetPath } from "@/lib/conversations/assets";
+import {
+  conversationDirectory,
+  assetPath,
+  downloadAsset,
+} from "@/lib/conversations/assets";
 import { GET } from "@/app/api/v1/conversations/[id]/assets/[message]/[index]/route";
 import { importTranscript } from "@/lib/conversations/import";
 
@@ -75,6 +79,18 @@ it("serves and saves imported image bytes privately for the owning profile", asy
   expect((await get(record.id)).status).toBe(404);
   session.token = "";
   expect((await get(record.id)).status).toBe(401);
+});
+it("enforces a caller's smaller download limit and cancellation for embedded assets", async () => {
+  const asset = { kind: "image" as const, name: "Diagram", data };
+  await expect(downloadAsset(asset, { maxBytes: 8 })).rejects.toThrow("limit");
+  await expect(
+    downloadAsset(asset, {
+      signal: AbortSignal.abort(new Error("Cancelled icon")),
+    }),
+  ).rejects.toThrow("Cancelled");
+  expect((await downloadAsset(asset)).bytes).toEqual(
+    Buffer.from(data.split(",")[1], "base64"),
+  );
 });
 it.each([
   { type: "output_image", b64_json: data.split(",")[1] },

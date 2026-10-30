@@ -1,10 +1,19 @@
 import { Parser } from "htmlparser2";
 import { fenceCode } from "../format/code";
+import { markdownRanges } from "../normalize-math";
 
 /** JSX brace attributes need a separator before the XML self-closing slash. */
-export function layoutXml(source: string): string {
-  return source.replace(/<(?:[^<>"']|"[^"]*"|'[^']*')+>/g, (tag) =>
-    tag.endsWith("/>") ? `${tag.slice(0, -2)} />` : tag,
+export function layoutXml(
+  source: string,
+  inserted?: (offset: number) => void,
+): string {
+  return source.replace(
+    /<(?:[^<>"']|"[^"]*"|'[^']*')+>/g,
+    (tag, offset: number) => {
+      if (!tag.endsWith("/>")) return tag;
+      inserted?.(offset + tag.length - 2);
+      return `${tag.slice(0, -2)} />`;
+    },
   );
 }
 
@@ -14,14 +23,36 @@ export function preserveShareLayouts(
   protect: (value: string) => string,
   restore: (value: string) => string,
 ): string {
-  source = layoutXml(source);
+  const original = source;
+  const inserted: number[] = [];
+  source = layoutXml(source, (offset) =>
+    inserted.push(offset + inserted.length),
+  );
+  const literal = markdownRanges(source, new Set(["code", "inlineCode"]));
+  function originalOffset(offset: number): number {
+    let start = 0;
+    let end = inserted.length;
+    while (start < end) {
+      const middle = Math.floor((start + end) / 2);
+      if (inserted[middle] < offset) start = middle + 1;
+      else end = middle;
+    }
+    return offset - start;
+  }
   const ranges: { start: number; end: number }[] = [];
   let start = -1;
   let depth = 0;
   const parser = new Parser(
     {
       onopentag(name) {
-        if (start < 0 && /^(box|grid|row)$/.test(name)) {
+        if (
+          start < 0 &&
+          /^(box|grid|row|favicon)$/i.test(name) &&
+          !literal.some(
+            (range) =>
+              parser.startIndex >= range.start && parser.startIndex < range.end,
+          )
+        ) {
           start = parser.startIndex;
           depth = 0;
         }
@@ -39,9 +70,11 @@ export function preserveShareLayouts(
   let cursor = 0;
   let result = "";
   for (const range of ranges) {
-    result += source.slice(cursor, range.start);
-    result += `\n\n${protect(fenceCode(restore(source.slice(range.start, range.end)), "share-layout"))}\n\n`;
-    cursor = range.end;
+    const start = originalOffset(range.start);
+    const end = originalOffset(range.end);
+    result += original.slice(cursor, start);
+    result += `\n\n${protect(fenceCode(restore(original.slice(start, end)), "share-layout"))}\n\n`;
+    cursor = end;
   }
-  return result + source.slice(cursor);
+  return result + original.slice(cursor);
 }

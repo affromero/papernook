@@ -37,6 +37,19 @@ afterEach(() => {
 });
 
 describe("portable study exports", () => {
+  it("keeps reading-list site icons compact and self-contained offline", () => {
+    const body = renderMarkdown(
+      '<row><favicon url="https://example.com/private?secret=value" size="24px"/><box flex="1"><Link url="https://example.com/guide" title="Reference guide"/></box></row>',
+    );
+    expect(body).not.toContain("<pre");
+    expect(body).not.toContain("<img");
+    expect(body).not.toContain("<button");
+    expect(body).not.toContain("secret=value");
+    expect(body).toContain('data-share-favicon-size="24"');
+    expect(body).toContain('href="https://example.com/guide"');
+    expect(body).toContain("Site icon for example.com");
+  });
+
   it("preserves native shared layouts and applies attachment safety within their nested content", () => {
     const body = renderMarkdown(
       '<box border padding={3}><grid columns={2}><grid-item><text>Road map</text></grid-item><grid-item><text>Moving actors</text></grid-item></grid><icon name="arrow-down"/><text>**Execution** with $x^2$ and ![Remote](https://example.com/leak).</text></box>',

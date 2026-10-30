@@ -10,6 +10,7 @@ import { normalizeMath } from "../normalize-math";
 import { normalizeProviderText } from "../normalize-provider-text";
 import type { ShareMarkupContext } from "../normalize-share-markup";
 import { layoutXml } from "./share-layout-source";
+import { siteIconSite } from "./site-icon";
 
 interface LayoutElement {
   name: string;
@@ -114,7 +115,28 @@ function properties(node: LayoutElement): Element["properties"] {
   const color = tone(attrs.color ?? "");
   if (background) result.dataShareBackground = background;
   if (color) result.dataShareColor = color;
+  if (
+    node.name === "row" &&
+    node.children.some(
+      (child) => typeof child !== "string" && child.name === "favicon",
+    )
+  )
+    result.dataShareFaviconRow = "true";
   return result;
+}
+
+function favicon(node: LayoutElement): Element {
+  const { origin = "", host = "" } =
+    siteIconSite(node.attributes.url ?? "") ?? {};
+  const size = /^(?:\{(\d+)\}|(\d+)(?:px)?)$/.exec(node.attributes.size ?? "");
+  const pixels = size?.[1] ?? size?.[2] ?? "24";
+  return element("span", [{ type: "text", value: "◉" }], {
+    dataShareFavicon: origin,
+    dataShareFaviconHost: host,
+    dataShareFaviconSize: ["16", "24", "32"].includes(pixels) ? pixels : "24",
+    role: "img",
+    ariaLabel: host ? `Site icon for ${host}` : "Site icon unavailable",
+  });
 }
 
 function layout(source: string, context: ShareMarkupContext): Element[] {
@@ -237,6 +259,8 @@ function layout(source: string, context: ShareMarkupContext): Element[] {
       flush();
       if (containers.has(child.name)) {
         output.push(element("div", children(child), properties(child)));
+      } else if (child.name === "favicon") {
+        output.push(favicon(child));
       } else if (child.name === "icon") {
         const name = child.attributes.name ?? "";
         const symbol =

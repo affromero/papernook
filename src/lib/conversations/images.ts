@@ -19,6 +19,22 @@ export function imageMime(bytes: Buffer): string | undefined {
     bytes.subarray(8, 12).toString("ascii") === "WEBP"
   )
     return "image/webp";
+  if (bytes.length >= 22 && bytes.readUInt32LE(0) === 0x00010000) {
+    const count = bytes.readUInt16LE(4);
+    if (count > 0 && count <= 64 && bytes.length >= 6 + count * 16) {
+      for (let index = 0; index < count; index++) {
+        const length = bytes.readUInt32LE(6 + index * 16 + 8);
+        const offset = bytes.readUInt32LE(6 + index * 16 + 12);
+        if (
+          !length ||
+          offset < 6 + count * 16 ||
+          offset + length > bytes.length
+        )
+          return undefined;
+      }
+      return "image/x-icon";
+    }
+  }
   return undefined;
 }
 

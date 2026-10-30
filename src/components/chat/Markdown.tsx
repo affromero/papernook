@@ -26,6 +26,7 @@ import type {
 import styles from "./Markdown.module.css";
 import layoutStyles from "./shared-layout/SharedLayout.module.css";
 import { SharedLayoutIcon } from "./shared-layout/SharedLayoutIcon";
+import { SharedLayoutFavicon } from "./shared-layout/SharedLayoutFavicon";
 
 /** Source of a ```threejs fence, if that's what this <pre> wraps. */
 function threeCode(children: ReactNode): string | null {
@@ -144,6 +145,20 @@ export const Markdown = memo(function Markdown({
         components={{
           span(props) {
             const { node, ...spanProps } = props;
+            const favicon = node?.properties.dataShareFavicon;
+            if (typeof favicon === "string") {
+              const size = String(
+                node?.properties.dataShareFaviconSize ?? "24",
+              );
+              return (
+                <SharedLayoutFavicon
+                  key={`${favicon}:${size}`}
+                  origin={favicon}
+                  host={String(node?.properties.dataShareFaviconHost ?? "")}
+                  size={size}
+                />
+              );
+            }
             const icon = node?.properties.dataShareIcon;
             return typeof icon === "string" ? (
               <span {...spanProps}>
