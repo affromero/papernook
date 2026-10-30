@@ -3,6 +3,10 @@ import DOMPurify from "dompurify";
 import { prepareSvg } from "../../src/lib/conversations/preview";
 
 async function render(): Promise<void> {
+  if (window.parent === window || globalThis.origin !== "null")
+    throw new Error(
+      "Open this preview inside the isolated conversation reader.",
+    );
   const payload: unknown = JSON.parse(
     decodeURIComponent(location.hash.slice(1)),
   );

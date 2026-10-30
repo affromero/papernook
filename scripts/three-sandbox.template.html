@@ -208,14 +208,21 @@
       // sandbox="allow-scripts" (opaque origin — no cookies or app DOM).
       const bridge = window.papernookThreeSandbox;
       let code;
-      try {
-        code = decodeURIComponent(location.hash.slice(1));
-      } catch {
-        bridge.emit("bootstrap-decode-failed");
+      if (window.parent === window || globalThis.origin !== "null") {
         bridge.showFailure(
-          "The 3D scene could not be decoded.",
-          "Reload the page to request a fresh copy of the scene.",
+          "Open this scene inside the isolated reader.",
+          "Scene code only runs in the sandboxed conversation or paper reader.",
         );
+      } else {
+        try {
+          code = decodeURIComponent(location.hash.slice(1));
+        } catch {
+          bridge.emit("bootstrap-decode-failed");
+          bridge.showFailure(
+            "The 3D scene could not be decoded.",
+            "Reload the page to request a fresh copy of the scene.",
+          );
+        }
       }
 
       if (code !== undefined) {
