@@ -8,7 +8,7 @@ import { readBoundedResponse } from "@/lib/capture/bounded-response";
 import { persistImages } from "./images";
 import type { ConversationAsset } from "./content";
 
-export const MAX_ASSET_BYTES = 20 * 1024 * 1024;
+const MAX_ASSET_BYTES = 20 * 1024 * 1024;
 export function conversationDirectory(owner: string, id: string): string {
   assertSlug(owner);
   assertSlug(id);
@@ -34,7 +34,7 @@ export function assetPath(
     .slice(0, 24);
   return path.join(base, "assets", `${message}-${index}-${identity}.bin`);
 }
-export function assetMime(asset: ConversationAsset): string {
+function assetMime(asset: ConversationAsset): string {
   const mime = asset.data?.match(/^data:([^;]+);/)?.[1] ?? asset.mime ?? "";
   if (
     asset.kind === "image" &&
@@ -50,7 +50,7 @@ export function assetMime(asset: ConversationAsset): string {
     return mime;
   return "application/octet-stream";
 }
-export function embeddedAsset(asset: ConversationAsset): Buffer | null {
+function embeddedAsset(asset: ConversationAsset): Buffer | null {
   if (!asset.data) return null;
   const base64 = asset.data.slice(asset.data.indexOf(",") + 1);
   if (base64.length % 4 !== 0) throw new Error("Invalid embedded attachment.");
