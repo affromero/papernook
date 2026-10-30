@@ -44,6 +44,7 @@ test("PDF colors stay unchanged while document appearance changes", async ({
   await expect(pdfPage).toHaveCSS("filter", "none");
   const canvas = pdfPage.locator("canvas").first();
   const renderedPage = async () => {
+    await expect(canvas).toBeVisible();
     const box = await canvas.boundingBox();
     if (!box) throw new Error("PDF canvas is not visible");
     return page.screenshot({
