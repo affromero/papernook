@@ -38,7 +38,7 @@ test("imported conversations render images, tables, formulas and isolated diagra
               {
                 type: "artifact",
                 mime_type: "text/html",
-                content: `<button id="counter" onclick="this.textContent='Clicked'">Try artifact</button><p id="isolation"></p><p id="network"></p><script>try { parent.document.body; document.querySelector('#isolation').textContent='Parent accessible'; } catch { document.querySelector('#isolation').textContent='Parent isolated'; } fetch('https://example.com/artifact-exfiltration').then(()=>document.querySelector('#network').textContent='Network accessible').catch(()=>document.querySelector('#network').textContent='Network blocked');</script>`,
+                content: `<html><head><style>#counter { background-color: rgb(12, 34, 56); }</style></head><body><button id="counter" onclick="this.textContent='Clicked'">Try artifact</button><a id="prevented-link" href="#unexpected" onclick="this.dataset.saved='yes'; return false">Handle click</a><a href="javascript:alert(1)">Unsafe link</a><p id="isolation"></p><p id="network"></p><script>try { parent.document.body; document.querySelector('#isolation').textContent='Parent accessible'; } catch { document.querySelector('#isolation').textContent='Parent isolated'; } fetch('https://example.com/artifact-exfiltration').then(()=>document.querySelector('#network').textContent='Network accessible').catch(()=>document.querySelector('#network').textContent='Network blocked');</script></body></html>`,
               },
               {
                 type: "image_asset_pointer",
@@ -94,6 +94,11 @@ test("imported conversations render images, tables, formulas and isolated diagra
     await expect(
       page.frameLocator('iframe[title="Mermaid diagram"]').locator("svg"),
     ).toBeVisible();
+    await expect(
+      page
+        .frameLocator('iframe[title="Mermaid diagram"]')
+        .getByText("Road", { exact: true }),
+    ).toBeVisible();
     const frame = page.locator('iframe[title="HTML artifact"]');
     await frame.scrollIntoViewIfNeeded();
     await expect(frame).toHaveAttribute("sandbox", "allow-scripts");
@@ -108,6 +113,23 @@ test("imported conversations render images, tables, formulas and isolated diagra
     await expect(
       artifact.getByRole("button", { name: "Clicked" }),
     ).toBeVisible();
+    await expect(artifact.getByRole("button", { name: "Clicked" })).toHaveCSS(
+      "background-color",
+      "rgb(12, 34, 56)",
+    );
+    await artifact.getByRole("link", { name: "Handle click" }).click();
+    await expect(artifact.locator("#prevented-link")).toHaveAttribute(
+      "data-saved",
+      "yes",
+    );
+    expect(
+      await artifact
+        .locator("#prevented-link")
+        .evaluate(() => location.hash.endsWith("unexpected")),
+    ).toBe(false);
+    await expect(
+      artifact.getByText("Unsafe link", { exact: true }),
+    ).not.toHaveAttribute("href");
     expect(outsideRequests).toEqual([]);
     await expect(
       page.getByText(/provider did not include this attachment/),

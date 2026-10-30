@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { imageMime } from "./images";
+import { formatTableCell } from "@/lib/chat/format/table";
 
 const publicUrl = z
   .string()
@@ -168,8 +169,7 @@ export function richMessage(value: unknown, metadata?: unknown): RichMessage {
     if (type === "math" || type === "equation")
       return `$$\n${string(block.latex ?? block.text ?? block.content)}\n$$`;
     if (type === "table" && Array.isArray(block.rows)) {
-      const cell = (value: unknown) =>
-        string(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
+      const cell = (value: unknown) => formatTableCell(string(value));
       const rows = block.rows
         .filter(Array.isArray)
         .map((row) =>

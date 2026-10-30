@@ -2,6 +2,7 @@ import type {
   ConversationAsset,
   ConversationCitation,
 } from "@/lib/conversations/content";
+import { htmlTableMarkdown } from "./format/table";
 
 export interface ShareMarkupContext {
   assets?: ConversationAsset[];
@@ -60,22 +61,6 @@ export function normalizeShareMarkup(
   let depth = 0;
   function prose(value: string): string {
     return value
-      .replace(/<table\b[^>]*>[\s\S]*?<\/table>/gi, (table) => {
-        const rows = [...table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map(
-          (row) =>
-            [...row[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(
-              (cell) =>
-                cell[1]
-                  .replace(/<br\s*\/?\s*>/gi, " ")
-                  .replace(/<[^>]*>/g, "")
-                  .replace(/\|/g, "\\|")
-                  .replace(/\s*\n\s*/g, " ")
-                  .trim(),
-            ),
-        );
-        if (!rows.length || !rows[0].length) return table;
-        return `\n\n${[rows[0], rows[0].map(() => "---"), ...rows.slice(1)].map((row) => `| ${row.join(" | ")} |`).join("\n")}\n\n`;
-      })
       .replace(
         /<svg\b[^>]*>[\s\S]*?<\/svg>/g,
         (svg) => `\n\n${protect(`\`\`\`svg-preview\n${svg}\n\`\`\``)}\n\n`,
@@ -153,7 +138,11 @@ export function normalizeShareMarkup(
     start = index + 1;
   }
   result += lines.slice(start).join("\n");
-  const rendered = prose(result.replace(/(`+)[\s\S]*?\1(?!`)/g, protect));
+  const tables = result.replace(
+    /(`+)[\s\S]*?\1(?!`)|<table\b[^>]*>[\s\S]*?<\/table>/gi,
+    (match) => (match.startsWith("`") ? match : htmlTableMarkdown(match)),
+  );
+  const rendered = prose(tables.replace(/(`+)[\s\S]*?\1(?!`)/g, protect));
   return rendered.replace(
     new RegExp(`${prefix}(\\d+)\u0000`, "g"),
     (_match, index: string) => code[Number(index)],

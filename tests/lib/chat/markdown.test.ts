@@ -3,8 +3,58 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Markdown } from "@/components/chat/Markdown";
 import { normalizeMath } from "@/lib/chat/normalize-math";
+import { importTranscript } from "@/lib/conversations/import";
+import { convert } from "html-to-text";
 
 describe("imported formula rendering", () => {
+  it.each(["typed", "html"])(
+    "preserves backslashes, pipes, code, and equations in %s tables",
+    (format) => {
+      const path = String.raw`C:\temp\|name`;
+      const rows = [
+        ["Path", path],
+        ["Math", String.raw`$\alpha$`],
+        ["Code", `\`${path}\``],
+        ["Bars", String.raw`$|x| + \|y\|$`],
+      ];
+      const content =
+        format === "typed"
+          ? importTranscript(
+              JSON.stringify({
+                messages: [
+                  {
+                    role: "assistant",
+                    content: [
+                      { type: "table", columns: ["Kind", "Value"], rows },
+                    ],
+                  },
+                ],
+              }),
+              "json",
+            ).messages[0].content
+          : `<table><tr><th>Kind</th><th>Value</th></tr>${rows.map((row) => `<tr>${row.map((value) => `<td>${value}</td>`).join("")}</tr>`).join("")}</table>`;
+      const html = renderToStaticMarkup(
+        createElement(Markdown, { content, copyCode: false }),
+      );
+      expect(convert(html, { wordwrap: false }).split(path)).toHaveLength(3);
+      expect(html).toContain("<mi>α</mi>");
+      expect(html).not.toContain("katex-error");
+      expect(html.match(/<td>/g)).toHaveLength(8);
+    },
+  );
+  it("keeps decoded HTML table text inert even when tags and entities are malformed", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content:
+          '<table><tr><th>Source</th></tr><tr><td>&lt;script&gt;literal&lt;/script&gt;<<script>alert(1)</script><img src="https://example.com" onerror="alert(1)"></td></tr></table>',
+        copyCode: false,
+      }),
+    );
+    expect(html).toContain("&lt;script&gt;literal&lt;/script&gt;");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("onerror");
+  });
   it("renders HTML tables as inert readable tables", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {
@@ -17,6 +67,18 @@ describe("imported formula rendering", () => {
     expect(html).toContain("<th>Format</th>");
     expect(html).toContain("<td>1 | 2</td>");
     expect(html).not.toContain("onclick");
+  });
+  it("preserves literal HTML table examples inside inline and fenced code", () => {
+    const table = "<table><tr><td>Literal</td></tr></table>";
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: `\`${table}\`\n\n\`\`\`html\n${table}\n\`\`\``,
+        highlightCode: false,
+        copyCode: false,
+      }),
+    );
+    expect(html).not.toContain("<table>");
+    expect(html.split("&lt;table&gt;")).toHaveLength(3);
   });
   it("renders shared ChatGPT layouts as readable text and named source links", () => {
     const html = renderToStaticMarkup(
