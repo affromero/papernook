@@ -104,9 +104,15 @@ it("does not recreate a connection after its paper was removed", async () => {
   expect(() =>
     f.storage.saveConnection("nlp", "attention", f.capability, f.connection),
   ).toThrow();
-  expect(fs.existsSync(f.storage.connectionPath("nlp", "attention"))).toBe(
-    false,
-  );
+  expect(
+    fs.existsSync(
+      path.join(
+        f.papers.companionDir("nlp", "attention"),
+        "collaboration",
+        "connection.json",
+      ),
+    ),
+  ).toBe(false);
 });
 
 it("validates hashes and complete PDF markers before any mirror update", async () => {
@@ -129,7 +135,11 @@ it("validates hashes and complete PDF markers before any mirror update", async (
 it("fails closed on a damaged collaboration binding", async () => {
   const f = await binding();
   fs.writeFileSync(
-    f.storage.connectionPath("nlp", "attention"),
+    path.join(
+      f.papers.companionDir("nlp", "attention"),
+      "collaboration",
+      "connection.json",
+    ),
     `{"token":"${f.token}`,
   );
   expect(() => f.storage.readConnection("nlp", "attention")).toThrow(/binding/);

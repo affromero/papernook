@@ -14,7 +14,7 @@ export const labelSchema = z
   .min(1)
   .max(80)
   .regex(/^[^\p{C}]+$/u);
-export const imageNameSchema = z
+const imageNameSchema = z
   .string()
   .regex(/^[a-f0-9]{64}\.(png|jpg|jpeg|webp|gif)$/);
 export const base64Schema = z

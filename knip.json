@@ -9,7 +9,8 @@
         "extension/**/*.js!",
         "public/**/*.js!",
         "src/lib/offline/app.ts!",
-        "src/lib/offline/worker.js!"
+        "src/lib/offline/worker.js!",
+        "src/lib/sharing/process.ts!"
       ]
     }
   }

@@ -195,11 +195,3 @@ export function startSharingWorker(): void {
     console.error("papernook sharing: worker stopped unexpectedly"),
   );
 }
-
-export async function stopSharingWorker(): Promise<void> {
-  const worker = runtime.papernookSharingWorker;
-  if (!worker) return;
-  worker.controller.abort();
-  await worker.completion;
-  delete runtime.papernookSharingWorker;
-}

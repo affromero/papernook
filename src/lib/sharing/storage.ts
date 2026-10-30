@@ -346,7 +346,7 @@ export function publicParticipant(participant: Participant) {
   };
 }
 
-export function connectionPath(topic: string, slug: string): string {
+function connectionPath(topic: string, slug: string): string {
   return path.join(
     companionDir(topic, slug),
     "collaboration",
