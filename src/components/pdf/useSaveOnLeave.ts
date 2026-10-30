@@ -11,23 +11,24 @@ export function useSaveOnLeave(
   dirtyRef: RefObject<boolean>,
   autosaveRef: RefObject<PdfAutosaveCoordinator | null>,
   commentDirtyRef: RefObject<boolean>,
+  commitAnnotations: () => void,
 ): void {
   useEffect(() => {
     if (!editable) return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      commitAnnotations();
       if (!dirtyRef.current && !commentDirtyRef.current) return;
       event.preventDefault();
       event.returnValue = true;
     };
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [editable, dirtyRef, commentDirtyRef]);
+  }, [editable, dirtyRef, commentDirtyRef, commitAnnotations]);
 
   useEffect(() => {
     if (!editable) return;
     const saveBeforeClientNavigation = (event: MouseEvent) => {
       if (
-        (!dirtyRef.current && !commentDirtyRef.current) ||
         event.defaultPrevented ||
         event.button !== 0 ||
         event.metaKey ||
@@ -56,6 +57,8 @@ export function useSaveOnLeave(
       ) {
         return;
       }
+      commitAnnotations();
+      if (!dirtyRef.current && !commentDirtyRef.current) return;
       if (commentDirtyRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -84,5 +87,5 @@ export function useSaveOnLeave(
     document.addEventListener("click", saveBeforeClientNavigation, true);
     return () =>
       document.removeEventListener("click", saveBeforeClientNavigation, true);
-  }, [editable, dirtyRef, autosaveRef, commentDirtyRef]);
+  }, [editable, dirtyRef, autosaveRef, commentDirtyRef, commitAnnotations]);
 }

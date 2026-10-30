@@ -14,6 +14,7 @@ import {
   tldrawLicenseRequired,
 } from "@/lib/canvas/config";
 import styles from "../paper.module.css";
+import { readConnection } from "@/lib/sharing/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
   const { topic, slug } = await params;
   const paper = getPaper(topic, slug);
   if (!paper) notFound();
+  const connection = readConnection(topic, slug);
   const headerStore = await headers();
   const protocol = headerStore.get("x-forwarded-proto") ?? "http";
   const hostname = headerStore.get("host") ?? "localhost";
@@ -60,16 +62,23 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
           <CopySourceLinkButton sourceUrl={paper.meta.sourceUrl} />
         }
         main={
-          <CanvasClient
-            topic={topic}
-            slug={slug}
-            title={paper.meta.title}
-            username={profile.username}
-            licenseKey={licenseKey}
-            licenseRequired={tldrawLicenseRequired(protocol, hostname)}
-            licenseError={licenseError}
-            visionAvailable={visionAvailable}
-          />
+          connection && connection.username !== profile.username ? (
+            <p>
+              This collaboration belongs to another profile. Switch profiles to
+              open its canvas.
+            </p>
+          ) : (
+            <CanvasClient
+              topic={topic}
+              slug={slug}
+              title={paper.meta.title}
+              username={profile.username}
+              licenseKey={licenseKey}
+              licenseRequired={tldrawLicenseRequired(protocol, hostname)}
+              licenseError={licenseError}
+              visionAvailable={visionAvailable}
+            />
+          )
         }
         chat={
           <div className={styles.chat}>

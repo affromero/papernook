@@ -4,6 +4,21 @@ import {
   isPrivateAddress,
   looksLikePdf,
 } from "@/lib/capture/download";
+import { readBoundedResponse } from "@/lib/capture/bounded-response";
+
+it("preserves binary responses delivered a byte at a time", async () => {
+  const expected = Buffer.from("A fragmented paper response\0".repeat(2000));
+  let offset = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset === expected.byteLength) controller.close();
+      else controller.enqueue(expected.subarray(offset, ++offset));
+    },
+  });
+  expect(
+    await readBoundedResponse(new Response(body), expected.byteLength),
+  ).toEqual(expected);
+});
 
 it("rejects cancelled public fetches before DNS resolution or connection", async () => {
   const controller = new AbortController();
@@ -23,6 +38,15 @@ describe("SSRF address allowlist", () => {
       "169.254.169.254", // cloud metadata
       "::1",
       "fd00::1",
+      "0:0:0:0:0:0:0:1",
+      "0:0:0:0:0:ffff:7f00:1",
+      "0064:ff9b::7f00:1",
+      "fec0::1",
+      "100::1",
+      "2001:2::1",
+      "2001:db8::1",
+      "2001::1",
+      "3fff::1",
     ]) {
       expect(isPrivateAddress(address), address).toBe(true);
     }

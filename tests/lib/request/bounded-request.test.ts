@@ -43,4 +43,23 @@ describe("bounded request bodies", () => {
       status: 413,
     } satisfies Partial<RequestBodyError>);
   });
+  it("preserves UTF-8 JSON when every byte arrives separately", async () => {
+    const expected = { title: "Paper 📚 ".repeat(2000) };
+    const bytes = new TextEncoder().encode(JSON.stringify(expected));
+    let offset = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset === bytes.byteLength) controller.close();
+        else controller.enqueue(bytes.subarray(offset, ++offset));
+      },
+    });
+    const request = new Request("https://papernook.test", {
+      method: "POST",
+      body,
+      duplex: "half",
+    } as RequestInit);
+    await expect(readBoundedJson(request, bytes.byteLength)).resolves.toEqual(
+      expected,
+    );
+  });
 });

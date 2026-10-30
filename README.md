@@ -7,7 +7,8 @@
 ### Your papers, annotated and understood, on your own server.
 
 Capture a paper from any browser. Annotate the original PDF with Apple Pencil.
-Ask your own AI grounded questions, then share a revocable, view-only reading.
+Ask your own AI grounded questions, then share a view-only reading, an
+independent fork, or an approved collaboration with named contributors.
 
 **Your papers, your ink, your conversations, on a stack you control.**
 
@@ -220,11 +221,13 @@ flowchart LR
       expand["expand.ts<br/>pdf-lib growth"]
       pdffile["pdf/file.ts<br/>versioned · locked · atomic saves"]
       exercises["exercises.ts<br/>md → exercises.pdf"]
-      shares["shares.ts<br/>revocable reading snapshots"]
+      shares["shares.ts<br/>readings + collaboration permissions"]
       graphlib["graph.ts<br/>papers · authors · topics · tags"]
       citations["citations/<br/>CSL · RIS · BibTeX · APA · Harvard · Vancouver"]
       libctx["context/<br/>related papers + reference→library matching"]
     end
+
+    sharing["src/lib/sharing/<br/>approved sync + independent forks"]
 
     subgraph ui["App (src/app + src/components)"]
       picker["ProfilePicker"]
@@ -233,7 +236,7 @@ flowchart LR
       pdfreader["PdfReader<br/>pdf.js annotations + reference previews"]
       viewer["/viewer + ViewerShell<br/>external PDFs via /api/v1/viewer/pdf proxy"]
       wizard["WelcomeFlow"]
-      shareview["ShareButton + /share<br/>view-only reading"]
+      shareview["ShareButton + /share<br/>public reading + import"]
       citeui["CitationActions + export routes"]
       canvasui["CanvasBoard<br/>tldraw canvas per paper"]
       graphui["LibraryGraph + /graph<br/>cytoscape-fcose"]
@@ -270,7 +273,11 @@ flowchart LR
     papers <--> dav <--> ipad
     exercises --> papers
     shares --> papers
+    shares --> sharing
+    sharing --> pdffile
+    sharing --> chats
     shareview --> shares
+    shareview --> sharing
     citeui --> citations --> papers
     citations --> index
     canvasui --> papers

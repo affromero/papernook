@@ -3,16 +3,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
+import { createTestProfile, mockTestSession } from "../../helpers/access";
 
 let tmpDir: string;
+const png = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6i0AAAAASUVORK5CYII=",
+  "base64",
+);
 
 beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "papernook-canvas-"));
   process.env.PAPERNOOK_DATA_DIR = tmpDir;
   vi.resetModules();
-  vi.doMock("@/lib/auth/session", () => ({
-    activeProfile: async () => ({ username: "andres" }),
-  }));
+  await createTestProfile("Andres");
+  await mockTestSession("andres");
   const papers = await import("@/lib/library/papers");
   papers.writeMeta("ml", "paper", {
     title: "Paper",
@@ -33,7 +37,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  vi.doUnmock("@/lib/auth/session");
+  vi.doUnmock("next/headers");
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -144,7 +148,7 @@ describe("shared canvas persistence", () => {
       new NextRequest("http://localhost/assets", {
         method: "POST",
         headers: { "Content-Type": "image/png" },
-        body: Buffer.from("png bytes"),
+        body: png,
       }),
       params,
     );
@@ -157,7 +161,7 @@ describe("shared canvas persistence", () => {
       new NextRequest("http://localhost/assets", {
         method: "POST",
         headers: { "Content-Type": "image/png" },
-        body: Buffer.from("png bytes"),
+        body: png,
       }),
       params,
     );
@@ -178,9 +182,7 @@ describe("shared canvas persistence", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/png");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe(
-      "png bytes",
-    );
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(png);
 
     const deleted = await assetRoute.DELETE(
       new NextRequest(`http://localhost${payload.src}`, { method: "DELETE" }),

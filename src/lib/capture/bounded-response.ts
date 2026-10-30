@@ -49,25 +49,33 @@ export async function readBoundedResponse(
     await close();
     return Buffer.alloc(0);
   }
-  const chunks: Buffer[] = [];
+  let bytes = Buffer.allocUnsafe(Math.min(maxBytes, 64 * 1024));
   let size = 0;
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       if (!value) continue;
-      size += value.byteLength;
-      if (size > maxBytes) {
+      const nextSize = size + value.byteLength;
+      if (nextSize > maxBytes) {
         await reader.cancel();
         throw new ResponseTooLargeError(
           `Response is too large (limit ${Math.round(maxBytes / 1e6)} MB).`,
         );
       }
-      chunks.push(Buffer.from(value));
+      if (nextSize > bytes.byteLength) {
+        const grown = Buffer.allocUnsafe(
+          Math.min(maxBytes, Math.max(nextSize, bytes.byteLength * 2)),
+        );
+        bytes.copy(grown, 0, 0, size);
+        bytes = grown;
+      }
+      bytes.set(value, size);
+      size = nextSize;
     }
   } finally {
     reader.releaseLock();
     await close();
   }
-  return Buffer.concat(chunks, size);
+  return bytes.subarray(0, size);
 }

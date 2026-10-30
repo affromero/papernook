@@ -155,10 +155,10 @@ describe("documentation", () => {
   });
 
   it("backs every documentation screenshot with a Playwright snapshot", () => {
-    const spec = fs.readFileSync(
-      path.join(root, "tests", "e2e", "docs-screenshots.spec.ts"),
-      "utf8",
-    );
+    const spec = filesBelow(path.join(root, "tests", "e2e"))
+      .filter((file) => file.endsWith(".spec.ts"))
+      .map((file) => fs.readFileSync(file, "utf8"))
+      .join("\n");
     const asserted = new Set(
       [
         ...spec.matchAll(

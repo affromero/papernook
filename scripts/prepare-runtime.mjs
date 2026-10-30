@@ -44,4 +44,8 @@ fs.copyFileSync(
   path.join(runtime, "scripts/access.cjs"),
 );
 
+fs.copyFileSync(
+  path.resolve("build/sharing-worker.cjs"),
+  path.join(runtime, "scripts/sharing-worker.cjs"),
+);
 console.log("Prepared allowlisted runtime artifact.");

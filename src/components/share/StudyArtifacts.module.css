@@ -1,0 +1,48 @@
+.root {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.root button,
+.root summary {
+  cursor: pointer;
+}
+
+.root form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.root textarea {
+  width: 100%;
+  min-height: 6rem;
+  resize: vertical;
+  font: inherit;
+}
+
+.canvas {
+  position: relative;
+  height: 65vh;
+  min-height: 320px;
+  border: 1px solid var(--rule);
+}
+
+.pdf {
+  height: 65vh;
+  min-height: 320px;
+}
+
+.record {
+  border-top: 1px solid var(--rule);
+  padding-block: 1rem;
+}
+
+.author {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.error {
+  color: var(--error, #a4382d);
+}

@@ -27,7 +27,7 @@ function trustedProxyHops(): number {
  * throttles everyone together rather than letting a single attacker mint a
  * fresh identity per request and walk straight past the limiter.
  */
-export function clientIp(request: NextRequest): string {
+export function clientIp(request: Pick<Request, "headers">): string {
   const hops = trustedProxyHops();
   if (hops === 0) return "unknown";
   const chain = request.headers
@@ -57,7 +57,9 @@ export function lockoutKey(
   return ip === "unknown" ? null : `${prefix}:${ip}`;
 }
 
-export function crossSiteMutation(request: NextRequest): boolean {
+export function crossSiteMutation(
+  request: Pick<Request, "headers" | "url">,
+): boolean {
   const fetchSite = request.headers.get("sec-fetch-site");
   if (fetchSite === "cross-site") return true;
 
@@ -69,7 +71,7 @@ export function crossSiteMutation(request: NextRequest): boolean {
       request.headers.get("x-forwarded-host") ?? request.headers.get("host");
     const proto =
       request.headers.get("x-forwarded-proto") ??
-      request.nextUrl.protocol.replace(":", "");
+      new URL(request.url).protocol.replace(":", "");
     return (
       !host ||
       originUrl.host.toLowerCase() !== host.toLowerCase() ||

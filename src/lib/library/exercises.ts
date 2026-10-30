@@ -1,181 +1,349 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { companionDir, exercisesPdfPath } from "./papers";
+import { z } from "zod";
+import { syncDirectory } from "thesidedoor-core/storage";
+import {
+  companionDir,
+  exercisesPdfPath,
+  getPaper,
+  withPaperMutation,
+} from "./papers";
+import { renderExerciseDocument } from "./exercises/render";
 
-/**
- * Exercises: callers write markdown into the companion folder; we render all
- * of them into one
- * <slug>.exercises.pdf in the papers tree so they reach the iPad
- * Pencil-annotatable over WebDAV. The renderer handles the markdown subset
- * chat output actually uses: headings, bullets, numbered lists, paragraphs,
- * with generous line spacing left as writing room.
- */
+import {
+  exerciseMarkdownSchema,
+  exerciseNameSchema,
+  exerciseOperationSchema,
+  exerciseRecordSchema,
+  type ExerciseRecord,
+  ExerciseError,
+} from "./exercises/schema";
+const metadataSchema = exerciseRecordSchema.omit({ markdown: true }).extend({
+  markdownHash: z.string().regex(/^[a-f0-9]{64}$/),
+  status: z.enum(["pending", "complete"]),
+  pendingMarkdown: exerciseMarkdownSchema.optional(),
+});
+const stateSchema = z
+  .object({ version: z.literal(1), entries: z.array(metadataSchema).max(100) })
+  .strict();
+
+function digest(value: string): string {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+function metadataFor(record: ExerciseRecord, status: "pending" | "complete") {
+  const { markdown, ...fields } = record;
+  return metadataSchema.parse({
+    ...fields,
+    markdownHash: digest(markdown),
+    status,
+    ...(status === "pending" ? { pendingMarkdown: markdown } : {}),
+  });
+}
+function readState(directory: string): z.infer<typeof stateSchema> {
+  const file = path.join(directory, "state.json");
+  try {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.size > 1024 * 1024)
+      throw new ExerciseError(
+        "Exercise metadata is invalid or too large.",
+        413,
+      );
+    return stateSchema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return { version: 1, entries: [] };
+    throw error;
+  }
+}
+function writeAtomic(file: string, raw: string): void {
+  const temp = `${file}.${crypto.randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temp, raw, { flag: "wx", mode: 0o600, flush: true });
+    fs.renameSync(temp, file);
+    syncDirectory(path.dirname(file));
+  } finally {
+    fs.rmSync(temp, { force: true });
+  }
+}
+function nextName(directory: string): string {
+  for (let number = 1; number <= 1_000_000; number++) {
+    const name = `practice-${number}.md`;
+    if (!fs.existsSync(path.join(directory, name))) return name;
+  }
+  throw new ExerciseError("The exercise directory is full.", 413);
+}
 
 export function saveExercise(
   topic: string,
   slug: string,
   markdown: string,
 ): string {
-  const dir = path.join(companionDir(topic, slug), "exercises");
-  fs.mkdirSync(dir, { recursive: true });
-  const existing = fs.readdirSync(dir).filter((f) => f.endsWith(".md"));
-  const name = `practice-${existing.length + 1}.md`;
-  fs.writeFileSync(path.join(dir, name), markdown);
-  return name;
+  const content = exerciseMarkdownSchema.parse(markdown);
+  return withPaperMutation(slug, () => {
+    if (!getPaper(topic, slug)) throw new ExerciseError("Unknown paper.", 404);
+    const directory = path.join(companionDir(topic, slug), "exercises");
+    fs.mkdirSync(directory, { recursive: true });
+    const name = nextName(directory);
+    writeAtomic(path.join(directory, name), content);
+    return name;
+  });
 }
 
 export function listExercises(topic: string, slug: string): string[] {
-  const dir = path.join(companionDir(topic, slug), "exercises");
+  const directory = path.join(companionDir(topic, slug), "exercises");
   try {
     return fs
-      .readdirSync(dir)
-      .filter((f) => f.endsWith(".md"))
+      .readdirSync(directory)
+      .filter((name) => name.endsWith(".md"))
       .sort();
-  } catch {
-    return [];
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return [];
+    throw error;
   }
 }
 
-interface Line {
-  text: string;
-  size: number;
-  bold: boolean;
-  indent: number;
+export function readExerciseRecords(
+  topic: string,
+  slug: string,
+): { records: ExerciseRecord[]; revision: string; pending: boolean } {
+  const directory = path.join(companionDir(topic, slug), "exercises");
+  const names = listExercises(topic, slug);
+  if (names.length > 100)
+    throw new ExerciseError(
+      "The paper exceeds the 100-exercise sharing limit.",
+      413,
+    );
+  const state = readState(directory);
+  let total = 0;
+  const records = names.map((name) => {
+    exerciseNameSchema.parse(name);
+    const file = path.join(directory, name);
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.size > 400_000)
+      throw new ExerciseError("An exercise is invalid or too large.", 413);
+    const markdown = exerciseMarkdownSchema.parse(
+      fs.readFileSync(file, "utf8"),
+    );
+    total += Buffer.byteLength(markdown);
+    const metadata = state.entries.find((entry) => entry.name === name);
+    return exerciseRecordSchema.parse({
+      name,
+      markdown,
+      operationId: metadata?.operationId ?? digest(name),
+      actorId: metadata?.actorId ?? "legacy",
+      author: metadata?.author ?? "Library",
+      createdAt: metadata?.createdAt ?? stat.mtime.toISOString(),
+    });
+  });
+  if (total > 2 * 1024 * 1024)
+    throw new ExerciseError("Exercises exceed the 2 MB sharing limit.", 413);
+  const pending = state.entries.some((entry) => entry.status === "pending");
+  return {
+    records,
+    pending,
+    revision: `"${digest(JSON.stringify({ records, pending }))}"`,
+  };
 }
 
-/**
- * Helvetica is WinAnsi-only; pdf-lib throws on anything outside it. Chat
- * markdown now carries math and code, so transliterate common symbols and
- * blank out the rest rather than failing PDF generation.
- */
-function sanitizeForWinAnsi(s: string): string {
-  return s
-    .replace(/[‘’‛]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—−]/g, "-")
-    .replace(/…/g, "...")
-    .replace(/[→⇒]/g, "->")
-    .replace(/[←⇐]/g, "<-")
-    .replace(/≤/g, "<=")
-    .replace(/≥/g, ">=")
-    .replace(/[^\n\x20-\x7E\u00A0-\u00FF]/g, "?");
-}
-
-function markdownToLines(markdown: string): Line[] {
-  const lines: Line[] = [];
-  // Fenced code (incl. ```threejs demos) is not Pencil practice material.
-  const withoutFences = markdown.replace(
-    /^```[^\n]*\n[\s\S]*?^```[ \t]*$/gm,
-    "[code block omitted]",
+export function findExerciseOperation(
+  topic: string,
+  slug: string,
+  operationId: string,
+) {
+  exerciseOperationSchema.parse(operationId);
+  return (
+    readState(path.join(companionDir(topic, slug), "exercises")).entries.find(
+      (entry) => entry.operationId === operationId,
+    ) ?? null
   );
-  for (const raw of withoutFences.split("\n")) {
-    const line = sanitizeForWinAnsi(raw.trimEnd());
-    const heading = line.match(/^(#{1,3})\s+(.*)$/);
-    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
-    const numbered = line.match(/^\s*(\d+)[.)]\s+(.*)$/);
-    const clean = (s: string) =>
-      s
-        .replace(/\*\*([^*]+)\*\*/g, "$1")
-        .replace(/\*([^*]+)\*/g, "$1")
-        .replace(/`([^`]+)`/g, "$1");
-    if (heading) {
-      lines.push({
-        text: clean(heading[2]),
-        size: heading[1].length === 1 ? 18 : 14,
-        bold: true,
-        indent: 0,
-      });
-    } else if (bullet) {
-      lines.push({
-        text: `• ${clean(bullet[1])}`,
-        size: 11,
-        bold: false,
-        indent: 16,
-      });
-    } else if (numbered) {
-      lines.push({
-        text: `${numbered[1]}. ${clean(numbered[2])}`,
-        size: 11,
-        bold: false,
-        indent: 16,
-      });
-    } else {
-      lines.push({ text: clean(line), size: 11, bold: false, indent: 0 });
-    }
-  }
-  return lines;
 }
 
-/** Render every exercise markdown into one Pencil-friendly PDF. */
+/** The pending record makes retries recoverable even if the PDF rename committed first. */
+export function commitExerciseOperation(
+  topic: string,
+  slug: string,
+  input: Omit<ExerciseRecord, "name">,
+  expectedRevision: string,
+  commitPdf?: () => void,
+): string {
+  const value = exerciseRecordSchema.omit({ name: true }).parse(input);
+  return withPaperMutation(slug, () => {
+    if (!getPaper(topic, slug)) throw new ExerciseError("Unknown paper.", 404);
+    const directory = path.join(companionDir(topic, slug), "exercises");
+    fs.mkdirSync(directory, { recursive: true });
+    const state = readState(directory);
+    const existing = state.entries.find(
+      (entry) => entry.operationId === value.operationId,
+    );
+    if (
+      state.entries.some(
+        (entry) =>
+          entry.status === "pending" && entry.operationId !== value.operationId,
+      )
+    )
+      throw new ExerciseError(
+        "Recover the incomplete exercise save before adding another.",
+        409,
+      );
+    if (
+      existing &&
+      (existing.actorId !== value.actorId ||
+        existing.markdownHash !== digest(value.markdown))
+    )
+      throw new ExerciseError(
+        "This exercise operation was already used for different content.",
+        409,
+      );
+    const current = readExerciseRecords(topic, slug);
+    if (current.revision !== expectedRevision)
+      throw new ExerciseError(
+        "Exercises changed while saving. Reload before trying again.",
+        409,
+      );
+    const name = existing?.name ?? nextName(directory);
+    const prospectiveBytes =
+      current.records.reduce(
+        (total, record) =>
+          total +
+          (record.name === name ? 0 : Buffer.byteLength(record.markdown)),
+        0,
+      ) + Buffer.byteLength(value.markdown);
+    if (
+      prospectiveBytes > 2 * 1024 * 1024 ||
+      (!existing && state.entries.length >= 100)
+    )
+      throw new ExerciseError(
+        "The paper has reached its exercise sharing limit.",
+        413,
+      );
+    const file = path.join(directory, name);
+    if (
+      fs.existsSync(file) &&
+      digest(fs.readFileSync(file, "utf8")) !== digest(value.markdown)
+    )
+      throw new ExerciseError(
+        "The exercise changed outside this operation.",
+        409,
+      );
+    if (existing?.status === "complete") return name;
+    if (!existing && listExercises(topic, slug).length >= 100)
+      throw new ExerciseError(
+        "This paper has reached its exercise limit.",
+        413,
+      );
+    const entry = metadataFor(
+      {
+        ...value,
+        name,
+        author: existing?.author ?? value.author,
+        createdAt: existing?.createdAt ?? value.createdAt,
+      },
+      "pending",
+    );
+    const entries = state.entries.filter(
+      (previous) => previous.operationId !== value.operationId,
+    );
+    writeAtomic(
+      path.join(directory, "state.json"),
+      JSON.stringify({ version: 1, entries: [...entries, entry] }),
+    );
+    if (!fs.existsSync(file)) writeAtomic(file, value.markdown);
+    commitPdf?.();
+    writeAtomic(
+      path.join(directory, "state.json"),
+      JSON.stringify({
+        version: 1,
+        entries: [
+          ...entries,
+          metadataFor(
+            {
+              ...value,
+              name,
+              author: entry.author,
+              createdAt: entry.createdAt,
+            },
+            "complete",
+          ),
+        ],
+      }),
+    );
+    return name;
+  });
+}
+
+/** Persisted intent contains the accepted content needed after a process crash. */
+export function pendingExerciseOperations(
+  topic: string,
+  slug: string,
+): Omit<ExerciseRecord, "name">[] {
+  const directory = path.join(companionDir(topic, slug), "exercises");
+  return readState(directory)
+    .entries.filter((entry) => entry.status === "pending")
+    .map((entry) => {
+      const markdown =
+        entry.pendingMarkdown ??
+        fs.readFileSync(path.join(directory, entry.name), "utf8");
+      if (digest(markdown) !== entry.markdownHash)
+        throw new ExerciseError(
+          "The pending exercise content changed. Preserve it before repairing the journal.",
+          409,
+        );
+      return exerciseRecordSchema.omit({ name: true }).parse({
+        markdown,
+        operationId: entry.operationId,
+        actorId: entry.actorId,
+        author: entry.author,
+        createdAt: entry.createdAt,
+      });
+    });
+}
+
+/** Import only explicit exercise records, without source permissions or journals. */
+export function exerciseSnapshotFiles(
+  records: ExerciseRecord[],
+): Record<string, string> {
+  if (!records.length) return {};
+  if (
+    records.length > 100 ||
+    new Set(records.map((record) => record.name)).size !== records.length
+  )
+    throw new ExerciseError("Invalid exercise collection.");
+  const files: Record<string, string> = {};
+  const entries = records.map((record) => {
+    const parsed = exerciseRecordSchema.parse(record);
+    files[`exercises/${parsed.name}`] = parsed.markdown;
+    return metadataFor(parsed, "complete");
+  });
+  files["exercises/state.json"] = JSON.stringify({ version: 1, entries });
+  return files;
+}
+
+/** Existing local callers use the same pure renderer as isolated collaboration jobs. */
 export async function renderExercisesPdf(
   topic: string,
   slug: string,
   title: string,
 ): Promise<string | null> {
-  const names = listExercises(topic, slug);
-  if (names.length === 0) return null;
-  const dir = path.join(companionDir(topic, slug), "exercises");
-
-  const doc = await PDFDocument.create();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const pageSize: [number, number] = [595, 842]; // A4
-  const margin = 56;
-  const width = pageSize[0] - margin * 2;
-
-  let page = doc.addPage(pageSize);
-  let y = pageSize[1] - margin;
-
-  const write = (line: Line) => {
-    const face = line.bold ? bold : font;
-    const words = line.text.split(/\s+/).filter(Boolean);
-    let current = "";
-    const flush = () => {
-      if (y < margin + 20) {
-        page = doc.addPage(pageSize);
-        y = pageSize[1] - margin;
-      }
-      page.drawText(current, {
-        x: margin + line.indent,
-        y,
-        size: line.size,
-        font: face,
-        color: rgb(0.12, 0.13, 0.16),
-      });
-      // Extra leading: exercises are meant to be written on with a Pencil.
-      y -= line.size * 2.1;
-      current = "";
-    };
-    if (words.length === 0) {
-      y -= line.size; // blank line
-      return;
-    }
-    for (const word of words) {
-      const attempt = current ? `${current} ${word}` : word;
-      if (face.widthOfTextAtSize(attempt, line.size) > width - line.indent) {
-        flush();
-        current = word;
-      } else {
-        current = attempt;
-      }
-    }
-    if (current) flush();
-  };
-
-  write({ text: `Exercises: ${title}`, size: 20, bold: true, indent: 0 });
-  y -= 10;
-  for (const name of names) {
-    const markdown = fs.readFileSync(path.join(dir, name), "utf8");
-    for (const line of markdownToLines(markdown)) write(line);
-    y -= 24;
-  }
-
-  const bytes = await doc.save();
+  const current = readExerciseRecords(topic, slug);
+  if (!current.records.length) return null;
+  const bytes = await renderExerciseDocument(
+    title,
+    current.records.map((record) => ({
+      operationId: record.operationId,
+      markdown: record.markdown,
+    })),
+  );
   const out = exercisesPdfPath(topic, slug);
   fs.mkdirSync(path.dirname(out), { recursive: true });
-  const tmp = `${out}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, bytes);
-  fs.renameSync(tmp, out);
+  const temp = `${out}.${crypto.randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temp, bytes, { flag: "wx", mode: 0o600, flush: true });
+    fs.renameSync(temp, out);
+    syncDirectory(path.dirname(out));
+  } finally {
+    fs.rmSync(temp, { force: true });
+  }
   return out;
 }

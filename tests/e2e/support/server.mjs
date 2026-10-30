@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { providerDescriptors } from "thesidedoor-core/ai/catalog";
+import { sharingGateway } from "../sharing/gateway.mjs";
 
 const env = { ...process.env };
 for (const descriptor of providerDescriptors()) {
@@ -17,8 +18,12 @@ if (origin !== "http://127.0.0.1:3107" && origin !== "http://localhost:3107")
 const run = (args) =>
   execFileSync(process.execPath, args, { env, encoding: "utf8" });
 run(["tests/e2e/seed.mjs"]);
+const sharing = await sharingGateway(env.PAPERNOOK_DATA_DIR);
+env.NODE_EXTRA_CA_CERTS = sharing.cert;
+env.PAPERNOOK_SHARING_TRUSTED_ORIGINS = sharing.origin;
 run(["scripts/sidedoor/build-access.mjs"]);
 run(["scripts/build-offline.mjs"]);
+run(["scripts/sharing/build.mjs"]);
 run([".next/operator/access.cjs", "initialize"]);
 const { code } = JSON.parse(run([".next/operator/access.cjs", "claim"]));
 const server = spawn(
@@ -36,6 +41,7 @@ const server = spawn(
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, () => server.kill(signal));
 server.on("exit", (code) => {
+  sharing.server.close();
   process.exitCode = code ?? 1;
 });
 try {

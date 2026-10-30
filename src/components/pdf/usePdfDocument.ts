@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -137,6 +138,7 @@ export interface PdfDocumentHandle {
   etagRef: RefObject<string | null>;
   editorTypesRef: RefObject<EditorTypes | null>;
   autosaveRef: RefObject<PdfAutosaveCoordinator | null>;
+  commitAnnotations(): void;
   /** pdf.js editor manager, published once the annotation layer is ready. */
   uiManagerRef: RefObject<AnnotationEditorUIManager | null>;
   pendingPenRef: RefObject<boolean>;
@@ -204,6 +206,11 @@ export function usePdfDocument({
   const editorTypesRef = useRef<EditorTypes | null>(null);
   const autosaveRef = useRef<PdfAutosaveCoordinator | null>(null);
   const uiManagerRef = useRef<AnnotationEditorUIManager | null>(null);
+  const annotationRefreshRef = useRef<(() => void) | null>(null);
+  const commitAnnotations = useCallback(() => {
+    uiManagerRef.current?.commitOrRemove();
+    annotationRefreshRef.current?.();
+  }, []);
   const pendingPenRef = useRef(false);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
@@ -626,6 +633,7 @@ export function usePdfDocument({
         documentRef.current = document;
         setPdfDocument(document);
         setPageCount(document.numPages);
+        let annotationChangeTimer: ReturnType<typeof setInterval> | null = null;
         if (editable) {
           const storage =
             document.annotationStorage as unknown as MutableAnnotationStorage;
@@ -635,6 +643,8 @@ export function usePdfDocument({
           // every Highlight/Draw toggle uploads the whole PDF and churns the
           // save version other sessions poll against.
           let savedAnnotationsHash = storage.serializable.hash;
+          let observedAnnotationsHash = savedAnnotationsHash;
+          let canonicalizedSave = false;
           const coordinator = createPdfAutosave({
             delayMs: 1_800,
             save: async () => {
@@ -692,6 +702,12 @@ export function usePdfDocument({
                 throw new Error("The save response had no PDF version.");
               }
               etagRef.current = nextEtag;
+              canonicalizedSave = Boolean(
+                payload &&
+                typeof payload === "object" &&
+                "canonicalized" in payload &&
+                payload.canonicalized === true,
+              );
               savedAnnotationsHash = annotationsHash;
             },
             onChange: (next) => {
@@ -715,12 +731,22 @@ export function usePdfDocument({
                 setSaveStatus("Unsaved changes");
               } else {
                 setSaveStatus("Saved");
+                if (canonicalizedSave) {
+                  canonicalizedSave = false;
+                  restoreViewRef.current = {
+                    page: pdfViewer.currentPageNumber,
+                    scale: pdfViewer.currentScale,
+                  };
+                  setDocumentGeneration((generation) => generation + 1);
+                }
               }
             },
           });
           autosaveRef.current = coordinator;
           storage.onSetModified = () => {
-            if (storage.serializable.hash === savedAnnotationsHash) {
+            const hash = storage.serializable.hash;
+            observedAnnotationsHash = hash;
+            if (hash === savedAnnotationsHash) {
               // A mode switch registered untouched annotations, not an
               // edit. The latch must be re-armed or a later real edit
               // would never fire this callback again.
@@ -730,6 +756,17 @@ export function usePdfDocument({
             coordinator.markDirty();
           };
           storage.onResetModified = null;
+          // PDF.js mutates restored editor objects without firing its storage
+          // callback. Observe the canonical hash so later edits also save.
+          const refreshAnnotations = () => {
+            if (disposed || documentRef.current !== document) return;
+            const hash = storage.serializable.hash;
+            if (hash === observedAnnotationsHash) return;
+            observedAnnotationsHash = hash;
+            if (hash !== savedAnnotationsHash) coordinator.markDirty();
+          };
+          annotationRefreshRef.current = refreshAnnotations;
+          annotationChangeTimer = setInterval(refreshAnnotations, 500);
         }
         const removeDarkRendering = installDarkPdfRendering(
           document,
@@ -739,6 +776,9 @@ export function usePdfDocument({
         pdfViewer.setDocument(document);
 
         viewerCleanup = () => {
+          if (annotationChangeTimer !== null)
+            clearInterval(annotationChangeTimer);
+          annotationRefreshRef.current = null;
           // Leaving within the debounce window (tap a page, hit back) must
           // not lose the last move; write it now instead of never.
           if (positionWriteTimer !== null) {
@@ -803,6 +843,7 @@ export function usePdfDocument({
     etagRef,
     editorTypesRef,
     autosaveRef,
+    commitAnnotations,
     uiManagerRef,
     pendingPenRef,
     dirtyRef,

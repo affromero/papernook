@@ -7,6 +7,8 @@ export async function register(): Promise<void> {
       const { startMetricRetention } =
         await import("./lib/agent/platform/metric-retention");
       startMetricRetention();
+      const { startSharingWorker } = await import("./lib/sharing/worker");
+      startSharingWorker();
     }
     const { startScanner } = await import("./lib/library/scanner");
     startScanner();

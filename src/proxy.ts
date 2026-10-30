@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { crossSiteMutation } from "@/lib/auth/request-security";
 import { clientIp } from "@/lib/auth/request-security";
-import { consumeRequestLimit } from "@/lib/auth/rate-limit";
+import { consumeRequestLimit, publicRequestLimit } from "@/lib/auth/rate-limit";
+export { publicRequestLimit } from "@/lib/auth/rate-limit";
 
 /**
  * Gate everything behind a profile session except: the login/picker page, the
@@ -16,15 +17,6 @@ const PUBLIC_PATHS = new Set([
   "/api/v1/profiles",
   "/api/v1/health",
 ]);
-
-const DEFAULT_PUBLIC_REQUEST_LIMIT = 120;
-
-export function publicRequestLimit(): number {
-  const configured = Number(process.env.PAPERNOOK_PUBLIC_REQUEST_LIMIT);
-  return Number.isSafeInteger(configured) && configured > 0
-    ? configured
-    : DEFAULT_PUBLIC_REQUEST_LIMIT;
-}
 
 function contentSecurityPolicy(nonce: string): string {
   return [
@@ -63,7 +55,7 @@ function continueRequest(request: NextRequest, csp: string): NextResponse {
 
 export const config = {
   matcher: [
-    "/((?!_next/|avatars/|vendor/|offline/|favicon\\.ico|icon\\.svg|apple-icon\\.png|logo\\.(?:svg|png)|manifest\\.webmanifest|sw\\.js).*)",
+    "/((?!api/v1/shares/[^/]+/[^/]+/[^/]+/exchange/?$|_next/|avatars/|vendor/|offline/|favicon\\.ico|icon\\.svg|apple-icon\\.png|logo\\.(?:svg|png)|manifest\\.webmanifest|sw\\.js).*)",
   ],
 };
 

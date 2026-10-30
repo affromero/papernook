@@ -1,0 +1,232 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+import { activeProfile } from "@/lib/auth/session";
+import {
+  InvalidPdfError,
+  PdfBusyError,
+  PdfConflictError,
+  PdfFileError,
+  PdfTooLargeError,
+  readStablePdfVersion,
+  readVersionedPdfFile,
+  replacePdf,
+  type PdfKind,
+} from "@/lib/library/pdf/file";
+import { fileResponse } from "@/lib/http/file-range";
+import { isValidSlug } from "@/lib/library/slug";
+import { MAX_PDF_BYTES } from "@/lib/pdf-limits";
+import { connectedPdfResponse, saveConnectedPdf } from "@/lib/sharing/gateway";
+import { SharingError, sharingFailure } from "@/lib/sharing/schema";
+
+export interface PdfRouteParams {
+  params: Promise<{ topic: string; slug: string }>;
+}
+
+const paramsSchema = z.object({
+  topic: z.string().refine(isValidSlug),
+  slug: z.string().refine(isValidSlug),
+});
+
+const saveHeadersSchema = z.object({
+  ifMatch: z.string().regex(/^"[a-f0-9]{64}"$/),
+  contentType: z
+    .string()
+    .transform((value) => value.split(";", 1)[0]?.trim().toLowerCase())
+    .pipe(z.literal("application/pdf")),
+  contentLength: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .pipe(z.number().int().nonnegative().max(MAX_PDF_BYTES))
+    .nullable(),
+});
+
+async function readPdfBody(request: NextRequest): Promise<Uint8Array> {
+  if (!request.body) throw new InvalidPdfError("The PDF body is empty.");
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_PDF_BYTES) {
+      await reader.cancel();
+      throw new PdfTooLargeError("The saved PDF exceeds the 100 MB limit.");
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+export async function pdfGet(
+  request: NextRequest,
+  { params }: PdfRouteParams,
+  kind: PdfKind = "paper",
+) {
+  const profile = await activeProfile();
+  if (!profile)
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const parsedParams = paramsSchema.safeParse(await params);
+  if (!parsedParams.success) {
+    return NextResponse.json({ error: "Invalid paper." }, { status: 400 });
+  }
+  const { topic, slug } = parsedParams.data;
+  const connected = await connectedPdfResponse(request, topic, slug, kind);
+  if (connected) return connected;
+  const pdf = await readVersionedPdfFile(topic, slug, kind);
+  if (!pdf)
+    return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
+  // no-cache, not no-store: the reader must always confirm it holds the
+  // current save version, but a 304 saves re-sending tens of megabytes.
+  return fileResponse({
+    path: pdf.path,
+    size: pdf.size,
+    etag: pdf.etag,
+    headers: request.headers,
+    contentType: "application/pdf",
+    filename: `${slug}${kind === "exercises" ? ".exercises" : ""}.pdf`,
+    cacheControl: "private, no-cache",
+  });
+}
+
+export async function pdfHead(
+  request: NextRequest,
+  { params }: PdfRouteParams,
+  kind: PdfKind = "paper",
+) {
+  const profile = await activeProfile();
+  if (!profile) {
+    return new NextResponse(null, { status: 401 });
+  }
+  const parsedParams = paramsSchema.safeParse(await params);
+  if (!parsedParams.success) {
+    return new NextResponse(null, { status: 400 });
+  }
+
+  try {
+    const { topic, slug } = parsedParams.data;
+    const connected = await connectedPdfResponse(request, topic, slug, kind);
+    if (connected) return connected;
+    const pdf = await readStablePdfVersion(topic, slug, kind);
+    if (!pdf) return new NextResponse(null, { status: 404 });
+    return new NextResponse(null, {
+      headers: {
+        "cache-control": "private, no-store",
+        etag: pdf.etag,
+      },
+    });
+  } catch (error) {
+    if (error instanceof PdfBusyError) {
+      return new NextResponse(null, {
+        status: 409,
+        headers: { "retry-after": "5" },
+      });
+    }
+    throw error;
+  }
+}
+
+export async function pdfPut(
+  request: NextRequest,
+  { params }: PdfRouteParams,
+  kind: PdfKind = "paper",
+) {
+  const profile = await activeProfile();
+  if (!profile) {
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  }
+  const parsedParams = paramsSchema.safeParse(await params);
+  if (!parsedParams.success) {
+    return NextResponse.json({ error: "Invalid paper." }, { status: 400 });
+  }
+  const headers = saveHeadersSchema.safeParse({
+    ifMatch: request.headers.get("if-match"),
+    contentType: request.headers.get("content-type"),
+    contentLength: request.headers.get("content-length"),
+  });
+  if (!headers.success) {
+    const declaredLength = request.headers.get("content-length");
+    if (
+      declaredLength &&
+      /^\d+$/.test(declaredLength) &&
+      Number(declaredLength) > MAX_PDF_BYTES
+    ) {
+      return NextResponse.json(
+        { error: "The saved PDF exceeds the 100 MB limit." },
+        { status: 413 },
+      );
+    }
+    return NextResponse.json(
+      {
+        error:
+          "Saving requires a PDF body and the version returned when it was opened.",
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const bytes = await readPdfBody(request);
+    // The proxy buffers request bodies and hands truncated ones to the
+    // handler without an error; a declared length that does not match the
+    // received bytes means the PDF was cut off in transit.
+    if (
+      headers.data.contentLength !== null &&
+      bytes.byteLength !== headers.data.contentLength
+    ) {
+      throw new InvalidPdfError(
+        "The saved PDF arrived incomplete. Try saving again.",
+      );
+    }
+    const { topic, slug } = parsedParams.data;
+    const result =
+      (await saveConnectedPdf(
+        topic,
+        slug,
+        headers.data.ifMatch,
+        bytes,
+        kind,
+      )) ??
+      (await replacePdf(
+        topic,
+        slug,
+        headers.data.ifMatch,
+        bytes,
+        undefined,
+        kind,
+      ));
+    return NextResponse.json(result, {
+      headers: {
+        etag: result.etag,
+        "cache-control": "private, no-store",
+      },
+    });
+  } catch (error) {
+    if (error instanceof SharingError) return sharingFailure(error);
+    if (error instanceof PdfConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 412 });
+    }
+    if (error instanceof PdfBusyError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof PdfTooLargeError) {
+      return NextResponse.json({ error: error.message }, { status: 413 });
+    }
+    if (error instanceof InvalidPdfError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    if (error instanceof PdfFileError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    throw error;
+  }
+}

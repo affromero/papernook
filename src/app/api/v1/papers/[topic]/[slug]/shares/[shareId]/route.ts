@@ -5,7 +5,8 @@ import {
   accessFailure,
 } from "@/lib/auth/access";
 import { withProfileFiles } from "@/lib/auth/profile-capability";
-import { deleteShare } from "@/lib/library/shares";
+import { deleteShare, getShare } from "@/lib/library/shares";
+import { withCollaboration } from "@/lib/sharing/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,21 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
   }
   const { topic, slug, shareId } = await params;
   try {
+    const share = getShare(topic, slug, shareId);
+    if (
+      share?.mode === "collaborate" &&
+      share.ownerUsername === profile.username &&
+      share.ownerGeneration === capability.generation
+    ) {
+      return await withCollaboration(share, async () => {
+        if (!deleteShare(topic, slug, shareId, profile.username))
+          return NextResponse.json(
+            { error: "Unknown share." },
+            { status: 404 },
+          );
+        return new NextResponse(null, { status: 204 });
+      });
+    }
     return withProfileFiles(sharedAccess().identity, capability, () => {
       if (!deleteShare(topic, slug, shareId, profile.username)) {
         return NextResponse.json({ error: "Unknown share." }, { status: 404 });

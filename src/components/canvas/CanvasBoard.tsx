@@ -9,6 +9,7 @@ import {
   type TLAssetStore,
 } from "tldraw";
 import { reconcileStartupMigration } from "@/lib/canvas/startup";
+import { withoutCanvasUsers } from "@/lib/canvas/snapshot";
 import { PdfReader, type PdfReaderEditState } from "@/components/pdf/PdfReader";
 import { readingPositionKey } from "@/lib/pdf/view/reading-position";
 import { focusFirstPdfPage, syncPdfPages } from "./pdf-pages";
@@ -199,7 +200,7 @@ async function saveDocument(
   document: unknown,
   url: string,
   etag: string,
-): Promise<string> {
+): Promise<{ version: string; document?: unknown }> {
   const response = await fetch(url, {
     method: "PUT",
     headers: {
@@ -207,14 +208,19 @@ async function saveDocument(
       [CANVAS_VERSION_HEADER]: etag,
     },
     credentials: "include",
-    body: JSON.stringify({ document }),
+    body: JSON.stringify({ document: withoutCanvasUsers(document) }),
   });
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 409) throw new CanvasConflictError();
     throw new Error(canvasError(payload, "The canvas could not be saved."));
   }
-  return response.headers.get(CANVAS_VERSION_HEADER) ?? etag;
+  return {
+    version: response.headers.get(CANVAS_VERSION_HEADER) ?? etag,
+    ...(payload && typeof payload === "object" && "document" in payload
+      ? { document: payload.document }
+      : {}),
+  };
 }
 
 class CanvasConflictError extends Error {
@@ -269,6 +275,7 @@ export function CanvasBoard({
   const [saved, setSaved] = useState(true);
   const [ready, setReady] = useState(false);
   const [conflicted, setConflicted] = useState(false);
+  const [contributor, setContributor] = useState<string | null>(null);
   const [canvasUiHidden, setCanvasUiHidden] = useState(false);
   const [annotatingPdf, setAnnotatingPdf] = useState(false);
   const [pdfEditState, setPdfEditState] = useState<PdfReaderEditState>({
@@ -320,11 +327,21 @@ export function CanvasBoard({
       const save = async () => {
         if (!silent) setStatus("Saving…");
         try {
-          etagRef.current = await saveDocument(
+          const result = await saveDocument(
             document,
             `${base}/canvas`,
             etagRef.current,
           );
+          etagRef.current = result.version;
+          if (result.document && changeVersionRef.current === savedVersion) {
+            const camera = editor.getCamera();
+            editor.store.mergeRemoteChanges(() =>
+              loadSnapshot(editor.store, {
+                document: result.document,
+              } as never),
+            );
+            editor.setCamera(camera);
+          }
         } catch (error) {
           if (error instanceof CanvasConflictError) {
             conflictRef.current = true;
@@ -441,8 +458,14 @@ export function CanvasBoard({
             setStatus("Saving shared canvas…");
             return result.changed || uploadedAssets;
           },
-          save: (etag) =>
-            saveDocument(getSnapshot(editor.store).document, canvasUrl, etag),
+          save: async (etag) =>
+            (
+              await saveDocument(
+                getSnapshot(editor.store).document,
+                canvasUrl,
+                etag,
+              )
+            ).version,
           reload: () => loadSharedCanvas(editor, canvasUrl),
           isConflict: (error) => error instanceof CanvasConflictError,
         });
@@ -476,8 +499,14 @@ export function CanvasBoard({
         setStatus("Saved");
 
         removeDocumentListener = editor.store.listen(
-          () => {
+          (entry) => {
             if (!initializedRef.current) return;
+            const changed = [
+              ...Object.values(entry.changes.added),
+              ...Object.values(entry.changes.removed),
+              ...Object.values(entry.changes.updated).flat(),
+            ];
+            if (!changed.some((record) => record.typeName !== "user")) return;
             dirtyRef.current = true;
             changeVersionRef.current += 1;
             setSaved(false);
@@ -504,6 +533,17 @@ export function CanvasBoard({
           () => {
             saveLocalCamera(editor, topic, slug);
             setCanvasUiHidden(editor.getInstanceState().isFocusMode);
+            const selected = editor.getSelectedShapes();
+            const names = new Set(
+              selected.flatMap((shape) =>
+                typeof shape.meta.papernookUpdatedByName === "string"
+                  ? [shape.meta.papernookUpdatedByName]
+                  : [],
+              ),
+            );
+            setContributor(
+              names.size ? `Last edited by ${[...names].join(", ")}` : null,
+            );
           },
           { scope: "session" },
         );
@@ -535,23 +575,74 @@ export function CanvasBoard({
 
   useEffect(() => {
     if (!ready || annotatingPdf || canvasUnavailable) return;
+    let checking = false;
+    let stopped = false;
+    const refreshCanvas = async () => {
+      const editor = editorRef.current;
+      if (!editor || checking || conflictRef.current) return;
+      checking = true;
+      const startingVersion = changeVersionRef.current;
+      try {
+        const response = await fetch(`${base}/canvas`, {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok)
+          throw new Error(
+            "The shared canvas could not sync. Check access and local changes.",
+          );
+        const version = response.headers.get(CANVAS_VERSION_HEADER);
+        const payload: unknown = await response.json();
+        if (stopped || !version || version === etagRef.current) return;
+        if (dirtyRef.current || startingVersion !== changeVersionRef.current) {
+          conflictRef.current = true;
+          setConflicted(true);
+          setSaved(false);
+          setStatus(
+            "Changed on another device. Your unsaved changes are preserved.",
+          );
+          return;
+        }
+        if (
+          payload &&
+          typeof payload === "object" &&
+          "document" in payload &&
+          payload.document
+        ) {
+          const camera = editor.getCamera();
+          editor.store.mergeRemoteChanges(() =>
+            loadSnapshot(editor.store, { document: payload.document } as never),
+          );
+          editor.setCamera(camera);
+        }
+        etagRef.current = version;
+      } finally {
+        checking = false;
+      }
+    };
     const checkPdf = () => {
       if (document.visibilityState !== "visible") return;
-      void refreshPdfPages().catch((error: unknown) => {
-        setStatus(
-          error instanceof Error
-            ? error.message
-            : "The PDF could not be refreshed.",
-        );
-      });
+      void refreshCanvas()
+        .then(() => {
+          if (!dirtyRef.current && !conflictRef.current)
+            return refreshPdfPages();
+        })
+        .catch((error: unknown) => {
+          setStatus(
+            error instanceof Error
+              ? error.message
+              : "The PDF could not be refreshed.",
+          );
+        });
     };
     const interval = window.setInterval(checkPdf, 30_000);
     document.addEventListener("visibilitychange", checkPdf);
     return () => {
+      stopped = true;
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", checkPdf);
     };
-  }, [annotatingPdf, canvasUnavailable, ready, refreshPdfPages]);
+  }, [annotatingPdf, base, canvasUnavailable, ready, refreshPdfPages]);
 
   const closePdfAnnotator = useCallback(() => {
     setAnnotatingPdf(false);
@@ -653,6 +744,7 @@ export function CanvasBoard({
                   ? "License rejected"
                   : status}
           </span>
+          {contributor && <span className={styles.status}>{contributor}</span>}
         </div>
       </div>
       <div

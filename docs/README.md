@@ -93,7 +93,9 @@ through the normal capture flow.
 ![View-only reading dialog with optional conversation snapshots](images/product/share-reading.png)
 
 A shared reading includes the current annotated PDF. Conversation snapshots
-are opt-in; later private messages never appear in an existing link.
+and canvas or exercise snapshots are opt-in. Later private messages never
+appear in an existing link. Approved collaboration syncs the canvas, exercises,
+annotations, and explicitly published conversations with contributor names.
 
 ## On iPad
 

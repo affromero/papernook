@@ -44,6 +44,14 @@
     {
       "tool": "knip",
       "mode": "all",
+      "file": "tests/e2e/sharing/gateway.mjs",
+      "kind": "binaries",
+      "name": "openssl",
+      "reason": "System executable generates an ephemeral certificate for the HTTPS sharing browser fixture."
+    },
+    {
+      "tool": "knip",
+      "mode": "all",
       "file": "tests/scripts/papernook-cli.test.ts",
       "kind": "unresolved",
       "name": "./scripts/papernook",

@@ -1,142 +1,115 @@
-import { createHash } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { activeProfile } from "@/lib/auth/session";
-import { getPaper } from "@/lib/library/papers";
-import { readBoundedText, RequestBodyError } from "@/lib/bounded-request";
+import { readBoundedJson } from "@/lib/bounded-request";
+import {
+  readCanvas,
+  saveCanvas,
+  MAX_CANVAS_BYTES,
+  CANVAS_VERSION_HEADER,
+} from "@/lib/canvas/document";
+import { CanvasError } from "@/lib/canvas/errors";
+import {
+  connectedCanvas,
+  saveConnectedCanvas,
+} from "@/lib/sharing/artifacts/gateway";
+import {
+  hasCollaboration,
+  localArtifactAuthority,
+} from "@/lib/sharing/artifacts/local";
+import { saveSourceCanvas } from "@/lib/sharing/artifacts/source";
+import { sharingFailure } from "@/lib/sharing/schema";
 
 export const dynamic = "force-dynamic";
-
 interface Params {
   params: Promise<{ topic: string; slug: string }>;
 }
-
-const MAX_CANVAS_BYTES = 20 * 1024 * 1024;
 const snapshotSchema = z.object({ document: z.unknown() }).strict();
-const EMPTY_ETAG = '"empty"';
-const CANVAS_VERSION_HEADER = "X-Canvas-Version";
-
-function etagFor(raw: string): string {
-  return `"${createHash("sha256").update(raw).digest("base64url")}"`;
-}
-
-function readCanvas(file: string): {
-  body: { document: unknown | null };
-  etag: string;
-} {
-  if (!fs.existsSync(file)) {
-    return { body: { document: null }, etag: EMPTY_ETAG };
-  }
-  const raw = fs.readFileSync(file, "utf8");
-  const parsed: unknown = JSON.parse(raw);
-  if (parsed && typeof parsed === "object" && "document" in parsed) {
-    return {
-      body: { document: parsed.document },
-      etag: etagFor(raw),
-    };
-  }
-  return { body: { document: parsed }, etag: etagFor(raw) };
+function versionHeaders(version: string) {
+  return {
+    etag: version,
+    [CANVAS_VERSION_HEADER]: version,
+    "cache-control": "private, no-store",
+  };
 }
 
 export async function GET(_request: NextRequest, { params }: Params) {
-  const profile = await activeProfile();
-  if (!profile)
+  if (!(await activeProfile()))
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const { topic, slug } = await params;
-  const paper = getPaper(topic, slug);
-  if (!paper)
-    return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
   try {
-    const canvas = readCanvas(path.join(paper.companionDir, "canvas.json"));
-    return NextResponse.json(canvas.body, {
-      headers: {
-        etag: canvas.etag,
-        [CANVAS_VERSION_HEADER]: canvas.etag,
-        "cache-control": "no-store",
-      },
-    });
-  } catch {
+    const canvas =
+      (await connectedCanvas(topic, slug)) ?? readCanvas(topic, slug);
     return NextResponse.json(
-      { error: "The saved canvas is invalid." },
-      { status: 500 },
+      { document: canvas.document },
+      { headers: versionHeaders(canvas.version) },
     );
+  } catch (error) {
+    if (error instanceof SyntaxError)
+      return NextResponse.json(
+        { error: "The saved canvas is invalid." },
+        { status: 500 },
+      );
+    return sharingFailure(error);
   }
 }
 
 export async function PUT(request: NextRequest, { params }: Params) {
-  const profile = await activeProfile();
-  if (!profile)
+  if (!(await activeProfile()))
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const { topic, slug } = await params;
-  const paper = getPaper(topic, slug);
-  if (!paper)
-    return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
-
-  let raw: string;
   try {
-    raw = await readBoundedText(request, MAX_CANVAS_BYTES);
-  } catch (error) {
-    if (error instanceof RequestBodyError) {
-      return NextResponse.json({ error: "Canvas too large." }, { status: 413 });
+    const body = snapshotSchema.safeParse(
+      await readBoundedJson(
+        request,
+        MAX_CANVAS_BYTES,
+        AbortSignal.timeout(30_000),
+      ),
+    );
+    if (!body.success)
+      return NextResponse.json({ error: "Invalid canvas." }, { status: 400 });
+    const version =
+      request.headers.get(CANVAS_VERSION_HEADER) ??
+      request.headers.get("if-match") ??
+      "";
+    const connected = await saveConnectedCanvas(
+      topic,
+      slug,
+      version,
+      body.data.document,
+    );
+    if (connected)
+      return NextResponse.json(
+        { ok: true, document: connected.document },
+        { headers: versionHeaders(connected.version) },
+      );
+    if (hasCollaboration(topic, slug)) {
+      const authority = await localArtifactAuthority();
+      const saved = saveSourceCanvas(
+        topic,
+        slug,
+        version,
+        body.data.document,
+        authority.actor,
+        authority.commit,
+        false,
+      );
+      return NextResponse.json(
+        { ok: true, document: readCanvas(topic, slug).document },
+        { headers: versionHeaders(saved.version) },
+      );
     }
-    throw error;
-  }
-  const body = snapshotSchema.safeParse(
-    (() => {
-      try {
-        return JSON.parse(raw) as unknown;
-      } catch {
-        return null;
-      }
-    })(),
-  );
-  if (!body.success) {
-    return NextResponse.json({ error: "Invalid canvas." }, { status: 400 });
-  }
-
-  const file = path.join(paper.companionDir, "canvas.json");
-  let current: ReturnType<typeof readCanvas>;
-  try {
-    current = readCanvas(file);
-  } catch {
-    return NextResponse.json(
-      { error: "The saved canvas is invalid." },
-      { status: 500 },
-    );
-  }
-  const requestedVersion =
-    request.headers.get(CANVAS_VERSION_HEADER) ??
-    request.headers.get("if-match");
-  if (requestedVersion !== current.etag) {
-    return NextResponse.json(
-      {
-        error:
-          "This canvas changed on another device. Reload before adding more.",
-      },
-      {
-        status: 409,
-        headers: {
-          etag: current.etag,
-          [CANVAS_VERSION_HEADER]: current.etag,
+    const saved = saveCanvas(topic, slug, version, body.data.document);
+    return NextResponse.json({ ok: true }, { headers: versionHeaders(saved) });
+  } catch (error) {
+    if (error instanceof CanvasError && error.status === 409)
+      return NextResponse.json(
+        { error: error.message },
+        {
+          status: 409,
+          headers: versionHeaders(readCanvas(topic, slug).version),
         },
-      },
-    );
+      );
+    return sharingFailure(error);
   }
-
-  const serialized = JSON.stringify(body.data);
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, serialized);
-  fs.renameSync(tmp, file);
-  const savedVersion = etagFor(serialized);
-  return NextResponse.json(
-    { ok: true },
-    {
-      headers: {
-        etag: savedVersion,
-        [CANVAS_VERSION_HEADER]: savedVersion,
-      },
-    },
-  );
 }
