@@ -17,6 +17,11 @@ import {
   listConversationChats,
 } from "@/lib/conversations/store";
 import type { OfflineManifest } from "./types";
+import type {
+  ConversationAsset,
+  ConversationCitation,
+} from "@/lib/conversations/content";
+import { conversationDirectory } from "@/lib/conversations/assets";
 import {
   attachmentHtml,
   escapeHtml,
@@ -34,13 +39,19 @@ export const privateHeaders = {
 export const documentSlug = z.string().refine(isValidSlug);
 
 export function renderMessages(
-  messages: { role: string; content: string; images?: string[] }[],
+  messages: {
+    role: string;
+    content: string;
+    images?: string[];
+    assets?: ConversationAsset[];
+    citations?: ConversationCitation[];
+  }[],
   base?: string,
 ): string {
   let bytes = 0;
   return messages
-    .map((message) => {
-      const result = `<article><h2>${escapeHtml(message.role === "user" ? "User" : "Assistant")}</h2>${renderMarkdown(message.content)}${(message.images ?? []).map((image) => attachmentHtml(base, image)).join("")}</article>`;
+    .map((message, messageIndex) => {
+      const result = `<article><h2>${escapeHtml(message.role === "user" ? "User" : "Assistant")}</h2>${renderMarkdown(message.content, { assets: message.assets, citations: message.citations, base, messageIndex })}${(message.images ?? []).map((image) => attachmentHtml(base, image)).join("")}</article>`;
       bytes += Buffer.byteLength(result);
       if (bytes > MAX_STUDY_BYTES)
         throw new Error("Conversation exceeds the 32 MB export limit.");
@@ -146,10 +157,14 @@ export function conversationSnapshot(
       .join("\n\n"),
     sourceHtml: studyHtml(
       conversation.title,
-      renderMessages(conversation.messages),
+      renderMessages(conversation.messages, conversationDirectory(owner, id)),
     ),
     summaryHtml: "",
-    chats: packageChats(listConversationChats(owner, id), owner),
+    chats: packageChats(
+      listConversationChats(owner, id),
+      owner,
+      conversationDirectory(owner, id),
+    ),
   });
 }
 

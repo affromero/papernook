@@ -10,9 +10,13 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeStringify from "rehype-stringify";
 import type { Root, Element } from "hast";
 import { normalizeMath } from "@/lib/chat/normalize-math";
+import { normalizeProviderText } from "@/lib/chat/normalize-provider-text";
+import type { ShareMarkupContext } from "@/lib/chat/normalize-share-markup";
+import { readAsset } from "@/lib/conversations/assets";
+import { prepareSvg } from "@/lib/conversations/preview";
 
 export const STUDY_CSP =
-  "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'";
+  "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; media-src data:; base-uri 'none'; form-action 'none'";
 export const MAX_STUDY_BYTES = 32 * 1024 * 1024;
 
 export function escapeHtml(value: string): string {
@@ -25,11 +29,96 @@ export function escapeHtml(value: string): string {
   );
 }
 
-function safeLinks() {
+export interface ExportMessageContext extends ShareMarkupContext {
+  base?: string;
+  messageIndex?: number;
+}
+
+function safeLinks(context: ExportMessageContext) {
   return (tree: Root) => {
     const visit = (node: Root | Element) => {
       for (const child of node.children) {
         if (child.type !== "element") continue;
+        const source = String(
+          child.properties.src ?? child.properties.href ?? "",
+        );
+        const index = /^#asset-(\d+)$/.exec(source)?.[1];
+        const asset =
+          index !== undefined ? context.assets?.[Number(index)] : undefined;
+        if (asset && index !== undefined) {
+          const saved = context.base
+            ? readAsset(
+                context.base,
+                context.messageIndex ?? 0,
+                Number(index),
+                asset,
+                true,
+              )
+            : null;
+          if (!saved) {
+            child.tagName = "span";
+            child.properties = {};
+            child.children = [
+              {
+                type: "text",
+                value: `${asset.name}: attachment unavailable offline. Load it in the conversation before exporting.`,
+              },
+            ];
+          } else {
+            const uri = `data:${saved.mime};base64,${saved.bytes.toString("base64")}`;
+            child.tagName =
+              asset.kind === "image"
+                ? "img"
+                : asset.kind === "file"
+                  ? "a"
+                  : asset.kind;
+            child.properties =
+              asset.kind === "image"
+                ? { src: uri, alt: asset.name }
+                : asset.kind === "file"
+                  ? { href: uri, download: asset.name }
+                  : {
+                      src: uri,
+                      controls: true,
+                      preload: "none",
+                      ariaLabel: asset.name,
+                    };
+            child.children =
+              asset.kind === "file"
+                ? [{ type: "text", value: asset.name }]
+                : [];
+          }
+          continue;
+        }
+        if (child.tagName === "pre") {
+          const code = child.children[0];
+          if (
+            code?.type === "element" &&
+            String(code.properties.className).includes("language-svg-preview")
+          ) {
+            const text = code.children
+              .map((node) => (node.type === "text" ? node.value : ""))
+              .join("");
+            try {
+              const svg = prepareSvg(text);
+              child.tagName = "div";
+              child.children = [
+                {
+                  type: "element",
+                  tagName: "img",
+                  properties: {
+                    src: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
+                    alt: "Imported SVG diagram",
+                  },
+                  children: [],
+                },
+              ];
+              continue;
+            } catch {
+              // Preserve the source when the provider uses unsupported diagram syntax.
+            }
+          }
+        }
         if (child.tagName === "img") {
           child.tagName = "span";
           child.children = [
@@ -57,20 +146,29 @@ function safeLinks() {
   };
 }
 
-const processor = unified()
-  .use(remarkParse)
-  .use(remarkGfm)
-  .use(remarkMath)
-  .use(remarkRehype)
-  .use(safeLinks)
-  .use(rehypeKatex, { trust: false, strict: "ignore" })
-  .use(rehypeHighlight, { detect: false, plainText: ["threejs"] })
-  .use(rehypeStringify);
+function processor(context: ExportMessageContext) {
+  return unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkMath)
+    .use(remarkRehype)
+    .use(safeLinks, context)
+    .use(rehypeKatex, { trust: false, strict: "ignore" })
+    .use(rehypeHighlight, { detect: false, plainText: ["threejs"] })
+    .use(rehypeStringify);
+}
 
-export function renderMarkdown(content: string): string {
+export function renderMarkdown(
+  content: string,
+  context: ExportMessageContext = {},
+): string {
   if (Buffer.byteLength(content) > 8 * 1024 * 1024)
     throw new Error("Study text exceeds the 8 MB limit.");
-  return String(processor.processSync(normalizeMath(content)));
+  return String(
+    processor(context).processSync(
+      normalizeMath(normalizeProviderText(content, context)),
+    ),
+  );
 }
 
 let embeddedCss: string | undefined;
@@ -104,7 +202,9 @@ export function attachmentHtml(
   const unavailable = `<p>Attachment unavailable: ${escapeHtml(relative)}</p>`;
   if (
     !base ||
-    !/^crops\/[a-zA-Z0-9._-]+\.(png|jpe?g|webp|gif)$/i.test(relative)
+    !/^(crops|attachments)\/[a-zA-Z0-9._-]+\.(png|jpe?g|webp|gif)$/i.test(
+      relative,
+    )
   )
     return unavailable;
   try {

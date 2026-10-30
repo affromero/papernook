@@ -1,4 +1,4 @@
-import { Children, isValidElement, type ReactNode } from "react";
+import { Children, isValidElement, memo, type ReactNode } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -14,6 +14,14 @@ import { normalizeProviderText } from "@/lib/chat/normalize-provider-text";
 import type { Bibliography } from "@/lib/pdf/bibliography";
 import { CopyCodeButton } from "./CopyCodeButton";
 import { ThreeSandbox } from "./ThreeSandbox";
+import {
+  ConversationMedia,
+  RichPreview,
+} from "@/components/conversations/RichContent";
+import type {
+  ConversationAsset,
+  ConversationCitation,
+} from "@/lib/conversations/content";
 import styles from "./Markdown.module.css";
 
 /** Source of a ```threejs fence, if that's what this <pre> wraps. */
@@ -76,7 +84,7 @@ function CodeFrame({
  * server-renderable); leave it off while streaming, it re-walks the whole
  * tree per chunk.
  */
-export function Markdown({
+export const Markdown = memo(function Markdown({
   content,
   renderThree = false,
   highlightCode = true,
@@ -87,6 +95,10 @@ export function Markdown({
   currentOrigin,
   paperSourceUrl,
   onRegenerateThree,
+  assets,
+  citations,
+  assetBase,
+  renderArtifacts = false,
 }: {
   content: string;
   renderThree?: boolean;
@@ -100,6 +112,10 @@ export function Markdown({
   currentOrigin?: string;
   paperSourceUrl?: string;
   onRegenerateThree?: () => void;
+  assets?: ConversationAsset[];
+  citations?: ConversationCitation[];
+  assetBase?: string;
+  renderArtifacts?: boolean;
 }) {
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
@@ -127,6 +143,16 @@ export function Markdown({
             void node;
             const href =
               typeof anchorProps.href === "string" ? anchorProps.href : "";
+            const index = /^#asset-(\d+)$/.exec(href)?.[1];
+            const asset =
+              index !== undefined ? assets?.[Number(index)] : undefined;
+            if (asset)
+              return (
+                <ConversationMedia
+                  asset={asset}
+                  url={assetBase ? `${assetBase}/${index}` : undefined}
+                />
+              );
             if (linksToCurrentPaper(href, paperSourceUrl)) {
               return <span>{anchorProps.children}</span>;
             }
@@ -138,6 +164,20 @@ export function Markdown({
             );
           },
           pre(props) {
+            const language = codeLanguage(props.children);
+            if (
+              renderArtifacts &&
+              (language === "svg-preview" ||
+                language === "html-preview" ||
+                language === "mermaid")
+            ) {
+              return (
+                <RichPreview
+                  kind={language}
+                  source={codeText(props.children).replace(/\n$/, "")}
+                />
+              );
+            }
             const code = renderThree ? threeCode(props.children) : null;
             return code ? (
               <ThreeSandbox code={code} onRegenerate={onRegenerateThree} />
@@ -164,6 +204,16 @@ export function Markdown({
           // as a link the user must click instead.
           img(props) {
             const src = typeof props.src === "string" ? props.src : "";
+            const index = /^#asset-(\d+)$/.exec(src)?.[1];
+            const asset =
+              index !== undefined ? assets?.[Number(index)] : undefined;
+            if (asset)
+              return (
+                <ConversationMedia
+                  asset={asset}
+                  url={assetBase ? `${assetBase}/${index}` : undefined}
+                />
+              );
             return (
               <a href={src} target="_blank" rel="noreferrer noopener nofollow">
                 {props.alt || src || "image"}
@@ -172,8 +222,8 @@ export function Markdown({
           },
         }}
       >
-        {normalizeMath(normalizeProviderText(content))}
+        {normalizeMath(normalizeProviderText(content, { assets, citations }))}
       </ReactMarkdown>
     </div>
   );
-}
+});

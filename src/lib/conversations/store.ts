@@ -8,11 +8,14 @@ import {
   FileLockBusyError,
 } from "thesidedoor-core/storage";
 import { assertSlug } from "@/lib/library/slug";
+import { assetSchema, citationSchema } from "./content";
 import type { Chat, ChatMessage } from "@/lib/library/chats";
 
 const sourceMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string().min(1).max(500_000),
+  assets: z.array(assetSchema).max(100).optional(),
+  citations: z.array(citationSchema).max(1000).optional(),
 });
 export const metadataSchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -88,6 +91,21 @@ export function getConversation(
   const source = recordSchema.parse(
     JSON.parse(fs.readFileSync(path.join(dir, "source.json"), "utf8")),
   );
+  const rich = path.join(dir, "rich.json");
+  if (fs.existsSync(rich)) {
+    const messages = z
+      .array(
+        z.object({
+          assets: z.array(assetSchema).max(100).optional(),
+          citations: z.array(citationSchema).max(1000).optional(),
+        }),
+      )
+      .parse(JSON.parse(fs.readFileSync(rich, "utf8")));
+    source.messages = source.messages.map((message, index) => ({
+      ...message,
+      ...messages[index],
+    }));
+  }
   const meta = path.join(dir, "meta.json");
   return fs.existsSync(meta)
     ? {
@@ -135,6 +153,38 @@ export function lockConversation(username: string, id: string): () => void {
       throw new Error("A reply is already running. Wait for it to finish.");
     throw error;
   }
+}
+export function refreshConversationContent(
+  username: string,
+  id: string,
+  fresh: ConversationSource,
+): Conversation {
+  const original = getConversation(username, id);
+  if (!original || original.sourceUrl !== fresh.sourceUrl)
+    throw new Error(
+      "The shared source does not match this saved conversation.",
+    );
+  let cursor = 0;
+  const metadata = original.messages.map((message) => {
+    const index = fresh.messages.findIndex(
+      (candidate, index) =>
+        index >= cursor &&
+        candidate.role === message.role &&
+        candidate.content === message.content,
+    );
+    if (index < 0)
+      throw new Error(
+        "The share no longer matches the saved transcript. Import it as a new conversation.",
+      );
+    cursor = index + 1;
+    const { assets, citations } = fresh.messages[index];
+    return { assets, citations };
+  });
+  atomic(
+    path.join(directory(username, id), "rich.json"),
+    JSON.stringify(metadata),
+  );
+  return getConversation(username, id)!;
 }
 export function deleteConversation(username: string, id: string): void {
   const release = lockConversation(username, id);

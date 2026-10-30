@@ -23,6 +23,7 @@ env.NODE_EXTRA_CA_CERTS = sharing.cert;
 env.PAPERNOOK_SHARING_TRUSTED_ORIGINS = sharing.origin;
 run(["scripts/sidedoor/build-access.mjs"]);
 run(["scripts/build-offline.mjs"]);
+run(["scripts/conversations/build.mjs"]);
 run(["scripts/sharing/build.mjs"]);
 run([".next/operator/access.cjs", "initialize"]);
 const { code } = JSON.parse(run([".next/operator/access.cjs", "claim"]));

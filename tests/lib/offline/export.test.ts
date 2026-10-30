@@ -37,6 +37,38 @@ afterEach(() => {
 });
 
 describe("portable study exports", () => {
+  it("embeds imported images and SVG diagrams with the same readable source content offline", () => {
+    const data =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6i0AAAAASUVORK5CYII=";
+    const source = createConversation("alice", {
+      title: "Rich source",
+      topic: "Research",
+      tags: [],
+      provider: "chatgpt",
+      messages: [
+        {
+          role: "assistant",
+          content:
+            '<box><text>Road diagram</text><AsyncImage ref="image0"/><Cite ref="turn1search0"/></box>\n\n<svg xmlns="http://www.w3.org/2000/svg"><rect width="20" height="20"/></svg>',
+          assets: [{ kind: "image", name: "Road", ref: "image0", data }],
+          citations: [
+            {
+              ref: "turn1search0",
+              title: "Road reference",
+              url: "https://example.com/road",
+            },
+          ],
+        },
+      ],
+    });
+    const html = conversationSnapshot("alice", source.id)?.sourceHtml ?? "";
+    expect(html).toContain("Road diagram");
+    expect(html).toContain(data);
+    expect(html).toContain("data:image/svg+xml;base64,");
+    expect(html).toContain("Road reference");
+    expect(html).not.toContain("<AsyncImage");
+    expect(html).not.toContain("<script");
+  });
   it("renders imported LaTeX delimiters in portable exports while preserving code", () => {
     const body = renderMarkdown(
       String.raw`\(x^2\)

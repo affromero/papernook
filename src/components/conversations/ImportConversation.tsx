@@ -13,6 +13,7 @@ export function ImportConversation({
   const [format, setFormat] = useState("markdown");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [source, setSource] = useState<"link" | "transcript">("link");
   const [reading, setReading] = useState(false);
   const ready = Boolean(source === "link" ? url.trim() : content.trim());
@@ -61,17 +62,40 @@ export function ImportConversation({
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Import failed.");
+      setOpening(true);
       router.push(`/conversations/${result.conversation.id}`);
-      router.refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Import failed.");
-    } finally {
+      setOpening(false);
       setBusy(false);
     }
   }
   return (
-    <form className={styles.form} onSubmit={(event) => void submit(event)}>
+    <form
+      className={styles.form}
+      aria-busy={busy || reading}
+      onSubmit={(event) => void submit(event)}
+    >
       <h2>Import a conversation</h2>
+      {(busy || reading) && (
+        <div className={styles.importProgress} role="status">
+          <progress
+            aria-label={opening ? "Opening conversation" : "Import progress"}
+          />
+          <strong>
+            {opening
+              ? "Opening your conversation…"
+              : reading
+                ? "Reading your transcript…"
+                : "Importing your conversation…"}
+          </strong>
+          <span>
+            {opening
+              ? "Preparing the saved messages for reading."
+              : "Keep this page open while the import finishes."}
+          </span>
+        </div>
+      )}
       <fieldset className={styles.importFields} disabled={busy || reading}>
         <div
           className={styles.sourceSwitch}
@@ -172,8 +196,8 @@ export function ImportConversation({
         </details>
       </fieldset>
       <p className={styles.hint}>
-        Only this profile can see imported conversations. Missing attachments
-        are not imported.
+        Only this profile can see imported conversations. Attachments are
+        available when the provider includes them.
       </p>
       {error && (
         <p className={styles.error} role="alert">
@@ -185,23 +209,23 @@ export function ImportConversation({
         className={styles.primaryButton}
         disabled={!ready || busy || reading}
       >
-        {busy
-          ? "Importing…"
-          : reading
-            ? "Reading file…"
-            : "Import conversation"}
+        {opening
+          ? "Opening conversation…"
+          : busy
+            ? "Importing…"
+            : reading
+              ? "Reading file…"
+              : "Import conversation"}
       </button>
-      <p className={styles.hint} role="status">
-        {busy
-          ? "Importing your conversation. This may take a moment."
-          : reading
-            ? "Reading your transcript."
-            : !ready
-              ? source === "link"
-                ? "Add a share link to enable import."
-                : "Paste a transcript or choose a file to enable import."
-              : "Ready to import."}
-      </p>
+      {!busy && !reading && (
+        <p className={styles.hint} role="status">
+          {!ready
+            ? source === "link"
+              ? "Add a share link to enable import."
+              : "Paste a transcript or choose a file to enable import."
+            : "Ready to import."}
+        </p>
+      )}
     </form>
   );
 }

@@ -1,12 +1,25 @@
+import {
+  normalizeShareMarkup,
+  providerCitations,
+  type ShareMarkupContext,
+} from "./normalize-share-markup";
+
 /** Remove provider control markup that is not valid Markdown. */
-export function normalizeProviderText(content: string): string {
+export function normalizeProviderText(
+  content: string,
+  context?: ShareMarkupContext,
+): string {
   return (
-    content
+    normalizeShareMarkup(content, context)
       // OpenAI's writing blocks are instructions for its own client. Keep the
       // authored body and discard the client-only wrapper and metadata.
       .replace(/:::writing(?:\{[^}\n]*\})?\s*/gi, "")
       .replace(/^:::\s*$/gm, "")
-      .replace(/\uE200cite\uE202[\w:-]+(?:\uE202[\w:-]+)*\uE201/g, "")
+      .replace(
+        /\uE200cite\uE202([\w:\-\uE202]+)\uE201/g,
+        (_match, refs: string) =>
+          providerCitations(refs.split("\uE202"), context),
+      )
       .replace(/[\uE200\uE201\uE202]/g, "")
       // Boxed text from imported LaTeX renders as border strokes through
       // adjacent text when several boxes share one display equation.

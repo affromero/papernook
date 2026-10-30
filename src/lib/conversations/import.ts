@@ -1,5 +1,6 @@
 import { fetchPublicUrl } from "@/lib/capture/download";
 import { readBoundedResponse } from "@/lib/capture/bounded-response";
+import { assetSchema, citationSchema, richMessage } from "./content";
 import {
   MAX_TRANSCRIPT_BYTES,
   sourceSchema,
@@ -39,30 +40,6 @@ export function shareProvider(input: string): "chatgpt" | "claude" {
     "Supported share links are https://chatgpt.com/share/... and https://claude.ai/share/...",
   );
 }
-function textContent(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value))
-    return value.map(textContent).filter(Boolean).join("\n\n");
-  const record = object(value);
-  const type = record?.type ?? record?.content_type;
-  if (
-    typeof type === "string" &&
-    /^(thinking|redacted_thinking|thoughts|reasoning_recap|model_editable_context|tool_use|tool_result)$/.test(
-      type,
-    )
-  )
-    return "";
-  if (
-    typeof type === "string" &&
-    /^(image|image_url|image_asset_pointer|input_image|output_image|file|input_file|document|attachment|audio|video)(_|$)/.test(
-      type,
-    )
-  )
-    return "[Attachment unavailable in imported share]";
-  return record
-    ? textContent(record.parts ?? record.text ?? record.content)
-    : "";
-}
 function message(
   value: unknown,
 ): ConversationSource["messages"][number] | null {
@@ -82,8 +59,13 @@ function message(
     record.role ??
     (record.sender === "human" ? "user" : record.sender);
   if (role !== "user" && role !== "assistant") return null;
-  const content = textContent(record.content ?? record.text).trim();
-  return content ? { role, content } : null;
+  const rich = richMessage(record.content ?? record.text, metadata);
+  if (record.assets !== undefined && !rich.assets)
+    rich.assets = assetSchema.array().max(100).parse(record.assets);
+  if (record.citations !== undefined && !rich.citations)
+    rich.citations = citationSchema.array().max(1000).parse(record.citations);
+  const content = rich.content.trim();
+  return content ? { ...rich, role, content } : null;
 }
 function transcript(value: unknown): ConversationSource["messages"] | null {
   const record = object(value);

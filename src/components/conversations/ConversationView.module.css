@@ -97,6 +97,58 @@
   line-height: 1.5;
   color: color-mix(in srgb, var(--foreground) 70%, var(--background));
 }
+.importProgress {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #6578df;
+  border-radius: 8px;
+  background: rgba(63, 79, 176, 0.12);
+  line-height: 1.5;
+}
+.importProgress progress {
+  width: 100%;
+  accent-color: #6578df;
+}
+.media {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-block: 16px;
+  padding: 14px;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 8px;
+  font-family: system-ui, sans-serif;
+}
+.media img,
+.media video,
+.media audio {
+  max-width: 100%;
+  max-height: 600px;
+  object-fit: contain;
+}
+.media button {
+  align-self: flex-start;
+  padding: 8px 14px;
+  font: inherit;
+  color: inherit;
+  background: rgba(127, 127, 127, 0.1);
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.preview {
+  margin-block: 20px;
+}
+.preview iframe {
+  width: 100%;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 8px;
+}
+.preview summary {
+  cursor: pointer;
+  padding-block: 10px;
+}
 .metadata {
   border-top: 1px solid rgba(127, 127, 127, 0.25);
   padding-top: 8px;
