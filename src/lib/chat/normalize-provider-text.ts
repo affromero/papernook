@@ -10,7 +10,10 @@ export function normalizeProviderText(
   content: string,
   context?: ShareMarkupContext,
 ): string {
-  const code = protectMarkdownCode(normalizeShareMarkup(content, context));
+  const code = protectMarkdownCode(
+    normalizeShareMarkup(content, context),
+    true,
+  );
   return code.restore(
     code.text
       // OpenAI's writing blocks are instructions for its own client. Keep the

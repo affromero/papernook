@@ -248,6 +248,59 @@
   width: 22px;
   height: 22px;
 }
+.favicon {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  vertical-align: middle;
+}
+button.favicon:enabled {
+  cursor: pointer;
+}
+button.favicon:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.favicon[data-share-favicon-size="16"] {
+  width: 16px;
+  height: 16px;
+}
+.favicon[data-share-favicon-size="32"] {
+  width: 32px;
+  height: 32px;
+}
+.favicon svg,
+.favicon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.faviconError {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-danger, #b33);
+  color: white;
+  font:
+    bold 10px/12px system-ui,
+    sans-serif;
+  text-align: center;
+}
+.root [data-share-favicon-row="true"] {
+  flex-wrap: nowrap;
+}
 @media (max-width: 600px) {
   .root [data-share-layout="grid"] {
     grid-template-columns: minmax(0, 1fr);
@@ -257,6 +310,9 @@
   }
   .root [data-share-layout="row"] > [data-share-flex] {
     flex-basis: 100%;
+  }
+  .root [data-share-favicon-row="true"] > [data-share-flex] {
+    flex-basis: 0;
   }
   .root [data-share-padding="3"] {
     padding: 14px;

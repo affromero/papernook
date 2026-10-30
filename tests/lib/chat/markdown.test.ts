@@ -113,6 +113,82 @@ describe("imported formula rendering", () => {
     expect(html).toContain('data-share-padding="3"');
   });
 
+  it("renders reading-list favicons as compact controls beside their source links", () => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: `<box gap={3}>
+  <row align="start" gap={3}>
+    <favicon url="https://example.com/private?secret=value" size="24px"/>
+    <box flex="1" gap={1}>
+      **<Link url="https://example.com/guide" title="Reference guide"/>**
+      <text size="sm">Road geometry and simulation.</text>
+    </box>
+  </row>
+</box>`,
+      }),
+    );
+    expect(html).not.toContain("<pre");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("secret=value");
+    expect(html).toContain('aria-label="Load site icon for example.com"');
+    expect(html).toContain('data-share-favicon-size="24"');
+    expect(html).toContain('data-share-favicon-row="true"');
+    expect(html).toContain('href="https://example.com/guide"');
+    expect(html).toContain("Road geometry and simulation.");
+  });
+
+  it("renders standalone favicons while preserving literal favicon examples", () => {
+    const source = '<favicon url="https://example.com" size="16px"/>';
+    const html = renderToStaticMarkup(
+      createElement(Markdown, { content: source }),
+    );
+    expect(html).toContain('aria-label="Load site icon for example.com"');
+    expect(html).toContain('data-share-favicon-size="16"');
+    for (const content of [
+      `\`${source}\``,
+      `\`\`\`html\n${source}\n\`\`\``,
+      `    ${source}`,
+    ]) {
+      const literal = renderToStaticMarkup(
+        createElement(Markdown, { content, highlightCode: false }),
+      );
+      expect(literal).not.toContain("data-share-favicon");
+      expect(literal).toContain("<code");
+      expect(literal).toContain("&lt;favicon");
+    }
+  });
+
+  it.each([
+    "    function example() { return `hello`; }",
+    '    <favicon url="https://example.com" title="`literal`"/>',
+  ])("preserves indented code containing backticks exactly: %s", (content) => {
+    expect(normalizeProviderText(content)).toBe(content);
+    const html = renderToStaticMarkup(
+      createElement(Markdown, { content, highlightCode: false }),
+    );
+    expect(html).toContain("<code");
+    expect(html).not.toContain("papernook-code:");
+    expect(html).not.toContain("data-share-favicon");
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "data:image/svg+xml,unsafe",
+    "file:///secret",
+  ])("keeps unsupported favicon URLs inert: %s", (url) => {
+    const html = renderToStaticMarkup(
+      createElement(Markdown, {
+        content: `<box><favicon url="${url}" size="999999px" onclick="alert(1)"/></box>`,
+      }),
+    );
+    expect(html).not.toContain("<pre");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("onclick");
+    expect(html).toContain('data-share-favicon-size="24"');
+    expect(html).toContain("Site icon unavailable");
+  });
+
   it("preserves nested cards, flow arrows, labels, formulas and inline citation runs", () => {
     const html = renderToStaticMarkup(
       createElement(Markdown, {

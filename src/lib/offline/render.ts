@@ -228,6 +228,10 @@ const sharedLayoutCss = `
 [data-share-layout="badge"]{border:1px solid #bbb;border-radius:999px;padding:3px 10px;font-size:.8em;align-self:flex-start}
 [data-share-swatch]{width:10px;height:10px}
 [data-share-icon]{font-size:1.4em;line-height:1.3}
+[data-share-favicon]{display:inline-flex;flex:none;width:24px;height:24px;align-items:center;justify-content:center;line-height:1}
+[data-share-favicon-size="16"]{width:16px;height:16px}
+[data-share-favicon-size="32"]{width:32px;height:32px}
+[data-share-favicon-row="true"]{flex-wrap:nowrap}
 @media(max-width:600px){[data-share-layout="grid"]{grid-template-columns:minmax(0,1fr)}}
 `;
 

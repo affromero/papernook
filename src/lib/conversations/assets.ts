@@ -61,14 +61,27 @@ function embeddedAsset(asset: ConversationAsset): Buffer | null {
 }
 export async function downloadAsset(
   asset: ConversationAsset,
+  options: { maxBytes?: number; signal?: AbortSignal } = {},
 ): Promise<{ bytes: Buffer; mime: string }> {
+  const maxBytes = options.maxBytes ?? MAX_ASSET_BYTES;
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes <= 0 ||
+    maxBytes > MAX_ASSET_BYTES
+  )
+    throw new Error("Invalid attachment size limit.");
+  options.signal?.throwIfAborted();
   const embedded = embeddedAsset(asset);
-  if (embedded) return { bytes: embedded, mime: assetMime(asset) };
+  if (embedded) {
+    if (embedded.length > maxBytes)
+      throw new Error("Attachment exceeds the requested size limit.");
+    return { bytes: embedded, mime: assetMime(asset) };
+  }
   if (!asset.url)
     throw new Error(
       "The provider did not expose this attachment. Open the original share or import an export containing its data.",
     );
-  const fetched = await fetchPublicUrl(asset.url);
+  const fetched = await fetchPublicUrl(asset.url, options.signal);
   if (!fetched.response.ok) {
     await fetched.response.body?.cancel();
     await fetched.close();
@@ -79,11 +92,7 @@ export async function downloadAsset(
   const mime =
     fetched.response.headers.get("content-type")?.split(";")[0].trim() ?? "";
   return {
-    bytes: await readBoundedResponse(
-      fetched.response,
-      MAX_ASSET_BYTES,
-      fetched.close,
-    ),
+    bytes: await readBoundedResponse(fetched.response, maxBytes, fetched.close),
     mime: assetMime({ ...asset, mime }),
   };
 }
