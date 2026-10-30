@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import { renameSync } from "node:fs";
 import path from "node:path";
 import { FilesystemBusyError, withFilesystemLock } from "../../filesystem-lock";
 import { MAX_PDF_BYTES } from "../../pdf-limits";
@@ -149,6 +150,7 @@ async function atomicReplace(
   pdfPath: string,
   bytes: Uint8Array,
   expectedEtag?: string,
+  commit?: (operation: () => void) => void,
 ): Promise<string> {
   const stat = await fs.stat(pdfPath);
   const tempPath = path.join(
@@ -165,7 +167,8 @@ async function atomicReplace(
         "The PDF changed while it was being saved. Reload and try again.",
       );
     }
-    await fs.rename(tempPath, pdfPath);
+    if (commit) commit(() => renameSync(tempPath, pdfPath));
+    else await fs.rename(tempPath, pdfPath);
     const identity = statIdentity(await fs.stat(pdfPath));
     const etag = pdfEtag(bytes);
     versionCache.set(pdfPath, { identity, etag });
@@ -205,6 +208,7 @@ export async function replacePdf(
   slug: string,
   expectedEtag: string,
   bytes: Uint8Array,
+  commit?: (operation: () => void) => void,
 ): Promise<{ etag: string }> {
   assertWritablePdf(bytes);
 
@@ -216,7 +220,7 @@ export async function replacePdf(
       );
     }
     await assertNotRecentlyWritten(pdfPath, expectedEtag);
-    const etag = await atomicReplace(pdfPath, bytes);
+    const etag = await atomicReplace(pdfPath, bytes, expectedEtag, commit);
     recentAppWrites.set(pdfPath, { etag, writtenAt: Date.now() });
     return { etag };
   });
@@ -227,6 +231,7 @@ export async function rewritePdf(
   slug: string,
   transform: (bytes: Uint8Array) => Promise<Uint8Array>,
   expectedEtag?: string,
+  commit?: (operation: () => void) => void,
 ): Promise<{ etag: string }> {
   return withPdfWriteLock(topic, slug, async (pdfPath) => {
     const current = new Uint8Array(await fs.readFile(pdfPath));
@@ -238,7 +243,7 @@ export async function rewritePdf(
     await assertNotRecentlyWritten(pdfPath, expectedEtag);
     const next = await transform(current);
     assertWritablePdf(next);
-    const etag = await atomicReplace(pdfPath, next, pdfEtag(current));
+    const etag = await atomicReplace(pdfPath, next, pdfEtag(current), commit);
     recentAppWrites.set(pdfPath, {
       etag,
       writtenAt: Date.now(),

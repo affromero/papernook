@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/access";
 import { withProfileFiles } from "@/lib/auth/profile-capability";
 import { getPaper } from "@/lib/library/papers";
+import { readConnection } from "@/lib/sharing/storage";
 import {
   createShare,
   listShares,
@@ -21,15 +22,21 @@ interface Params {
   params: Promise<{ topic: string; slug: string }>;
 }
 
-const createSchema = z.object({
-  chatIds: z.array(z.string().regex(/^[a-f0-9]{16}$/)).max(20),
-});
+const createSchema = z
+  .object({
+    chatIds: z.array(z.string().regex(/^[a-f0-9]{16}$/)).max(20),
+    mode: z.enum(["view", "fork", "collaborate"]).default("view"),
+    acknowledgePublicAnnotations: z.boolean().default(false),
+  })
+  .strict();
 
 function toPublicSummary(share: PaperShare) {
   return {
     id: share.id,
     href: `/share/${share.topic}/${share.slug}/${share.id}`,
     createdAt: share.createdAt,
+    mode: share.mode,
+    revoked: share.revoked,
     conversations: share.conversations.map((conversation) => ({
       id: conversation.header.id,
       title: conversation.header.title,
@@ -83,8 +90,27 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
   try {
+    if (readConnection(topic, slug))
+      return NextResponse.json(
+        {
+          error:
+            "Create sharing links on the original owner's instance. Use an independent fork to share your own copy.",
+        },
+        { status: 403 },
+      );
+    if (
+      body.data.mode === "collaborate" &&
+      !body.data.acknowledgePublicAnnotations
+    )
+      return NextResponse.json(
+        {
+          error:
+            "Confirm that collaborative annotations will also appear through existing reading links.",
+        },
+        { status: 400 },
+      );
     const share = withProfileFiles(sharedAccess().identity, capability, () =>
-      createShare(topic, slug, capability, body.data.chatIds),
+      createShare(topic, slug, capability, body.data.chatIds, body.data.mode),
     );
     return NextResponse.json(
       { share: toPublicSummary(share) },

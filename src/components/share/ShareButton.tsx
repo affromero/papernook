@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import styles from "./ShareButton.module.css";
+import { Participants } from "./SharingControls";
 
 interface ChatHeader {
   id: string;
@@ -14,6 +15,8 @@ interface ShareSummary {
   href: string;
   createdAt: string;
   conversations: { id: string; title: string }[];
+  mode: "view" | "fork" | "collaborate";
+  revoked?: boolean;
 }
 
 interface ShareButtonProps {
@@ -34,6 +37,8 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<ShareSummary["mode"]>("view");
+  const [acknowledged, setAcknowledged] = useState(false);
 
   async function openDialog(): Promise<void> {
     dialogRef.current?.showModal();
@@ -98,6 +103,8 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
         credentials: "include",
         body: JSON.stringify({
           chatIds: includeChats ? [...selectedChatIds] : [],
+          mode,
+          acknowledgePublicAnnotations: acknowledged,
         }),
       });
       const data = (await response.json().catch(() => ({}))) as {
@@ -150,7 +157,13 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
           <header className={styles.header}>
             <div>
               <p className={styles.eyebrow}>Pass the paper on</p>
-              <h2 id="share-dialog-title">Create a view-only reading</h2>
+              <h2 id="share-dialog-title">
+                {mode === "view"
+                  ? "Create a view-only reading"
+                  : mode === "fork"
+                    ? "Share an independent copy"
+                    : "Read and work together"}
+              </h2>
             </div>
             <button
               className={styles.close}
@@ -166,15 +179,63 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
             <p className={styles.loading}>Opening the sharing desk…</p>
           ) : (
             <>
+              <fieldset className={styles.modes}>
+                <legend>Sharing mode</legend>
+                {(
+                  [
+                    [
+                      "view",
+                      "View only",
+                      "Read without an account. Editing and new messages are disabled.",
+                    ],
+                    [
+                      "fork",
+                      "Independent fork",
+                      "Import into another Papernook. Future changes stay separate.",
+                    ],
+                    [
+                      "collaborate",
+                      "Collaborate",
+                      "Approve each participant. Annotations and published chats stay in sync.",
+                    ],
+                  ] as const
+                ).map(([value, label, description]) => (
+                  <label key={value}>
+                    <input
+                      type="radio"
+                      name="sharing-mode"
+                      value={value}
+                      checked={mode === value}
+                      onChange={() => {
+                        setMode(value);
+                        setAcknowledged(false);
+                      }}
+                    />
+                    <span>
+                      <strong>{label}</strong>
+                      <small>{description}</small>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
               <section className={styles.permission}>
                 <div className={styles.permissionMark} aria-hidden="true">
                   ◇
                 </div>
                 <div>
-                  <strong>View only</strong>
+                  <strong>
+                    {mode === "view"
+                      ? "View only"
+                      : mode === "fork"
+                        ? "Copies are independent"
+                        : "Editing requires approval"}
+                  </strong>
                   <p>
-                    The link shows the current annotated PDF. It cannot edit the
-                    paper or conversations.
+                    {mode === "view"
+                      ? "The link shows the current annotated PDF. It cannot edit the paper or conversations."
+                      : mode === "fork"
+                        ? "The recipient keeps their copy after you revoke the link. Their changes never return to your library."
+                        : "A link can request access. Approve only after checking the verification code with the person you invited. Names alone do not verify identity."}
                   </p>
                 </div>
               </section>
@@ -186,9 +247,15 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                   onChange={(event) => setIncludeChats(event.target.checked)}
                 />
                 <span>
-                  <strong>Include conversation snapshots</strong>
+                  <strong>
+                    {mode === "collaborate"
+                      ? "Include selected conversations"
+                      : "Include conversation snapshots"}
+                  </strong>
                   <small>
-                    Later messages stay private unless you create a new link.
+                    {mode === "collaborate"
+                      ? "Approved participants see future turns in selected chats. The public preview keeps the initial snapshots."
+                      : "Later messages stay private unless you create a new link."}
                   </small>
                 </span>
               </label>
@@ -217,11 +284,29 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                 </div>
               )}
 
+              {mode === "collaborate" && (
+                <label className={styles.includeRow}>
+                  <input
+                    type="checkbox"
+                    checked={acknowledged}
+                    onChange={(event) => setAcknowledged(event.target.checked)}
+                  />
+                  <span>
+                    <strong>Share the same annotated PDF</strong>
+                    <small>
+                      Collaborative annotations also appear through existing
+                      public reading links. Only publish chats you want
+                      participants to read.
+                    </small>
+                  </span>
+                </label>
+              )}
               <button
                 className={styles.create}
                 type="button"
                 disabled={
                   creating ||
+                  (mode === "collaborate" && !acknowledged) ||
                   (includeChats &&
                     selectedChatIds.size === 0 &&
                     chats.length > 0)
@@ -245,13 +330,19 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                       <li key={share.id}>
                         <div>
                           <strong>
-                            {share.conversations.length === 0
-                              ? "Annotated paper"
-                              : `${share.conversations.length} conversation ${
-                                  share.conversations.length === 1
-                                    ? "snapshot"
-                                    : "snapshots"
-                                }`}
+                            {share.revoked
+                              ? "Revoked. Cleanup pending."
+                              : share.mode === "collaborate"
+                                ? "Collaboration"
+                                : share.mode === "fork"
+                                  ? "Independent fork"
+                                  : share.conversations.length === 0
+                                    ? "Annotated paper"
+                                    : `${share.conversations.length} conversation ${
+                                        share.conversations.length === 1
+                                          ? "snapshot"
+                                          : "snapshots"
+                                      }`}
                           </strong>
                           <small>
                             Created{" "}
@@ -280,6 +371,11 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                             Revoke
                           </button>
                         </div>
+                        {share.mode === "collaborate" && (
+                          <Participants
+                            endpoint={`${base}/shares/${share.id}/participants`}
+                          />
+                        )}
                       </li>
                     ))}
                   </ul>

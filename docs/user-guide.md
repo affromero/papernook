@@ -116,12 +116,78 @@ available as optional external-app compatibility; see the
 
 ### Share a reading
 
-Select **Share** on a paper, then **Create link & copy**. The link is
-view-only and revocable. The current annotated PDF is included; conversation
-snapshots stay off unless you select them.
+Select **Share** on a paper, choose a mode, then **Create link & copy**.
+The public link is view-only and revocable. The current annotated PDF is
+included; conversation snapshots stay off unless you select them.
 
 No login is required to open the link. Its unguessable share id is the
 capability to read that one shared paper.
+
+The sharing dialog offers three modes:
+
+| Mode             | What the recipient can do                                                                    |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| View only        | Read the current annotated PDF and selected conversation snapshots without an account.       |
+| Independent fork | Import the PDF and selected snapshots into another Papernook. Future edits stay separate.    |
+| Collaborate      | Request approval to annotate the same paper and exchange explicitly published conversations. |
+
+![Sharing choices on a phone](images/product/share-reading-mobile.png)
+
+For a fork or collaboration, the recipient enters their Papernook address on
+the shared reading and opens its import page. They choose a topic and import
+mode. The receiving server needs a valid HTTPS connection to the source.
+Forks preserve the annotated PDF and selected chat images. They exclude private
+chats, instance credentials, capture tokens, integration settings, and sharing
+permissions. Revoking a link cannot recall an imported or downloaded copy.
+
+For collaboration, compare the recipient's verification code with the code in
+**Share → Manage participants** before approving access. A requested name does
+not establish identity. Each approved credential belongs to one paper and one
+profile on the receiving instance. The owner can revoke it from the same panel.
+Revoked credentials cannot be approved again; the reader must request access
+with a new credential.
+
+Approved browser edits go to the owner's canonical PDF. New annotations carry
+the approved contributor's name. Contributors can edit or delete their own
+annotations; conflicting saves require a reload. The server reconstructs
+supported text, highlight, and ink annotations from validated values. It never
+copies a contributor's PDF page content, actions, fonts, or appearance streams.
+Signed PDFs cannot be rewritten, and collaborative PDFs are limited to 32 MB.
+Annotation processing runs in a separate process with a restricted filesystem,
+a 15-second timeout, a bounded heap, and explicit decompression allocation
+limits. Unsupported or oversized edits fail before replacing the canonical PDF.
+
+Open **Collaboration** beside the reader to publish one of your conversations.
+**Publish and sync** shares its current content and future turns with approved
+participants. **Stop sharing conversation** withdraws the shared copy. Personal
+chats remain private until published. Each instance uses its own configured AI
+provider; collaboration credentials cannot run AI jobs on the source server.
+
+![A connected reading and its collaboration panel](images/product/collaboration.png)
+
+Each collaboration holds at most 100 published conversations and 32 MB of
+conversation data, with an 8 MB limit per conversation. A failed refresh keeps
+the last published revision and shows a sync error. Private conversations can
+continue; withdraw an oversized publication before sharing it again.
+
+The public preview keeps the conversation snapshots selected when the link was
+created. Later collaborative annotations appear in the same live PDF, including
+through existing public reading links. Both parties confirm that visibility
+before connecting.
+
+The receiving instance refreshes its PDF mirror and published conversations
+every 30 seconds. WebDAV cannot identify individual editors, so its mirror is
+for reading. Unexpected local edits are preserved as conflicts and are never
+uploaded under someone else's name. **Keep an independent copy** stops syncing
+and retains the local PDF and personal chats. Canvas content and exercises stay
+local.
+
+Sharing blocks private network destinations by default. An administrator can
+allow an exact private HTTPS origin with
+`PAPERNOOK_SHARING_TRUSTED_ORIGINS=https://papers.internal.example`.
+Comma-separated entries may include explicit ports. TLS validation remains
+enabled, DNS is pinned for each request, and authenticated requests never
+follow redirects. Keep this list limited to Papernook servers you trust.
 
 ![Share dialog showing its view-only boundary](images/product/share-reading.png)
 

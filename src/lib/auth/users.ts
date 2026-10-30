@@ -6,6 +6,7 @@ import { deleteChatsByUser } from "../library/chats";
 import { rebuildIndex } from "../library/index-db";
 import { anonymizePapersByUser } from "../library/papers";
 import { deleteSharesByOwner } from "../library/shares";
+import { eraseSharingConnections } from "../sharing/storage";
 import { PapernookIdentityStore } from "./identity-store";
 import { ProfileOperations } from "./profile-operations";
 import { assertSlug } from "../library/slug";
@@ -113,6 +114,7 @@ export function eraseProfileFiles(username: string): void {
   assertSlug(username);
   deleteChatsByUser(username);
   deleteSharesByOwner(username);
+  eraseSharingConnections(username);
   anonymizePapersByUser(username);
   fs.rmSync(path.join(usersRoot(), username), { recursive: true, force: true });
   syncDirectory(usersRoot());

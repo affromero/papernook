@@ -15,6 +15,11 @@ const BASE_LOCK_MS = 2_000;
 const MAX_LOCK_MS = 15 * 60_000;
 const FREE_ATTEMPTS = 3;
 
+export function publicRequestLimit(): number {
+  const configured = Number(process.env.PAPERNOOK_PUBLIC_REQUEST_LIMIT);
+  return Number.isSafeInteger(configured) && configured > 0 ? configured : 120;
+}
+
 const MAX_TRACKED = 10_000;
 
 const buckets = new Map<string, Bucket>();

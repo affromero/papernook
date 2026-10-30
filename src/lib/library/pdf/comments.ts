@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import {
   PDFArray,
   PDFDict,
@@ -12,6 +13,24 @@ import {
 } from "pdf-lib";
 
 export class PdfCommentError extends Error {}
+
+const commentText = z.string().trim().min(1).max(10_000);
+const commentId = z.string().regex(/^[1-9]\d*R(?:[1-9]\d*)?$/);
+export const pdfCommentActionSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("create"),
+      page: z.number().int().positive(),
+      x: z.number().finite(),
+      y: z.number().finite(),
+      text: commentText,
+    })
+    .strict(),
+  z
+    .object({ action: z.literal("edit"), id: commentId, text: commentText })
+    .strict(),
+  z.object({ action: z.literal("delete"), id: commentId }).strict(),
+]);
 
 export type PdfCommentAction =
   | { action: "create"; page: number; x: number; y: number; text: string }
@@ -51,7 +70,10 @@ export async function updatePdfComment(
 ): Promise<Uint8Array> {
   let document: PDFDocument;
   try {
-    document = await PDFDocument.load(bytes, { updateMetadata: false });
+    document = await PDFDocument.load(bytes, {
+      updateMetadata: false,
+      throwOnInvalidObject: true,
+    });
   } catch {
     throw new PdfCommentError("Cannot edit an encrypted or invalid PDF.");
   }

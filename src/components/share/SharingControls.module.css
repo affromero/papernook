@@ -1,0 +1,99 @@
+.participants {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+}
+.participants p {
+  margin: 0.75rem 0;
+  line-height: 1.5;
+}
+.participant {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.6rem 0;
+  border-top: 1px dotted currentColor;
+}
+.participant > span {
+  flex: 1;
+  min-width: 0;
+}
+.participant small {
+  display: block;
+  margin-top: 0.3rem;
+  overflow-wrap: anywhere;
+}
+.collaboration {
+  margin-bottom: 1rem;
+  border-block: 1px solid var(--border, #c7c6bf);
+  font-size: 0.82rem;
+}
+.collaboration > summary {
+  padding: 0.8rem 0;
+  font-weight: 650;
+  cursor: pointer;
+}
+.body {
+  padding: 0 0 1rem;
+}
+.body p {
+  line-height: 1.6;
+}
+.body code {
+  overflow-wrap: anywhere;
+}
+.participants button,
+.body button,
+.body select {
+  min-height: 40px;
+  max-width: 100%;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
+.participants button,
+.body button {
+  cursor: pointer;
+}
+.body button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.publish {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+.publish label {
+  display: grid;
+  gap: 0.35rem;
+}
+.thread {
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--border, #c7c6bf);
+}
+.thread summary {
+  padding: 0.75rem 0;
+  cursor: pointer;
+}
+.thread small {
+  display: block;
+  margin-top: 0.25rem;
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}
+.thread article {
+  margin: 0.75rem 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid #315f4c;
+}
+.thread img {
+  max-width: 100%;
+  height: auto;
+}
+.error {
+  color: #bc5146;
+}

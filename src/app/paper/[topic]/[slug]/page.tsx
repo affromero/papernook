@@ -11,6 +11,8 @@ import { CopySourceLinkButton } from "@/components/paper/CopySourceLinkButton";
 import { PaperHeader } from "@/components/paper/PaperHeader";
 import { DownloadButton } from "@/components/offline/DownloadButton";
 import styles from "./paper.module.css";
+import { readConnection } from "@/lib/sharing/storage";
+import { CollaborationPanel } from "@/components/share/SharingControls";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
   if (!paper) notFound();
 
   const meta = paper.meta;
+  const connection = readConnection(topic, slug);
   const headerStore = await headers();
   const protocol = headerStore.get("x-forwarded-proto") ?? "http";
   const hostname = headerStore.get("host") ?? "localhost";
@@ -60,7 +63,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
           <PdfReader
             src={`/api/v1/papers/${topic}/${slug}/pdf`}
             title={meta.title}
-            editable
+            editable={!connection || connection.username === profile.username}
             libraryLookup
             chatPrompts={aiAvailable}
             positionKey={readingPositionKey(topic, slug, profile.username)}
@@ -70,6 +73,11 @@ export default async function PaperPage({ params }: PaperPageProps) {
         }
         chat={
           <div className={styles.chat}>
+            <CollaborationPanel
+              topic={topic}
+              slug={slug}
+              connected={connection !== null}
+            />
             {paper.summary && <p className={styles.summary}>{paper.summary}</p>}
             <ChatPanel
               topic={topic}

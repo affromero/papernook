@@ -10,6 +10,7 @@ export class RequestBodyError extends Error {
 export async function readBoundedText(
   request: Request,
   maxBytes: number,
+  signal?: AbortSignal,
 ): Promise<string> {
   const declared = request.headers.get("content-length");
   if (declared && Number(declared) > maxBytes) {
@@ -18,29 +19,44 @@ export async function readBoundedText(
   if (!request.body) return "";
 
   const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
+  let bytes = new Uint8Array(Math.min(maxBytes, 16 * 1024));
   let total = 0;
+  const { promise: aborted, reject: rejectAbort } =
+    Promise.withResolvers<never>();
+  const abortRead = () => {
+    void reader.cancel().catch(() => {});
+    rejectAbort(new RequestBodyError("Request body timed out.", 400));
+  };
+  if (signal?.aborted) abortRead();
+  else signal?.addEventListener("abort", abortRead, { once: true });
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await Promise.race([reader.read(), aborted]);
+      if (signal?.aborted)
+        throw new RequestBodyError("Request body timed out.", 400);
       if (done) break;
-      total += value.byteLength;
-      if (total > maxBytes) {
+      const nextSize = total + value.byteLength;
+      if (nextSize > maxBytes) {
         await reader.cancel();
         throw new RequestBodyError("Request body too large.", 413);
       }
-      chunks.push(value);
+      if (nextSize > bytes.byteLength) {
+        const grown = new Uint8Array(
+          Math.min(maxBytes, Math.max(nextSize, bytes.byteLength * 2)),
+        );
+        grown.set(bytes.subarray(0, total));
+        bytes = grown;
+      }
+      bytes.set(value, total);
+      total = nextSize;
     }
   } finally {
+    signal?.removeEventListener("abort", abortRead);
     reader.releaseLock();
   }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  return new TextDecoder("utf-8", { fatal: true }).decode(
+    bytes.subarray(0, total),
+  );
 }
 
 /**
@@ -74,9 +90,12 @@ export async function readBoundedForm(
 export async function readBoundedJson(
   request: Request,
   maxBytes = 64 * 1024,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   try {
-    return JSON.parse(await readBoundedText(request, maxBytes)) as unknown;
+    return JSON.parse(
+      await readBoundedText(request, maxBytes, signal),
+    ) as unknown;
   } catch (error) {
     if (error instanceof RequestBodyError) throw error;
     throw new RequestBodyError("Invalid JSON body.", 400);

@@ -42,13 +42,14 @@ function isPrivateIpv4(address: string): boolean {
 }
 
 export function isPrivateAddress(address: string): boolean {
-  const normalized = address.replace(/^\[|\]$/g, "").toLowerCase();
+  let normalized = address.replace(/^\[|\]$/g, "").toLowerCase();
   const version = isIP(normalized);
   if (version === 4) return isPrivateIpv4(normalized);
   if (version !== 6) return true;
+  normalized = new URL(`http://[${normalized}]`).hostname.slice(1, -1);
 
   const embeddedIpv4 = normalized.match(
-    /^::(?:ffff:)?(?:(\d+\.\d+\.\d+\.\d+)|([a-f\d]{1,4}):([a-f\d]{1,4}))$/,
+    /^::ffff:(?:(\d+\.\d+\.\d+\.\d+)|([a-f\d]{1,4}):([a-f\d]{1,4}))$/,
   );
   if (embeddedIpv4) {
     if (embeddedIpv4[1]) return isPrivateIpv4(embeddedIpv4[1]);
@@ -58,16 +59,19 @@ export function isPrivateAddress(address: string): boolean {
       `${first >> 8}.${first & 0xff}.${second >> 8}.${second & 0xff}`,
     );
   }
+  const [first, second] = normalized
+    .split(":")
+    .map((part) => Number.parseInt(part || "0", 16));
+  // IANA currently assigns global unicast only within 2000::/3. Reject
+  // special-purpose ranges conservatively, including transition protocols.
   return (
-    normalized === "::" ||
-    normalized === "::1" ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    /^fe[89ab]/.test(normalized) ||
-    normalized.startsWith("ff") ||
-    /^2002:/.test(normalized) || // 6to4 (embeds an IPv4 that may be private)
-    /^2001:0:/.test(normalized) || // Teredo 2001::/32
-    /^64:ff9b:/.test(normalized) // NAT64 well-known prefix
+    first < 0x2000 ||
+    first > 0x3fff ||
+    (first === 0x2001 && second < 0x200) ||
+    (first === 0x2001 && second === 0xdb8) ||
+    first === 0x2002 ||
+    first === 0x3ffe ||
+    (first === 0x3fff && second < 0x1000)
   );
 }
 
@@ -78,6 +82,7 @@ interface PublicAddress {
 
 async function resolvePublicUrl(
   rawUrl: string,
+  trustedOrigin?: string,
 ): Promise<{ url: URL; address: PublicAddress }> {
   let url: URL;
   try {
@@ -94,7 +99,8 @@ async function resolvePublicUrl(
   // Only the default web ports. A nonstandard port turns the authenticated
   // proxy into a port scanner: open vs. closed ports return distinguishable
   // errors. (url.port is "" for the scheme default.)
-  if (url.port && url.port !== "80" && url.port !== "443") {
+  const trusted = trustedOrigin !== undefined && url.origin === trustedOrigin;
+  if (!trusted && url.port && url.port !== "80" && url.port !== "443") {
     throw new CaptureError("Capture URLs must use the default HTTP(S) port.");
   }
 
@@ -112,7 +118,7 @@ async function resolvePublicUrl(
       }));
   if (
     addresses.length === 0 ||
-    addresses.some(({ address }) => isPrivateAddress(address))
+    (!trusted && addresses.some(({ address }) => isPrivateAddress(address)))
   ) {
     throw new CaptureError(
       "Capture URLs must resolve to public internet addresses.",
@@ -131,17 +137,36 @@ export interface FetchedPublicResponse {
 export async function fetchPublicUrl(
   url: string,
   signal?: AbortSignal,
+  exchange?: {
+    body: string;
+    token?: string;
+    trustedOrigin?: string;
+    authorize?: () => void;
+  },
 ): Promise<FetchedPublicResponse> {
   signal?.throwIfAborted();
-  let current = await resolvePublicUrl(url);
+  if (exchange && new URL(url).protocol !== "https:") {
+    throw new CaptureError("Sharing requires HTTPS.");
+  }
+  if (
+    exchange &&
+    new URL(url).port &&
+    new URL(url).origin !== exchange.trustedOrigin
+  )
+    throw new CaptureError(
+      "Sharing requires the default HTTPS port or an explicitly trusted origin.",
+    );
+  let current = await resolvePublicUrl(url, exchange?.trustedOrigin);
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     signal?.throwIfAborted();
     const currentUrl = current.url.toString();
-    const host = current.url.hostname;
-    const last = lastFetchByHost.get(host) ?? 0;
-    const wait = last + HOST_COOLDOWN_MS - Date.now();
-    if (wait > 0) await delay(wait, undefined, { signal });
-    lastFetchByHost.set(host, Date.now());
+    if (!exchange) {
+      const host = current.url.hostname;
+      const last = lastFetchByHost.get(host) ?? 0;
+      const wait = last + HOST_COOLDOWN_MS - Date.now();
+      if (wait > 0) await delay(wait, undefined, { signal });
+      lastFetchByHost.set(host, Date.now());
+    }
     const dispatcher = new Agent({
       connect: {
         lookup: (_hostname, options, callback) => {
@@ -155,8 +180,25 @@ export async function fetchPublicUrl(
     });
     let response: Response;
     try {
+      exchange?.authorize?.();
       response = await fetch(currentUrl, {
-        headers: { "User-Agent": USER_AGENT },
+        method: exchange ? "POST" : "GET",
+        body: exchange?.body,
+        headers: {
+          "User-Agent": USER_AGENT,
+          ...(exchange ? { "Content-Type": "application/json" } : {}),
+          ...(exchange
+            ? {
+                "X-Sharing-Operation": String(
+                  (JSON.parse(exchange.body) as { action?: string }).action ??
+                    "",
+                ),
+              }
+            : {}),
+          ...(exchange?.token
+            ? { Authorization: `Bearer ${exchange.token}` }
+            : {}),
+        },
         redirect: "manual",
         signal: signal
           ? AbortSignal.any([signal, AbortSignal.timeout(60_000)])
@@ -176,6 +218,8 @@ export async function fetchPublicUrl(
     const location = response.headers.get("location");
     await response.body?.cancel();
     await dispatcher.close();
+    if (exchange)
+      throw new CaptureError("Sharing servers must not redirect requests.");
     if (!location)
       throw new CaptureError("Redirect response did not include a location.");
     current = await resolvePublicUrl(new URL(location, currentUrl).toString());

@@ -11,6 +11,7 @@ import {
 } from "@/lib/library/shares";
 import { isAccessError } from "thesidedoor-core/access";
 import styles from "./share.module.css";
+import { ImportOnInstance } from "@/components/share/ImportReading";
 
 export const dynamic = "force-dynamic";
 
@@ -167,6 +168,7 @@ export default async function SharePage({ params }: SharePageProps) {
         </div>
 
         <footer className={styles.footer}>
+          {share.mode !== "view" && <ImportOnInstance mode={share.mode} />}
           Shared {new Date(share.createdAt).toLocaleDateString()} · The owner
           can revoke this link at any time.
         </footer>

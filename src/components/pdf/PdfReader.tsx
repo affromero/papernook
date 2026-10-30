@@ -135,6 +135,7 @@ export function PdfReader({
     etagRef,
     editorTypesRef,
     autosaveRef,
+    commitAnnotations,
     uiManagerRef,
     pendingPenRef,
     dirtyRef,
@@ -191,7 +192,13 @@ export function PdfReader({
     };
   }, [pdfDocument]);
 
-  useSaveOnLeave(editable, dirtyRef, autosaveRef, commentDirtyRef);
+  useSaveOnLeave(
+    editable,
+    dirtyRef,
+    autosaveRef,
+    commentDirtyRef,
+    commitAnnotations,
+  );
 
   useEffect(() => {
     const gate = editGate.current;
@@ -283,10 +290,12 @@ export function PdfReader({
   }
 
   async function saveAnnotations(): Promise<void> {
+    commitAnnotations();
     await autosaveRef.current?.flush();
   }
 
   async function closeReader(): Promise<void> {
+    commitAnnotations();
     if (dirtyRef.current) {
       await autosaveRef.current?.flush();
     }

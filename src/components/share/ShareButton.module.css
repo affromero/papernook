@@ -15,7 +15,46 @@
   background: rgba(49, 95, 76, 0.14);
 }
 
+.modes {
+  min-width: 0;
+  margin: 1.25rem 0;
+  padding: 0;
+  border: 0;
+}
+.modes legend {
+  margin-bottom: 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.modes label {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid rgba(24, 32, 28, 0.15);
+  cursor: pointer;
+}
+.modes input {
+  flex-shrink: 0;
+  accent-color: #315f4c;
+  margin-top: 0.2rem;
+}
+.modes label > span {
+  min-width: 0;
+}
+.modes strong {
+  display: block;
+  font-size: 0.86rem;
+}
+.modes small {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  opacity: 0.75;
+}
+
 .dialog {
+  white-space: normal;
   width: min(620px, calc(100vw - 2rem));
   max-height: min(820px, calc(100vh - 2rem));
   margin: auto;
@@ -93,7 +132,7 @@
 
 .permission {
   display: grid;
-  grid-template-columns: 2rem 1fr;
+  grid-template-columns: 2rem minmax(0, 1fr);
   gap: 0.8rem;
   margin: 1.25rem 0;
   padding: 1rem;
@@ -124,7 +163,7 @@
 .includeRow,
 .chatRow {
   display: grid;
-  grid-template-columns: 1.25rem 1fr;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
   gap: 0.65rem;
   align-items: start;
   cursor: pointer;
@@ -229,6 +268,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
   padding: 0.75rem 0;
   border-bottom: 1px solid rgba(24, 32, 28, 0.16);
 }

@@ -14,6 +14,8 @@ import {
 import { fileResponse } from "@/lib/http/file-range";
 import { isValidSlug } from "@/lib/library/slug";
 import { MAX_PDF_BYTES } from "@/lib/pdf-limits";
+import { connectedPdfResponse, saveConnectedPdf } from "@/lib/sharing/gateway";
+import { SharingError, sharingFailure } from "@/lib/sharing/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +77,8 @@ export async function GET(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invalid paper." }, { status: 400 });
   }
   const { topic, slug } = parsedParams.data;
+  const connected = await connectedPdfResponse(request, topic, slug);
+  if (connected) return connected;
   const pdf = await readVersionedPdfFile(topic, slug);
   if (!pdf)
     return NextResponse.json({ error: "Unknown paper." }, { status: 404 });
@@ -91,7 +95,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   });
 }
 
-export async function HEAD(_req: NextRequest, { params }: Params) {
+export async function HEAD(request: NextRequest, { params }: Params) {
   const profile = await activeProfile();
   if (!profile) {
     return new NextResponse(null, { status: 401 });
@@ -103,6 +107,8 @@ export async function HEAD(_req: NextRequest, { params }: Params) {
 
   try {
     const { topic, slug } = parsedParams.data;
+    const connected = await connectedPdfResponse(request, topic, slug);
+    if (connected) return connected;
     const pdf = await readStablePdfVersion(topic, slug);
     if (!pdf) return new NextResponse(null, { status: 404 });
     return new NextResponse(null, {
@@ -171,7 +177,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
       );
     }
     const { topic, slug } = parsedParams.data;
-    const result = await replacePdf(topic, slug, headers.data.ifMatch, bytes);
+    const result =
+      (await saveConnectedPdf(topic, slug, headers.data.ifMatch, bytes)) ??
+      (await replacePdf(topic, slug, headers.data.ifMatch, bytes));
     return NextResponse.json(result, {
       headers: {
         etag: result.etag,
@@ -179,6 +187,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       },
     });
   } catch (error) {
+    if (error instanceof SharingError) return sharingFailure(error);
     if (error instanceof PdfConflictError) {
       return NextResponse.json({ error: error.message }, { status: 412 });
     }
