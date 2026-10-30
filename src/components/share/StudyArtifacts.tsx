@@ -139,8 +139,11 @@ export function PaperExercises({
     if (saving || !markdown.trim()) return;
     setSaving(true);
     setError(null);
-    operation.current ??= crypto.randomUUID();
     try {
+      operation.current ??= Array.from(
+        crypto.getRandomValues(new Uint8Array(16)),
+        (value) => value.toString(16).padStart(2, "0"),
+      ).join("");
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },

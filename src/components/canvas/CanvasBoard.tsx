@@ -499,8 +499,14 @@ export function CanvasBoard({
         setStatus("Saved");
 
         removeDocumentListener = editor.store.listen(
-          () => {
+          (entry) => {
             if (!initializedRef.current) return;
+            const changed = [
+              ...Object.values(entry.changes.added),
+              ...Object.values(entry.changes.removed),
+              ...Object.values(entry.changes.updated).flat(),
+            ];
+            if (!changed.some((record) => record.typeName !== "user")) return;
             dirtyRef.current = true;
             changeVersionRef.current += 1;
             setSaved(false);

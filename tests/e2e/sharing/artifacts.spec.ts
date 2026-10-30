@@ -11,6 +11,9 @@ test("syncs attributed canvas and exercises, keeps public snapshots read-only, a
   browser,
 }) => {
   test.setTimeout(180_000);
+  await page.addInitScript(() => {
+    Object.defineProperty(window.crypto, "randomUUID", { value: undefined });
+  });
   await restoreMayaSession(page);
   const cleanup: string[] = [];
   let sourceBase = "";

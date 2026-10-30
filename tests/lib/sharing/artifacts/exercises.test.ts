@@ -34,21 +34,23 @@ afterEach(() => {
 
 it("rejects a collection overflow before changing the journal, markdown or PDF", async () => {
   const f = await fixture();
-  const { commitExerciseOperation, readExerciseRecords } =
-    await import("@/lib/library/exercises");
-  for (let number = 0; number < 20; number++) {
-    commitExerciseOperation(
-      "nlp",
-      "attention",
-      {
-        operationId: number.toString(16).padStart(32, "0"),
-        markdown: "x".repeat(100_000),
-        actorId: "profile:ana",
-        author: "Ana",
-        createdAt: new Date().toISOString(),
-      },
-      readExerciseRecords("nlp", "attention").revision,
-    );
+  const {
+    commitExerciseOperation,
+    readExerciseRecords,
+    exerciseSnapshotFiles,
+  } = await import("@/lib/library/exercises");
+  const records = Array.from({ length: 20 }, (_, number) => ({
+    name: `practice-${number + 1}.md`,
+    operationId: number.toString(16).padStart(32, "0"),
+    markdown: "x".repeat(100_000),
+    actorId: "profile:ana",
+    author: "Ana",
+    createdAt: new Date().toISOString(),
+  }));
+  for (const [name, raw] of Object.entries(exerciseSnapshotFiles(records))) {
+    const file = path.join(f.papers.companionDir("nlp", "attention"), name);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, raw);
   }
   const current = readExerciseRecords("nlp", "attention");
   const state = path.join(
