@@ -27,6 +27,7 @@ import styles from "./Markdown.module.css";
 import layoutStyles from "./shared-layout/SharedLayout.module.css";
 import { SharedLayoutIcon } from "./shared-layout/SharedLayoutIcon";
 import { SharedLayoutFavicon } from "./shared-layout/SharedLayoutFavicon";
+import { ExternalLinkPreview } from "./link-preview/ExternalLinkPreview";
 
 /** Source of a ```threejs fence, if that's what this <pre> wraps. */
 function threeCode(children: ReactNode): string | null {
@@ -103,6 +104,8 @@ export const Markdown = memo(function Markdown({
   citations,
   assetBase,
   renderArtifacts = false,
+  linkPreviews = false,
+  loadSiteIcons = false,
 }: {
   content: string;
   renderThree?: boolean;
@@ -120,6 +123,8 @@ export const Markdown = memo(function Markdown({
   citations?: ConversationCitation[];
   assetBase?: string;
   renderArtifacts?: boolean;
+  linkPreviews?: boolean;
+  loadSiteIcons?: boolean;
 }) {
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
@@ -156,6 +161,7 @@ export const Markdown = memo(function Markdown({
                   origin={favicon}
                   host={String(node?.properties.dataShareFaviconHost ?? "")}
                   size={size}
+                  automatic={loadSiteIcons}
                 />
               );
             }
@@ -186,12 +192,16 @@ export const Markdown = memo(function Markdown({
             if (linksToCurrentPaper(href, paperSourceUrl)) {
               return <span>{anchorProps.children}</span>;
             }
-            return (
-              <a
-                {...anchorProps}
-                {...externalLinkProps(href, currentOrigin, true)}
-              />
-            );
+            const external = externalLinkProps(href, currentOrigin, true);
+            if (linkPreviews && "target" in external)
+              return (
+                <ExternalLinkPreview
+                  {...anchorProps}
+                  {...external}
+                  href={href}
+                />
+              );
+            return <a {...anchorProps} {...external} />;
           },
           pre(props) {
             const language = codeLanguage(props.children);

@@ -247,3 +247,23 @@ it("bounds concurrent site lookups and releases slots after completion", async (
   }
   expect((await get()).status).toBe(200);
 });
+
+it("finds a declared icon in a bounded prefix of a large homepage", async () => {
+  const body =
+    '<head><link rel="icon" href="/icon.png"></head>' +
+    "x".repeat(2 * 1024 * 1024);
+  routes.set(
+    "https://example.com/",
+    () =>
+      new RemoteResponse(body, {
+        headers: {
+          "Content-Type": "text/html",
+          "Content-Length": String(Buffer.byteLength(body)),
+        },
+      }),
+  );
+  image();
+  const response = await get();
+  expect(response.status).toBe(200);
+  expect(Buffer.from(await response.arrayBuffer())).toEqual(png);
+});

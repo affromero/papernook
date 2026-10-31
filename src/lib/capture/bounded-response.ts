@@ -30,19 +30,31 @@ function responseBody(value: unknown): ResponseBody | null {
  * Read a web response without trusting Content-Length. The stream is cancelled
  * as soon as the actual payload crosses the limit.
  */
-export async function readBoundedResponse(
+async function readResponse(
   response: ReadableResponse,
   maxBytes: number,
-  close: () => Promise<void> = async () => {},
+  close: () => Promise<void>,
+  prefix: boolean,
 ): Promise<Buffer> {
   const body = responseBody(response.body);
   const contentLength = response.headers.get("content-length");
-  if (contentLength && Number(contentLength) > maxBytes) {
-    await body?.cancel();
-    await close();
+  if (!prefix && contentLength && Number(contentLength) > maxBytes) {
+    try {
+      await body?.cancel();
+    } finally {
+      await close();
+    }
     throw new ResponseTooLargeError(
       `Response is too large (limit ${Math.round(maxBytes / 1e6)} MB).`,
     );
+  }
+  if (prefix && maxBytes === 0) {
+    try {
+      await body?.cancel();
+    } finally {
+      await close();
+    }
+    return Buffer.alloc(0);
   }
   const reader = body?.getReader();
   if (!reader) {
@@ -53,9 +65,10 @@ export async function readBoundedResponse(
   let size = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value: chunk } = await reader.read();
       if (done) break;
-      if (!value) continue;
+      if (!chunk) continue;
+      const value = prefix ? chunk.subarray(0, maxBytes - size) : chunk;
       const nextSize = size + value.byteLength;
       if (nextSize > maxBytes) {
         await reader.cancel();
@@ -72,10 +85,35 @@ export async function readBoundedResponse(
       }
       bytes.set(value, size);
       size = nextSize;
+      if (prefix && size === maxBytes) {
+        await reader.cancel();
+        break;
+      }
     }
   } finally {
-    reader.releaseLock();
-    await close();
+    try {
+      reader.releaseLock();
+    } finally {
+      await close();
+    }
   }
   return bytes.subarray(0, size);
+}
+
+/** Read the complete response, rejecting declared or streamed oversized bodies. */
+export function readBoundedResponse(
+  response: ReadableResponse,
+  maxBytes: number,
+  close: () => Promise<void> = async () => {},
+): Promise<Buffer> {
+  return readResponse(response, maxBytes, close, false);
+}
+
+/** Read at most a prefix, then cancel the remaining body and close its connection. */
+export function readResponsePrefix(
+  response: ReadableResponse,
+  maxBytes: number,
+  close: () => Promise<void> = async () => {},
+): Promise<Buffer> {
+  return readResponse(response, maxBytes, close, true);
 }

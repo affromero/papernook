@@ -92,7 +92,7 @@ export function normalizeShareMarkup(
                 ) ?? -1;
               return index >= 0
                 ? `![${label(context.assets![index].name)}](#asset-${index})`
-                : "[Image not included by the share provider]";
+                : "[Image unavailable in this saved copy. Refresh shared content or open the original share.]";
             }
             if (name === "Cite") {
               const refs = [...tag.matchAll(/turn[\w:-]+/g)].map(

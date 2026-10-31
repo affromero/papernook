@@ -103,7 +103,7 @@ describe("imported formula rendering", () => {
     expect(html).toContain("Use esmini to execute it.");
     expect(html).toContain('href="https://example.com/guide_%28intro%29"');
     expect(html).toContain("Reference [guide]</a>");
-    expect(html).toContain("Image not included by the share provider");
+    expect(html).toContain("Image unavailable in this saved copy");
     expect(html).not.toContain("turn123");
     expect(html).not.toContain("&lt;box");
     expect(html).not.toContain("<img");

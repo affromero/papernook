@@ -4,7 +4,80 @@ import {
   isPrivateAddress,
   looksLikePdf,
 } from "@/lib/capture/download";
-import { readBoundedResponse } from "@/lib/capture/bounded-response";
+import {
+  readBoundedResponse,
+  readResponsePrefix,
+  ResponseTooLargeError,
+} from "@/lib/capture/bounded-response";
+
+it.each([undefined, "1000"])(
+  "reads only a metadata prefix and cancels the remainder with Content-Length %s",
+  async (length) => {
+    let cancelled = false;
+    let closed = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.from("<head>metadata</head>unneeded body"));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const response = new Response(body, {
+      headers: length ? { "Content-Length": length } : {},
+    });
+    const expected = Buffer.from("<head>metadata</head>");
+    const bytes = await readResponsePrefix(
+      response,
+      expected.byteLength,
+      async () => {
+        closed = true;
+      },
+    );
+    expect(bytes).toEqual(expected);
+    expect(cancelled).toBe(true);
+    expect(closed).toBe(true);
+  },
+);
+
+it("stops at an exact prefix boundary without waiting for another chunk", async () => {
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(Buffer.from("head"));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  expect((await readResponsePrefix(new Response(body), 4)).toString()).toBe(
+    "head",
+  );
+  expect(cancelled).toBe(true);
+});
+
+it("still rejects oversized full responses while closing failed cancellation", async () => {
+  let closed = false;
+  const response = new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.from("oversized"));
+      },
+      cancel() {
+        throw new Error("Cancellation failed");
+      },
+    }),
+  );
+  await expect(
+    readBoundedResponse(response, 4, async () => {
+      closed = true;
+    }),
+  ).rejects.toThrow();
+  expect(closed).toBe(true);
+  await expect(
+    readBoundedResponse(new Response("oversized"), 4),
+  ).rejects.toBeInstanceOf(ResponseTooLargeError);
+});
 
 it("preserves binary responses delivered a byte at a time", async () => {
   const expected = Buffer.from("A fragmented paper response\0".repeat(2000));

@@ -18,6 +18,10 @@ ChatGPT or Claude conversation JSON, or a Codex JSONL session export. The import
 does not sign into your provider account. Source attachments that are absent from
 the export are unavailable; their contents cannot be reconstructed from a link.
 
+For older imports missing image metadata, choose **Refresh shared content**.
+This updates attachment and citation metadata while preserving the saved text
+and follow-up conversations.
+
 Ask follow-up questions beside the saved source. Responses use the AI configured
 in Settings and stay private to your profile. The imported source remains a
 snapshot. **Export HTML / Save as PDF** downloads a formatted HTML file including
@@ -40,13 +44,21 @@ HTML exports retain the layout structure too.
 
 ![Shared cards stacked on a phone](images/conversations/imported-layout-mobile.png)
 
-Site icons stay compact beside reading-list links. Click an icon to load the
-linked site's declared favicon. Failed loads show a retry control. HTML and
+Site icons load automatically as reading-list links come into view. Failed loads
+show a retry control. Hover over a conversation link or focus it with the keyboard
+to inspect its destination and copy the URL. HTML and
 offline exports keep a local icon marker.
 
 ![Reading-list icons beside their references](images/conversations/reading-list-desktop.png)
 
 ![Reading-list icons and wrapped descriptions on a phone](images/conversations/reading-list-mobile.png)
+
+XML examples keep tag names, attributes and strings visually distinct. Link
+previews show the destination URL and provide a copy button.
+
+![Code colors, a saved diagram and a destination preview](images/conversations/code-link-preview-desktop.png)
+
+![The same code and link preview on a phone](images/conversations/code-link-preview-mobile.png)
 
 #### Imported content coverage
 
@@ -58,7 +70,7 @@ or application behind it.
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Markdown, code, formulas, lists and tables           | Rendered, including HTML tables and supported provider table blocks.                                                                 |
 | Cards, columns, flow arrows and reading lists        | Native layouts with responsive spacing and headings.                                                                                 |
-| Site icons                                           | Compact controls with explicit loading and retry.                                                                                    |
+| Site icons                                           | Compact icons load when visible, with manual retry if a request fails.                                                               |
 | Images                                               | Supported embedded images and provider attachments. Arbitrary Markdown image URLs remain links.                                      |
 | SVG, Mermaid and Three.js                            | Isolated previews for recognized diagrams and code.                                                                                  |
 | HTML applications                                    | Isolated previews with included scripts and styles. External script dependencies are unsupported.                                    |

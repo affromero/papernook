@@ -1,6 +1,6 @@
 import { Parser } from "htmlparser2";
 import { fetchPublicUrl } from "@/lib/capture/download";
-import { readBoundedResponse } from "@/lib/capture/bounded-response";
+import { readResponsePrefix } from "@/lib/capture/bounded-response";
 import { siteIconSite } from "@/lib/chat/layout/site-icon";
 import { downloadAsset } from "../assets";
 import { imageMime } from "../images";
@@ -33,7 +33,7 @@ export async function loadSiteIcon(
       throw new Error(`Site returned HTTP ${fetched.response.status}.`);
     }
     const html = (
-      await readBoundedResponse(fetched.response, 512 * 1024, fetched.close)
+      await readResponsePrefix(fetched.response, 512 * 1024, fetched.close)
     ).toString("utf8");
     let base = fetched.url;
     let declaredBase = false;
