@@ -88,6 +88,151 @@ function run(value: unknown, status = 1) {
   });
 }
 
+function minimatchReport() {
+  const value = report();
+  const cause: Advisory = {
+    name: "minimatch",
+    dependency: "minimatch",
+    url: "https://github.com/advisories/GHSA-g3hv-75wg-m249",
+    severity: "moderate",
+  };
+  value.vulnerabilities = Object.fromEntries(
+    Object.entries({
+      eslint: ["minimatch", "eslint-utils"],
+      "eslint-utils": ["eslint"],
+      minimatch: [cause],
+    }).map(([name, via]) => [
+      name,
+      {
+        name,
+        severity: "moderate",
+        isDirect: name === "eslint",
+        nodes: [`node_modules/${name}`],
+        via,
+      },
+    ]),
+  );
+  value.metadata.vulnerabilities.high = 0;
+  value.metadata.vulnerabilities.moderate = 3;
+  value.metadata.vulnerabilities.total = 3;
+  return { value, cause };
+}
+
+function reviewedLock() {
+  const packages: Record<
+    string,
+    { version: string; resolved: string; integrity: string }
+  > = {
+    "node_modules/minimatch": {
+      version: "3.1.5",
+      resolved: "https://registry.npmjs.org/minimatch/-/minimatch-3.1.5.tgz",
+      integrity:
+        "sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==",
+    },
+  };
+  return { lockfileVersion: 3, packages };
+}
+
+function writeLock(value = reviewedLock()) {
+  fs.writeFileSync(
+    path.join(directory, "package-lock.json"),
+    JSON.stringify(value),
+  );
+}
+
+it("accepts the reviewed minimatch artifact through rooted dependency cycles", () => {
+  const { value } = minimatchReport();
+  writeLock();
+  const result = run(value);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain("GHSA-g3hv-75wg-m249 in minimatch 3.1.5");
+});
+
+it.each(["version", "resolved", "integrity", "missing", "mixed"])(
+  "blocks the exception when its locked artifact differs: %s",
+  (difference) => {
+    const { value } = minimatchReport();
+    const lock = reviewedLock();
+    if (difference === "missing") {
+      delete lock.packages["node_modules/minimatch"];
+    } else if (difference === "mixed") {
+      const node = "node_modules/tool/node_modules/minimatch";
+      value.vulnerabilities["minimatch"]!.nodes.push(node);
+      lock.packages[node] = {
+        ...lock.packages["node_modules/minimatch"]!,
+        version: "10.2.6",
+      };
+    } else {
+      const entry = lock.packages["node_modules/minimatch"]!;
+      if (difference === "version") entry.version = "10.2.6";
+      if (difference === "resolved")
+        entry.resolved = "https://example.com/artifact.tgz";
+      if (difference === "integrity") entry.integrity = "sha512-replaced";
+    }
+    writeLock(lock);
+    const result = run(value);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Blocking dependency findings");
+  },
+);
+
+it.each(["name", "dependency", "url"])(
+  "does not except an advisory with a different %s",
+  (field) => {
+    const { value, cause } = minimatchReport();
+    cause[field as "name" | "dependency" | "url"] = "another-advisory";
+    writeLock();
+    expect(run(value).status).not.toBe(0);
+  },
+);
+
+it("blocks the exception when the lockfile is unavailable", () => {
+  expect(run(minimatchReport().value).status).not.toBe(0);
+});
+
+it.each(["moderate", "high"])(
+  "still blocks an additional %s advisory in the excepted package",
+  (severity) => {
+    const { value, cause } = minimatchReport();
+    value.vulnerabilities["minimatch"]!.via.push({
+      ...cause,
+      url: "https://github.com/advisories/another-advisory",
+      severity,
+    });
+    writeLock();
+    const result = run(value);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Blocking dependency findings");
+  },
+);
+
+it.each([false, true])(
+  "propagates genuine advisories through cycles regardless of report order: %s",
+  (reverse) => {
+    const { value, cause } = minimatchReport();
+    cause.url = "https://github.com/advisories/another-advisory";
+    cause.severity = "high";
+    if (reverse)
+      value.vulnerabilities = Object.fromEntries(
+        Object.entries(value.vulnerabilities).reverse(),
+      );
+    const result = run(value);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr.split("\n")[0]).toContain("eslint-utils");
+  },
+);
+
+it("blocks unexplained severity even when the advisory is excepted", () => {
+  const { value } = minimatchReport();
+  value.vulnerabilities["minimatch"]!.severity = "high";
+  value.metadata.vulnerabilities.moderate--;
+  value.metadata.vulnerabilities.high++;
+  writeLock();
+  const result = run(value);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("Unexplained audit severity");
+});
+
 it("blocks the formerly excepted development lint advisory", () => {
   const result = run(report());
   expect(result.status).not.toBe(0);

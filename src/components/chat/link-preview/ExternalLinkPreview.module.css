@@ -1,0 +1,96 @@
+.wrapper {
+  position: relative;
+  anchor-scope: --destination-link;
+}
+.wrapper .link {
+  anchor-name: --destination-link;
+  text-decoration-style: dotted;
+  text-underline-offset: 0.22em;
+}
+.arrow {
+  display: inline;
+  width: 0.8em;
+  height: 0.8em;
+  margin-left: 0.2em;
+  vertical-align: baseline;
+}
+.card {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: max-content;
+  max-width: min(26rem, calc(100vw - 2rem));
+  box-sizing: border-box;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  border: 1px solid var(--reader-border, #555);
+  border-radius: 16px;
+  color: var(--reader-ink, var(--foreground));
+  background: var(--reader-tag, var(--background));
+  box-shadow: 0 8px 28px #0003;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  z-index: 45;
+}
+.card[data-open="true"] {
+  display: flex;
+}
+.card:popover-open {
+  position: fixed;
+  inset: auto;
+  position-anchor: --destination-link;
+  position-visibility: anchors-visible;
+  position-area: top span-right;
+  position-try-fallbacks:
+    flip-block,
+    flip-inline,
+    flip-block flip-inline;
+}
+.card .address {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  color: inherit;
+  font-weight: 400;
+  text-decoration: none;
+}
+.address span:first-child {
+  font-weight: 650;
+}
+.address span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  opacity: 0.75;
+}
+.copy {
+  display: inline-flex;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.copy svg {
+  width: 18px;
+  height: 18px;
+}
+.copy:hover {
+  background: #7f7f7f25;
+}
+.copy:focus-visible {
+  outline: 2px solid currentColor;
+}

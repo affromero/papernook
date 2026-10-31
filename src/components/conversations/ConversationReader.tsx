@@ -292,6 +292,8 @@ function ConversationTurn({
         content={message.content}
         renderThree
         renderArtifacts
+        linkPreviews
+        loadSiteIcons={!followUp}
         currentOrigin=""
         assets={message.assets}
         citations={message.citations}

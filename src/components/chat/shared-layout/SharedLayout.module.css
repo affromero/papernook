@@ -263,6 +263,20 @@
   color: inherit;
   vertical-align: middle;
 }
+.faviconImage {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.favicon[data-state="loaded"] .faviconImage {
+  opacity: 1;
+}
+.favicon[data-state="loaded"] > svg {
+  visibility: hidden;
+}
+.favicon[data-state="loading"] > svg {
+  opacity: 0.45;
+}
 button.favicon:enabled {
   cursor: pointer;
 }
