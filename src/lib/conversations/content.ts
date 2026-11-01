@@ -1,50 +1,30 @@
-import { z } from "zod";
-import { imageMime } from "./images";
 import { formatTableCell } from "@/lib/chat/format/table";
 import { fenceCode as fence } from "@/lib/chat/format/code";
-
-const publicUrl = z
-  .string()
-  .url()
-  .refine((value) => /^https?:\/\//i.test(value));
-export const assetSchema = z.object({
-  kind: z.enum(["image", "audio", "video", "file"]),
-  name: z.string().max(1000),
-  ref: z.string().max(2000).optional(),
-  url: publicUrl.optional(),
-  data: z
-    .string()
-    .max(6_000_000)
-    .regex(/^data:[\w.+/-]+;base64,[A-Za-z0-9+/]*={0,2}$/)
-    .optional(),
-  mime: z.string().max(100).optional(),
-});
-export const citationSchema = z.object({
-  ref: z.string().max(200),
-  title: z.string().max(1000),
-  url: publicUrl,
-});
-export type ConversationAsset = z.infer<typeof assetSchema>;
-export type ConversationCitation = z.infer<typeof citationSchema>;
+import { importedMedia, registerCardImages } from "./formats/media";
+import { citationLinks } from "./formats/citations";
+import { notebookOutput } from "./formats/notebook";
+import { previewKind, chartMime } from "./formats/presentation";
+import { hiddenContent } from "./formats/visibility";
+import {
+  citationSchema,
+  object as asObject,
+  text as string,
+  http,
+  type ConversationAsset,
+  type ConversationCitation,
+} from "./formats/schema";
+export {
+  assetSchema,
+  citationSchema,
+  type ConversationAsset,
+  type ConversationCitation,
+} from "./formats/schema";
 export type RichMessage = {
   content: string;
   assets?: ConversationAsset[];
   citations?: ConversationCitation[];
 };
 
-function asObject(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-function string(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-function http(value: unknown): string | undefined {
-  return typeof value === "string" && publicUrl.safeParse(value).success
-    ? value
-    : undefined;
-}
 /** Keep visible multimodal content and the metadata needed to resolve it. */
 export function richMessage(value: unknown, metadata?: unknown): RichMessage {
   const assets: ConversationAsset[] = [];
@@ -60,95 +40,17 @@ export function richMessage(value: unknown, metadata?: unknown): RichMessage {
     const block = asObject(value);
     if (!block) return "";
     const type = string(block.type ?? block.content_type);
-    if (
-      /^(thinking|redacted_thinking|redacted_reasoning|thoughts|reasoning|reasoning_recap|analysis|model_editable_context|tool_use|tool_result|tool_call|tool_request|tool_response|function_call|function_call_output)$/.test(
-        type,
-      )
-    )
-      return "";
+    if (hiddenContent(block)) return "";
     if (
       /^(audio_transcription|input_audio_transcription|transcription)$/.test(
         type,
       )
     )
       return read(block.text ?? block.transcript ?? block.content, depth + 1);
-    if (
-      /^(image|image_url|image_asset_pointer|input_image|output_image|file|input_file|document|attachment|audio|input_audio|output_audio|video)(_|$)/.test(
-        type,
-      )
-    ) {
-      const source =
-        asObject(block.source) ??
-        asObject(block.image_url) ??
-        asObject(block.input_audio) ??
-        asObject(block.file) ??
-        block;
-      const urlValue =
-        block.url ??
-        (typeof block.image_url === "string" ? block.image_url : source.url) ??
-        source.file_url ??
-        source.download_url ??
-        block.file_url ??
-        block.download_url ??
-        source.file_data ??
-        block.file_data ??
-        block.asset_pointer;
-      const format = string(
-        source.format ?? block.format ?? block.output_format,
-      );
-      const data = string(
-        source.data ?? block.data ?? block.b64_json ?? block.result,
-      );
-      const mime =
-        string(source.media_type ?? source.mime_type ?? block.mime_type) ||
-        (/image/.test(type) && /^(png|jpe?g|webp|gif)$/.test(format)
-          ? `image/${format === "jpg" ? "jpeg" : format}`
-          : "") ||
-        (/image/.test(type) && data
-          ? imageMime(Buffer.from(data, "base64"))
-          : "") ||
-        (/audio/.test(type) && format
-          ? `audio/${format === "mp3" ? "mpeg" : format}`
-          : "") ||
-        (typeof source.file_data === "string"
-          ? (/^data:([^;]+);/.exec(source.file_data)?.[1] ?? "")
-          : "");
-      const dataUrl =
-        typeof urlValue === "string" && urlValue.startsWith("data:")
-          ? urlValue
-          : data
-            ? `data:${mime || "application/octet-stream"};base64,${source.type === "text" ? Buffer.from(data).toString("base64") : data}`
-            : undefined;
-      const kind = /image/.test(type)
-        ? "image"
-        : /audio/.test(type)
-          ? "audio"
-          : /video/.test(type)
-            ? "video"
-            : "file";
-      const name =
-        string(
-          block.name ??
-            source.filename ??
-            source.file_name ??
-            block.filename ??
-            block.file_name ??
-            block.alt ??
-            block.title,
-        ) || `${kind[0].toUpperCase()}${kind.slice(1)} attachment`;
-      const candidate = assetSchema.safeParse({
-        kind,
-        name,
-        url: http(urlValue),
-        data: dataUrl,
-        mime: mime || undefined,
-        ref:
-          string(block.asset_pointer ?? block.file_id ?? source.file_id) ||
-          undefined,
-      });
-      if (!candidate.success)
-        throw new Error("Invalid imported attachment metadata.");
-      const index = assets.push(candidate.data) - 1;
+    const media = importedMedia(block);
+    if (media) {
+      const { kind, name } = media;
+      const index = assets.push(media) - 1;
       const rendered =
         kind === "image"
           ? `![${name.replace(/[\[\]\\]/g, "")}](#asset-${index})`
@@ -156,6 +58,38 @@ export function richMessage(value: unknown, metadata?: unknown): RichMessage {
       const transcript = string(block.transcript ?? block.transcription);
       return transcript ? `${rendered}\n\n${transcript}` : rendered;
     }
+    const notebook = notebookOutput(block);
+    if (notebook !== null) return notebook;
+    if (type === "AdaptiveCard") {
+      registerCardImages(block, assets);
+      return fence(JSON.stringify(block), "card-preview");
+    }
+    if (type === "resource") {
+      const resource = asObject(block.resource);
+      const mime = string(resource?.mimeType);
+      if (
+        resource &&
+        /^(text\/html;profile=mcp-app|text\/html\+skybridge)$/.test(mime)
+      )
+        return fence(
+          JSON.stringify({
+            template: string(resource.text),
+            mime,
+            structuredContent:
+              block.structuredContent ?? resource.structuredContent ?? null,
+          }),
+          "mcp-preview",
+        );
+    }
+    const chart = chartMime(block);
+    if (chart)
+      return fence(
+        JSON.stringify({
+          data: { [chart]: block.data ?? block.spec ?? block.content },
+          metadata: block.metadata ?? {},
+        }),
+        "notebook-preview",
+      );
     if (type === "code")
       return fence(
         string(block.code ?? block.text ?? block.content),
@@ -191,17 +125,34 @@ export function richMessage(value: unknown, metadata?: unknown): RichMessage {
       const mime = string(
         block.mime_type ?? block.artifact_type ?? block.language ?? type,
       );
-      const language = /svg/.test(mime)
-        ? "svg-preview"
-        : /html/.test(mime)
-          ? "html-preview"
-          : /mermaid/.test(mime)
-            ? "mermaid"
-            : string(block.language) || "text";
+      const language =
+        previewKind(mime) ??
+        (/svg/.test(mime)
+          ? "svg-preview"
+          : /html/.test(mime)
+            ? "html-preview"
+            : /mermaid/.test(mime)
+              ? "mermaid"
+              : string(block.language) || "text");
+      if (language === "mcp-preview")
+        return fence(
+          JSON.stringify({
+            template: string(block.content ?? block.text),
+            mime,
+            structuredContent: block.structuredContent ?? null,
+          }),
+          language,
+        );
       return fence(string(block.content ?? block.text ?? block.code), language);
     }
     const body = block.parts ?? block.text ?? block.content;
-    if (body !== undefined) return read(body, depth + 1);
+    if (body !== undefined)
+      return read(body, depth + 1) + citationLinks(block, citations);
+    if (
+      block.thoughtSignature !== undefined ||
+      block.thought_signature !== undefined
+    )
+      return "";
     return type ? fence(JSON.stringify(block, null, 2), "json") : "";
   }
   const content = read(value);

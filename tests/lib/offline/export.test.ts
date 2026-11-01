@@ -15,6 +15,9 @@ import {
 import { createChat, appendMessage } from "@/lib/library/chats";
 import { GET } from "@/app/api/v1/conversations/[id]/export/route";
 import { createTestProfile, testSession } from "../../helpers/access";
+import { pngFixture } from "../../helpers/png";
+import { savePreview } from "@/lib/conversations/previews/cache";
+import { previewHash } from "@/lib/conversations/previews/source";
 
 const session = vi.hoisted(() => ({ token: "" }));
 vi.mock("next/headers", () => ({
@@ -37,6 +40,58 @@ afterEach(() => {
 });
 
 describe("portable study exports", () => {
+  it("retains native card columns in the visible portable document", () => {
+    const card = {
+      type: "AdaptiveCard",
+      body: [
+        {
+          type: "ColumnSet",
+          columns: [
+            {
+              type: "Column",
+              items: [{ type: "TextBlock", text: "Static world" }],
+            },
+            {
+              type: "Column",
+              items: [{ type: "TextBlock", text: "Dynamic scenario" }],
+            },
+          ],
+        },
+      ],
+    };
+    const body = renderMarkdown(
+      `\`\`\`card-preview\n${JSON.stringify(card)}\n\`\`\``,
+    );
+    const visible = body.split("<details>")[0];
+    expect(visible).toContain("Static world");
+    expect(visible).toContain("Dynamic scenario");
+    expect(visible).toContain('data-share-layout="grid"');
+  });
+  it("embeds saved visual snapshots and static notebook tables without executable provider content", () => {
+    const source = "export default function App(){ return <p>Saved plot</p> }";
+    const bytes = pngFixture();
+    savePreview(directory, previewHash("react-preview", source), bytes);
+    const html = studyHtml(
+      "Saved displays",
+      renderMarkdown(
+        `\`\`\`react-preview\n${source}\n\`\`\`\n\n\`\`\`notebook-preview\n${JSON.stringify({ data: { "text/html": '<table><tr><th>Metric</th><td>42</td></tr></table><script>steal()</script><img src="https://example.com/leak"/><a href="javascript:steal()">Unsafe</a>' } })}\n\`\`\``,
+        { base: directory },
+      ),
+    );
+    expect(html).toContain(
+      `src="data:image/png;base64,${bytes.toString("base64")}"`,
+    );
+    expect(html).toContain(
+      "<table><tr><th>Metric</th><td>42</td></tr></table>",
+    );
+    expect(html).toContain("Display source");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain('src="https://');
+    expect(html).not.toContain('href="javascript:');
+    expect(
+      renderMarkdown("```mermaid\ngraph TD; A-->B\n```", { base: directory }),
+    ).toContain("Save image for export");
+  });
   it("keeps reading-list site icons compact and self-contained offline", () => {
     const body = renderMarkdown(
       '<row><favicon url="https://example.com/private?secret=value" size="24px"/><box flex="1"><Link url="https://example.com/guide" title="Reference guide"/></box></row>',

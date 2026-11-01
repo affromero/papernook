@@ -9,6 +9,7 @@
         "extension/**/*.js!",
         "public/**/*.js!",
         "src/lib/offline/app.ts!",
+        "src/lib/offline/shell.css!",
         "src/lib/offline/worker.js!",
         "src/lib/sharing/process.ts!"
       ]

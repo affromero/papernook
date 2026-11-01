@@ -137,6 +137,40 @@ provisioning profiles in Xcode. The archive does not upload or submit the app.
 The iOS App Store listing must be approved before the extension is available
 to download on an iPad.
 
+#### Verify the iPad simulator round trip
+
+Use a disposable simulator and the browser test fixture, which seeds a local
+paper library and test accounts. Keep this fixture separate from real library
+data. The environment values are defined in `playwright.config.ts`; start
+`node tests/e2e/support/server.mjs` with those values and wait for
+`Browser fixture ready`. Its data directory must be `$PWD/.playwright-data`.
+
+After `npm run build:safari:ipad-simulator` succeeds:
+
+```bash
+xcrun simctl install "$PAPERNOOK_SIMULATOR" \
+  build/safari-ipad-derived/Build/Products/Debug-iphonesimulator/papernook.app
+xcrun simctl launch "$PAPERNOOK_SIMULATOR" co.afromero.papernook
+```
+
+1. In the simulator, enable papernook under Settings, Apps, Safari, Extensions.
+2. Open Safari, grant the extension access to arxiv.org, and set its server to
+   `http://127.0.0.1:3107`. Save and check the connection status.
+3. Sign into the local fixture with `browser-owner-password-phrase`, then select
+   Maya. Dismiss Safari's password-save prompt if it covers the profile picker.
+4. Open `https://arxiv.org/abs/1706.03762` and choose the papernook extension in
+   Safari's page menu. Confirm the saved paper opens with its PDF and chat.
+5. Choose **Original**. Confirm Safari stays on arXiv. Choose the extension again
+   and confirm it returns to the same paper. Browser Back should return to arXiv.
+6. Repeat from a PDF URL with `#page=3`. The extension should resolve the saved
+   paper. Browser regressions also cover query parameters and encoded fragments
+   in `tests/chrome.e2e.mjs` and `tests/e2e/reader/original-view.spec.ts`.
+
+The unsigned build and native toolbar round trip were verified on an iPad Pro
+13-inch simulator with iOS 26.5 on November 1, 2026. Physical iPad installation
+and App Store submission require the signing and distribution steps above.
+Stop the fixture and remove the disposable simulator after verification.
+
 ## Store assets and review
 
 Listing copy lives in `store/listings.md`, reviewer instructions in

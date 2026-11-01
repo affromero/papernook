@@ -39,6 +39,7 @@ export default defineConfig({
         "**/safari-reader.spec.ts",
         "**/reader/comment-position.spec.ts",
         "**/reader/dark-pdf.spec.ts",
+        "**/conversations/*.spec.ts",
       ],
     },
   ],

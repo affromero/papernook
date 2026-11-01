@@ -14,7 +14,8 @@ Papers and Conversations have independent topics, tags and searches.
 
 If the provider blocks access or changes its share format, Papernook reports the
 import error. You can explicitly upload or paste a Markdown/text transcript,
-ChatGPT or Claude conversation JSON, or a Codex JSONL session export. The importer
+ChatGPT or Claude conversation JSON, Gemini `contents` or `candidates` JSON,
+a Jupyter notebook, or a Codex JSONL session export. The importer
 does not sign into your provider account. Source attachments that are absent from
 the export are unavailable; their contents cannot be reconstructed from a link.
 
@@ -66,24 +67,45 @@ The source must include the content or a usable attachment URL. A feature being
 visible in the original chat does not establish that its share includes the file
 or application behind it.
 
-| Content                                              | Current support                                                                                                                      |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Markdown, code, formulas, lists and tables           | Rendered, including HTML tables and supported provider table blocks.                                                                 |
-| Cards, columns, flow arrows and reading lists        | Native layouts with responsive spacing and headings.                                                                                 |
-| Site icons                                           | Compact icons load when visible, with manual retry if a request fails.                                                               |
-| Images                                               | Supported embedded images and provider attachments. Arbitrary Markdown image URLs remain links.                                      |
-| SVG, Mermaid and Three.js                            | Isolated previews for recognized diagrams and code.                                                                                  |
-| HTML applications                                    | Isolated previews with included scripts and styles. External script dependencies are unsupported.                                    |
-| React/JSX artifacts                                  | Source is preserved. React artifact previews are unsupported.                                                                        |
-| Charts and maps                                      | Supported as images, SVG, Mermaid or included HTML. Dedicated chart specifications and provider map widgets have no native renderer. |
-| PDF, Word, spreadsheets, presentations and notebooks | Available as downloads when attached. Conversation attachment previews are unsupported.                                              |
-| Audio and video                                      | Players for supported attachments and MIME types. Raw PCM and additional provider media encodings need conversion.                   |
-| Citations                                            | Supported source links and ChatGPT citation metadata. Other providers' structured document locations and annotations need adapters.  |
-| Quizzes, flashcards, simulations and dashboards      | Can render as included HTML. Native provider Canvas state and connected services are unsupported.                                    |
-| Other provider share URLs                            | ChatGPT and Claude share links are supported. Other services need a compatible transcript export.                                    |
+| Content                                              | Current support                                                                                                                                                                                           |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Markdown, code, formulas, lists and tables           | Rendered, including HTML tables and supported provider table blocks.                                                                                                                                      |
+| Cards, columns, flow arrows and reading lists        | Native layouts with responsive spacing and headings.                                                                                                                                                      |
+| Site icons                                           | Compact icons load when visible, with manual retry if a request fails.                                                                                                                                    |
+| Images                                               | Supported embedded images and provider attachments. Arbitrary Markdown image URLs remain links.                                                                                                           |
+| SVG, Mermaid and Three.js                            | Isolated previews for recognized diagrams and code.                                                                                                                                                       |
+| HTML applications                                    | Isolated previews with included scripts and styles. External script dependencies are unsupported.                                                                                                         |
+| React/JSX artifacts                                  | Included JSX/TSX runs in the isolated preview. Local imports support React, React DOM, Recharts and Lucide. Other modules report an error.                                                                |
+| Charts and maps                                      | Plotly, Vega, Vega-Lite and GeoJSON display from included data. Provider map, search, finance, weather and sports widgets need verified export adapters.                                                  |
+| Notebook outputs                                     | MIME bundles retain all representations. Displays select HTML, images, SVG, LaTeX, supported chart specifications or text. Standard saved widget values display without a kernel.                         |
+| PDF, Word, spreadsheets, presentations and notebooks | **Preview document** opens attached PDFs, CSV/TSV, DOCX, XLSX, PPTX and notebooks. Office previews show text, tables and embedded images. Download the original for exact layout or unsupported features. |
+| Audio and video                                      | Players for supported attachments and MIME types. Raw PCM is preserved as a download with its declared format; playback requires conversion.                                                              |
+| Citations                                            | Source links, ChatGPT metadata, OpenAI URL annotations and Claude web citation locations. Encrypted citation data and hidden reasoning stay excluded.                                                     |
+| Adaptive Cards and MCP Apps                          | Cards display text, facts, tables and included images. MCP displays require an included HTML template and saved visible result. Account actions and tool calls are unavailable.                           |
+| Quizzes, flashcards, simulations and dashboards      | Can render as included HTML. Native provider Canvas state and connected services are unsupported.                                                                                                         |
+| Other provider share URLs                            | ChatGPT and Claude share links are supported. Other services need a compatible transcript export.                                                                                                         |
 
 Portable exports retain native layouts, formulas and saved attachments.
-Interactive HTML, Mermaid and Three.js previews retain their source.
+Notebook HTML tables and images export directly. Use **Save image for export**
+below an interactive display to include its current appearance in HTML, PDF and
+offline copies. Source remains available alongside the saved image. Refresh an
+offline copy after saving a new image. Captures are private to the conversation
+owner, limited to 2 MB each and 16 MB per conversation.
+
+Artifacts use included resources. External scripts, remote chart datasets,
+live notebook kernels and provider account services are unavailable. React
+previews support literal Tailwind utility classes within the isolated display.
+MCP templates using Zod must disable its JIT compilation for the preview's
+content security policy. Large SDK bundles still count toward the existing
+500,000-character message limit. Unsupported modules and missing widget state
+show an error and preserve their source.
+
+![An imported React chart with local controls](images/conversations/output-formats-desktop.png)
+
+![An attached spreadsheet preview on a phone](images/conversations/document-preview-mobile.png)
+
+[Phone artifact view](images/conversations/output-formats-mobile.png) ·
+[Desktop document preview](images/conversations/document-preview-desktop.png)
 
 The output categories are documented in [ChatGPT Visualizations](https://learn.chatgpt.com/docs/visualizations),
 [ChatGPT file previews](https://learn.chatgpt.com/docs/artifacts-viewer),

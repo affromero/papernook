@@ -1,6 +1,8 @@
 import { fetchPublicUrl } from "@/lib/capture/download";
 import { readBoundedResponse } from "@/lib/capture/bounded-response";
 import { assetSchema, citationSchema, richMessage } from "./content";
+import { notebookTranscript } from "./formats/notebook";
+import { hiddenContent } from "./formats/visibility";
 import {
   MAX_TRANSCRIPT_BYTES,
   sourceSchema,
@@ -46,20 +48,18 @@ function message(
   const record = object(value);
   if (!record) return null;
   const metadata = object(record.metadata);
-  if (
-    metadata?.is_visually_hidden_from_conversation === true ||
-    metadata?.is_redacted === true ||
-    record.channel === "analysis" ||
-    (typeof record.recipient === "string" && record.recipient !== "all")
-  )
-    return null;
+  if (hiddenContent(record)) return null;
   const author = object(record.author);
-  const role =
+  const declaredRole =
     author?.role ??
     record.role ??
     (record.sender === "human" ? "user" : record.sender);
+  const role = declaredRole === "model" ? "assistant" : declaredRole;
   if (role !== "user" && role !== "assistant") return null;
-  const rich = richMessage(record.content ?? record.text, metadata);
+  const rich = richMessage(
+    record.content ?? record.text ?? record.parts,
+    metadata,
+  );
   if (record.assets !== undefined && !rich.assets)
     rich.assets = assetSchema.array().max(100).parse(record.assets);
   if (record.citations !== undefined && !rich.citations)
@@ -90,10 +90,17 @@ function transcript(value: unknown): ConversationSource["messages"] | null {
     });
   }
   const messages =
-    record.chat_messages ?? record.messages ?? record.linear_conversation;
+    record.chat_messages ??
+    record.messages ??
+    record.linear_conversation ??
+    record.contents ??
+    (Array.isArray(record.candidates)
+      ? record.candidates.map((candidate) => object(candidate)?.content)
+      : undefined);
   return Array.isArray(messages)
     ? messages.flatMap((value) => {
-        const parsed = message(object(value)?.message ?? value);
+        const wrapper = object(value);
+        const parsed = message(object(wrapper?.message) ?? value);
         return parsed ? [parsed] : [];
       })
     : null;
@@ -107,8 +114,11 @@ function findTranscript(
     const current = queue.shift();
     if (!current || typeof current !== "object" || seen.has(current)) continue;
     seen.add(current);
+    const currentRecord = object(current);
+    if (currentRecord && hiddenContent(currentRecord)) continue;
     const found = transcript(current);
-    if (found?.length) {
+    if (found !== null) {
+      if (!found.length) continue;
       const record = object(current);
       return {
         title:
@@ -286,6 +296,15 @@ export function importTranscript(
   }
   const direct = sourceSchema.safeParse(value);
   if (direct.success) return direct.data;
+  const notebook = notebookTranscript(value);
+  if (notebook?.length)
+    return sourceSchema.parse({
+      title: "Imported notebook",
+      topic: "Uncategorized",
+      tags: [],
+      provider: "transcript",
+      messages: notebook,
+    });
   const found = findTranscript(value);
   if (!found)
     throw new Error(

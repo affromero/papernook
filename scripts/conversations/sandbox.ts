@@ -1,20 +1,20 @@
 import mermaid from "mermaid";
 import DOMPurify from "dompurify";
 import { prepareSvg } from "../../src/lib/conversations/preview";
+import { object } from "../../src/lib/conversations/formats/schema";
+import { renderHtml } from "./html";
+import { enableSnapshots } from "./snapshots";
 
 async function render(): Promise<void> {
   if (window.parent === window || globalThis.origin !== "null")
     throw new Error(
       "Open this preview inside the isolated conversation reader.",
     );
-  const payload: unknown = JSON.parse(
-    decodeURIComponent(location.hash.slice(1)),
+  const payload = object(
+    JSON.parse(decodeURIComponent(location.hash.slice(1))) as unknown,
   );
   if (
     !payload ||
-    typeof payload !== "object" ||
-    !("kind" in payload) ||
-    !("source" in payload) ||
     typeof payload.source !== "string" ||
     payload.source.length > 500_000
   )
@@ -23,9 +23,7 @@ async function render(): Promise<void> {
   if (kind === "svg-preview") {
     const image = document.createElement("img");
     image.alt = "Imported SVG diagram";
-    image.src = URL.createObjectURL(
-      new Blob([prepareSvg(source)], { type: "image/svg+xml" }),
-    );
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(prepareSvg(source))}`;
     image.onerror = () =>
       reportError(
         "The SVG could not be rendered. Its source is available below.",
@@ -46,57 +44,43 @@ async function render(): Promise<void> {
         USE_PROFILES: { svg: true, svgFilters: true },
       }),
     );
-  } else if (kind === "html-preview") {
-    const scripts: {
-      text: string;
-      type: string;
-      id: string;
-      external: boolean;
-    }[] = [];
-    const handlers: { node: Element; name: string; text: string }[] = [];
-    DOMPurify.addHook("uponSanitizeElement", (node, event) => {
-      if (event.tagName === "script" && node instanceof HTMLScriptElement)
-        scripts.push({
-          text: node.textContent ?? "",
-          type: node.type,
-          id: node.id,
-          external: node.hasAttribute("src"),
-        });
-    });
-    DOMPurify.addHook("uponSanitizeAttribute", (node, event) => {
-      if (/^on[a-z0-9]+$/.test(event.attrName))
-        handlers.push({ node, name: event.attrName, text: event.attrValue });
-    });
-    let fragment: DocumentFragment;
-    try {
-      fragment = DOMPurify.sanitize(source, {
-        RETURN_DOM_FRAGMENT: true,
-        FORCE_BODY: true,
-      });
-    } finally {
-      DOMPurify.removeHooks("uponSanitizeElement");
-      DOMPurify.removeHooks("uponSanitizeAttribute");
-    }
-    if (scripts.some((script) => script.external))
-      throw new Error(
-        "This artifact requires an external script that is not included in the import.",
-      );
-    document.body.append(fragment);
-    const connected = handlers.filter((handler) => handler.node.isConnected);
-    Object.defineProperty(globalThis, "papernookArtifactNodes", {
-      value: connected.map((handler) => handler.node),
+  } else if (kind === "html-preview") await renderHtml(source);
+  else if (kind === "react-preview") {
+    const { renderReact } = await import("./react");
+    await renderReact(source);
+  } else if (kind === "notebook-preview") {
+    const { renderNotebook } = await import("./notebook");
+    await renderNotebook(JSON.parse(source) as unknown);
+  } else if (kind === "mcp-preview") {
+    const snapshot = object(JSON.parse(source) as unknown);
+    if (!snapshot || typeof snapshot.template !== "string")
+      throw new Error("This app is missing its exported display template.");
+    Object.defineProperty(globalThis, "openai", {
+      value: Object.freeze({
+        toolOutput: snapshot.structuredContent,
+        toolResponseMetadata: {},
+        locale: "en",
+        displayMode: "inline",
+      }),
       configurable: true,
     });
-    const bindings = document.createElement("script");
-    bindings.textContent = `(() => { const nodes = globalThis.papernookArtifactNodes; delete globalThis.papernookArtifactNodes; ${connected.map((handler, index) => `nodes[${index}][${JSON.stringify(handler.name)}] = function(event) {\n${handler.text}\n};`).join("\n")} })();`;
-    document.body.append(bindings);
-    for (const original of scripts) {
-      const script = document.createElement("script");
-      if (original.type) script.type = original.type;
-      if (original.id) script.id = original.id;
-      script.textContent = original.text;
-      document.body.append(script);
-    }
+    Object.defineProperty(globalThis, "papernookSnapshot", {
+      value: snapshot.structuredContent,
+      configurable: true,
+    });
+    await renderHtml(snapshot.template);
+    window.dispatchEvent(
+      new CustomEvent("openai:set_globals", {
+        detail: { globals: { toolOutput: snapshot.structuredContent } },
+      }),
+    );
+    const saved = document.createElement("details");
+    const label = document.createElement("summary");
+    label.textContent = "Saved app data";
+    const data = document.createElement("pre");
+    data.textContent = JSON.stringify(snapshot.structuredContent, null, 2);
+    saved.append(label, data);
+    document.body.append(saved);
   } else throw new Error("Unsupported preview format.");
   const resize = () =>
     parent.postMessage(
@@ -109,25 +93,32 @@ async function render(): Promise<void> {
   new ResizeObserver(resize).observe(document.body);
   resize();
 }
+
 function reportError(message: string): void {
   parent.postMessage(
     { type: "papernook-preview-error", message: message.slice(0, 500) },
     "*",
   );
   const error = document.createElement("p");
-  error.textContent = message;
+  error.textContent = message.slice(0, 500);
   document.body.append(error);
 }
-window.addEventListener("error", () =>
+window.addEventListener("error", (event) =>
   reportError(
-    "The artifact could not finish rendering. Its source is available below.",
+    event.error instanceof Error
+      ? event.error.message
+      : "The artifact could not finish rendering. Its source is available below.",
   ),
 );
-window.addEventListener("unhandledrejection", () =>
+window.addEventListener("unhandledrejection", (event) =>
   reportError(
-    "The artifact could not finish rendering. Its source is available below.",
+    event.reason instanceof Error
+      ? event.reason.message
+      : "The artifact could not finish rendering. Its source is available below.",
   ),
 );
-void render().catch((error: unknown) =>
+const ready = render();
+enableSnapshots(ready);
+void ready.catch((error: unknown) =>
   reportError(error instanceof Error ? error.message : "Preview failed."),
 );

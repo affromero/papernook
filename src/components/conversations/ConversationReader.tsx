@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -43,6 +44,10 @@ type TurnMessage = {
   citations?: ConversationCitation[];
 };
 
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
+
 function ConversationInput({
   busy,
   connected,
@@ -53,6 +58,11 @@ function ConversationInput({
   onSend: (query: string, images: string[]) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
+  const ready = useSyncExternalStore(
+    subscribeToHydration,
+    clientReady,
+    serverReady,
+  );
   const [images, setImages] = useState<string[]>([]);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -126,11 +136,11 @@ function ConversationInput({
           onChange={(event) => setQuery(event.target.value)}
           onPaste={onPaste}
           onKeyDown={onKeyDown}
-          disabled={busy}
+          disabled={busy || !ready}
         />
         <button
           className={chatStyles.sendBtn}
-          disabled={busy || !connected || !query.trim()}
+          disabled={busy || !ready || !connected || !query.trim()}
         >
           {busy ? "Thinking…" : "Send"}
         </button>
@@ -294,6 +304,11 @@ function ConversationTurn({
         renderArtifacts
         linkPreviews
         loadSiteIcons={!followUp}
+        previewExportBase={
+          !followUp && conversationId
+            ? `/api/v1/conversations/${conversationId}/previews/${index}`
+            : undefined
+        }
         currentOrigin=""
         assets={message.assets}
         citations={message.citations}
@@ -524,7 +539,8 @@ export function ConversationReader({
               <div>
                 <h1>{conversation.title}</h1>
                 <p className={readerStyles.caption}>
-                  Saved {new Date(conversation.importedAt).toLocaleDateString()}{" "}
+                  Saved{" "}
+                  {new Date(conversation.importedAt).toISOString().slice(0, 10)}{" "}
                   · {conversation.provider} · {conversation.messages.length}{" "}
                   messages · Private
                 </p>
