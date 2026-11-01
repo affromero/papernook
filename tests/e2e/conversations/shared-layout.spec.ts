@@ -47,17 +47,20 @@ test("reading-list icons load automatically, stay compact, and support retry", a
   await restoreMayaSession(page);
   const requests: { url: string; referer?: string }[] = [];
   await page.route("**/api/v1/site-icon?**", async (route) => {
+    const url = route.request().url();
+    const firstReferenceAttempt =
+      new URL(url).searchParams.get("url") === "https://example.com" &&
+      !requests.some((request) => request.url === url);
     requests.push({
-      url: route.request().url(),
+      url,
       referer: route.request().headers().referer,
     });
     await route.fulfill({
-      status: requests.length === 1 ? 404 : 200,
-      contentType: requests.length === 1 ? "application/json" : "image/svg+xml",
-      body:
-        requests.length === 1
-          ? JSON.stringify({ error: "Temporary icon failure" })
-          : '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" rx="5" fill="#317c93"/><path d="M6 18V6h8l4 4-4 4H6m7 0 5 4" fill="none" stroke="white" stroke-width="2"/></svg>',
+      status: firstReferenceAttempt ? 404 : 200,
+      contentType: firstReferenceAttempt ? "application/json" : "image/svg+xml",
+      body: firstReferenceAttempt
+        ? JSON.stringify({ error: "Temporary icon failure" })
+        : '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" rx="5" fill="#317c93"/><path d="M6 18V6h8l4 4-4 4H6m7 0 5 4" fill="none" stroke="white" stroke-width="2"/></svg>',
     });
   });
   const response = await page.request.post("/api/v1/conversations", {
