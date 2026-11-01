@@ -249,10 +249,11 @@ for (const width of [1440, 390]) {
         "padding",
         "16px",
       );
-      await reactFrame
+      const saveImage = reactFrame
         .locator("..")
-        .getByRole("button", { name: "Save image for export" })
-        .click();
+        .getByRole("button", { name: "Save image for export" });
+      await saveImage.click();
+      await expect(saveImage).toBeEnabled({ timeout: 25_000 });
       await expect(reactFrame.locator("..").getByRole("status")).toHaveText(
         "Image saved for HTML and PDF export.",
       );
@@ -328,10 +329,11 @@ for (const width of [1440, 390]) {
       const scene = page.locator('iframe[title="Interactive 3D scene"]');
       await scene.scrollIntoViewIfNeeded();
       await expect(scene.contentFrame().locator("canvas")).toBeVisible();
-      await scene
+      const saveScene = scene
         .locator("..")
-        .getByRole("button", { name: "Save image for export" })
-        .click();
+        .getByRole("button", { name: "Save image for export" });
+      await saveScene.click();
+      await expect(saveScene).toBeEnabled({ timeout: 25_000 });
       await expect(scene.locator("..").getByRole("status")).toContainText(
         "Image saved",
       );
