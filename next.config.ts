@@ -110,6 +110,10 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: "/vendor/conversations/sandbox.html",
+        headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }],
+      },
     ];
   },
   turbopack: { root: projectRoot },

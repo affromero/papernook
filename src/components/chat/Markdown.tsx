@@ -28,6 +28,7 @@ import layoutStyles from "./shared-layout/SharedLayout.module.css";
 import { SharedLayoutIcon } from "./shared-layout/SharedLayoutIcon";
 import { SharedLayoutFavicon } from "./shared-layout/SharedLayoutFavicon";
 import { ExternalLinkPreview } from "./link-preview/ExternalLinkPreview";
+import { isPreviewKind } from "@/lib/conversations/preview";
 
 /** Source of a ```threejs fence, if that's what this <pre> wraps. */
 function threeCode(children: ReactNode): string | null {
@@ -106,6 +107,7 @@ export const Markdown = memo(function Markdown({
   renderArtifacts = false,
   linkPreviews = false,
   loadSiteIcons = false,
+  previewExportBase,
 }: {
   content: string;
   renderThree?: boolean;
@@ -125,6 +127,7 @@ export const Markdown = memo(function Markdown({
   renderArtifacts?: boolean;
   linkPreviews?: boolean;
   loadSiteIcons?: boolean;
+  previewExportBase?: string;
 }) {
   // After rehypeKatex, so math text is never rewritten (the decorator also
   // skips katex subtrees — MathML annotations hold raw TeX).
@@ -205,22 +208,24 @@ export const Markdown = memo(function Markdown({
           },
           pre(props) {
             const language = codeLanguage(props.children);
-            if (
-              renderArtifacts &&
-              (language === "svg-preview" ||
-                language === "html-preview" ||
-                language === "mermaid")
-            ) {
+            if (renderArtifacts && isPreviewKind(language)) {
               return (
                 <RichPreview
                   kind={language}
                   source={codeText(props.children).replace(/\n$/, "")}
+                  assets={assets}
+                  assetBase={assetBase}
+                  previewExportBase={previewExportBase}
                 />
               );
             }
             const code = renderThree ? threeCode(props.children) : null;
             return code ? (
-              <ThreeSandbox code={code} onRegenerate={onRegenerateThree} />
+              <ThreeSandbox
+                code={code}
+                onRegenerate={onRegenerateThree}
+                previewExportBase={previewExportBase}
+              />
             ) : (
               <CodeFrame copyCode={copyCode}>{props.children}</CodeFrame>
             );

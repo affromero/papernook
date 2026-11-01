@@ -52,11 +52,25 @@ const runtimeBuild = await build({
     contents: `
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { enableSnapshots } from "./scripts/conversations/snapshots.ts";
 if (!THREE.WebGLRenderer) throw new Error("Three.js runtime is incomplete.");
+let redraw;
+class SnapshotRenderer extends THREE.WebGLRenderer {
+  constructor(options) {
+    super(options);
+    const originalRender = this.render.bind(this);
+    this.render = (scene, camera) => {
+      const result = originalRender(scene, camera);
+      redraw = () => { originalRender(scene, camera); return this.domElement; };
+      return result;
+    };
+  }
+}
 (() => {
-  globalThis.THREE = THREE;
+  globalThis.THREE = { ...THREE, WebGLRenderer: SnapshotRenderer };
   globalThis.OrbitControls = OrbitControls;
   globalThis.papernookThreeRuntimeReady = true;
+  enableSnapshots(Promise.resolve(), true, () => redraw?.() ?? null);
   globalThis.dispatchEvent(new Event("papernook-three-runtime-ready"));
 })();
 `,

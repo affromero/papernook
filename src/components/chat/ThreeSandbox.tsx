@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./ThreeSandbox.module.css";
+import { SnapshotButton } from "@/components/conversations/previews/SnapshotButton";
 
-const SANDBOX_VERSION = 7;
+const SANDBOX_VERSION = 8;
 const DIAGNOSTIC_KINDS = new Set([
   "bootstrap-decode-failed",
   "module-evaluation-failed",
@@ -95,9 +96,11 @@ export function threeSandboxUrl(code: string): string {
 export function ThreeSandbox({
   code,
   onRegenerate,
+  previewExportBase,
 }: {
   code: string;
   onRegenerate?: () => void;
+  previewExportBase?: string;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [failureCode, setFailureCode] = useState<string | null>(null);
@@ -159,6 +162,14 @@ export function ThreeSandbox({
         >
           Regenerate in chat
         </button>
+      )}
+      {previewExportBase && (
+        <SnapshotButton
+          kind="threejs"
+          source={code.replace(/\n$/, "")}
+          url={previewExportBase}
+          getFrame={() => iframeRef.current?.contentWindow}
+        />
       )}
     </div>
   );

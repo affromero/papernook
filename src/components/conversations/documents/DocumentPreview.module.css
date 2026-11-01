@@ -1,0 +1,67 @@
+.root {
+  margin: auto;
+  min-width: 0;
+  width: min(1100px, 94vw);
+  max-height: 90dvh;
+  color: var(--reader-ink, var(--foreground));
+  background: var(--reader-paper, var(--background));
+  padding: 16px;
+  border: 1px solid var(--reader-border, #777);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+.root::backdrop {
+  background: #0008;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.header h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.header button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
+  color: inherit;
+  background: var(--reader-paper, var(--background));
+  border: 1px solid var(--reader-border, #777);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.root img {
+  max-width: 100%;
+  height: auto;
+}
+.root section + section {
+  margin-top: 24px;
+}
+.text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.table {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.table table {
+  border-collapse: collapse;
+  font: inherit;
+}
+.table td {
+  border: 1px solid var(--reader-border, #777);
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  min-width: 4em;
+}
+.pdf {
+  height: 680px;
+  width: 100%;
+  min-width: 0;
+}

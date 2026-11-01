@@ -1,6 +1,46 @@
 import { expect, test } from "@playwright/test";
 import { restoreMayaSession } from "../support/member-session";
 
+test("the composer waits for hydration before accepting the first input", async ({
+  page,
+}) => {
+  await restoreMayaSession(page);
+  const response = await page.request.post("/api/v1/conversations", {
+    data: { format: "markdown", content: "Source for the hydration check" },
+  });
+  expect(response.ok()).toBe(true);
+  const { conversation } = await response.json();
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(
+    (url) =>
+      url.pathname.startsWith("/_next/static/") && url.pathname.endsWith(".js"),
+    async (route) => {
+      await ready;
+      await route.continue();
+    },
+  );
+  try {
+    await page.goto(`/conversations/${conversation.id}`, {
+      waitUntil: "commit",
+    });
+    const field = page.locator('textarea[aria-label="Question"]');
+    await expect(field).toBeDisabled();
+    release();
+    await field.fill("First question after loading");
+    await expect(
+      page.getByRole("button", { name: "Send", exact: true }),
+    ).toBeEnabled();
+    await expect(field).toHaveValue("First question after loading");
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: "wait" });
+    await page.request.delete(`/api/v1/conversations/${conversation.id}`);
+  }
+});
+
 test("reading earlier follow-up text stays in place while a reply streams and finishes", async ({
   page,
 }) => {

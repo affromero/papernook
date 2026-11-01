@@ -13,7 +13,8 @@ import { normalizeMath } from "@/lib/chat/normalize-math";
 import { normalizeProviderText } from "@/lib/chat/normalize-provider-text";
 import type { ShareMarkupContext } from "@/lib/chat/normalize-share-markup";
 import { readAsset } from "@/lib/conversations/assets";
-import { prepareSvg } from "@/lib/conversations/preview";
+import { isPreviewKind } from "@/lib/conversations/preview";
+import { staticPreview } from "@/lib/conversations/previews/static";
 import { rehypeShareLayouts } from "@/lib/chat/layout/rehype-share-layouts";
 
 export const STUDY_CSP =
@@ -93,27 +94,71 @@ function safeLinks(context: ExportMessageContext) {
         }
         if (child.tagName === "pre") {
           const code = child.children[0];
+          const kind =
+            code?.type === "element"
+              ? String(code.properties.className).match(
+                  /language-([\w-]+)/,
+                )?.[1]
+              : undefined;
           if (
             code?.type === "element" &&
-            String(code.properties.className).includes("language-svg-preview")
+            kind &&
+            (isPreviewKind(kind) || kind === "threejs")
           ) {
             const text = code.children
               .map((node) => (node.type === "text" ? node.value : ""))
               .join("");
             try {
-              const svg = prepareSvg(text);
+              const preview = staticPreview(
+                kind,
+                text.replace(/\n$/, ""),
+                context,
+              );
               child.tagName = "div";
-              child.children = [
-                {
-                  type: "element",
-                  tagName: "img",
-                  properties: {
-                    src: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
-                    alt: "Imported SVG diagram",
+              const details: Element = {
+                type: "element",
+                tagName: "details",
+                properties: {},
+                children: [
+                  {
+                    type: "element",
+                    tagName: "summary",
+                    properties: {},
+                    children: [{ type: "text", value: "Display source" }],
                   },
-                  children: [],
-                },
-              ];
+                  {
+                    type: "element",
+                    tagName: "pre",
+                    properties: {},
+                    children: [code],
+                  },
+                ],
+              };
+              child.children = [
+                ...(preview ?? [
+                  {
+                    type: "element" as const,
+                    tagName: "p",
+                    properties: {},
+                    children: [
+                      {
+                        type: "text" as const,
+                        value:
+                          "Interactive display. Use Save image for export in the conversation to include its appearance.",
+                      },
+                    ],
+                  },
+                ]),
+                details,
+              ] as Element["children"];
+              // Included images are generated locally from validated bytes. Resolve card assets below.
+              for (const item of child.children)
+                if (
+                  item.type === "element" &&
+                  item.tagName !== "img" &&
+                  item !== details
+                )
+                  visit(item);
               continue;
             } catch {
               // Preserve the source when the provider uses unsupported diagram syntax.

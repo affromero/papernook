@@ -1,3 +1,17 @@
+const previewKinds = [
+  "svg-preview",
+  "html-preview",
+  "mermaid",
+  "react-preview",
+  "notebook-preview",
+  "card-preview",
+  "mcp-preview",
+] as const;
+export type PreviewKind = (typeof previewKinds)[number];
+export function isPreviewKind(value: string): value is PreviewKind {
+  return previewKinds.some((kind) => kind === value);
+}
+
 function xml(value: string | number): string {
   return String(value).replace(
     /[&<>"']/g,
