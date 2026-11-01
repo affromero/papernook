@@ -1,11 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { restoreMayaSession } from "../support/member-session";
 import { buildSync } from "esbuild";
-import { fileURLToPath } from "node:url";
-
-const sdkEntry = fileURLToPath(
-  import.meta.resolve("@modelcontextprotocol/ext-apps"),
-);
+const sdkEntry = require.resolve("@modelcontextprotocol/ext-apps");
 
 const sdk = buildSync({
   stdin: {
