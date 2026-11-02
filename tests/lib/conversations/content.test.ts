@@ -4,6 +4,57 @@ import { normalizeProviderText } from "@/lib/chat/normalize-provider-text";
 import { prepareSvg } from "@/lib/conversations/preview";
 
 describe("rich conversation imports", () => {
+  it("keeps supplied attachment references while appending newly extracted media and citations", () => {
+    const source = importTranscript(
+      JSON.stringify({
+        messages: [
+          {
+            role: "assistant",
+            assets: [
+              {
+                kind: "image",
+                name: "Saved image",
+                url: "https://example.com/saved.png",
+              },
+            ],
+            citations: [
+              {
+                ref: "1",
+                title: "Saved source",
+                url: "https://example.com/saved",
+              },
+            ],
+            content: [
+              "![Saved image](#asset-0)",
+              { type: "image", url: "https://example.com/new.png" },
+              {
+                type: "text",
+                text: "New reference",
+                citations: [
+                  { title: "New source", url: "https://example.com/new" },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      "json",
+    );
+    const message = source.messages[0];
+    expect(message.assets?.map((asset) => asset.url)).toEqual([
+      "https://example.com/saved.png",
+      "https://example.com/new.png",
+    ]);
+    expect(message.content).toContain("#asset-0");
+    expect(message.content).toContain("#asset-1");
+    expect(message.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ref: "1", title: "Saved source" }),
+        expect.objectContaining({ title: "New source" }),
+      ]),
+    );
+  });
+
   it("retains large code samples with many literal backticks and their following text", () => {
     const code = "`x` ".repeat(70_000);
     const result = importTranscript(

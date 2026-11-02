@@ -5,6 +5,7 @@ import { citationLinks } from "./formats/citations";
 import { notebookOutput } from "./formats/notebook";
 import { previewKind, chartMime } from "./formats/presentation";
 import { hiddenContent } from "./formats/visibility";
+import { importedWidget, widgetMetadata } from "./widgets/import";
 import {
   citationSchema,
   object as asObject,
@@ -26,9 +27,13 @@ export type RichMessage = {
 };
 
 /** Keep visible multimodal content and the metadata needed to resolve it. */
-export function richMessage(value: unknown, metadata?: unknown): RichMessage {
-  const assets: ConversationAsset[] = [];
-  const citations: ConversationCitation[] = [];
+export function richMessage(
+  value: unknown,
+  metadata?: unknown,
+  supplied: Pick<RichMessage, "assets" | "citations"> = {},
+): RichMessage {
+  const assets: ConversationAsset[] = [...(supplied.assets ?? [])];
+  const citations: ConversationCitation[] = [...(supplied.citations ?? [])];
   function read(value: unknown, depth = 0): string {
     if (depth > 100) throw new Error("Imported content nesting is too deep.");
     if (typeof value === "string") return value;
@@ -41,6 +46,8 @@ export function richMessage(value: unknown, metadata?: unknown): RichMessage {
     if (!block) return "";
     const type = string(block.type ?? block.content_type);
     if (hiddenContent(block)) return "";
+    const widget = importedWidget(block, assets);
+    if (widget !== null) return widget;
     if (
       /^(audio_transcription|input_audio_transcription|transcription)$/.test(
         type,
@@ -233,7 +240,7 @@ export function richMessage(value: unknown, metadata?: unknown): RichMessage {
     }
   }
   return {
-    content,
+    content: widgetMetadata(content, meta, assets, citations),
     ...(assets.length ? { assets } : {}),
     ...(citations.length ? { citations } : {}),
   };

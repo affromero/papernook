@@ -28,7 +28,7 @@ import layoutStyles from "./shared-layout/SharedLayout.module.css";
 import { SharedLayoutIcon } from "./shared-layout/SharedLayoutIcon";
 import { SharedLayoutFavicon } from "./shared-layout/SharedLayoutFavicon";
 import { ExternalLinkPreview } from "./link-preview/ExternalLinkPreview";
-import { isPreviewKind } from "@/lib/conversations/preview";
+import { isPreviewKind, type PreviewKind } from "@/lib/conversations/preview";
 
 /** Source of a ```threejs fence, if that's what this <pre> wraps. */
 function threeCode(children: ReactNode): string | null {
@@ -105,6 +105,7 @@ export const Markdown = memo(function Markdown({
   citations,
   assetBase,
   renderArtifacts = false,
+  artifactKinds,
   linkPreviews = false,
   loadSiteIcons = false,
   previewExportBase,
@@ -125,6 +126,7 @@ export const Markdown = memo(function Markdown({
   citations?: ConversationCitation[];
   assetBase?: string;
   renderArtifacts?: boolean;
+  artifactKinds?: readonly PreviewKind[];
   linkPreviews?: boolean;
   loadSiteIcons?: boolean;
   previewExportBase?: string;
@@ -208,7 +210,11 @@ export const Markdown = memo(function Markdown({
           },
           pre(props) {
             const language = codeLanguage(props.children);
-            if (renderArtifacts && isPreviewKind(language)) {
+            if (
+              renderArtifacts &&
+              isPreviewKind(language) &&
+              (!artifactKinds || artifactKinds.includes(language))
+            ) {
               return (
                 <RichPreview
                   kind={language}

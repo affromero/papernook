@@ -22,6 +22,10 @@ import {
 import { DownloadButton } from "@/components/offline/DownloadButton";
 import { useConnection } from "@/components/offline/useConnection";
 import type { Conversation } from "@/lib/conversations/store";
+import {
+  conversationProvider,
+  refreshableShare,
+} from "@/lib/conversations/shares/urls";
 import type {
   ConversationAsset,
   ConversationCitation,
@@ -541,8 +545,8 @@ export function ConversationReader({
                 <p className={readerStyles.caption}>
                   Saved{" "}
                   {new Date(conversation.importedAt).toISOString().slice(0, 10)}{" "}
-                  · {conversation.provider} · {conversation.messages.length}{" "}
-                  messages · Private
+                  · {conversationProvider(conversation)} ·{" "}
+                  {conversation.messages.length} messages · Private
                 </p>
               </div>
               <div className={readerStyles.actions}>
@@ -571,19 +575,17 @@ export function ConversationReader({
                     <ExternalLink size={16} aria-hidden="true" /> Original share
                   </a>
                 )}
-                {conversation.sourceUrl &&
-                  (conversation.provider === "chatgpt" ||
-                    conversation.provider === "claude") && (
-                    <button
-                      type="button"
-                      onClick={() => void refreshContent()}
-                      disabled={busy || refreshing || !connected}
-                    >
-                      {refreshing
-                        ? "Refreshing shared content…"
-                        : "Refresh shared content"}
-                    </button>
-                  )}
+                {refreshableShare(conversation) && (
+                  <button
+                    type="button"
+                    onClick={() => void refreshContent()}
+                    disabled={busy || refreshing || !connected}
+                  >
+                    {refreshing
+                      ? "Refreshing shared content…"
+                      : "Refresh shared content"}
+                  </button>
+                )}
               </div>
             </div>
             {refreshing && (
@@ -662,7 +664,7 @@ export function ConversationReader({
               <div className={readerStyles.paper}>
                 <div className={readerStyles.documentTitle}>
                   <p className={readerStyles.eyebrow}>
-                    Conversation · {conversation.provider}
+                    Conversation · {conversationProvider(conversation)}
                   </p>
                   <p className={readerStyles.paperTitle}>
                     {conversation.title}
