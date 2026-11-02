@@ -126,7 +126,7 @@ export function ImportConversation({
         {source === "link" ? (
           <>
             <label>
-              Public ChatGPT or Claude share link
+              Public conversation share link
               <input
                 type="url"
                 required
@@ -137,7 +137,8 @@ export function ImportConversation({
               />
             </label>
             <p className={styles.hint}>
-              Paste a public ChatGPT or Claude conversation link.
+              Paste a public ChatGPT, Claude, Gemini, Grok or Perplexity
+              conversation link.
             </p>
           </>
         ) : (

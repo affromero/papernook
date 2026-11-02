@@ -2,9 +2,11 @@ import { Parser } from "htmlparser2";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import remarkRehype from "remark-rehype";
 import type { Element, Root, RootContent } from "hast";
 import { cardMarkdown } from "../formats/cards";
+import { widgetMarkdown } from "../widgets/render";
 import { notebookPresentation } from "../formats/presentation";
 import { prepareSvg } from "../preview";
 import type { ShareMarkupContext } from "@/lib/chat/normalize-share-markup";
@@ -95,14 +97,29 @@ export function staticPreview(
         "Imported SVG diagram",
       ),
     ];
-  if (kind === "card-preview") {
-    const markdown = cardMarkdown(
-      JSON.parse(source) as unknown,
-      context.assets,
-    );
+  if (kind === "card-preview" || kind === "widget-preview") {
+    let markdown: string;
+    try {
+      const parsed: unknown = JSON.parse(source);
+      markdown =
+        kind === "widget-preview"
+          ? widgetMarkdown(parsed, context.assets)
+          : cardMarkdown(parsed, context.assets);
+    } catch (error) {
+      if (kind !== "widget-preview") throw error;
+      return [
+        element("p", [
+          {
+            type: "text",
+            value: `Saved widget could not be rendered: ${error instanceof Error ? error.message : "Unsupported display data."}`,
+          },
+        ]),
+      ];
+    }
     const pipeline = unified()
       .use(remarkParse)
       .use(remarkGfm)
+      .use(remarkMath)
       .use(remarkRehype)
       .use(rehypeShareLayouts, context);
     return pipeline.runSync(

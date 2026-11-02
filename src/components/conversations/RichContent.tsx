@@ -7,6 +7,7 @@ import type { PreviewKind } from "@/lib/conversations/preview";
 import dynamic from "next/dynamic";
 import { snapshotBridge } from "@/lib/conversations/formats/mcp";
 import { cardMarkdown } from "@/lib/conversations/formats/cards";
+import { widgetMarkdown } from "@/lib/conversations/widgets/render";
 import { object, text } from "@/lib/conversations/formats/schema";
 import { Markdown } from "@/components/chat/Markdown";
 import { SnapshotButton } from "./previews/SnapshotButton";
@@ -137,11 +138,16 @@ export function RichPreview({
   let cardContent = "";
   let cardError = "";
   let cardActions: string[] = [];
-  if (kind === "card-preview") {
+  const native = kind === "card-preview" || kind === "widget-preview";
+  if (native) {
     try {
       const card: unknown = JSON.parse(source);
-      cardContent = cardMarkdown(card, assets, false);
-      const actions = object(card)?.actions;
+      cardContent =
+        kind === "widget-preview"
+          ? widgetMarkdown(card, assets)
+          : cardMarkdown(card, assets, false);
+      const actions =
+        kind === "card-preview" ? object(card)?.actions : undefined;
       cardActions = Array.isArray(actions)
         ? actions.map((action) => text(object(action)?.title) || "Card action")
         : [];
@@ -180,13 +186,22 @@ export function RichPreview({
   }, [kind, source]);
   return (
     <div className={styles.preview}>
-      {kind === "card-preview" ? (
-        <section role="region" aria-label="Adaptive Card">
+      {native ? (
+        <section
+          role="region"
+          aria-label={
+            kind === "widget-preview" ? "Saved widget" : "Adaptive Card"
+          }
+        >
           <Markdown
             content={cardContent}
             assets={assets}
             assetBase={assetBase}
             paperRefs={false}
+            renderArtifacts={kind === "widget-preview"}
+            artifactKinds={["svg-preview"]}
+            linkPreviews
+            loadSiteIcons
           />
           {cardActions.map((title, index) => (
             <button key={index} type="button" disabled>
@@ -218,7 +233,7 @@ export function RichPreview({
         />
       )}
       {(error || cardError) && <p role="alert">{error || cardError}</p>}
-      {previewExportBase && kind !== "card-preview" && (
+      {previewExportBase && !native && (
         <SnapshotButton
           kind={kind}
           source={source}

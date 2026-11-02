@@ -18,6 +18,8 @@ import { createTestProfile, testSession } from "../../helpers/access";
 import { pngFixture } from "../../helpers/png";
 import { savePreview } from "@/lib/conversations/previews/cache";
 import { previewHash } from "@/lib/conversations/previews/source";
+import { richMessage } from "@/lib/conversations/content";
+import { widgetParts } from "../../helpers/conversation-widgets";
 
 const session = vi.hoisted(() => ({ token: "" }));
 vi.mock("next/headers", () => ({
@@ -40,6 +42,33 @@ afterEach(() => {
 });
 
 describe("portable study exports", () => {
+  it("embeds native widget plots and values in private source snapshots without depending on the provider", async () => {
+    const parsed = richMessage(widgetParts);
+    const source = createConversation("alice", {
+      title: "Saved widgets",
+      topic: "Research",
+      tags: [],
+      provider: "transcript",
+      sourceUrl: "https://gemini.google.com/share/0123456789ab",
+      messages: [{ role: "assistant", ...parsed }],
+    });
+    expect(conversationSnapshot("bob", source.id)).toBeNull();
+    const response = await GET(
+      new Request(
+        `https://local/api/v1/conversations/${source.id}/export?format=html`,
+      ),
+      { params: Promise.resolve({ id: source.id }) },
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Example City");
+    expect(html).toContain("104.25 USD");
+    expect(html).toContain("0 – Not provided");
+    expect(html).toContain("Library");
+    expect(html).toContain("data:image/svg+xml;base64,");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<iframe");
+  });
   it("retains native card columns in the visible portable document", () => {
     const card = {
       type: "AdaptiveCard",

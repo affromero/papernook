@@ -158,7 +158,7 @@ function safeLinks(context: ExportMessageContext) {
                   item.tagName !== "img" &&
                   item !== details
                 )
-                  visit(item);
+                  visit({ type: "root", children: [item] });
               continue;
             } catch {
               // Preserve the source when the provider uses unsupported diagram syntax.

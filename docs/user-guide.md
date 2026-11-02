@@ -6,7 +6,8 @@
 
 ### Import a conversation
 
-Open **Conversations** and paste a public ChatGPT or Claude share URL. Submit
+Open **Conversations** and paste a public ChatGPT, Claude, Gemini, Grok or
+Perplexity share URL. Submit
 the import to save a private source snapshot and open its Papernook page.
 The original URL stays available through **Original share**. Removing the share
 or deleting the original conversation later does not delete the imported copy.
@@ -76,14 +77,15 @@ or application behind it.
 | SVG, Mermaid and Three.js                            | Isolated previews for recognized diagrams and code.                                                                                                                                                       |
 | HTML applications                                    | Isolated previews with included scripts and styles. External script dependencies are unsupported.                                                                                                         |
 | React/JSX artifacts                                  | Included JSX/TSX runs in the isolated preview. Local imports support React, React DOM, Recharts and Lucide. Other modules report an error.                                                                |
-| Charts and maps                                      | Plotly, Vega, Vega-Lite and GeoJSON display from included data. Provider map, search, finance, weather and sports widgets need verified export adapters.                                                  |
+| Charts and maps                                      | Plotly, Vega, Vega-Lite and GeoJSON display from included data. Saved provider charts and map coordinates render with their value tables.                                                                 |
+| Search, galleries, weather, quotes and schedules     | Recognized exported display metadata renders as native cards, images, charts and tables. Units, timestamps and missing values are preserved. Missing state reports an explanation and keeps its source.   |
 | Notebook outputs                                     | MIME bundles retain all representations. Displays select HTML, images, SVG, LaTeX, supported chart specifications or text. Standard saved widget values display without a kernel.                         |
 | PDF, Word, spreadsheets, presentations and notebooks | **Preview document** opens attached PDFs, CSV/TSV, DOCX, XLSX, PPTX and notebooks. Office previews show text, tables and embedded images. Download the original for exact layout or unsupported features. |
 | Audio and video                                      | Players for supported attachments and MIME types. Raw PCM is preserved as a download with its declared format; playback requires conversion.                                                              |
 | Citations                                            | Source links, ChatGPT metadata, OpenAI URL annotations and Claude web citation locations. Encrypted citation data and hidden reasoning stay excluded.                                                     |
 | Adaptive Cards and MCP Apps                          | Cards display text, facts, tables and included images. MCP displays require an included HTML template and saved visible result. Account actions and tool calls are unavailable.                           |
 | Quizzes, flashcards, simulations and dashboards      | Can render as included HTML. Native provider Canvas state and connected services are unsupported.                                                                                                         |
-| Other provider share URLs                            | ChatGPT and Claude share links are supported. Other services need a compatible transcript export.                                                                                                         |
+| Public share URLs                                    | ChatGPT, Claude, Gemini, Grok and Perplexity. Imports report private, unavailable, incomplete or unsupported responses. Provider format changes can require a compatible transcript export.               |
 
 Portable exports retain native layouts, formulas and saved attachments.
 Notebook HTML tables and images export directly. Use **Save image for export**
@@ -91,6 +93,21 @@ below an interactive display to include its current appearance in HTML, PDF and
 offline copies. Source remains available alongside the saved image. Refresh an
 offline copy after saving a new image. Captures are private to the conversation
 owner, limited to 2 MB each and 16 MB per conversation.
+
+Native saved widgets export their values, generated plots and included images
+directly. Quotes and forecasts describe the saved snapshot. Maps show supplied
+coordinates without downloading map tiles. These views do not fetch live data.
+
+![A saved quote and chart with its data table](images/conversations/provider-widgets-desktop.png)
+
+![The saved quote and chart on a phone](images/conversations/provider-widgets-mobile.png)
+
+Public Gemini, Grok and Perplexity imports were checked against anonymous public
+responses. Native widget fixtures use exported search, gallery and chart
+contracts and captured provider component schemas for weather, quotes,
+schedules and maps. A component schema establishes how included state is read;
+it does not guarantee that every public share exposes that state. Older imports
+that discarded widget metadata need their original export imported again.
 
 Artifacts use included resources. External scripts, remote chart datasets,
 live notebook kernels and provider account services are unavailable. React

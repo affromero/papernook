@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requestIdentity } from "@/lib/auth/access";
 import { profilePageFiles } from "@/lib/auth/platform/page-access";
 import { listConversations } from "@/lib/conversations/store";
+import { conversationProvider } from "@/lib/conversations/shares/urls";
 import { AccountBar } from "@/components/profiles/AccountBar";
 import { LibraryNavigation } from "@/components/conversations/LibraryNavigation";
 import { ImportConversation } from "@/components/conversations/ImportConversation";
@@ -92,8 +93,8 @@ export default async function Conversations({
               <Link href={`/conversations/${record.id}`}>{record.title}</Link>
             </h2>
             <p>
-              {record.topic} · {record.provider} · {record.messages.length}{" "}
-              messages
+              {record.topic} · {conversationProvider(record)} ·{" "}
+              {record.messages.length} messages
             </p>
             <p>{record.tags.join(", ")}</p>
           </article>

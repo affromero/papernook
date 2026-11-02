@@ -3,6 +3,9 @@ import { readBoundedResponse } from "@/lib/capture/bounded-response";
 import { assetSchema, citationSchema, richMessage } from "./content";
 import { notebookTranscript } from "./formats/notebook";
 import { hiddenContent } from "./formats/visibility";
+import { shareProvider } from "./shares/urls";
+import { loadProviderShare } from "./shares";
+export { shareProvider } from "./shares/urls";
 import {
   MAX_TRANSCRIPT_BYTES,
   sourceSchema,
@@ -14,33 +17,6 @@ function object(value: unknown): ObjectValue | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as ObjectValue)
     : null;
-}
-export function shareProvider(input: string): "chatgpt" | "claude" {
-  const url = new URL(input);
-  if (
-    url.protocol !== "https:" ||
-    url.username ||
-    url.password ||
-    url.port ||
-    url.search ||
-    url.hash
-  )
-    throw new Error(
-      "Use a canonical HTTPS public share URL without query parameters.",
-    );
-  if (
-    url.hostname === "chatgpt.com" &&
-    /^\/share\/[a-f0-9-]{36}\/?$/.test(url.pathname)
-  )
-    return "chatgpt";
-  if (
-    url.hostname === "claude.ai" &&
-    /^\/share\/[a-f0-9-]{36}\/?$/.test(url.pathname)
-  )
-    return "claude";
-  throw new Error(
-    "Supported share links are https://chatgpt.com/share/... and https://claude.ai/share/...",
-  );
 }
 function message(
   value: unknown,
@@ -59,11 +35,17 @@ function message(
   const rich = richMessage(
     record.content ?? record.text ?? record.parts,
     metadata,
+    {
+      ...(record.assets !== undefined
+        ? { assets: assetSchema.array().max(100).parse(record.assets) }
+        : {}),
+      ...(record.citations !== undefined
+        ? {
+            citations: citationSchema.array().max(1000).parse(record.citations),
+          }
+        : {}),
+    },
   );
-  if (record.assets !== undefined && !rich.assets)
-    rich.assets = assetSchema.array().max(100).parse(record.assets);
-  if (record.citations !== undefined && !rich.citations)
-    rich.citations = citationSchema.array().max(1000).parse(record.citations);
   const content = rich.content.trim();
   return content ? { ...rich, role, content } : null;
 }
@@ -225,6 +207,20 @@ export async function importShare(url: string): Promise<ConversationSource> {
     throw new Error("Too many imports are running. Try again shortly.");
   inflight++;
   try {
+    if (provider !== "chatgpt" && provider !== "claude") {
+      const source = await loadProviderShare(url);
+      return sourceSchema.parse({
+        title: source.title,
+        topic: "Uncategorized",
+        tags: [],
+        provider: "transcript",
+        sourceUrl: url,
+        messages: source.messages.flatMap((value) => {
+          const parsed = message(value);
+          return parsed ? [parsed] : [];
+        }),
+      });
+    }
     const fetched = await fetchPublicUrl(url);
     if (!fetched.response.ok) {
       await fetched.response.body?.cancel();

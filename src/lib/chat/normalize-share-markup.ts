@@ -25,12 +25,27 @@ function attribute(tag: string, name: string): string {
   return match?.[1] ?? match?.[2] ?? "";
 }
 
-function label(text: string): string {
+export function escapeMarkdownLabel(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/[\\`*_[\]{}]/g, "\\$&");
+}
+
+export function formatShareLink(title: string, url: string): string {
+  const label = escapeMarkdownLabel(title || url);
+  try {
+    const parsed = new URL(url);
+    if (!/^https?:$/.test(parsed.protocol)) return label;
+    const href = parsed.href.replace(
+      /[()<>]/g,
+      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+    return `[${label}](${href})`;
+  } catch {
+    return label;
+  }
 }
 export function providerCitations(
   refs: string[],
@@ -41,7 +56,7 @@ export function providerCitations(
     .filter((citation): citation is ConversationCitation => Boolean(citation))
     .map(
       (citation) =>
-        `[${label(citation.title)}](<${citation.url.replace(/>/g, "%3E")}>)`,
+        `[${escapeMarkdownLabel(citation.title)}](<${citation.url.replace(/>/g, "%3E")}>)`,
     )
     .join(" · ");
 }
@@ -91,7 +106,7 @@ export function normalizeShareMarkup(
                   (asset) => asset.kind === "image" && asset.ref === ref,
                 ) ?? -1;
               return index >= 0
-                ? `![${label(context.assets![index].name)}](#asset-${index})`
+                ? `![${escapeMarkdownLabel(context.assets![index].name)}](#asset-${index})`
                 : "[Image unavailable in this saved copy. Refresh shared content or open the original share.]";
             }
             if (name === "Cite") {
@@ -100,22 +115,11 @@ export function normalizeShareMarkup(
               );
               return providerCitations(refs, context);
             }
-            if (name === "Entity") return label(attribute(tag, "value"));
+            if (name === "Entity")
+              return escapeMarkdownLabel(attribute(tag, "value"));
             if (name !== "Link" || tag.startsWith("</")) return "";
             const url = attribute(tag, "url");
-            const title = label(attribute(tag, "title") || url);
-            try {
-              const parsed = new URL(url);
-              if (!/^https?:$/.test(parsed.protocol)) return title;
-              const href = parsed.href.replace(
-                /[()<>]/g,
-                (character) =>
-                  `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
-              );
-              return `[${title}](${href})`;
-            } catch {
-              return title;
-            }
+            return formatShareLink(attribute(tag, "title"), url);
           },
         );
         return insideLayout ? result.trimStart() : result;

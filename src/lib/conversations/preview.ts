@@ -6,13 +6,14 @@ const previewKinds = [
   "notebook-preview",
   "card-preview",
   "mcp-preview",
+  "widget-preview",
 ] as const;
 export type PreviewKind = (typeof previewKinds)[number];
 export function isPreviewKind(value: string): value is PreviewKind {
   return previewKinds.some((kind) => kind === value);
 }
 
-function xml(value: string | number): string {
+export function escapeXml(value: string | number): string {
   return String(value).replace(
     /[&<>"']/g,
     (character) =>
@@ -92,7 +93,7 @@ export function prepareSvg(source: string): string {
       .replace(
         /([\w-]+)=\{([^{}]+)\}/g,
         (_match, name: string, expression: string) =>
-          `${name}="${xml(coordinate(expression, scope))}"`,
+          `${name}="${escapeXml(coordinate(expression, scope))}"`,
       )
       .replace(
         /(<text\b[^>]*>)([\s\S]*?)(<\/text>)/g,
@@ -100,7 +101,7 @@ export function prepareSvg(source: string): string {
           open +
           text.replace(/\{([^{}]+)\}/g, (literal, expression: string) => {
             try {
-              return xml(coordinate(expression, scope));
+              return escapeXml(coordinate(expression, scope));
             } catch {
               return literal;
             }

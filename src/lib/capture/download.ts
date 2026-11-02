@@ -139,6 +139,7 @@ export async function fetchPublicUrl(
   signal?: AbortSignal,
   exchange?: {
     body: string;
+    contentType?: "application/json" | "application/x-www-form-urlencoded";
     token?: string;
     trustedOrigin?: string;
     authorize?: () => void;
@@ -186,8 +187,11 @@ export async function fetchPublicUrl(
         body: exchange?.body,
         headers: {
           "User-Agent": USER_AGENT,
-          ...(exchange ? { "Content-Type": "application/json" } : {}),
           ...(exchange
+            ? { "Content-Type": exchange.contentType ?? "application/json" }
+            : {}),
+          ...(exchange &&
+          exchange.contentType !== "application/x-www-form-urlencoded"
             ? {
                 "X-Sharing-Operation": String(
                   (JSON.parse(exchange.body) as { action?: string }).action ??
