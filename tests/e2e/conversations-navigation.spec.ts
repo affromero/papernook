@@ -314,7 +314,7 @@ for (const width of [1440, 390, 320]) {
       nav.getByRole("link", { name: "Conversations", exact: true }),
     ).toHaveAttribute("aria-current", "page");
     await page
-      .getByLabel("Public ChatGPT or Claude share link")
+      .getByLabel("Public conversation share link")
       .fill("https://chatgpt.com/share/example");
     await expect(
       page.getByRole("button", { name: "Import conversation", exact: true }),
@@ -349,7 +349,7 @@ test("source switching preserves drafts and imports only the selected transcript
   });
   await expect(submit).toBeDisabled();
   const url = "https://chatgpt.com/share/example";
-  await page.getByLabel("Public ChatGPT or Claude share link").fill(url);
+  await page.getByLabel("Public conversation share link").fill(url);
   await expect(submit).toBeEnabled();
   await page.getByRole("button", { name: "Paste or upload" }).click();
   await expect(submit).toBeDisabled();
@@ -359,9 +359,9 @@ test("source switching preserves drafts and imports only the selected transcript
     .getByRole("textbox", { name: "Transcript", exact: true })
     .fill(transcript);
   await page.getByRole("button", { name: "Share link", exact: true }).click();
-  await expect(
-    page.getByLabel("Public ChatGPT or Claude share link"),
-  ).toHaveValue(url);
+  await expect(page.getByLabel("Public conversation share link")).toHaveValue(
+    url,
+  );
   await page.getByRole("button", { name: "Paste or upload" }).click();
   await expect(
     page.getByRole("textbox", { name: "Transcript", exact: true }),

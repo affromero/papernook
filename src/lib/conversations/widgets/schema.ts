@@ -5,7 +5,7 @@ import {
   formatShareLink,
 } from "@/lib/chat/normalize-share-markup";
 import { formatTableCell } from "@/lib/chat/format/table";
-export { object, text, http };
+export { object, text };
 
 export type WidgetKind =
   | "gallery"

@@ -1,7 +1,7 @@
 import { object, text, http } from "../formats/schema";
 import type { ConversationCitation } from "../formats/schema";
 import { hiddenContent } from "../formats/visibility";
-export { object, text, http };
+export { object, text };
 
 export interface ShareMessage {
   role: "user" | "assistant";
