@@ -276,6 +276,54 @@ test("paper header copies the original source link", async ({
     .toBe("https://arxiv.org/abs/1706.03762");
 });
 
+test("sharing remains available when the paper header is hidden", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  await expect(
+    page.getByRole("button", { name: "Share", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Hide header" }).click();
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Create a view-only reading" }),
+  ).toBeVisible();
+});
+
+test("paper search finds text and reports missing matches", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  await expect(page.getByText("Page 1 of 3")).toBeVisible();
+  await page.keyboard.press("Control+f");
+  const search = page.getByRole("searchbox", { name: "Find in paper" });
+  await expect(search).toBeFocused();
+  await search.fill("attention");
+  await expect(page.locator(".textLayer .highlight").first()).toBeVisible();
+  await search.fill("unfindablewordxyz");
+  await expect(page.getByText("No matches")).toBeVisible();
+  await search.press("Escape");
+  await expect(search).toBeHidden();
+});
+
+test("chat editing keys work while a PDF annotation tool is active", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  const draw = page.getByRole("button", { name: "Draw", exact: true });
+  await expect(draw).toBeEnabled();
+  await draw.click();
+  const input = page.getByPlaceholder(/Ask about the paper/);
+  await input.fill("abcd");
+  await input.press("ArrowLeft");
+  await input.press("Delete");
+  await input.press("Backspace");
+  await expect(input).toHaveValue("ab");
+});
+
 test("external viewer copies the original URL with its query and fragment", async ({
   context,
   page,
@@ -464,8 +512,6 @@ test("arrow keys recall sent messages and restore the unsent draft", async ({
     textarea.setSelectionRange(0, 0);
   });
   await input.press("ArrowUp");
-  await expect(input).toHaveValue("The most recent question about recurrence.");
-  await input.press("ArrowDown");
   await expect(input).toHaveValue("Keep this exact unsent draft.");
 
   await input.fill("First draft line\nSecond draft line");

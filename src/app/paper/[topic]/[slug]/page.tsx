@@ -14,6 +14,7 @@ import styles from "./paper.module.css";
 import { readConnection } from "@/lib/sharing/storage";
 import { CollaborationPanel } from "@/components/share/SharingControls";
 import { PaperExercises } from "@/components/share/StudyArtifacts";
+import { ShareButton } from "@/components/share/ShareButton";
 
 export const dynamic = "force-dynamic";
 
@@ -48,9 +49,12 @@ export default async function PaperPage({ params }: PaperPageProps) {
       <ReadingWorkspace
         mainLabel="Paper PDF"
         actions={
-          <DownloadButton
-            snapshotUrl={`/api/v1/offline/papers/${topic}/${slug}`}
-          />
+          <>
+            <ShareButton topic={topic} slug={slug} />
+            <DownloadButton
+              snapshotUrl={`/api/v1/offline/papers/${topic}/${slug}`}
+            />
+          </>
         }
         header={
           <>
@@ -64,6 +68,7 @@ export default async function PaperPage({ params }: PaperPageProps) {
           <PdfReader
             src={`/api/v1/papers/${topic}/${slug}/pdf`}
             title={meta.title}
+            searchShortcut
             editable={!connection || connection.username === profile.username}
             libraryLookup
             chatPrompts={aiAvailable}

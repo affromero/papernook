@@ -41,6 +41,7 @@ interface CitationTarget {
 export interface ViewerEventBus {
   on(name: string, listener: (event: unknown) => void): void;
   off(name: string, listener: (event: unknown) => void): void;
+  dispatch(name: string, event: object): void;
 }
 
 interface UseCitationHotspotsOptions {

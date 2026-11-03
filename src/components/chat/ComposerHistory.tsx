@@ -142,13 +142,7 @@ export function useComposerHistory({
 
     if (index === null) {
       if (event.key === "ArrowDown" || sentHistory.length === 0) return false;
-      const textarea = event.currentTarget;
-      const selectionIsCollapsed =
-        textarea.selectionStart === textarea.selectionEnd;
-      const isAtHistoryBoundary =
-        input.length === 0 ||
-        (selectionIsCollapsed && textarea.selectionStart === 0);
-      if (!isAtHistoryBoundary) return false;
+      if (input.length !== 0) return false;
       draftRef.current = input;
       recall(0);
       return true;

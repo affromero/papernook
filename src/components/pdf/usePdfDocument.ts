@@ -314,8 +314,13 @@ export function usePdfDocument({
     void (async () => {
       try {
         const pdfjs = await import("pdfjs-dist");
-        const { EventBus, LinkTarget, PDFLinkService, PDFViewer } =
-          await import("pdfjs-dist/web/pdf_viewer.mjs");
+        const {
+          EventBus,
+          LinkTarget,
+          PDFFindController,
+          PDFLinkService,
+          PDFViewer,
+        } = await import("pdfjs-dist/web/pdf_viewer.mjs");
 
         pdfjs.GlobalWorkerOptions.workerSrc = new URL(
           "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -329,11 +334,13 @@ export function usePdfDocument({
           externalLinkRel: "noopener noreferrer nofollow",
           ignoreDestinationZoom: true,
         });
+        const findController = new PDFFindController({ eventBus, linkService });
         const pdfViewer = new PDFViewer({
           container,
           viewer: viewerElement,
           eventBus,
           linkService,
+          findController,
           removePageBorders: true,
           imageResourcesPath: "/offline/pdf/images/",
           annotationEditorMode: editable

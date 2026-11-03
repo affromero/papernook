@@ -44,7 +44,7 @@ export function PaperHeader({ topic, slug, meta, view }: PaperHeaderProps) {
           <span className={styles.theme}>
             <ThemeToggle />
           </span>
-          <ShareButton topic={topic} slug={slug} />
+          {view === "canvas" && <ShareButton topic={topic} slug={slug} />}
           <CitationActions topic={topic} slug={slug} />
         </nav>
       </div>

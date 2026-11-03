@@ -1,4 +1,5 @@
 .root {
+  position: relative;
   container-type: inline-size;
   display: flex;
   flex-direction: column;
@@ -59,6 +60,29 @@
 
 .toolbarGroup:last-child {
   justify-content: flex-end;
+}
+
+.findBar {
+  position: absolute;
+  z-index: 20;
+  top: 48px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  color: #27322b;
+  background: #f4f5f2;
+  border: 1px solid #c8cbc7;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px #0003;
+}
+
+.findBar input {
+  width: min(12rem, 35vw);
+}
+.findBar span {
+  white-space: nowrap;
 }
 
 .toolbar button,
