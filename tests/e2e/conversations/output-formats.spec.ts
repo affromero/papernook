@@ -40,7 +40,7 @@ for (const width of [1440, 390]) {
                   type: "artifact",
                   mime_type: "application/vnd.ant.react",
                   content:
-                    'import React, { useState } from "react"; import { createPortal } from "react-dom"; import { LineChart, Line } from "recharts"; export default function App(){ const [count,setCount]=useState(0); return <div className="p-4 bg-sky-100"><button onClick={()=>setCount(count+1)}>Count {count}</button>{createPortal(<p>Portal rendered</p>,document.body)}<LineChart width={260} height={100} data={[{value:1},{value:3}]}><Line dataKey="value"/></LineChart></div>; }',
+                    'import React, { useState } from "react"; import { createPortal } from "react-dom"; import { LineChart, Line } from "recharts"; export default function App(){ const [count,setCount]=useState(0); return <div className="p-4 bg-sky-100"><button onClick={()=>setCount(count+1)}>Count {count}</button>{createPortal(<p>Portal rendered</p>,document.body)}<LineChart width={260} height={100} data={[{value:1},{value:3}]}><Line dataKey="value" isAnimationActive={false}/></LineChart></div>; }',
                 },
                 {
                   output_type: "display_data",
@@ -235,12 +235,12 @@ for (const width of [1440, 390]) {
       await expect(react.getByText("Portal rendered")).toBeVisible();
       if (browserName === "chromium" && !testInfo.project.ignoreSnapshots) {
         if (width === 1440)
-          await expect(reactFrame.locator("..")).toHaveScreenshot(
+          await expect(react.locator("#artifact-root > div")).toHaveScreenshot(
             ["conversations", "output-formats-desktop.png"],
             { animations: "disabled" },
           );
         else
-          await expect(reactFrame.locator("..")).toHaveScreenshot(
+          await expect(react.locator("#artifact-root > div")).toHaveScreenshot(
             ["conversations", "output-formats-mobile.png"],
             { animations: "disabled" },
           );
