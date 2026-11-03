@@ -37,6 +37,7 @@ test("PDF colors stay unchanged while document appearance changes", async ({
   await page.reload();
   const pdfPage = page.locator(".pdfViewer .page").first();
   await expect(pdfPage.locator("canvas").first()).toBeVisible();
+  await expect(pdfPage.locator(".textLayer")).toBeVisible();
   const appearance = page.getByRole("combobox", {
     name: "Document appearance",
   });
@@ -55,7 +56,9 @@ test("PDF colors stay unchanged while document appearance changes", async ({
   await page.screenshot({ path: testInfo.outputPath("paper-dark.png") });
   await appearance.selectOption("light");
   await expect(pdfPage).toHaveCSS("filter", "none");
-  expect((await renderedPage()).equals(darkPage)).toBe(true);
+  await expect
+    .poll(async () => (await renderedPage()).equals(darkPage))
+    .toBe(true);
   await page.reload();
   await expect(appearance).toHaveValue("light");
   await expect(pdfPage).toHaveCSS("filter", "none");
@@ -67,7 +70,9 @@ test("PDF colors stay unchanged while document appearance changes", async ({
     "background-color",
     "rgb(32, 32, 32)",
   );
-  expect((await renderedPage()).equals(darkPage)).toBe(true);
+  await expect
+    .poll(async () => (await renderedPage()).equals(darkPage))
+    .toBe(true);
   await page.reload();
   await expect(appearance).toHaveValue("dark");
   await expect(pdfPage.locator("../../..")).toHaveCSS(

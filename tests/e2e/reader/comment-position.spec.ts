@@ -109,13 +109,19 @@ test("keyboard users can place a comment on the visible page", async ({
   const textarea = dialog.getByRole("textbox", { name: "Comment" });
   await expect(textarea).toBeFocused();
   const pageBounds = await pdfPage.boundingBox();
+  const stageBounds = await pdfPage.locator("../../..").boundingBox();
   const dialogBounds = await dialog.boundingBox();
   expect(pageBounds).not.toBeNull();
+  expect(stageBounds).not.toBeNull();
   expect(dialogBounds).not.toBeNull();
   const viewport = page.viewportSize()!;
   const anchorX =
-    (Math.max(pageBounds!.x, 0) +
-      Math.min(pageBounds!.x + pageBounds!.width, viewport.width)) /
+    (Math.max(pageBounds!.x, stageBounds!.x, 0) +
+      Math.min(
+        pageBounds!.x + pageBounds!.width,
+        stageBounds!.x + stageBounds!.width,
+        viewport.width,
+      )) /
     2;
   expect(
     Math.min(
