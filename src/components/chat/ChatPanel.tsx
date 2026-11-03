@@ -302,6 +302,13 @@ export function ChatPanel({
   }
 
   function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    // PDF.js installs window-level annotation shortcuts and treats textareas
+    // as annotation targets. Keep editing keys in the composer.
+    if (
+      ["backspace", "delete", "a", "z", "y"].includes(event.key.toLowerCase())
+    ) {
+      event.stopPropagation();
+    }
     if (history.onComposerKeyDown(event)) {
       event.preventDefault();
       return;

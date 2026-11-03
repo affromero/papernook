@@ -15,6 +15,7 @@ import {
 } from "@/lib/canvas/config";
 import styles from "../paper.module.css";
 import { readConnection } from "@/lib/sharing/storage";
+import { ShareButton } from "@/components/share/ShareButton";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,10 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
           />
         }
         collapsedHeaderActions={
-          <CopySourceLinkButton sourceUrl={paper.meta.sourceUrl} />
+          <>
+            <CopySourceLinkButton sourceUrl={paper.meta.sourceUrl} />
+            <ShareButton topic={topic} slug={slug} />
+          </>
         }
         main={
           connection && connection.username !== profile.username ? (

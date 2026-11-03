@@ -44,6 +44,7 @@ import { useMarginNotes } from "./notes/useMarginNotes";
 import { PdfComments } from "./PdfComments";
 import { usePinchZoom } from "./usePinchZoom";
 import { useSaveOnLeave } from "./useSaveOnLeave";
+import { PdfSearch } from "./search/PdfSearch";
 import {
   DocumentAppearanceSelect,
   useDocumentAppearance,
@@ -90,6 +91,7 @@ interface PdfReaderProps {
    * passes this; viewer/share/canvas readers stay silent.
    */
   bibliographyEndpoint?: string;
+  searchShortcut?: boolean;
 }
 
 export function PdfReader({
@@ -105,6 +107,7 @@ export function PdfReader({
   positionKey,
   positionEndpoint,
   bibliographyEndpoint,
+  searchShortcut = false,
 }: PdfReaderProps) {
   const appearance = useDocumentAppearance();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -558,6 +561,7 @@ export function PdfReader({
     >
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
+          <PdfSearch eventBus={viewerBus} shortcut={searchShortcut} />
           <button
             type="button"
             onClick={() => {

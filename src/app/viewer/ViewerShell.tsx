@@ -148,6 +148,7 @@ export function ViewerShell({ src, title }: ViewerShellProps) {
         </p>
       )}
       <PdfReader
+        searchShortcut
         src={`/api/v1/viewer/pdf?src=${encodeURIComponent(src)}`}
         title={displayTitle}
         originalHref={src}
