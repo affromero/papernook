@@ -30,7 +30,7 @@ export function SharedImport({ mode }: { mode: "fork" | "collaborate" }) {
   );
 }
 
-export function ImportOnInstance({ mode }: { mode: "fork" | "collaborate" }) {
+function ImportOnInstance({ mode }: { mode: "fork" | "collaborate" }) {
   const [instance, setInstance] = useState("");
   const [error, setError] = useState("");
   function openImport(event: React.FormEvent) {
