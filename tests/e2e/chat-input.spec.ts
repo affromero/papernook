@@ -287,7 +287,7 @@ test("sharing remains available when the paper header is hidden", async ({
   await page.getByRole("button", { name: "Hide header" }).click();
   await page.getByRole("button", { name: "Share", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "Create a view-only reading" }),
+    page.getByRole("dialog", { name: "Share this paper" }),
   ).toBeVisible();
 });
 
