@@ -134,6 +134,55 @@ describe("referenceTextAtPoint (author-year)", () => {
   });
 });
 
+describe("referenceTextAtPoint (full author names)", () => {
+  it("highlights only the cited entry when authors have full given names", () => {
+    const chunks = [
+      {
+        str: "Fengzhe Zhou, Jiannan Huang, and Deva Ramanan. PAI-Bench:",
+        x: 54,
+        y: 500,
+      },
+      {
+        str: "A comprehensive benchmark for physical AI. 2025c.",
+        x: 54,
+        y: 489,
+      },
+      {
+        str: "Siyuan Zhou, Yilun Du, and Jiaben Chen. RoboDreamer:",
+        x: 54,
+        y: 474,
+      },
+      {
+        str: "Learning compositional world models for robot imagination. 2024.",
+        x: 54,
+        y: 463,
+      },
+      {
+        str: "Yi Zhou, Connelly Barnes, Jingwan Lu, and Hao Li. On the",
+        x: 54,
+        y: 448,
+      },
+      {
+        str: "continuity of rotation representations in neural networks. 2019.",
+        x: 54,
+        y: 437,
+      },
+      {
+        str: "Z Zhou, Y Zhu, and M Zhu. ChatVLA: Unified multimodal",
+        x: 54,
+        y: 422,
+      },
+      { str: "understanding and robot control. 2025d.", x: 54, y: 411 },
+    ];
+    const entry = referenceEntryAtPoint(chunks, { x: 100, y: 450 }, PAGE_WIDTH);
+    expect(entry?.text).toContain("Yi Zhou");
+    expect(entry?.text).toContain("2019");
+    expect(entry?.text).not.toContain("RoboDreamer");
+    expect(entry?.text).not.toContain("ChatVLA");
+    expect(entry?.boxes).toHaveLength(2);
+  });
+});
+
 // arXiv PixWorld, references page 11: two Gao entries back to back (Ruiqi
 // Gao 2024 at y=377.6, Sensen Gao 2026 at y=335.6). hyperref points its
 // GoTo destination at the TOP of the cited entry's first line — y=346.6 for
