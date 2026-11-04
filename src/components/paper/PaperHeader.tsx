@@ -12,31 +12,69 @@ interface PaperHeaderProps {
   slug: string;
   meta: PaperMeta;
   view: "reader" | "canvas";
+  sharedHref?: string;
+  sharedCanvas?: boolean;
 }
 
-export function PaperHeader({ topic, slug, meta, view }: PaperHeaderProps) {
+export function PaperHeader({
+  topic,
+  slug,
+  meta,
+  view,
+  sharedHref,
+  sharedCanvas = false,
+}: PaperHeaderProps) {
   const paperHref = `/paper/${topic}/${slug}`;
   const sourceHref = originalWebUrl(meta.sourceUrl);
+  const shared = sharedHref !== undefined;
   return (
     <header className={styles.header}>
       <div className={styles.utilityRow}>
-        <Link href="/" className={styles.back}>
-          <span aria-hidden="true">←</span>
-          Library
-        </Link>
+        {shared ? (
+          <span className={styles.back}>papernook</span>
+        ) : (
+          <Link href="/" className={styles.back}>
+            <span aria-hidden="true">←</span>
+            Library
+          </Link>
+        )}
         <nav className={styles.viewToggle} aria-label="Paper view">
-          <Link
-            href={paperHref}
-            aria-current={view === "reader" ? "page" : undefined}
-          >
-            Reader
-          </Link>
-          <Link
-            href={`${paperHref}/canvas`}
-            aria-current={view === "canvas" ? "page" : undefined}
-          >
-            Canvas
-          </Link>
+          {sharedHref ? (
+            <Link
+              href={sharedHref}
+              aria-current={view === "reader" ? "page" : undefined}
+            >
+              Reader
+            </Link>
+          ) : (
+            <Link
+              href={paperHref}
+              aria-current={view === "reader" ? "page" : undefined}
+            >
+              Reader
+            </Link>
+          )}
+          {shared ? (
+            sharedCanvas && sharedHref ? (
+              <Link
+                href={`${sharedHref}?view=canvas`}
+                aria-current={view === "canvas" ? "page" : undefined}
+              >
+                Canvas
+              </Link>
+            ) : (
+              <button type="button" disabled>
+                Canvas
+              </button>
+            )
+          ) : (
+            <Link
+              href={`${paperHref}/canvas`}
+              aria-current={view === "canvas" ? "page" : undefined}
+            >
+              Canvas
+            </Link>
+          )}
           {sourceHref && <a href={sourceHref}>Original</a>}
         </nav>
         <nav className={styles.actions} aria-label="Paper actions">
@@ -44,8 +82,20 @@ export function PaperHeader({ topic, slug, meta, view }: PaperHeaderProps) {
           <span className={styles.theme}>
             <ThemeToggle />
           </span>
-          {view === "canvas" && <ShareButton topic={topic} slug={slug} />}
-          <CitationActions topic={topic} slug={slug} />
+          {!shared && view === "canvas" && (
+            <ShareButton topic={topic} slug={slug} />
+          )}
+          {shared ? (
+            <button
+              type="button"
+              disabled
+              title="Unavailable in a shared reading"
+            >
+              Cite
+            </button>
+          ) : (
+            <CitationActions topic={topic} slug={slug} />
+          )}
         </nav>
       </div>
       <div className={styles.identity}>

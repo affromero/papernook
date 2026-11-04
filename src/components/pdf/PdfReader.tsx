@@ -4,6 +4,7 @@ import {
   Highlighter,
   Maximize2,
   Minimize2,
+  MessageSquare,
   MousePointer2,
   PenLine,
   Save,
@@ -92,6 +93,7 @@ interface PdfReaderProps {
    */
   bibliographyEndpoint?: string;
   searchShortcut?: boolean;
+  showReadonlyTools?: boolean;
 }
 
 export function PdfReader({
@@ -108,6 +110,7 @@ export function PdfReader({
   positionEndpoint,
   bibliographyEndpoint,
   searchShortcut = false,
+  showReadonlyTools = false,
 }: PdfReaderProps) {
   const appearance = useDocumentAppearance();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -589,13 +592,13 @@ export function PdfReader({
             →
           </button>
         </div>
-        {editable ? (
+        {editable || showReadonlyTools ? (
           <div className={styles.editorTools} aria-label="Annotation tools">
             <EditorButton
               label="Select"
               active={editMode === "select" && !commentEnabled}
               onClick={() => chooseEditMode("select")}
-              disabled={!editorReady || commentDraftActive}
+              disabled={!editable || !editorReady || commentDraftActive}
             >
               <MousePointer2 aria-hidden="true" />
             </EditorButton>
@@ -603,7 +606,7 @@ export function PdfReader({
               label="Highlight"
               active={editMode === "highlight"}
               onClick={() => chooseEditMode("highlight")}
-              disabled={!editorReady || commentDraftActive}
+              disabled={!editable || !editorReady || commentDraftActive}
             >
               <Highlighter aria-hidden="true" />
             </EditorButton>
@@ -611,7 +614,7 @@ export function PdfReader({
               label="Text"
               active={editMode === "text"}
               onClick={() => chooseEditMode("text")}
-              disabled={!editorReady || commentDraftActive}
+              disabled={!editable || !editorReady || commentDraftActive}
             >
               <TypeIcon aria-hidden="true" />
             </EditorButton>
@@ -619,49 +622,56 @@ export function PdfReader({
               label="Draw"
               active={editMode === "draw"}
               onClick={() => chooseEditMode("draw")}
-              disabled={!editorReady || commentDraftActive}
+              disabled={!editable || !editorReady || commentDraftActive}
             >
               <PenLine aria-hidden="true" />
             </EditorButton>
-            <PdfComments
-              src={src}
-              appearance={appearance}
-              pdfDocument={pdfDocument}
-              viewer={pdfViewerRef}
-              stage={stageRef}
-              etag={etagRef}
-              autosave={autosaveRef}
-              enabled={commentEnabled}
-              setEnabled={setCommentEnabled}
-              disabled={
-                !editorReady || saving || remoteUpdate || commentDraftActive
-              }
-              onEnable={() => chooseEditMode("select")}
-              editGate={editGate}
-              commentDirtyRef={commentDirtyRef}
-              onBlocked={() =>
-                setSaveStatus("Wait for the note to finish saving.")
-              }
-              onDraftChange={(active) => {
-                editGate.current.commentActive = active;
-                setCommentDraftActive(active);
-              }}
-              refresh={() => {
-                editGate.current.reloadingDocument = pdfDocument;
-                const viewer = pdfViewerRef.current;
-                if (viewer)
-                  restoreViewRef.current = {
-                    page: viewer.currentPageNumber,
-                    scale: viewer.currentScale,
-                  };
-                setDocumentGeneration((generation) => generation + 1);
-              }}
-            />
+            {editable ? (
+              <PdfComments
+                src={src}
+                appearance={appearance}
+                pdfDocument={pdfDocument}
+                viewer={pdfViewerRef}
+                stage={stageRef}
+                etag={etagRef}
+                autosave={autosaveRef}
+                enabled={commentEnabled}
+                setEnabled={setCommentEnabled}
+                disabled={
+                  !editorReady || saving || remoteUpdate || commentDraftActive
+                }
+                onEnable={() => chooseEditMode("select")}
+                editGate={editGate}
+                commentDirtyRef={commentDirtyRef}
+                onBlocked={() =>
+                  setSaveStatus("Wait for the note to finish saving.")
+                }
+                onDraftChange={(active) => {
+                  editGate.current.commentActive = active;
+                  setCommentDraftActive(active);
+                }}
+                refresh={() => {
+                  editGate.current.reloadingDocument = pdfDocument;
+                  const viewer = pdfViewerRef.current;
+                  if (viewer)
+                    restoreViewRef.current = {
+                      page: viewer.currentPageNumber,
+                      scale: viewer.currentScale,
+                    };
+                  setDocumentGeneration((generation) => generation + 1);
+                }}
+              />
+            ) : (
+              <EditorButton label="Comment" active={false} disabled>
+                <MessageSquare aria-hidden="true" />
+              </EditorButton>
+            )}
             <button
               className={styles.saveButton}
               type="button"
               onClick={() => void saveAnnotations()}
               disabled={
+                !editable ||
                 !editorReady ||
                 !dirty ||
                 saving ||
@@ -812,7 +822,7 @@ interface EditorButtonProps {
   label: string;
   active: boolean;
   disabled: boolean;
-  onClick(): void;
+  onClick?(): void;
   children: React.ReactNode;
 }
 

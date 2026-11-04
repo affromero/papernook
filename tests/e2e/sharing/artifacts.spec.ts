@@ -150,11 +150,29 @@ test("syncs attributed canvas and exercises, keeps public snapshots read-only, a
       await expect(preview.locator(".tlui-toolbar")).toHaveCount(0);
       await expect(
         preview.getByRole("button", { name: "Comment", exact: true }),
-      ).toHaveCount(0);
+      ).toBeDisabled();
       await expect(
         preview.getByRole("button", { name: "Save exercise", exact: true }),
       ).toHaveCount(0);
       await expect(preview.locator('[contenteditable="true"]')).toHaveCount(0);
+      await preview.getByRole("link", { name: "Canvas", exact: true }).click();
+      await expect(
+        preview.getByRole("link", { name: "Canvas", exact: true }),
+      ).toHaveAttribute("aria-current", "page");
+      await preview
+        .getByRole("button", { name: "View canvas and exercises" })
+        .click();
+      await expect(
+        preview.getByLabel("View-only canvas").locator(".tl-canvas"),
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(preview.locator('[contenteditable="true"]')).toHaveCount(0);
+      await preview.getByRole("button", { name: "Hide header" }).click();
+      await preview.setViewportSize({ width: 390, height: 844 });
+      await preview.getByRole("link", { name: "Reader", exact: true }).click();
+      await expect(preview.getByText("Page 1 of 3")).toBeVisible();
+      await expect(
+        preview.getByRole("link", { name: "Canvas", exact: true }),
+      ).toBeVisible();
     } finally {
       await anonymous.close();
     }

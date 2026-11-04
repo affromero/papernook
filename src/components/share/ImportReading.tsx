@@ -1,8 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./ImportReading.module.css";
+
+export function SharedImport({ mode }: { mode: "fork" | "collaborate" }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  return (
+    <>
+      <button type="button" onClick={() => dialog.current?.showModal()}>
+        Open in your Papernook
+      </button>
+      <dialog
+        className={styles.dialog}
+        ref={dialog}
+        aria-label="Open in your Papernook"
+      >
+        <button
+          type="button"
+          className={styles.close}
+          onClick={() => dialog.current?.close()}
+          aria-label="Close import"
+        >
+          ×
+        </button>
+        <ImportOnInstance mode={mode} />
+      </dialog>
+    </>
+  );
+}
 
 export function ImportOnInstance({ mode }: { mode: "fork" | "collaborate" }) {
   const [instance, setInstance] = useState("");

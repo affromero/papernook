@@ -52,7 +52,8 @@
   background: color-mix(in srgb, var(--foreground) 5%, transparent);
 }
 
-.viewToggle a {
+.viewToggle a,
+.viewToggle button {
   min-width: 84px;
   min-height: 38px;
   display: inline-flex;
@@ -64,10 +65,23 @@
   font-weight: 720;
 }
 
-.viewToggle a[aria-current="page"] {
+.viewToggle button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+}
+
+.viewToggle [aria-current="page"] {
   color: var(--foreground);
   background: var(--background);
   box-shadow: 0 2px 10px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+.viewToggle button:disabled,
+.actions > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .actions > button,
