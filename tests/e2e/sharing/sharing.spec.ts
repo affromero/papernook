@@ -71,6 +71,184 @@ test.afterEach(async ({ page }) => {
   }
 });
 
+test("shared readings use the paper workspace without allowing edits", async ({
+  page,
+  browser,
+}) => {
+  for (const mode of ["view", "fork", "collaborate"] as const) {
+    const created = await page.request.post(`${source}/shares`, {
+      data: {
+        mode,
+        chatIds: ["0123456789abcdef"],
+        ...(mode === "collaborate"
+          ? { acknowledgePublicAnnotations: true }
+          : {}),
+      },
+    });
+    expect(created.ok(), await created.text()).toBe(true);
+    const { share } = await created.json();
+    shareId = share.id;
+    const anonymous = await browser.newContext({
+      baseURL: "http://127.0.0.1:3107",
+      viewport: { width: 1280, height: 900 },
+    });
+    try {
+      const reader = await anonymous.newPage();
+      await reader.goto(share.href);
+      await expect(reader).toHaveTitle("Attention Is All You Need");
+      await expect(
+        reader.getByRole("heading", { name: "Attention Is All You Need" }),
+      ).toBeVisible();
+      await expect(
+        reader.getByText("View only", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        reader.getByRole("button", { name: "Comment", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        reader.getByRole("button", { name: "Canvas", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        reader.getByRole("button", { name: "Save annotations in PDF" }),
+      ).toBeDisabled();
+      await expect(
+        reader.getByRole("textbox", { name: "Ask about the paper" }),
+      ).toBeDisabled();
+      await expect(reader.getByRole("button", { name: "Send" })).toBeDisabled();
+      await expect(
+        reader.getByRole("combobox", { name: "Previous conversations" }),
+      ).toContainText("Why attention replaced recurrence");
+      await expect(reader.getByText("Page 1 of 3")).toBeVisible();
+      await reader.keyboard.press("Control+f");
+      const search = reader.getByRole("searchbox", { name: "Find in paper" });
+      await search.fill("attention");
+      await expect(
+        reader.locator(".textLayer .highlight").first(),
+      ).toBeVisible();
+      await search.press("Escape");
+      if (mode !== "view") {
+        await reader
+          .getByRole("button", { name: "Open in your Papernook" })
+          .click();
+        await expect(reader.getByLabel("Your Papernook address")).toBeVisible();
+        await reader.getByRole("button", { name: "Close import" }).click();
+      }
+      await reader.getByRole("button", { name: "Hide header" }).click();
+      await expect(
+        reader.getByText("View only", { exact: true }),
+      ).toBeVisible();
+      await reader.setViewportSize({ width: 390, height: 844 });
+      await expect(reader.getByRole("tab", { name: "Reading" })).toBeVisible();
+      if (mode !== "view") {
+        for (const width of [390, 500]) {
+          await reader.setViewportSize({ width, height: 844 });
+          await reader
+            .getByRole("button", { name: "Open in your Papernook" })
+            .click();
+          const dialog = reader.getByRole("dialog", {
+            name: "Open in your Papernook",
+          });
+          const bounds = await dialog.boundingBox();
+          expect(bounds).not.toBeNull();
+          expect(bounds!.x).toBeGreaterThanOrEqual(0);
+          expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+          await expect(
+            reader.getByLabel("Your Papernook address"),
+          ).toBeVisible();
+          await reader.getByRole("button", { name: "Close import" }).click();
+        }
+      }
+      await reader.getByRole("tab", { name: "Chat" }).click();
+      await expect(
+        reader.getByRole("textbox", { name: "Ask about the paper" }),
+      ).toBeDisabled();
+      expect(
+        (await reader.request.post(`${source}/chats`, { data: {} })).status(),
+      ).toBe(401);
+    } finally {
+      await anonymous.close();
+      await page.request.delete(`${source}/shares/${share.id}`);
+      shareId = null;
+    }
+  }
+});
+
+test("shared readers switch between published conversations without exposing private chats", async ({
+  page,
+  browser,
+}) => {
+  const chatDir = path.join(
+    process.cwd(),
+    ".playwright-data",
+    "library",
+    "machine-learning",
+    "attention-is-all-you-need",
+    "chats",
+    "maya",
+  );
+  const sharedChat = path.join(chatDir, "fedcba9876543210.jsonl");
+  const privateChat = path.join(chatDir, "aaaaaaaaaaaaaaaa.jsonl");
+  const fixture = (id: string, title: string, content: string) =>
+    [
+      JSON.stringify({
+        id,
+        title,
+        titleSource: "manual",
+        username: "maya",
+        createdAt: "2026-07-18T12:30:00.000Z",
+      }),
+      JSON.stringify({ role: "user", content, at: "2026-07-18T12:31:00.000Z" }),
+    ].join("\n") + "\n";
+  await fs.writeFile(
+    sharedChat,
+    fixture(
+      "fedcba9876543210",
+      "Second reading",
+      "A published second question",
+    ),
+  );
+  await fs.writeFile(
+    privateChat,
+    fixture("aaaaaaaaaaaaaaaa", "Private reading", "A private question"),
+  );
+  try {
+    const created = await page.request.post(`${source}/shares`, {
+      data: { mode: "view", chatIds: ["0123456789abcdef", "fedcba9876543210"] },
+    });
+    expect(created.ok(), await created.text()).toBe(true);
+    const { share } = await created.json();
+    shareId = share.id;
+    const anonymous = await browser.newContext({
+      baseURL: "http://127.0.0.1:3107",
+    });
+    try {
+      const reader = await anonymous.newPage();
+      await reader.goto(share.href);
+      await expect(
+        reader.getByText("Why was removing recurrence such a big deal?"),
+      ).toBeVisible();
+      const select = reader.getByRole("combobox", {
+        name: "Previous conversations",
+      });
+      await select.selectOption("fedcba9876543210");
+      await expect(
+        reader.getByText("A published second question"),
+      ).toBeVisible();
+      await expect(
+        reader.getByText("Why was removing recurrence such a big deal?"),
+      ).toHaveCount(0);
+      await expect(select).not.toContainText("Private reading");
+      await expect(reader.getByText("A private question")).toHaveCount(0);
+      expect(await reader.content()).not.toContain("A private question");
+    } finally {
+      await anonymous.close();
+    }
+  } finally {
+    await fs.rm(sharedChat, { force: true });
+    await fs.rm(privateChat, { force: true });
+  }
+});
+
 test("forks annotated readings without establishing an upstream connection", async ({
   page,
 }) => {
@@ -329,7 +507,7 @@ test("requires approval, attributes shared annotations, publishes chats and enfo
   await expect(page.getByRole("textbox")).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "Comment", exact: true }),
-  ).toHaveCount(0);
+  ).toBeDisabled();
   await expect(
     page.getByText("A conversation explicitly shared with collaborators"),
   ).toHaveCount(0);

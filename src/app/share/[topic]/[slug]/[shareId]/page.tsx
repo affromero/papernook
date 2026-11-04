@@ -1,30 +1,44 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { Markdown } from "@/components/chat/Markdown";
+import Link from "next/link";
+import { isAccessError } from "thesidedoor-core/access";
+import { ReadingWorkspace } from "@/components/chat/ReadingWorkspace";
+import { CopySourceLinkButton } from "@/components/paper/CopySourceLinkButton";
+import { PaperHeader } from "@/components/paper/PaperHeader";
 import { PdfReader } from "@/components/pdf/PdfReader";
+import { SharedImport } from "@/components/share/ImportReading";
+import { PublicStudyArtifacts } from "@/components/share/StudyArtifacts";
+import { SharedChat } from "@/components/share/SharedChat";
+import { configuredCanvasLicense } from "@/lib/canvas/config";
 import { getPaper } from "@/lib/library/papers";
 import {
   getShare,
   withShareFiles,
   type PaperShare,
 } from "@/lib/library/shares";
-import { isAccessError } from "thesidedoor-core/access";
+import paperStyles from "@/app/paper/[topic]/[slug]/paper.module.css";
 import styles from "./share.module.css";
-import { ImportOnInstance } from "@/components/share/ImportReading";
-import { PublicStudyArtifacts } from "@/components/share/StudyArtifacts";
-import { configuredCanvasLicense } from "@/lib/canvas/config";
 
 export const dynamic = "force-dynamic";
 
 interface SharePageProps {
   params: Promise<{ topic: string; slug: string; shareId: string }>;
+  searchParams?: Promise<{ view?: string }>;
 }
 
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-  referrer: "no-referrer",
-};
+export async function generateMetadata({
+  params,
+}: SharePageProps): Promise<Metadata> {
+  const { topic, slug, shareId } = await params;
+  const share = getShare(topic, slug, shareId);
+  const paper = share ? getPaper(topic, slug) : null;
+  return {
+    title: paper?.meta.title ?? "papernook",
+    robots: { index: false, follow: false },
+    referrer: "no-referrer",
+  };
+}
 
 function cropUrl(share: PaperShare, imagePath: string): string | null {
   const match = imagePath.match(/^crops\/([^/]+)$/);
@@ -32,11 +46,18 @@ function cropUrl(share: PaperShare, imagePath: string): string | null {
   return `/api/v1/shares/${share.topic}/${share.slug}/${share.id}/images/${encodeURIComponent(match[1])}`;
 }
 
-export default async function SharePage({ params }: SharePageProps) {
+export default async function SharePage({
+  params,
+  searchParams,
+}: SharePageProps) {
   const { topic, slug, shareId } = await params;
   const share = getShare(topic, slug, shareId);
   const paper = share ? getPaper(topic, slug) : null;
   if (!share || !paper) notFound();
+
+  const canvasView =
+    share.includeArtifacts && (await searchParams)?.view === "canvas";
+  const shareHref = `/share/${topic}/${slug}/${shareId}`;
 
   const meta = paper.meta;
   const licenseKey = share.includeArtifacts
@@ -45,144 +66,111 @@ export default async function SharePage({ params }: SharePageProps) {
   let currentOrigin: string | undefined;
   try {
     const headerStore = await headers();
-    const protocol = headerStore.get("x-forwarded-proto") ?? "http";
-    const hostname = headerStore.get("host") ?? "localhost";
-    currentOrigin = `${protocol}://${hostname}`;
+    currentOrigin = `${headerStore.get("x-forwarded-proto") ?? "http"}://${headerStore.get("host") ?? "localhost"}`;
   } catch {
-    // Direct server-component tests have no request store. Relative links
-    // still classify as internal; absolute web links safely open separately.
+    // Direct server-component tests have no request store.
   }
+  const conversations = share.conversations.map(({ header, messages }) => ({
+    id: header.id,
+    title: header.title,
+    createdAt: header.createdAt,
+    messages: messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      images: (message.images ?? [])
+        .map((path) => cropUrl(share, path))
+        .filter((src): src is string => src !== null),
+    })),
+  }));
+
   try {
     return withShareFiles(share, () => (
-      <main className={styles.root}>
-        <header className={styles.masthead}>
-          <div className={styles.brand}>papernook</div>
-          <div className={styles.permission}>
-            <span className={styles.lock} aria-hidden="true">
-              ◇
-            </span>
-            View only
-          </div>
-        </header>
-
-        <section className={styles.intro}>
-          <p className={styles.eyebrow}>A shared reading</p>
-          <h1 className={styles.title}>{meta.title}</h1>
-          <p className={styles.meta}>
-            {meta.authors.join(", ")}
-            {meta.year ? ` · ${meta.year}` : ""}
-            {meta.venue ? ` · ${meta.venue}` : ""}
-          </p>
-          <p className={styles.note}>
-            You can read the current annotated paper and the conversation
-            snapshots selected by its owner. This page cannot change the paper
-            or continue the chats.
-          </p>
-        </section>
-
-        <div className={styles.columns}>
-          <section className={styles.paperColumn} aria-label="Annotated paper">
-            <div className={styles.sectionLabel}>
-              <span>Annotated paper</span>
-              <span>Live copy</span>
-            </div>
-            <div className={styles.pdfFrame}>
+      <main className={paperStyles.root}>
+        <ReadingWorkspace
+          mainLabel={
+            canvasView ? "Shared canvas and exercises" : "Annotated paper"
+          }
+          header={
+            <PaperHeader
+              topic={topic}
+              slug={slug}
+              meta={meta}
+              view={canvasView ? "canvas" : "reader"}
+              sharedHref={shareHref}
+              sharedCanvas={share.includeArtifacts}
+            />
+          }
+          collapsedHeaderActions={
+            <>
+              <CopySourceLinkButton sourceUrl={meta.sourceUrl} />
+              {share.includeArtifacts && (
+                <Link
+                  className={styles.viewLink}
+                  href={canvasView ? shareHref : `${shareHref}?view=canvas`}
+                >
+                  {canvasView ? "Reader" : "Canvas"}
+                </Link>
+              )}
+            </>
+          }
+          actions={
+            <>
+              <span className={styles.permission}>View only</span>
+              <button
+                type="button"
+                className={styles.disabledAction}
+                disabled
+                title="Unavailable in a shared reading"
+              >
+                Share
+              </button>
+              <button
+                type="button"
+                className={styles.disabledAction}
+                disabled
+                title="Unavailable in a shared reading"
+              >
+                Save for offline
+              </button>
+              {share.mode !== "view" && <SharedImport mode={share.mode} />}
+            </>
+          }
+          main={
+            canvasView ? (
+              <div className={styles.canvas}>
+                <PublicStudyArtifacts
+                  endpoint={`/api/v1/shares/${topic}/${slug}/${shareId}/artifacts`}
+                  licenseKey={licenseKey}
+                />
+              </div>
+            ) : (
               <PdfReader
                 src={`/api/v1/shares/${topic}/${slug}/${shareId}/pdf`}
                 title={meta.title}
+                showReadonlyTools
+                searchShortcut
+              />
+            )
+          }
+          chat={
+            <div className={paperStyles.chat}>
+              {share.includeArtifacts && !canvasView && (
+                <PublicStudyArtifacts
+                  endpoint={`/api/v1/shares/${topic}/${slug}/${shareId}/artifacts`}
+                  licenseKey={licenseKey}
+                />
+              )}
+              {paper.summary && (
+                <p className={paperStyles.summary}>{paper.summary}</p>
+              )}
+              <SharedChat
+                conversations={conversations}
+                currentOrigin={currentOrigin}
+                paperSourceUrl={meta.sourceUrl || undefined}
               />
             </div>
-          </section>
-
-          <aside className={styles.studyColumn}>
-            {share.includeArtifacts && (
-              <PublicStudyArtifacts
-                endpoint={`/api/v1/shares/${topic}/${slug}/${shareId}/artifacts`}
-                licenseKey={licenseKey}
-              />
-            )}
-            {paper.summary && (
-              <section className={styles.summary}>
-                <h2>Reading note</h2>
-                <p>{paper.summary}</p>
-              </section>
-            )}
-
-            <section className={styles.conversations}>
-              <div className={styles.sectionLabel}>
-                <span>Conversations</span>
-                <span>
-                  {share.conversations.length} snapshot
-                  {share.conversations.length === 1 ? "" : "s"}
-                </span>
-              </div>
-              {share.conversations.length === 0 ? (
-                <p className={styles.empty}>
-                  The owner shared the annotated paper without conversations.
-                </p>
-              ) : (
-                share.conversations.map((conversation, conversationIndex) => (
-                  <article
-                    className={styles.conversation}
-                    key={conversation.header.id}
-                  >
-                    <h2>
-                      <span>
-                        {String(conversationIndex + 1).padStart(2, "0")}
-                      </span>
-                      {conversation.header.title}
-                    </h2>
-                    <div className={styles.messages}>
-                      {conversation.messages.map((message, messageIndex) => (
-                        <div
-                          className={
-                            message.role === "user"
-                              ? styles.readerMessage
-                              : styles.agentMessage
-                          }
-                          key={`${conversation.header.id}-${messageIndex}`}
-                        >
-                          <p className={styles.role}>
-                            {message.role === "user" ? "Reader" : "Papernook"}
-                          </p>
-                          {message.images?.map((imagePath) => {
-                            const src = cropUrl(share, imagePath);
-                            return src ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                className={styles.crop}
-                                src={src}
-                                alt="Conversation attachment"
-                                key={imagePath}
-                              />
-                            ) : null;
-                          })}
-                          {message.role === "assistant" ? (
-                            <Markdown
-                              content={message.content}
-                              currentOrigin={currentOrigin}
-                              paperSourceUrl={meta.sourceUrl ?? undefined}
-                            />
-                          ) : (
-                            <p className={styles.messageText}>
-                              {message.content}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-                ))
-              )}
-            </section>
-          </aside>
-        </div>
-
-        <footer className={styles.footer}>
-          {share.mode !== "view" && <ImportOnInstance mode={share.mode} />}
-          Shared {new Date(share.createdAt).toLocaleDateString()} · The owner
-          can revoke this link at any time.
-        </footer>
+          }
+        />
       </main>
     ));
   } catch (error) {

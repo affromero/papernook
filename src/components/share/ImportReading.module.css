@@ -104,6 +104,28 @@
   font-family: Georgia, serif;
   font-weight: 400;
 }
+.dialog {
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 1rem 1.5rem;
+  overflow-y: auto;
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--paper-line, #b8bcb5);
+  border-radius: 8px;
+}
+.dialog::backdrop {
+  background: #0008;
+}
+.close {
+  float: right;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
 .error {
   color: #bc5146;
 }

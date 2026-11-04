@@ -464,7 +464,7 @@ describe("public share boundaries", () => {
     expect(mutation.status).toBe(401);
   });
 
-  it("renders a learning view without mutation affordances", async () => {
+  it("renders the paper workspace with disabled editing controls", async () => {
     await placePaper();
     const header = await conversation("ana");
     const shares = await import("@/lib/library/shares");
@@ -491,9 +491,13 @@ describe("public share boundaries", () => {
     expect(html).toContain("Why does attention help?");
     expect(html).toContain('aria-label="Previous page"');
     expect(html).toContain('aria-label="Zoom in"');
-    expect(html).not.toContain('aria-label="Save annotations in PDF"');
+    expect(html).toMatch(
+      /<button[^>]*disabled=""[^>]*aria-label="Save annotations in PDF"/,
+    );
     expect(html).not.toContain("<form");
-    expect(html).not.toContain("<textarea");
+    expect(html).toMatch(
+      /<textarea[^>]*disabled=""[^>]*aria-label="Ask about the paper"/,
+    );
     expect(html).not.toContain("Create share");
     expect(html).not.toContain("Revoke");
   });
