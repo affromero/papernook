@@ -73,7 +73,10 @@ const NUMBERED_MARKER = /^\s*(?:\[(\d{1,3})\]|(\d{1,3})\.)\s/;
  * layer as "R EFERENCES", one chunk per case change.
  */
 const HEADING = /^(?:references|bibliography)[.:]?$/i;
-const ENTRY_HEAD = new RegExp(`^(?:${NAME_PATTERN})[,.]\\s`, "u");
+const ENTRY_HEAD = new RegExp(
+  `^(?:${NAME_PATTERN})(?:\\s+${NAME_PATTERN})*[,.]\\s`,
+  "u",
+);
 const YEAR_IN_TEXT = /(?:^|[\s([])((?:19|20)\d{2})([a-z])?(?![\p{L}\d])/u;
 const SURNAME_BEFORE_SEPARATOR = new RegExp(`(${NAME_PATTERN})(?=[,.])`, "gu");
 
