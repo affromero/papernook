@@ -1,6 +1,20 @@
 import { expect, test } from "@playwright/test";
 import { restoreMayaSession } from "../support/member-session";
 
+test("identifies the toolbar link to open the saved PDF in a new tab", async ({
+  page,
+}) => {
+  await restoreMayaSession(page);
+  await page.goto("/paper/machine-learning/attention-is-all-you-need");
+  const link = page.getByRole("link", { name: "Open PDF in a new tab" });
+  await expect(link).toHaveAttribute("title", "Open PDF in a new tab");
+  await expect(link).toHaveAttribute(
+    "href",
+    "/api/v1/papers/machine-learning/attention-is-all-you-need/pdf",
+  );
+  await expect(link).toHaveAttribute("target", "_blank");
+});
+
 test("paper navigation and actions remain separate at tablet widths", async ({
   page,
 }) => {

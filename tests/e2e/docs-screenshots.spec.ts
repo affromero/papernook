@@ -427,7 +427,7 @@ test.describe.serial("documentation journeys and screenshots", () => {
     await page.getByText("Attention Is All You Need").click();
     await page.getByRole("button", { name: "Share", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "Create a view-only reading" }),
+      page.getByRole("heading", { name: "Share this paper" }),
     ).toBeVisible();
     await expect(
       page.getByRole("checkbox", { name: /Include conversation snapshots/ }),
