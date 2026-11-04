@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { useId, useState } from "react";
+import { LockKeyhole, Pencil, Trash2 } from "lucide-react";
 import { Markdown } from "@/components/chat/Markdown";
 import styles from "@/components/chat/ChatPanel.module.css";
+import sharedStyles from "./SharedChat.module.css";
 
 export interface SharedConversation {
   id: string;
@@ -22,6 +23,7 @@ export function SharedChat({
   paperSourceUrl?: string;
 }) {
   const [selected, setSelected] = useState(conversations[0]?.id ?? "");
+  const readOnlyId = useId();
   const conversation = conversations.find((item) => item.id === selected);
   return (
     <section className={styles.root} aria-label="Paper chat">
@@ -108,17 +110,28 @@ export function SharedChat({
           </p>
         )}
       </div>
-      <div className={styles.inputRow}>
-        <textarea
-          className={styles.input}
-          rows={2}
-          disabled
-          aria-label="Ask about the paper"
-          placeholder="Ask about the paper…"
-        />
-        <button type="button" className={styles.sendBtn} disabled>
-          Send
-        </button>
+      <div className={sharedStyles.composer}>
+        <p className={sharedStyles.notice} id={readOnlyId}>
+          <LockKeyhole size={14} aria-hidden="true" />
+          <span>View only. New messages are disabled.</span>
+        </p>
+        <div className={`${styles.inputRow} ${sharedStyles.inputRow}`}>
+          <textarea
+            className={`${styles.input} ${sharedStyles.input}`}
+            rows={2}
+            disabled
+            aria-label="Ask about the paper"
+            aria-describedby={readOnlyId}
+            placeholder="Chat is view only"
+          />
+          <button
+            type="button"
+            className={`${styles.sendBtn} ${sharedStyles.sendBtn}`}
+            disabled
+          >
+            Send
+          </button>
+        </div>
       </div>
     </section>
   );

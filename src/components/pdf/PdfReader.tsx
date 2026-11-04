@@ -730,7 +730,8 @@ export function PdfReader({
             href={originalPdfUrl(originalHref ?? src)}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Open original PDF in a new tab"
+            aria-label="Open PDF in a new tab"
+            title="Open PDF in a new tab"
           >
             ↗
           </a>

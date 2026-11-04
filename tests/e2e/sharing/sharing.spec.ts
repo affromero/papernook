@@ -503,7 +503,7 @@ test("requires approval, attributes shared annotations, publishes chats and enfo
     ),
   ).toBe(true);
   await page.goto(share.href);
-  await expect(page.getByText(/View only/)).toBeVisible();
+  await expect(page.getByText("View only", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox")).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "Comment", exact: true }),
@@ -591,6 +591,182 @@ test("rejects an unauthorized upload before buffering its unfinished body", asyn
       request.write(" ".repeat(1024));
     });
     expect(status).toBe(attempt.status);
+  }
+});
+
+test("copies an existing link until a new snapshot is explicitly created", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const chatFile = path.join(
+    process.cwd(),
+    ".playwright-data",
+    "library",
+    "machine-learning",
+    "attention-is-all-you-need",
+    "chats",
+    "maya",
+    "eeeeeeeeeeeeeeee.jsonl",
+  );
+  const createdIds: string[] = [];
+  const firstMessage = "The first snapshot includes this question.";
+  const laterMessage = "This question was added after the first link.";
+  await fs.writeFile(
+    chatFile,
+    [
+      JSON.stringify({
+        id: "eeeeeeeeeeeeeeee",
+        title: "Snapshot freshness",
+        titleSource: "manual",
+        username: "maya",
+        createdAt: "2026-07-18T12:30:00.000Z",
+      }),
+      JSON.stringify({
+        role: "user",
+        content: firstMessage,
+        at: "2026-07-18T12:31:00.000Z",
+      }),
+    ].join("\n") + "\n",
+    { flag: "wx" },
+  );
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const readShares = async () => {
+    const response = await page.request.get(`${source}/shares`);
+    expect(response.ok()).toBe(true);
+    return (await response.json()).shares as { id: string; href: string }[];
+  };
+  const createLink = async () => {
+    const response = page.waitForResponse(
+      (item) =>
+        item.request().method() === "POST" &&
+        item.url().endsWith(`${source}/shares`),
+    );
+    await page.getByRole("button", { name: "Create link & copy" }).click();
+    const result = await response;
+    expect(result.ok(), await result.text()).toBe(true);
+    const { share } = (await result.json()) as {
+      share: { id: string; href: string };
+    };
+    createdIds.push(share.id);
+    return share;
+  };
+  try {
+    await page.goto("/paper/machine-learning/attention-is-all-you-need");
+    await page.getByRole("button", { name: "Share", exact: true }).click();
+    await expect(page.getByText("Loading sharing options…")).toBeHidden();
+    const newLink = page.getByRole("button", { name: "Create a new link" });
+    if (await newLink.isVisible()) await newLink.click();
+    await page
+      .getByRole("checkbox", { name: /Include canvas and exercise snapshots/ })
+      .check();
+    await page
+      .getByRole("checkbox", { name: /Include conversation snapshots/ })
+      .check();
+    await expect(
+      page.getByRole("dialog").getByText("Snapshot freshness", { exact: true }),
+    ).toBeVisible();
+    const first = await createLink();
+    const sharesAfterCreation = await readShares();
+    const firstRow = page
+      .getByRole("dialog")
+      .locator("li")
+      .filter({ has: page.locator(`a[href="${first.href}"]`) });
+    await expect(
+      firstRow.getByRole("button", { name: "Copied" }),
+    ).toBeVisible();
+    await expect(firstRow).toContainText("canvas and exercises");
+    await expect(firstRow).toContainText("Snapshot freshness");
+    await page.getByRole("button", { name: "Close sharing dialog" }).click();
+    await page.getByRole("button", { name: "Share", exact: true }).click();
+    await firstRow.getByRole("button", { name: /^(Copy|Copied)$/ }).click();
+    await expect(
+      firstRow.getByRole("button", { name: "Copied" }),
+    ).toBeVisible();
+    expect(await readShares()).toEqual(sharesAfterCreation);
+
+    await fs.appendFile(
+      chatFile,
+      JSON.stringify({
+        role: "user",
+        content: laterMessage,
+        at: "2026-07-18T12:32:00.000Z",
+      }) + "\n",
+    );
+    await page.getByRole("button", { name: "Create a new link" }).click();
+    await page
+      .getByRole("checkbox", { name: /Include conversation snapshots/ })
+      .check();
+    const second = await createLink();
+    expect(second.id).not.toBe(first.id);
+    expect((await readShares()).map((share) => share.id)).toEqual(
+      expect.arrayContaining([first.id, second.id]),
+    );
+    const secondRow = page
+      .getByRole("dialog")
+      .locator("li")
+      .filter({ has: page.locator(`a[href="${second.href}"]`) });
+    await expect(secondRow).toContainText("Snapshot freshness");
+    await expect(secondRow).not.toContainText("canvas and exercises");
+
+    await page.getByRole("button", { name: "Create a new link" }).click();
+    await page.getByRole("radio", { name: /Collaborate/ }).check();
+    const acknowledgment = page.getByRole("checkbox", {
+      name: /Share the same annotated PDF/,
+    });
+    const create = page.getByRole("button", { name: "Create link & copy" });
+    await expect(acknowledgment).not.toBeChecked();
+    await expect(create).toBeDisabled();
+    await acknowledgment.check();
+    await createLink();
+    await page.getByRole("button", { name: "Create a new link" }).click();
+    await expect(page.getByRole("radio", { name: /View only/ })).toBeChecked();
+    await expect(
+      page.getByRole("checkbox", {
+        name: /Include canvas and exercise snapshots/,
+      }),
+    ).not.toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: /Include conversation snapshots/ }),
+    ).not.toBeChecked();
+    await page.getByRole("radio", { name: /Collaborate/ }).check();
+    await expect(acknowledgment).not.toBeChecked();
+    await expect(create).toBeDisabled();
+
+    const anonymous = await browser.newContext({
+      baseURL: "http://127.0.0.1:3107",
+    });
+    try {
+      const reader = await anonymous.newPage();
+      for (const [share, includesLater] of [
+        [first, false],
+        [second, true],
+      ] as const) {
+        await reader.goto(share.href);
+        await expect(
+          reader.getByText("View only. New messages are disabled."),
+        ).toBeVisible();
+        await expect(
+          reader.getByRole("textbox", { name: "Ask about the paper" }),
+        ).toBeDisabled();
+        await expect(
+          reader.getByRole("button", { name: "Send" }),
+        ).toBeDisabled();
+        await reader
+          .getByRole("combobox", { name: "Previous conversations" })
+          .selectOption("eeeeeeeeeeeeeeee");
+        await expect(reader.getByText(firstMessage)).toBeVisible();
+        if (includesLater)
+          await expect(reader.getByText(laterMessage)).toBeVisible();
+        else await expect(reader.getByText(laterMessage)).toHaveCount(0);
+      }
+    } finally {
+      await anonymous.close();
+    }
+  } finally {
+    for (const id of createdIds)
+      await page.request.delete(`${source}/shares/${id}`);
+    await fs.rm(chatFile, { force: true });
   }
 });
 

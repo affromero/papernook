@@ -1,0 +1,45 @@
+.composer {
+  border-top: 1px solid var(--paper-line, rgba(127, 127, 127, 0.2));
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.7rem 0.75rem 0;
+  color: var(--paper-muted, currentColor);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.notice svg {
+  flex: none;
+}
+
+.inputRow {
+  border-top: 0;
+}
+
+.input:disabled {
+  min-width: 0;
+  border-color: var(--paper-line, rgba(127, 127, 127, 0.25));
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  color: var(--paper-muted, currentColor);
+  cursor: not-allowed;
+  opacity: 1;
+  -webkit-text-fill-color: var(--paper-muted, currentColor);
+}
+
+.input:disabled::placeholder {
+  color: var(--paper-muted, currentColor);
+  opacity: 1;
+}
+
+.sendBtn:disabled {
+  color: var(--paper-muted, currentColor);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  cursor: not-allowed;
+  opacity: 1;
+}

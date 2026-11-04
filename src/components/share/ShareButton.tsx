@@ -15,6 +15,7 @@ interface ShareSummary {
   href: string;
   createdAt: string;
   conversations: { id: string; title: string }[];
+  includeArtifacts: boolean;
   mode: "view" | "fork" | "collaborate";
   revoked?: boolean;
 }
@@ -40,6 +41,7 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [mode, setMode] = useState<ShareSummary["mode"]>("view");
   const [acknowledged, setAcknowledged] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   async function openDialog(): Promise<void> {
     dialogRef.current?.showModal();
@@ -59,9 +61,10 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
       };
       const nextChats = chatData.chats ?? [];
       setChats(nextChats);
-      setShares(shareData.shares ?? []);
-      setIncludeChats(false);
-      setSelectedChatIds(new Set(nextChats.map((chat) => chat.id)));
+      const nextShares = shareData.shares ?? [];
+      setShares(nextShares);
+      setShowForm(nextShares.length === 0);
+      resetForm(nextChats);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -71,6 +74,14 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  function resetForm(availableChats: ChatHeader[]): void {
+    setMode("view");
+    setIncludeArtifacts(false);
+    setIncludeChats(false);
+    setAcknowledged(false);
+    setSelectedChatIds(new Set(availableChats.map((chat) => chat.id)));
   }
 
   function toggleChat(chatId: string): void {
@@ -118,6 +129,7 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
       }
       setShares((current) => [data.share as ShareSummary, ...current]);
       await copyShare(data.share);
+      setShowForm(false);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not create the link.",
@@ -134,15 +146,20 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
       return;
     }
     setError(null);
-    const response = await fetch(`${base}/shares/${share.id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (!response.ok) {
+    try {
+      const response = await fetch(`${base}/shares/${share.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Could not revoke the link.");
+      setShares((current) => current.filter((item) => item.id !== share.id));
+      if (shares.length === 1) {
+        resetForm(chats);
+        setShowForm(true);
+      }
+    } catch {
       setError("Could not revoke the link.");
-      return;
     }
-    setShares((current) => current.filter((item) => item.id !== share.id));
   }
 
   return (
@@ -158,14 +175,8 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
         <div className={styles.dialogInner}>
           <header className={styles.header}>
             <div>
-              <p className={styles.eyebrow}>Pass the paper on</p>
-              <h2 id="share-dialog-title">
-                {mode === "view"
-                  ? "Create a view-only reading"
-                  : mode === "fork"
-                    ? "Share an independent copy"
-                    : "Read and work together"}
-              </h2>
+              <p className={styles.eyebrow}>Sharing</p>
+              <h2 id="share-dialog-title">Share this paper</h2>
             </div>
             <button
               className={styles.close}
@@ -178,171 +189,9 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
           </header>
 
           {loading ? (
-            <p className={styles.loading}>Opening the sharing desk…</p>
+            <p className={styles.loading}>Loading sharing options…</p>
           ) : (
             <>
-              <fieldset className={styles.modes}>
-                <legend>Sharing mode</legend>
-                {(
-                  [
-                    [
-                      "view",
-                      "View only",
-                      "Read without an account. Editing and new messages are disabled.",
-                    ],
-                    [
-                      "fork",
-                      "Independent fork",
-                      "Import into another Papernook. Future changes stay separate.",
-                    ],
-                    [
-                      "collaborate",
-                      "Collaborate",
-                      "Approve each participant. Annotations, canvas, exercises and published chats stay in sync.",
-                    ],
-                  ] as const
-                ).map(([value, label, description]) => (
-                  <label key={value}>
-                    <input
-                      type="radio"
-                      name="sharing-mode"
-                      value={value}
-                      checked={mode === value}
-                      onChange={() => {
-                        setMode(value);
-                        setIncludeArtifacts(value === "fork");
-                        setAcknowledged(false);
-                      }}
-                    />
-                    <span>
-                      <strong>{label}</strong>
-                      <small>{description}</small>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
-              <section className={styles.permission}>
-                <div className={styles.permissionMark} aria-hidden="true">
-                  ◇
-                </div>
-                <div>
-                  <strong>
-                    {mode === "view"
-                      ? "View only"
-                      : mode === "fork"
-                        ? "Copies are independent"
-                        : "Editing requires approval"}
-                  </strong>
-                  <p>
-                    {mode === "view"
-                      ? "The link shows the current annotated PDF. It cannot edit the paper or conversations."
-                      : mode === "fork"
-                        ? "The recipient keeps their copy after you revoke the link. Their changes never return to your library."
-                        : "A link can request access. Approve only after checking the verification code with the person you invited. Names alone do not verify identity."}
-                  </p>
-                </div>
-              </section>
-
-              <label className={styles.includeRow}>
-                <input
-                  type="checkbox"
-                  checked={includeArtifacts}
-                  onChange={(event) =>
-                    setIncludeArtifacts(event.target.checked)
-                  }
-                />
-                <span>
-                  <strong>Include canvas and exercise snapshots</strong>
-                  <small>
-                    {mode === "collaborate"
-                      ? "Approved participants always sync these. This also includes initial snapshots in the public preview and independent copies."
-                      : "Include saved canvas media, exercises and their annotated PDF. Later changes stay private."}
-                  </small>
-                </span>
-              </label>
-
-              <label className={styles.includeRow}>
-                <input
-                  type="checkbox"
-                  checked={includeChats}
-                  onChange={(event) => setIncludeChats(event.target.checked)}
-                />
-                <span>
-                  <strong>
-                    {mode === "collaborate"
-                      ? "Include selected conversations"
-                      : "Include conversation snapshots"}
-                  </strong>
-                  <small>
-                    {mode === "collaborate"
-                      ? "Approved participants see future turns in selected chats. The public preview keeps the initial snapshots."
-                      : "Later messages stay private unless you create a new link."}
-                  </small>
-                </span>
-              </label>
-
-              {includeChats && (
-                <div className={styles.chatList}>
-                  {chats.length === 0 ? (
-                    <p>No conversations to include yet.</p>
-                  ) : (
-                    chats.map((chat) => (
-                      <label className={styles.chatRow} key={chat.id}>
-                        <input
-                          type="checkbox"
-                          checked={selectedChatIds.has(chat.id)}
-                          onChange={() => toggleChat(chat.id)}
-                        />
-                        <span>
-                          <strong>{chat.title}</strong>
-                          <small>
-                            {new Date(chat.createdAt).toLocaleDateString()}
-                          </small>
-                        </span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {mode === "collaborate" && (
-                <label className={styles.includeRow}>
-                  <input
-                    type="checkbox"
-                    checked={acknowledged}
-                    onChange={(event) => setAcknowledged(event.target.checked)}
-                  />
-                  <span>
-                    <strong>Share the same annotated PDF</strong>
-                    <small>
-                      Collaborative annotations also appear through existing
-                      public reading links. Only publish chats you want
-                      participants to read.
-                    </small>
-                  </span>
-                </label>
-              )}
-              <button
-                className={styles.create}
-                type="button"
-                disabled={
-                  creating ||
-                  (mode === "collaborate" && !acknowledged) ||
-                  (includeChats &&
-                    selectedChatIds.size === 0 &&
-                    chats.length > 0)
-                }
-                onClick={create}
-              >
-                {creating ? "Creating…" : "Create link & copy"}
-              </button>
-
-              {error && (
-                <p className={styles.error} role="alert">
-                  {error}
-                </p>
-              )}
-
               {shares.length > 0 && (
                 <section className={styles.activeShares}>
                   <h3>Active links</h3>
@@ -357,14 +206,14 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                                 ? "Collaboration"
                                 : share.mode === "fork"
                                   ? "Independent fork"
-                                  : share.conversations.length === 0
-                                    ? "Annotated paper"
-                                    : `${share.conversations.length} conversation ${
-                                        share.conversations.length === 1
-                                          ? "snapshot"
-                                          : "snapshots"
-                                      }`}
+                                  : "View only"}
                           </strong>
+                          <small>
+                            Annotated PDF
+                            {share.includeArtifacts && ", canvas and exercises"}
+                            {share.conversations.length > 0 &&
+                              `, conversations: ${share.conversations.map((chat) => chat.title).join(", ")}`}
+                          </small>
                           <small>
                             Created{" "}
                             {new Date(share.createdAt).toLocaleDateString()}
@@ -373,17 +222,20 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                         <div className={styles.shareActions}>
                           <button
                             type="button"
+                            disabled={share.revoked}
                             onClick={() => void copyShare(share)}
                           >
                             {copiedId === share.id ? "Copied" : "Copy"}
                           </button>
-                          <a
-                            href={share.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Open
-                          </a>
+                          {!share.revoked && (
+                            <a
+                              href={share.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Open
+                            </a>
+                          )}
                           <button
                             className={styles.revoke}
                             type="button"
@@ -400,7 +252,175 @@ export function ShareButton({ topic, slug }: ShareButtonProps) {
                       </li>
                     ))}
                   </ul>
+                  {!showForm && (
+                    <button
+                      className={styles.newLink}
+                      type="button"
+                      onClick={() => {
+                        resetForm(chats);
+                        setShowForm(true);
+                      }}
+                    >
+                      Create a new link
+                    </button>
+                  )}
                 </section>
+              )}
+              {showForm && (
+                <div className={styles.form}>
+                  <fieldset className={styles.modes}>
+                    <legend>Sharing mode</legend>
+                    {(
+                      [
+                        [
+                          "view",
+                          "View only",
+                          "Read without an account. Editing and new messages are disabled.",
+                        ],
+                        [
+                          "fork",
+                          "Independent fork",
+                          "Import into another Papernook. Future changes stay separate.",
+                        ],
+                        [
+                          "collaborate",
+                          "Collaborate",
+                          "Approve each participant. Annotations, canvas, exercises and published chats stay in sync.",
+                        ],
+                      ] as const
+                    ).map(([value, label, description]) => (
+                      <label key={value}>
+                        <input
+                          type="radio"
+                          name="sharing-mode"
+                          value={value}
+                          checked={mode === value}
+                          onChange={() => {
+                            setMode(value);
+                            setIncludeArtifacts(value === "fork");
+                            setAcknowledged(false);
+                          }}
+                        />
+                        <span>
+                          <strong>{label}</strong>
+                          <small>{description}</small>
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  {mode !== "view" && (
+                    <p className={styles.permission}>
+                      {mode === "fork"
+                        ? "Recipients keep their copies even if you revoke the link."
+                        : "Check the verification code with each person before approving access. Names alone do not verify identity."}
+                    </p>
+                  )}
+
+                  <h3 className={styles.optionsTitle}>Include in this link</h3>
+
+                  <label className={styles.includeRow}>
+                    <input
+                      type="checkbox"
+                      checked={includeArtifacts}
+                      onChange={(event) =>
+                        setIncludeArtifacts(event.target.checked)
+                      }
+                    />
+                    <span>
+                      <strong>Include canvas and exercise snapshots</strong>
+                      <small>
+                        {mode === "collaborate"
+                          ? "Approved participants always sync these. This also includes initial snapshots in the public preview and independent copies."
+                          : "Include saved canvas media, exercises and their annotated PDF. Later changes stay private."}
+                      </small>
+                    </span>
+                  </label>
+
+                  <label className={styles.includeRow}>
+                    <input
+                      type="checkbox"
+                      checked={includeChats}
+                      onChange={(event) =>
+                        setIncludeChats(event.target.checked)
+                      }
+                    />
+                    <span>
+                      <strong>
+                        {mode === "collaborate"
+                          ? "Include selected conversations"
+                          : "Include conversation snapshots"}
+                      </strong>
+                      <small>
+                        {mode === "collaborate"
+                          ? "Approved participants see future turns in selected chats. The public preview keeps the initial snapshots."
+                          : "Later messages stay private unless you create a new link."}
+                      </small>
+                    </span>
+                  </label>
+
+                  {includeChats && (
+                    <div className={styles.chatList}>
+                      {chats.length === 0 ? (
+                        <p>No conversations to include yet.</p>
+                      ) : (
+                        chats.map((chat) => (
+                          <label className={styles.chatRow} key={chat.id}>
+                            <input
+                              type="checkbox"
+                              checked={selectedChatIds.has(chat.id)}
+                              onChange={() => toggleChat(chat.id)}
+                            />
+                            <span>
+                              <strong>{chat.title}</strong>
+                              <small>
+                                {new Date(chat.createdAt).toLocaleDateString()}
+                              </small>
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {mode === "collaborate" && (
+                    <label className={styles.includeRow}>
+                      <input
+                        type="checkbox"
+                        checked={acknowledged}
+                        onChange={(event) =>
+                          setAcknowledged(event.target.checked)
+                        }
+                      />
+                      <span>
+                        <strong>Share the same annotated PDF</strong>
+                        <small>
+                          Collaborative annotations also appear through existing
+                          public reading links. Only publish chats you want
+                          participants to read.
+                        </small>
+                      </span>
+                    </label>
+                  )}
+                  <button
+                    className={styles.create}
+                    type="button"
+                    disabled={
+                      creating ||
+                      (mode === "collaborate" && !acknowledged) ||
+                      (includeChats &&
+                        selectedChatIds.size === 0 &&
+                        chats.length > 0)
+                    }
+                    onClick={create}
+                  >
+                    {creating ? "Creating…" : "Create link & copy"}
+                  </button>
+                </div>
+              )}
+              {error && (
+                <p className={styles.error} role="alert">
+                  {error}
+                </p>
               )}
             </>
           )}
