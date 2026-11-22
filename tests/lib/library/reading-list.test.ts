@@ -49,6 +49,18 @@ const ATTENTION_ENTRY =
   "[1] Vaswani, A., et al. Attention is all you need. NeurIPS 2017.";
 
 describe("buildReadingList", () => {
+  it("excludes a reference that names the citing paper itself", async () => {
+    await placePaper(
+      "ml",
+      "citer",
+      "Survey Results",
+      "Body.\n\nReferences\n\n[1] Ada, L. Survey Results. 2024.",
+    );
+    const { buildReadingList } =
+      await import("@/lib/library/bibliography/reading-list");
+    expect(buildReadingList()).toEqual([]);
+  });
+
   it("merges the same cited work across papers and lists both citers", async () => {
     await placePaper(
       "nlp",

@@ -1,5 +1,5 @@
 import { listPapers } from "../papers";
-import { titleCited, tokenizeTitle } from "../context/reference-match";
+import { indexCitationTitles } from "../context/citation-title-index";
 import { titleGuess } from "../context/reference-resolve";
 import {
   paperBibliographyEntries,
@@ -59,7 +59,9 @@ function fallbackTitle(entryText: string): string {
  */
 export function buildReadingList(): ReadingListItem[] {
   const papers = listPapers();
-  const titles = papers.map((paper) => tokenizeTitle(paper.meta.title));
+  const matchingTitleIndices = indexCitationTitles(
+    papers.map((paper) => paper.meta.title),
+  );
   const items = new Map<string, ReadingListItem>();
   for (const paper of papers) {
     if (paper.topic === null) continue;
@@ -71,7 +73,7 @@ export function buildReadingList(): ReadingListItem[] {
     /** One vote per citing paper, however many windows repeat the entry. */
     const voted = new Set<string>();
     for (const entry of paperBibliographyEntries(paper)) {
-      if (titles.some((title) => titleCited(entry.tokens, title))) continue;
+      if (!matchingTitleIndices(entry.tokens).next().done) continue;
       const guess = titleGuess(entry.text);
       const key = guess
         ? normalize(guess)

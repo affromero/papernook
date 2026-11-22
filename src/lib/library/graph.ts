@@ -3,7 +3,7 @@ import {
   paperBibliographyEntries,
   prunePaperBibliographyCache,
 } from "./bibliography/entries";
-import { titleCited, tokenizeTitle } from "./context/reference-match";
+import { indexCitationTitles } from "./context/citation-title-index";
 
 /**
  * The library as a graph: papers connect to their authors, topic, and tags,
@@ -34,25 +34,26 @@ export interface LibraryGraph {
 
 function citationEdges(papers: Paper[]): GraphEdge[] {
   const edges: GraphEdge[] = [];
-  const titles = papers.map((paper) => tokenizeTitle(paper.meta.title));
-  // ponytail: O(n²) title scan over a personal library; index bibliography
-  // text in SQLite if libraries pass ~1k papers.
+  const matchingTitleIndices = indexCitationTitles(
+    papers.map((paper) => paper.meta.title),
+  );
   for (const paper of papers) {
     // Cached against both source files' stamps in bibliography/entries.ts;
     // a corrupt bibliography.json falls through to the text heuristic there.
     const entries = paperBibliographyEntries(paper);
-    if (entries.length === 0) continue;
-    papers.forEach((other, index) => {
-      if (other.slug === paper.slug) return;
-      const title = titles[index];
-      if (entries.some((entry) => titleCited(entry.tokens, title))) {
-        edges.push({
-          source: `paper:${paper.slug}`,
-          target: `paper:${other.slug}`,
-          kind: "cites",
-        });
+    const targets = new Set<number>();
+    for (const { tokens } of entries) {
+      for (const index of matchingTitleIndices(tokens)) {
+        if (papers[index].slug !== paper.slug) targets.add(index);
       }
-    });
+    }
+    for (const index of [...targets].sort((a, b) => a - b)) {
+      edges.push({
+        source: `paper:${paper.slug}`,
+        target: `paper:${papers[index].slug}`,
+        kind: "cites",
+      });
+    }
   }
   prunePaperBibliographyCache(papers);
   return edges;

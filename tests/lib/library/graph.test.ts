@@ -54,6 +54,25 @@ function citesEdges(graph: {
 }
 
 describe("library graph citation edges", () => {
+  it("emits each cited target once in library order", async () => {
+    await placePaper("ml", "spectra", "Spectral Analysis", "");
+    await placePaper("ml", "kernels", "Kernel Methods", "");
+    const { listPapers } = await import("@/lib/library/papers");
+    const [first, second] = listPapers();
+    await placePaper(
+      "ml",
+      "citer",
+      "Survey Results",
+      `Body.\n\nReferences\n\n[1] ${second.meta.title}.\n[2] ${first.meta.title}.\n[3] ${second.meta.title}.\n[4] Survey Results.`,
+    );
+    const { buildLibraryGraph } = await import("@/lib/library/graph");
+    const expected = listPapers()
+      .filter((paper) => paper.slug !== "citer")
+      .map((paper) => `paper:citer->paper:${paper.slug}`);
+    expect(expected).toHaveLength(2);
+    expect(citesEdges(buildLibraryGraph())).toEqual(expected);
+  });
+
   it("draws a directed cites edge from the citing paper's bibliography", async () => {
     await placePaper(
       "nlp",
