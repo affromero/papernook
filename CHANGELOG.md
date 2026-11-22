@@ -2,6 +2,41 @@
 
 All notable changes to Papernook are documented in this file.
 
+## [0.5.0] - 2026-11-22
+
+### Added
+
+- Share annotated papers as public previews, independent forks, or approved
+  collaborations that sync annotations, canvases, exercises, and published
+  conversations. ([#84](https://github.com/affromero/papernook/pull/84))
+- Import public Gemini, Grok, and Perplexity conversations and render their
+  saved charts, maps, and other displays in Papernook.
+  ([#99](https://github.com/affromero/papernook/pull/99))
+- Preview imported artifacts, notebook outputs, and document attachments.
+  Save private images of interactive displays for portable exports.
+  ([#97](https://github.com/affromero/papernook/pull/97), [#96](https://github.com/affromero/papernook/pull/96), [#90](https://github.com/affromero/papernook/pull/90))
+- Search the full PDF from its reader.
+  ([#101](https://github.com/affromero/papernook/pull/101))
+
+### Changed
+
+- Speed up the library graph and reading list. At 1,000 papers, warm p95
+  fell from 2.21 s to 110 ms for the graph and from 1.99 s to 150 ms for
+  the reading list in a synthetic benchmark.
+  ([#112](https://github.com/affromero/papernook/pull/112))
+- Clarify sharing links and read-only controls, and prevent duplicate links.
+  ([#105](https://github.com/affromero/papernook/pull/105), [#103](https://github.com/affromero/papernook/pull/103))
+
+### Fixed
+
+- Open PDF comments near the selected location, prevent overlapping tablet
+  controls, and preserve raster figure colors in dark document appearance.
+  ([#82](https://github.com/affromero/papernook/pull/82), [#80](https://github.com/affromero/papernook/pull/80))
+- Preserve imported conversation layouts, links, and scroll position.
+  ([#87](https://github.com/affromero/papernook/pull/87), [#86](https://github.com/affromero/papernook/pull/86))
+- Apply a minimatch security patch and update dependencies and CI actions.
+  ([#92](https://github.com/affromero/papernook/pull/92), [#93](https://github.com/affromero/papernook/pull/93), [#106](https://github.com/affromero/papernook/pull/106), [#107](https://github.com/affromero/papernook/pull/107), [#108](https://github.com/affromero/papernook/pull/108), [#109](https://github.com/affromero/papernook/pull/109))
+
 ## [0.4.0] - 2026-10-27
 
 ### Added
