@@ -206,6 +206,9 @@ describe("agent model settings route", () => {
 
     expect(body.provider).toBe("codex");
     expect(body.suggestions).toEqual([
+      "gpt-6.2-sol",
+      "gpt-6.2-astra",
+      "gpt-6.1-terra",
       "gpt-6.1-sol",
       "gpt-6-astra",
       "gpt-6-sol",

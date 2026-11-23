@@ -572,6 +572,9 @@ describe("model configuration", () => {
       "haiku",
     ]);
     expect(cfg.modelSuggestions("codex")).toEqual([
+      "gpt-6.2-sol",
+      "gpt-6.2-astra",
+      "gpt-6.1-terra",
       "gpt-6.1-sol",
       "gpt-6-astra",
       "gpt-6-sol",
@@ -581,6 +584,7 @@ describe("model configuration", () => {
       "gpt-5.6-luna",
     ]);
     expect(cfg.modelSuggestions("anthropic")).toEqual([
+      "claude-fable-5-2",
       "claude-fable-5-1",
       "claude-opus-5-5",
       "claude-sonnet-5-5",
@@ -591,6 +595,9 @@ describe("model configuration", () => {
       "claude-haiku-4-5",
     ]);
     expect(cfg.modelSuggestions("openai")).toEqual([
+      "gpt-6.2-sol",
+      "gpt-6.2-astra",
+      "gpt-6.1-terra",
       "gpt-6.1-sol",
       "gpt-6-astra",
       "gpt-6-sol",
